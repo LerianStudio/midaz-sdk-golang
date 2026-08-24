@@ -357,9 +357,17 @@ func (f *accountsFacade) ListOperationsAll(ctx context.Context, orgID, ledgerID,
 	return flattenPages(f.ListOperationsPages(ctx, orgID, ledgerID, accountID, opts))
 }
 
-// BalancesAtTimestamp returns an account's balances as of a point in time
-// (format "yyyy-mm-dd hh:mm:ss"). The endpoint is non-paginated: the response
-// is a bare array, decoded straight into a []models.BalanceHistory slice.
+// BalancesAtTimestamp returns an account's balances as of a point in time. The
+// endpoint is non-paginated: the response is a bare array, decoded straight into
+// a []models.BalanceHistory slice.
+//
+// The timestamp must name an instant ("2026-01-02 03:04:05", "2026-01-02T03:04:05"
+// or RFC3339), and it is required. This is the SAME wire call as
+// [balancesFacade.GetAccountBalancesHistory], so it enforces the SAME date
+// contract through [validateBalanceHistoryDate] — one endpoint cannot have two
+// contracts depending on which spelling the caller reached for. An empty
+// timestamp used to be omitted from the query silently, which asked the server
+// for "now" while the caller believed they had asked for a moment in the past.
 func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerID, accountID, timestamp string) ([]models.BalanceHistory, error) {
 	const operation = "Accounts.BalancesAtTimestamp"
 
@@ -367,10 +375,11 @@ func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerI
 		return nil, err
 	}
 
-	params := &genledger.GetAccountBalancesAtTimestampParams{}
-	if timestamp != "" {
-		params.Date = strPtr(timestamp)
+	if err := validateBalanceHistoryDate(operation, timestamp); err != nil {
+		return nil, err
 	}
+
+	params := &genledger.GetAccountBalancesAtTimestampParams{Date: strPtr(timestamp)}
 
 	resp, err := f.ledger.GetAccountBalancesAtTimestampWithResponse(ctx, orgID, ledgerID, accountID, params)
 	if err != nil {
