@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -110,21 +109,10 @@ func (f *assetRatesFacade) ListAssetRatesByAssetCode(ctx context.Context, orgID,
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllAssetRatesByAssetCodeWithResponse(ctx, orgID, ledgerID, assetCode, listAssetRatesParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllAssetRatesByAssetCode(ctx, orgID, ledgerID, assetCode, listAssetRatesParams(opts))
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.AssetRate]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.AssetRate](operation, resp, err)
 }
 
 // ListAssetRatesByAssetCodePages yields one cursor page per iteration, advancing

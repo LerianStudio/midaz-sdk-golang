@@ -61,12 +61,10 @@ func (f *balancesFacade) ListBalances(ctx context.Context, organizationID, ledge
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllBalancesWithResponse(ctx, organizationID, ledgerID, balancesListParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllBalances(ctx, organizationID, ledgerID, balancesListParams(opts))
 
-	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readList[models.Balance](operation, resp, err)
 }
 
 // ListBalancesPages yields one cursor page per iteration, advancing by the
@@ -95,12 +93,10 @@ func (f *balancesFacade) ListAccountBalances(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllBalancesByAccountIDWithResponse(ctx, organizationID, ledgerID, accountID, accountBalancesListParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, accountBalancesListParams(opts))
 
-	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readList[models.Balance](operation, resp, err)
 }
 
 // ListAccountBalancesPages yields one cursor page of the account's balances per
@@ -267,12 +263,10 @@ func (f *balancesFacade) ListBalancesByAccountAlias(ctx context.Context, organiz
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetBalancesByAliasWithResponse(ctx, organizationID, ledgerID, alias)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetBalancesByAlias(ctx, organizationID, ledgerID, alias)
 
-	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readList[models.Balance](operation, resp, err)
 }
 
 // ListBalancesByExternalCode returns the balances of the external account for an
@@ -284,27 +278,10 @@ func (f *balancesFacade) ListBalancesByExternalCode(ctx context.Context, organiz
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetBalancesExternalByCodeWithResponse(ctx, organizationID, ledgerID, code)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetBalancesExternalByCode(ctx, organizationID, ledgerID, code)
 
-	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
-}
-
-// decodeBalancePage maps a paginated balance envelope, decoding the body
-// straight into the SDK model so Available/OnHold keep full decimal precision.
-func decodeBalancePage(operation string, status int, body []byte, httpResp *http.Response) (*models.ListResponse[models.Balance], error) {
-	if !isSuccess(status) {
-		return nil, errors.DecodeProblemJSON(status, body, requestIDOf(httpResp))
-	}
-
-	var page models.ListResponse[models.Balance]
-	if err := json.Unmarshal(body, &page); err != nil {
-		return nil, errors.NewResponseDecodeError(operation, status, err)
-	}
-
-	return &page, nil
+	return readList[models.Balance](operation, resp, err)
 }
 
 // cursorPages drives a cursor-paginated balance list, echoing each response's

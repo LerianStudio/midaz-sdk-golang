@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -53,21 +52,10 @@ func (f *assetsFacade) List(ctx context.Context, orgID, ledgerID string, opts mo
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListAssetsWithResponse(ctx, orgID, ledgerID, listAssetsParams(opts), listAssetsReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListAssets(ctx, orgID, ledgerID, listAssetsParams(opts), listAssetsReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Asset]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Asset](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing while the response reports

@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -52,21 +51,10 @@ func (f *segmentsFacade) List(ctx context.Context, orgID, ledgerID string, opts 
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListSegmentsWithResponse(ctx, orgID, ledgerID, listSegmentsParams(opts), listSegmentsReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListSegments(ctx, orgID, ledgerID, listSegmentsParams(opts), listSegmentsReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Segment]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Segment](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing while the response reports

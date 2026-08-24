@@ -56,25 +56,15 @@ func (f *organizationsFacade) List(ctx context.Context, opts models.Organization
 
 	reqEditors := listOrganizationsReqEditors(opts)
 
-	resp, err := f.ledger.ListOrganizationsWithResponse(ctx, listOrganizationsParams(opts), reqEditors...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	// readList maps a non-2xx through DecodeProblemJSON, which reads the unified
+	// RFC 9457 envelope both planes emit into *errors.Error with retryability
+	// keyed on status + code suffix and the server's X-Request-ID threaded
+	// through, so a client-side failure correlates with the server-side
+	// log/trace.
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListOrganizations(ctx, listOrganizationsParams(opts), reqEditors...)
 
-	if resp.StatusCode() != http.StatusOK {
-		// DecodeProblemJSON maps the unified RFC 9457 envelope both planes emit
-		// into *errors.Error with retryability keyed on status + code suffix.
-		// The server's X-Request-ID is threaded through so a client-side
-		// failure correlates with the server-side log/trace.
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Organization]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Organization](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing page-by-page while the

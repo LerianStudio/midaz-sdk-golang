@@ -304,8 +304,12 @@ func TestLimitsFacade_ListError(t *testing.T) {
 	}
 }
 
+// The class is a RESPONSE DECODE error, not an internal one: the server
+// answered and the SDK could not read the answer, which is a different
+// fact from "the SDK is broken" and is what a caller needs in order to
+// decide whether to reconcile.
 // TestLimitsFacade_ListMalformedBody proves a 200 whose body is not valid JSON
-// for the flat {limits:[...]} envelope surfaces as a typed internal error
+// for the flat {limits:[...]} envelope surfaces as a typed response-decode error
 // rather than an empty page or a panic.
 func TestLimitsFacade_ListMalformedBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -319,8 +323,8 @@ func TestLimitsFacade_ListMalformedBody(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.Code != sdkerrors.CodeInternal {
-		t.Fatalf("error code = %q, want %q (malformed body must be an internal error)", sdkErr.Code, sdkerrors.CodeInternal)
+	if sdkErr.Code != sdkerrors.CodeResponseDecode {
+		t.Fatalf("error code = %q, want %q (malformed body must be a response-decode error)", sdkErr.Code, sdkerrors.CodeResponseDecode)
 	}
 }
 

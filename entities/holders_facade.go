@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -70,21 +69,10 @@ func (f *holdersFacade) List(ctx context.Context, orgID string, opts models.Hold
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListHoldersV2WithResponse(ctx, orgID, listHoldersParams(opts), listHoldersReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListHoldersV2(ctx, orgID, listHoldersParams(opts), listHoldersReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Holder]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Holder](operation, resp, err)
 }
 
 // Pages yields one cursor page per iteration, advancing by the response

@@ -71,6 +71,10 @@ func TestAuditFacade_ListDecodes(t *testing.T) {
 	}
 }
 
+// The class is a RESPONSE DECODE error, not an internal one: the server
+// answered and the SDK could not read the answer, which is a different
+// fact from "the SDK is broken" and is what a caller needs in order to
+// decide whether to reconcile.
 // TestAuditFacade_ListMalformed2xxBody covers the malformed-2xx-body branch:
 // the server returns 200 but the body cannot unmarshal into
 // ListResponse[AuditEvent] (items is a string, not an array). The facade must
@@ -93,8 +97,8 @@ func TestAuditFacade_ListMalformed2xxBody(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.Category != sdkerrors.CategoryInternal {
-		t.Fatalf("Category = %q, want internal for a malformed 2xx body", sdkErr.Category)
+	if sdkErr.Category != sdkerrors.CategoryResponseDecode {
+		t.Fatalf("Category = %q, want response_decode for a malformed 2xx body", sdkErr.Category)
 	}
 }
 

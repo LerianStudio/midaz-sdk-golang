@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -80,21 +79,10 @@ func (f *instrumentsFacade) List(ctx context.Context, orgID, holderID string, op
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListInstrumentsV2WithResponse(ctx, orgID, listInstrumentsParams(holderID, opts), listInstrumentsReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListInstrumentsV2(ctx, orgID, listInstrumentsParams(holderID, opts), listInstrumentsReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Instrument]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Instrument](operation, resp, err)
 }
 
 // ListPages yields one cursor page per iteration, advancing by the response
@@ -263,21 +251,10 @@ func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, holde
 		editors = append(editors, setQueryParam("cursor", cursor))
 	}
 
-	resp, err := f.ledger.ListAccountsByHolderV2WithResponse(ctx, orgID, holderID, listAccountsByHolderParams(opts), editors...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListAccountsByHolderV2(ctx, orgID, holderID, listAccountsByHolderParams(opts), editors...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Account]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Account](operation, resp, err)
 }
 
 // ListAccountsByHolderPages yields one cursor page of holder accounts per

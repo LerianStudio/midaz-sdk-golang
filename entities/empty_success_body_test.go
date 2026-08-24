@@ -179,6 +179,57 @@ func TestEmptySuccessBodyGuardLetsRealBodiesThrough(t *testing.T) {
 	})
 }
 
+// listReads are the list surfaces the empty-body guard is exercised on, one per
+// decode shape rather than one per endpoint.
+//
+// BOTH versions are here on purpose. The guard lived on the v2 helper alone for
+// one fix round while all twenty-six v1 lists decoded their envelope inline, so
+// a v1 caller walking a ledger still read a dropped body as an empty page. Any
+// v1 row would have caught that; these three are the ones where being wrong
+// costs money — a transaction list, an account list, and the balance decode four
+// separate reads share.
+var listReads = []struct {
+	name string
+	call func(t *testing.T, srv *httptest.Server) error
+}{
+	{
+		name: "V1.Transactions.List",
+		call: func(t *testing.T, srv *httptest.Server) error {
+			_, err := newTestTransactionsFacade(t, srv).
+				List(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{})
+
+			return err
+		},
+	},
+	{
+		name: "V1.Accounts.List",
+		call: func(t *testing.T, srv *httptest.Server) error {
+			_, err := newTestAccountsFacade(t, srv).
+				List(context.Background(), txOrgID, txLedgerID, models.AccountsListOpts{})
+
+			return err
+		},
+	},
+	{
+		name: "V1.Balances.ListBalances",
+		call: func(t *testing.T, srv *httptest.Server) error {
+			_, err := newBalancesFacade(newTestLedgerClient(t, srv), true).
+				ListBalances(context.Background(), txOrgID, txLedgerID, models.BalancesListOpts{})
+
+			return err
+		},
+	},
+	{
+		name: "V2.Transactions.List",
+		call: func(t *testing.T, srv *httptest.Server) error {
+			_, err := newTestTransactionsV2Facade(t, srv).
+				List(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{})
+
+			return err
+		},
+	},
+}
+
 // TestEmptySuccessBodyIsRefusedOnAList is the same defect one shape over, and on
 // a reconciliation path it is arguably the worse one: "null" and "{}" decode
 // into a zero-valued envelope, which reads as an EMPTY PAGE with no next cursor.
@@ -189,29 +240,35 @@ func TestEmptySuccessBodyGuardLetsRealBodiesThrough(t *testing.T) {
 // declares marks items and limit REQUIRED, so an empty page is
 // {"items":[],"limit":N}.
 func TestEmptySuccessBodyIsRefusedOnAList(t *testing.T) {
-	ctx := context.Background()
+	for _, read := range listReads {
+		t.Run(read.name, func(t *testing.T) {
+			for _, shape := range emptySuccessBodies {
+				t.Run(shape.name, func(t *testing.T) {
+					srv := emptyBodyServer(t, http.StatusOK, shape.body)
 
-	for _, shape := range emptySuccessBodies {
-		t.Run(shape.name, func(t *testing.T) {
-			srv := emptyBodyServer(t, http.StatusOK, shape.body)
-
-			_, err := newTestTransactionsV2Facade(t, srv).
-				List(ctx, txOrgID, txLedgerID, models.TransactionsListOpts{})
-			if err == nil {
-				t.Fatalf("a 200 carrying %q must not read as an empty page", shape.body)
+					if err := read.call(t, srv); err == nil {
+						t.Fatalf("a 200 carrying %q must not read as an empty page", shape.body)
+					} else if !sdkerrors.IsResponseDecodeError(err) {
+						t.Fatalf("want a response-decode error, got %v", err)
+					}
+				})
 			}
 
-			if !sdkerrors.IsResponseDecodeError(err) {
-				t.Fatalf("want a response-decode error, got %v", err)
-			}
+			t.Run("a real empty page still decodes", func(t *testing.T) {
+				srv := emptyBodyServer(t, http.StatusOK, `{"items":[],"limit":10}`)
+
+				if err := read.call(t, srv); err != nil {
+					t.Fatalf("an empty page is a real answer and must decode: %v", err)
+				}
+			})
 		})
 	}
 
-	t.Run("a real empty page still decodes", func(t *testing.T) {
+	t.Run("a real page decodes with its items", func(t *testing.T) {
 		srv := emptyBodyServer(t, http.StatusOK, `{"items":[],"limit":10}`)
 
 		page, err := newTestTransactionsV2Facade(t, srv).
-			List(ctx, txOrgID, txLedgerID, models.TransactionsListOpts{})
+			List(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{})
 		if err != nil {
 			t.Fatalf("an empty page is a real answer and must decode: %v", err)
 		}

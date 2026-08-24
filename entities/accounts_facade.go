@@ -55,21 +55,10 @@ func (f *accountsFacade) List(ctx context.Context, orgID, ledgerID string, opts 
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListAccountsWithResponse(ctx, orgID, ledgerID, listAccountsParams(opts), listAccountsReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListAccounts(ctx, orgID, ledgerID, listAccountsParams(opts), listAccountsReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Account]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Account](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing page-by-page while the
@@ -245,21 +234,10 @@ func (f *accountsFacade) ListBalances(ctx context.Context, orgID, ledgerID, acco
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllBalancesByAccountIDWithResponse(ctx, orgID, ledgerID, accountID, balancesByAccountParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllBalancesByAccountID(ctx, orgID, ledgerID, accountID, balancesByAccountParams(opts))
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Balance]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Balance](operation, resp, err)
 }
 
 // ListBalancesPages yields one cursor page per iteration, advancing by the
@@ -317,21 +295,10 @@ func (f *accountsFacade) ListOperations(ctx context.Context, orgID, ledgerID, ac
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllOperationsByAccountWithResponse(ctx, orgID, ledgerID, accountID, operationsByAccountParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllOperationsByAccount(ctx, orgID, ledgerID, accountID, operationsByAccountParams(opts))
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Operation]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Operation](operation, resp, err)
 }
 
 // ListOperationsPages yields one cursor page per iteration, advancing by the

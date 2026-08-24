@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -62,21 +61,10 @@ func (f *operationRoutesFacade) List(ctx context.Context, orgID, ledgerID string
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListOperationRoutesWithResponse(ctx, orgID, ledgerID, listOperationRoutesParams(opts), listOperationRoutesReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListOperationRoutes(ctx, orgID, ledgerID, listOperationRoutesParams(opts), listOperationRoutesReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.OperationRoute]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.OperationRoute](operation, resp, err)
 }
 
 // Pages yields one cursor page per iteration, advancing by the response

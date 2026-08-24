@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -66,21 +65,10 @@ func (f *billingPackagesFacade) List(ctx context.Context, orgID, ledgerID string
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllBillingPackagesV2WithResponse(ctx, orgID, ledgerID, listBillingPackagesParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllBillingPackagesV2(ctx, orgID, ledgerID, listBillingPackagesParams(opts))
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.BillingPackage]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.BillingPackage](operation, resp, err)
 }
 
 // ListPages yields one full page per iteration. PAGE mode: it initializes Page=1,

@@ -154,21 +154,22 @@ func (f *rulesFacade) List(ctx context.Context, opts models.RulesListOpts) (*mod
 		return nil, err
 	}
 
-	resp, err := f.tracer.ListRulesWithResponse(ctx, listRulesParams(opts))
+	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
+	httpResp, body, err := readRawResponse(f.tracer.ListRules(ctx, listRulesParams(opts)))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
+		return nil, err
 	}
 
 	var env struct {
 		Rules      []models.Rule `json:"rules"`
 		NextCursor string        `json:"nextCursor"`
 	}
-	if err := json.Unmarshal(resp.Body, &env); err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, err)
 	}
 
 	return &models.ListResponse[models.Rule]{

@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -60,25 +59,10 @@ func (f *operationsFacade) ListOperations(ctx context.Context, organizationID, l
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllOperationsByAccountWithResponse(ctx, organizationID, ledgerID, accountID, operationsByAccountParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, operationsByAccountParams(opts))
 
-	if !isSuccess(resp.StatusCode()) {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Operation]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewResponseDecodeError(operation, resp.StatusCode(), err)
-	}
-
-	if page.Items == nil {
-		page.Items = []models.Operation{}
-	}
-
-	return &page, nil
+	return readList[models.Operation](operation, resp, err)
 }
 
 // ListOperationsPages yields one cursor page per iteration, advancing by the

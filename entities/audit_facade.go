@@ -5,14 +5,11 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"iter"
-	"net/http"
 	"strconv"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // auditFacade is the Epic 3.3 (Task 3.3.2) hand-written facade over the
@@ -56,21 +53,10 @@ func (f *auditFacade) ListAuditEvents(ctx context.Context, orgID string, opts mo
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAuditEventsV2WithResponse(ctx, orgID, listAuditEventsParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAuditEventsV2(ctx, orgID, listAuditEventsParams(opts))
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.AuditEvent]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.AuditEvent](operation, resp, err)
 }
 
 // ListAuditEventsPages yields one cursor page per iteration, advancing by the

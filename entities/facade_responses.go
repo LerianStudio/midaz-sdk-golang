@@ -94,7 +94,48 @@ func readOne[T any](operation string, resp *http.Response, err error) (*T, error
 	return decodeOne[T](operation, httpResp.StatusCode, body, httpResp)
 }
 
+// guardListBody applies the two refusals EVERY list read makes, whichever
+// envelope it goes on to decode.
+//
+// A non-2xx decodes the unified RFC 9457 envelope. A 2xx carrying no page is
+// refused: "null" and "{}" both decode into a zero-valued envelope with a nil
+// error, which reads as an EMPTY PAGE with no next cursor, so a caller iterating
+// a ledger's transactions stops on the first dropped body and concludes the
+// ledger is empty. The class is a RESPONSE DECODE error, not an internal one —
+// the server answered and the read cannot be trusted, which is a different fact
+// from "the SDK is broken".
+//
+// No legitimate list body is any of these shapes: every list envelope the ledger
+// declares (Pagination, TransactionV2ListBody) marks items and limit REQUIRED,
+// so an empty page is {"items":[],"limit":N} and never {} or null. The tracer
+// plane's named-field envelopes ({"rules":[...],"nextCursor":""}) are the same:
+// the field is always present. The bare-ARRAY reads go through readSlice, not
+// here, and that distinction matters — see the note there.
+func guardListBody(operation string, status int, body []byte, httpResp *http.Response) error {
+	if !isSuccess(status) {
+		return errors.DecodeProblemJSON(status, body, requestIDOf(httpResp))
+	}
+
+	if isEmptyBody(body) {
+		return errors.NewResponseDecodeError(operation, status, errEmptySuccessBody)
+	}
+
+	return nil
+}
+
 // readList maps a paginated envelope into models.ListResponse[T].
+//
+// This is the single decode behind EVERY list on both surfaces. It reads the raw
+// response rather than the generated *WithResponse parser for the reason the
+// file header gives, and the list surface proves it: that parser unmarshals the
+// body itself whenever the content type says json, so a 200 whose body a gateway
+// dropped fails INSIDE it and surfaces as an internal error — "the SDK is
+// broken" — before any guard here runs. Reading raw puts every 2xx shape in
+// front of guardListBody.
+//
+// The four tracer-plane lists decode a differently-named envelope of their own
+// ({"rules":[...],"nextCursor":""}) and call guardListBody directly, which is the
+// same pair of refusals without the shared envelope type.
 func readList[T any](operation string, resp *http.Response, err error) (*models.ListResponse[T], error) {
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(resp, err)
@@ -102,22 +143,8 @@ func readList[T any](operation string, resp *http.Response, err error) (*models.
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if !isSuccess(httpResp.StatusCode) {
-		return nil, errors.DecodeProblemJSON(httpResp.StatusCode, body, requestIDOf(httpResp))
-	}
-
-	// Same refusal decodeOne makes, for the same reason: "null" and "{}" both
-	// decode into a zero-valued envelope with a nil error, which reads as an
-	// EMPTY PAGE with no next cursor. A caller iterating a ledger's transactions
-	// stops on the first dropped body and concludes the ledger is empty.
-	//
-	// No legitimate list body is any of these shapes: every list envelope the
-	// ledger declares (Pagination, TransactionV2ListBody) marks items and limit
-	// REQUIRED, so an empty page is {"items":[],"limit":N} and never {} or null.
-	// The bare-ARRAY reads go through readSlice, not here, and that distinction
-	// matters — see the note there.
-	if isEmptyBody(body) {
-		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, errEmptySuccessBody)
+	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
+		return nil, err
 	}
 
 	var page models.ListResponse[T]

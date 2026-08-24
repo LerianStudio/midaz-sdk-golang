@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -55,21 +54,10 @@ func (f *accountTypesFacade) List(ctx context.Context, orgID, ledgerID string, o
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListAccountTypesWithResponse(ctx, orgID, ledgerID, listAccountTypesParams(opts), listAccountTypesReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListAccountTypes(ctx, orgID, ledgerID, listAccountTypesParams(opts), listAccountTypesReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.AccountType]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.AccountType](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing while the response reports

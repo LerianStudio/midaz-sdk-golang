@@ -85,21 +85,22 @@ func (f *validationsFacade) List(ctx context.Context, opts models.ValidationsLis
 		return nil, err
 	}
 
-	resp, err := f.tracer.ListValidationsWithResponse(ctx, listValidationsParams(opts))
+	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
+	httpResp, body, err := readRawResponse(f.tracer.ListValidations(ctx, listValidationsParams(opts)))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
+		return nil, err
 	}
 
 	var env struct {
 		TransactionValidations []models.ValidationSummary `json:"transactionValidations"`
 		NextCursor             string                     `json:"nextCursor"`
 	}
-	if err := json.Unmarshal(resp.Body, &env); err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, err)
 	}
 
 	return &models.ListResponse[models.ValidationSummary]{
