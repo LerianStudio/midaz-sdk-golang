@@ -175,7 +175,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 			result, err := entity.ListBalancesByExternalCode(context.Background(), tt.orgID, tt.ledgerID, tt.code, tt.opts)
 
@@ -807,7 +807,7 @@ func TestBalancesEntity_ListBalancesPages_DefaultsAndAdvances(t *testing.T) {
 
 	entity := &balancesEntity{serviceEntity: serviceEntity{
 		httpClient: newBalancesHTTPClientAdapter(mock),
-		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
 	}}
 
 	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
@@ -832,7 +832,7 @@ func TestBalancesEntity_ListBalancesAll_FlattenAcrossPages(t *testing.T) {
 
 	entity := &balancesEntity{serviceEntity: serviceEntity{
 		httpClient: newBalancesHTTPClientAdapter(mock),
-		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
 	}}
 
 	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
@@ -855,7 +855,7 @@ func TestBalancesEntity_ListBalancesPages_EarlyTermination(t *testing.T) {
 
 	entity := &balancesEntity{serviceEntity: serviceEntity{
 		httpClient: newBalancesHTTPClientAdapter(mock),
-		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
 	}}
 
 	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
@@ -880,7 +880,7 @@ func TestBalancesEntity_ListBalancesPages_ContextCancellation(t *testing.T) {
 
 	entity := &balancesEntity{serviceEntity: serviceEntity{
 		httpClient: newBalancesHTTPClientAdapter(mock),
-		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
 	}}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -908,7 +908,7 @@ func TestBalancesEntity_ListBalancesByAccountAliasPages_AdvancesPages(t *testing
 
 	entity := &balancesEntity{serviceEntity: serviceEntity{
 		httpClient: newBalancesHTTPClientAdapter(mock),
-		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
 	}}
 
 	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}

@@ -601,7 +601,11 @@ func planeVersionPath(service string) string {
 }
 
 // normalizeServiceURL validates a plane base URL and stamps versionPath onto it.
-// An empty versionPath leaves the caller-supplied path untouched.
+//
+// An empty versionPath marks the Ledger plane, whose base URL must be BARE: the
+// version lives inside every operation path there. A caller-supplied version
+// suffix is REJECTED rather than silently accepted — see
+// [rejectLedgerVersionSuffix] for why silence is the dangerous option.
 func normalizeServiceURL(rawURL, versionPath string, allowInsecureHTTP bool) (string, error) {
 	parsedURL, err := url.Parse(strings.TrimRight(strings.TrimSpace(rawURL), "/"))
 	if err != nil {
@@ -626,6 +630,12 @@ func normalizeServiceURL(rawURL, versionPath string, allowInsecureHTTP bool) (st
 
 	cleanPath := strings.TrimRight(parsedURL.Path, "/")
 
+	if versionPath == "" {
+		if err := rejectLedgerVersionSuffix(cleanPath); err != nil {
+			return "", err
+		}
+	}
+
 	switch {
 	case versionPath == "":
 		parsedURL.Path = cleanPath
@@ -638,4 +648,27 @@ func normalizeServiceURL(rawURL, versionPath string, allowInsecureHTTP bool) (st
 	}
 
 	return parsedURL.String(), nil
+}
+
+// rejectLedgerVersionSuffix refuses a Ledger base URL that ends in a version
+// segment.
+//
+// The SDK used to pin the version onto the base URL, so deployments configured
+// MIDAZ_LEDGER_URL=https://host:3002/v1 and .env files in the wild still carry
+// that shape. The SDK now versions each operation path itself, so accepting the
+// suffix would produce "/v1/v1/organizations/..." — a 404 on every single call,
+// with nothing in the error to point at the base URL as the cause. Failing at
+// construction time, naming the variable to edit, is the only outcome that tells
+// the operator what is actually wrong.
+func rejectLedgerVersionSuffix(cleanPath string) error {
+	for _, version := range []string{"/v1", "/v2"} {
+		if strings.HasSuffix(cleanPath, version) {
+			return fmt.Errorf(
+				"base URL must not end in %q: the SDK versions Ledger paths itself, so a version suffix here sends every request to %q. Remove it from MIDAZ_LEDGER_URL / MIDAZ_BASE_URL / WithBaseURL / WithLedgerURL",
+				version, version+version,
+			)
+		}
+	}
+
+	return nil
 }

@@ -17,8 +17,8 @@ import (
 // only the additive surface and that the legacy accessors still coexist.
 func TestEntity_PlaneFacadeAccessorsWired(t *testing.T) {
 	baseURLs := map[string]string{
-		"onboarding":  "https://api.example.com/onboarding/v1",
-		"transaction": "https://api.example.com/transaction/v1",
+		"onboarding":  "https://api.example.com/onboarding",
+		"transaction": "https://api.example.com/transaction",
 		"tracer":      "https://api.example.com/tracer/v1",
 	}
 

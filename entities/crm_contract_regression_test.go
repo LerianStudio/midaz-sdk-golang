@@ -70,10 +70,10 @@ func TestCRMContractRejectsInvalidScopedIdentifiersBeforeTransport(t *testing.T)
 
 func TestCRMContractNewEntityWithConfigDefaultsMissingCRMURL(t *testing.T) {
 	baseURLs := map[string]string{
-		"onboarding":  "https://api.example.com/onboarding/v1",
-		"transaction": "https://api.example.com/transaction/v1",
+		"onboarding":  "https://api.example.com/onboarding",
+		"transaction": "https://api.example.com/transaction",
 	}
 	entity, err := NewEntityWithConfig(&mockPluginAuthConfig{httpClient: http.DefaultClient, baseURLs: baseURLs})
 	require.NoError(t, err)
-	require.Equal(t, "https://api.example.com/onboarding/v1", entity.baseURLs["crm"])
+	require.Equal(t, "https://api.example.com/onboarding", entity.baseURLs["crm"])
 }

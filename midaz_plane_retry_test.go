@@ -33,7 +33,7 @@ func TestPlaneClientHonorsThreadedMaxRetries(t *testing.T) {
 
 	c, err := New(
 		WithConfig(createTestConfig(t)),
-		WithLedgerURL(srv.URL+"/v1"),
+		WithLedgerURL(srv.URL),
 		WithTracerURL(srv.URL+"/v1"),
 		WithRetryOptions(
 			retry.WithMaxRetries(5),
@@ -69,7 +69,7 @@ func TestPlaneClientHonorsThreadedCustomPolicy(t *testing.T) {
 
 	c, err := New(
 		WithConfig(createTestConfig(t)),
-		WithLedgerURL(srv.URL+"/v1"),
+		WithLedgerURL(srv.URL),
 		WithTracerURL(srv.URL+"/v1"),
 		WithRetryOptions(
 			retry.WithMaxRetries(2),

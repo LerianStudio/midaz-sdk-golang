@@ -67,7 +67,7 @@ func TestNewClient(t *testing.T) {
 	client, err = New(
 		WithConfig(testCfg),
 		WithHTTPClient(customHTTPClient),
-		WithLedgerURL("https://test.example.com/v1"),
+		WithLedgerURL("https://test.example.com"),
 		WithTracerURL("https://test.example.com/tracer/v1"),
 		WithTimeout(30*time.Second),
 		WithDebug(true),
@@ -968,7 +968,7 @@ func TestNewClientWiresTwoPlaneClients(t *testing.T) {
 	c, err := New(
 		WithEnvironment(config.EnvironmentLocal),
 		WithAnonymous(),
-		WithLedgerURL("http://localhost:3002/v1"),
+		WithLedgerURL("http://localhost:3002"),
 		WithTracerURL("http://localhost:4020/v1"),
 	)
 	require.NoError(t, err)
