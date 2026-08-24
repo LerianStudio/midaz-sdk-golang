@@ -121,18 +121,33 @@ func (f *billingPackagesFacade) ListAll(ctx context.Context, orgID, ledgerID str
 	return flattenPages(f.ListPages(ctx, orgID, ledgerID, opts))
 }
 
-// Create registers a new billing package under an organization via the
-// write-facade pattern (rewindable body so the auth round tripper can replay
-// after a 401). It routes through the RAW WithBody + isSuccess(2xx), so the
-// server's 201 Created is a success even though the OAS spec says 200.
+// Create registers a new billing package under a LEDGER via the write-facade
+// pattern (rewindable body so the auth round tripper can replay after a 401). It
+// routes through the RAW WithBody + isSuccess(2xx), so the server's 201 Created
+// is a success even though the OAS spec says 200.
+//
+// The ledger travels in the path AND in the body (the server schema requires
+// ledgerId). An empty input.LedgerID inherits the path ledger; a different one is
+// rejected — see [reconcileBodyLedgerID]. The caller's input is never mutated.
 func (f *billingPackagesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateBillingPackageInput) (*models.BillingPackage, error) {
 	const operation = "BillingPackages.Create"
 
-	if err := input.Validate(); err != nil {
+	payload := input
+
+	if input != nil {
+		reconciled := *input
+		if err := reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID); err != nil {
+			return nil, err
+		}
+
+		payload = &reconciled
+	}
+
+	if err := payload.Validate(); err != nil {
 		return nil, err
 	}
 
-	return writeJSON[models.BillingPackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.BillingPackage](ctx, operation, payload, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateBillingPackageV2WithBody(ctx, orgID, ledgerID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }

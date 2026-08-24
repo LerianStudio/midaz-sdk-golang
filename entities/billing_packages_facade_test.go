@@ -332,6 +332,73 @@ func TestBillingPackagesFacade_Validation(t *testing.T) {
 	}
 }
 
+// TestBillingPackagesFacade_LedgerReconciliation covers the path-vs-body ledger on
+// create: the server takes the ledger from the URL AND requires ledgerId in the
+// body, so an empty body value must inherit the addressed ledger and a
+// contradicting one must never reach the wire — it would register a billing
+// package (which prices money movement) against a ledger the caller did not
+// address.
+func TestBillingPackagesFacade_LedgerReconciliation(t *testing.T) {
+	newInput := func(ledgerID string) *models.CreateBillingPackageInput {
+		return models.NewCreateVolumeBillingPackageInput("Vol", ledgerID, "BRL", "@d", "@c").
+			WithEventFilter("route-1", "APPROVED").
+			WithPricingModel("tiered").
+			WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).
+			WithEnable(true)
+	}
+
+	t.Run("empty body ledgerId inherits the path ledger", func(t *testing.T) {
+		var body string
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, _ := io.ReadAll(r.Body)
+			body = string(b)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"aaaa","label":"Vol","type":"volume"}`))
+		}))
+		defer srv.Close()
+
+		input := newInput("")
+
+		if _, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID, input); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+
+		if !strings.Contains(body, `"ledgerId":"`+billingPkgLedgerID+`"`) {
+			t.Fatalf("body = %q, want the path ledger filled into ledgerId", body)
+		}
+
+		if input.LedgerID != "" {
+			t.Fatalf("caller input mutated: LedgerID = %q, want it left empty", input.LedgerID)
+		}
+	})
+
+	t.Run("mismatched body ledgerId is rejected before transport", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			t.Fatal("no request may reach the server when the ledgers disagree")
+		}))
+		defer srv.Close()
+
+		const otherLedger = "66666666-6666-6666-6666-666666666666"
+
+		input := newInput(otherLedger)
+
+		_, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID, input)
+		if err == nil {
+			t.Fatal("Create must reject a body ledgerId that differs from the path ledger")
+		}
+
+		if !strings.Contains(err.Error(), otherLedger) || !strings.Contains(err.Error(), billingPkgLedgerID) {
+			t.Fatalf("error = %v, want both ledger IDs named", err)
+		}
+
+		if input.LedgerID != otherLedger {
+			t.Fatalf("caller input mutated: LedgerID = %q", input.LedgerID)
+		}
+	})
+}
+
 func newTestBillingPackagesFacade(t *testing.T, srv *httptest.Server) *billingPackagesFacade {
 	t.Helper()
 	return newBillingPackagesFacade(newTestLedgerClient(t, srv), true)

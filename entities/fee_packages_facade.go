@@ -115,16 +115,31 @@ func (f *feePackagesFacade) All(ctx context.Context, orgID, ledgerID string, opt
 	return flattenPages(f.Pages(ctx, orgID, ledgerID, opts))
 }
 
-// Create registers a new fee package under an organization via the write-facade
+// Create registers a new fee package under a LEDGER via the write-facade
 // pattern (rewindable body so the auth round tripper can replay after a 401).
+//
+// The ledger travels in the path AND in the body (the server schema requires
+// ledgerId). An empty input.LedgerID inherits the path ledger; a different one is
+// rejected — see [reconcileBodyLedgerID]. The caller's input is never mutated.
 func (f *feePackagesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreatePackageInput) (*models.FeePackage, error) {
 	const operation = "FeePackages.Create"
 
-	if err := input.Validate(); err != nil {
+	payload := input
+
+	if input != nil {
+		reconciled := *input
+		if err := reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID); err != nil {
+			return nil, err
+		}
+
+		payload = &reconciled
+	}
+
+	if err := payload.Validate(); err != nil {
 		return nil, err
 	}
 
-	return writeJSON[models.FeePackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.FeePackage](ctx, operation, payload, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreatePackageV2WithBody(ctx, orgID, ledgerID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
