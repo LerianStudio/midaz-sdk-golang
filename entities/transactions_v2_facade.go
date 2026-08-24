@@ -344,7 +344,12 @@ func refuseUndeclaredListFilters(operation string, filters models.TransactionsFi
 	var named []string
 
 	for _, f := range undeclared {
-		if strings.TrimSpace(f.value) != "" {
+		// Deliberately NOT TrimSpace: a value that is only whitespace is still a
+		// value the caller SET, and trimming first let it slip both nets at once
+		// — unnamed by this refusal, and unsent by any editor — so the caller got
+		// the same silent full result set the refusal exists to prevent, this
+		// time at a nonsense input. Emptiness here means the zero value.
+		if f.value != "" {
 			named = append(named, f.field)
 		}
 	}

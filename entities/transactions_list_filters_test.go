@@ -77,6 +77,12 @@ func TestTransactionListRefusesUndeclaredFilters(t *testing.T) {
 		{"source account", func(f *models.TransactionsFilters) { f.SourceAccount = "@src" }, "SourceAccount"},
 		{"destination account", func(f *models.TransactionsFilters) { f.DestinationAccount = "@dst" }, "DestinationAccount"},
 		{"route", func(f *models.TransactionsFilters) { f.Route = "route-1" }, "Route"},
+		// A value that is only whitespace is still a value the caller SET. It
+		// slipped both nets: the refusal trimmed before testing, so it was not
+		// named, and no editor emitted it either — leaving the same silent full
+		// result set at a nonsense input.
+		{"whitespace-only status", func(f *models.TransactionsFilters) { f.Status = "   " }, "Status"},
+		{"whitespace-only route", func(f *models.TransactionsFilters) { f.Route = "\t\n" }, "Route"},
 	}
 
 	for _, surface := range listFilterSurfaces {
