@@ -186,20 +186,32 @@ func TestEmptySuccessBodyGuardLetsRealBodiesThrough(t *testing.T) {
 }
 
 // listReads are the list surfaces the empty-body guard is exercised on, one per
-// decode shape rather than one per endpoint.
+// DECODE PATH rather than one per endpoint.
 //
-// BOTH versions are here on purpose. The guard lived on the v2 helper alone for
-// one fix round while all twenty-six v1 lists decoded their envelope inline, so
-// a v1 caller walking a ledger still read a dropped body as an empty page. Any
-// v1 row would have caught that; these three are the ones where being wrong
-// costs money — a transaction list, an account list, and the balance decode four
-// separate reads share.
+// BOTH versions AND BOTH PLANES are here on purpose. The guard lived on the v2
+// helper alone for one fix round while all twenty-six v1 lists decoded their
+// envelope inline, so a v1 caller walking a ledger still read a dropped body as
+// an empty page. Any v1 row would have caught that.
+//
+// The four tracer rows are here for the sibling reason: the tracer lists do NOT
+// route through readList. Each one unmarshals its own domain-keyed envelope and
+// calls guardListBody directly, so the ledger rows below prove nothing about
+// them — reverting all four tracer call sites to a bare non-2xx check left this
+// whole suite green while the silent-empty-page defect was live on every tracer
+// list. Four distinct envelopes, four rows.
 var listReads = []struct {
 	name string
-	call func(t *testing.T, srv *httptest.Server) error
+	// emptyPage is what a REAL empty page looks like on this endpoint. It is
+	// the other half of the guard: one that refused everything would pass the
+	// no-page cases too. The ledger envelope marks items and limit REQUIRED;
+	// each tracer list names its own collection field instead, so the shape is
+	// per-row and a shared body would exercise none of them.
+	emptyPage string
+	call      func(t *testing.T, srv *httptest.Server) error
 }{
 	{
-		name: "V1.Transactions.List",
+		name:      "V1.Transactions.List",
+		emptyPage: `{"items":[],"limit":10}`,
 		call: func(t *testing.T, srv *httptest.Server) error {
 			t.Helper()
 
@@ -210,7 +222,8 @@ var listReads = []struct {
 		},
 	},
 	{
-		name: "V1.Accounts.List",
+		name:      "V1.Accounts.List",
+		emptyPage: `{"items":[],"limit":10}`,
 		call: func(t *testing.T, srv *httptest.Server) error {
 			t.Helper()
 
@@ -221,7 +234,8 @@ var listReads = []struct {
 		},
 	},
 	{
-		name: "V1.Balances.ListBalances",
+		name:      "V1.Balances.ListBalances",
+		emptyPage: `{"items":[],"limit":10}`,
 		call: func(t *testing.T, srv *httptest.Server) error {
 			t.Helper()
 
@@ -232,12 +246,58 @@ var listReads = []struct {
 		},
 	},
 	{
-		name: "V2.Transactions.List",
+		name:      "V2.Transactions.List",
+		emptyPage: `{"items":[],"limit":10}`,
 		call: func(t *testing.T, srv *httptest.Server) error {
 			t.Helper()
 
 			_, err := newTestTransactionsV2Facade(t, srv).
 				List(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{})
+
+			return err
+		},
+	},
+	{
+		name:      "Tracer.Rules.List",
+		emptyPage: `{"rules":[],"hasMore":false,"nextCursor":""}`,
+		call: func(t *testing.T, srv *httptest.Server) error {
+			t.Helper()
+
+			_, err := newTestRulesFacade(t, srv).List(context.Background(), models.RulesListOpts{})
+
+			return err
+		},
+	},
+	{
+		name:      "Tracer.Limits.List",
+		emptyPage: `{"limits":[],"hasMore":false,"nextCursor":""}`,
+		call: func(t *testing.T, srv *httptest.Server) error {
+			t.Helper()
+
+			_, err := newTestLimitsFacade(t, srv).List(context.Background(), models.LimitsListOpts{})
+
+			return err
+		},
+	},
+	{
+		name:      "Tracer.Validations.List",
+		emptyPage: `{"transactionValidations":[],"hasMore":false,"nextCursor":""}`,
+		call: func(t *testing.T, srv *httptest.Server) error {
+			t.Helper()
+
+			_, err := newTestValidationsFacade(t, srv).List(context.Background(), models.ValidationsListOpts{})
+
+			return err
+		},
+	},
+	{
+		name:      "Tracer.AuditEvents.List",
+		emptyPage: `{"auditEvents":[],"hasMore":false,"nextCursor":""}`,
+		call: func(t *testing.T, srv *httptest.Server) error {
+			t.Helper()
+
+			_, err := newTestAuditEventsFacade(t, srv).
+				List(context.Background(), models.AuditEventRecordsListOpts{})
 
 			return err
 		},
@@ -277,7 +337,7 @@ func TestEmptySuccessBodyIsRefusedOnAList(t *testing.T) {
 			}
 
 			t.Run("a real empty page still decodes", func(t *testing.T) {
-				srv := emptyBodyServer(t, http.StatusOK, `{"items":[],"limit":10}`)
+				srv := emptyBodyServer(t, http.StatusOK, read.emptyPage)
 
 				if err := read.call(t, srv); err != nil {
 					t.Fatalf("an empty page is a real answer and must decode: %v", err)
