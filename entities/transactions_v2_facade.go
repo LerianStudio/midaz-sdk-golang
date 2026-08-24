@@ -291,16 +291,15 @@ func (f *transactionsV2Facade) Get(ctx context.Context, orgID, ledgerID, transac
 // money surface that is a reconciliation reading every transaction in the ledger
 // and believing it read one status.
 //
-// The /v1 list has the same contract and does NOT refuse — it still sends the
-// six filters under their legacy query names for the ledger to ignore. That is
-// a compatibility choice on a surface that already shipped that way, not a
-// contract difference: getAllTransactions and getAllTransactionsV2 declare
-// byte-identical query sets (metadata, limit, start_date, end_date, sort_order,
-// cursor) in the pinned ledger spec. Narrowing on /v1 is therefore just as
-// silent, and closing it there is a separate decision about a shipped surface.
+// The /v1 list refuses the same six, for the same reason and on the same
+// evidence: both routes call ONE server function (transaction_handler.go:500 and
+// transaction_v2_mirror_handler.go:148 both invoke handler.getAllTransactions),
+// so the two surfaces cannot differ here. See V1.Transactions.List for the full
+// handler trace.
 //
 // Count is unaffected on both surfaces: countTransactionsByFilters and its /v2
 // twin DO declare status and route, so those two filters are honoured there.
+// Note what Count's default window is before reaching for it — see Count.
 func (f *transactionsV2Facade) List(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.TransactionV2], error) {
 	const operation = "V2.Transactions.List"
 
@@ -323,12 +322,12 @@ func (f *transactionsV2Facade) List(ctx context.Context, orgID, ledgerID string,
 	return readList[models.TransactionV2](operation, resp, err)
 }
 
-// refuseUndeclaredListFilters rejects the TransactionsFilters fields the /v2
-// list operation does not declare, naming every one the caller set so a caller
-// with three of them set fixes all three at once.
+// refuseUndeclaredListFilters rejects the TransactionsFilters fields NEITHER
+// transaction list honours, naming every one the caller set so a caller with
+// three of them set fixes all three at once. Both List methods call it.
 //
-// Status and Route are on the list because the LIST endpoint does not declare
-// them; the count endpoint does, and Count does not call this.
+// Status and Route are on the list because the LIST route ignores them; the
+// count endpoint declares and honours both, and Count does not call this.
 func refuseUndeclaredListFilters(operation string, filters models.TransactionsFilters) error {
 	undeclared := []struct {
 		field string
@@ -355,10 +354,11 @@ func refuseUndeclaredListFilters(operation string, filters models.TransactionsFi
 	}
 
 	return errors.NewValidationError(operation, fmt.Sprintf(
-		"the /v2 transaction list does not narrow by %s; it honours only the metadata predicate "+
-			"and the date range, so sending these would return every transaction in the ledger "+
-			"unfiltered. Narrow client-side, carry the identifier in metadata, or use Count for "+
-			"Status and Route",
+		"the transaction list does not narrow by %s on either surface; it honours only the "+
+			"metadata predicate and the date range, so sending these would return every "+
+			"transaction in the ledger unfiltered. Narrow client-side, carry the identifier in "+
+			"metadata, or use Count for Status and Route — noting that Count with no date range "+
+			"counts TODAY only, not the whole ledger",
 		strings.Join(named, ", ")), nil)
 }
 

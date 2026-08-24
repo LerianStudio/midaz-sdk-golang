@@ -37,60 +37,59 @@ type TransactionsListOpts struct {
 // no-op'd here (audit finding 5.12), but the ledger honors different subsets per
 // endpoint, so treat the field docs below as the contract:
 //
-//   - List: the metadata predicate and the inherited date range are the only
-//     narrowing the ledger applies. The vendored contract
-//     (api/ledger.openapi.yaml, getAllTransactions) declares exactly metadata,
-//     start_date, end_date, sort_order and cursor.
-//   - Count: Status and Route, plus the date range (countTransactionsByFilters
-//     declares both filters).
+//   - List, BOTH surfaces: the metadata predicate and the inherited date range
+//     are the only narrowing the ledger applies. Setting any other field here is
+//     REFUSED with a validation error naming it, because the ledger would return
+//     every transaction and a caller reads that as a narrowed result. /v1 and
+//     /v2 behave identically because they are literally the same server
+//     function: transaction_handler.go:500 and
+//     transaction_v2_mirror_handler.go:148 both call handler.getAllTransactions.
+//   - Count, BOTH surfaces: Status and Route, plus the date range
+//     (countTransactionsByFilters declares both filters). Count with NO date
+//     range counts TODAY only — see the Count methods.
 //
-// The remaining fields are handled DIFFERENTLY by the two list surfaces, and
-// the difference is a compatibility choice rather than a contract difference —
-// getAllTransactions and getAllTransactionsV2 declare byte-identical query sets:
-//
-//   - V2.Transactions.List REFUSES them. Setting one returns a validation error
-//     naming it, because a filter with no wire slot returns every transaction in
-//     the ledger and a caller reads that as a narrowed result.
-//   - V1.Transactions.List still SENDS them under their legacy query-param
-//     names, where the ledger ignores them. That is how the surface shipped.
-//
-// On either surface: narrow client-side, carry the identifier in metadata, or
-// use Count for Status and Route, rather than relying on these here.
+// Narrow client-side, carry the identifier in metadata, or use Count for Status
+// and Route, rather than relying on the refused fields here.
 type TransactionsFilters struct {
 	// AssetCode narrows by asset code (e.g. "USD").
 	//
-	// NOT honored by the pinned ledger on either endpoint: it is sent as
-	// asset_code and ignored.
+	// REFUSED on List (both surfaces); not honored by any endpoint. The server
+	// parses asset_code and then drops it: ToCursorPagination
+	// (pkg/net/http/httputils.go:533-539) returns only limit, cursor, sort_order
+	// and the date range, and that is the only value the repository receives.
 	AssetCode string
 
 	// Status narrows by transaction status (e.g. "APPROVED").
 	// Valid values mirror TransactionStatusCode:
 	// CREATED, PENDING, APPROVED, CANCELED, NOTED.
 	//
-	// Honored by Count. Sent on List and ignored there.
+	// Honored by Count. REFUSED on List (both surfaces): parsed by the server
+	// and dropped by ToCursorPagination, same as AssetCode.
 	Status string
 
 	// Reference narrows by external transaction reference.
 	//
-	// NOT honored by the pinned ledger on either endpoint: it is sent as
-	// reference and ignored.
+	// REFUSED on List (both surfaces); not honored by any endpoint. The server's
+	// query switch (httputils.go:150-252) has no case for it, so it is never
+	// even parsed.
 	Reference string
 
 	// DestinationAccount narrows to transactions targeting a specific account.
 	//
-	// NOT honored by the pinned ledger on either endpoint: it is sent as
-	// destination_account and ignored.
+	// REFUSED on List (both surfaces); never parsed by the server, same as
+	// Reference.
 	DestinationAccount string
 
 	// SourceAccount narrows to transactions originating from a specific account.
 	//
-	// NOT honored by the pinned ledger on either endpoint: it is sent as
-	// source_account and ignored.
+	// REFUSED on List (both surfaces); never parsed by the server, same as
+	// Reference.
 	SourceAccount string
 
 	// Route narrows by transaction route name (e.g. "cashin", "cashout").
 	//
-	// Honored by Count. Sent on List and ignored there.
+	// Honored by Count. REFUSED on List (both surfaces): the server's query
+	// switch matches route_id and route_code, never a bare route.
 	Route string
 
 	// MetadataKey and MetadataValue filter transactions by a single metadata

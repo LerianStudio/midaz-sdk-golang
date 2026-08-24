@@ -868,63 +868,6 @@ func TestTransactionsFacade_ListCursorChainsAndTerminates(t *testing.T) {
 	}
 }
 
-// TestTransactionsFacade_ListFilters proves every TransactionsFilters field
-// reaches the wire query with the legacy wire name — none dropped silently —
-// alongside the native cursor/limit/sort/date params.
-func TestTransactionsFacade_ListFilters(t *testing.T) {
-	var q url.Values
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		q = r.URL.Query()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"items":[],"next_cursor":""}`))
-	}))
-	defer srv.Close()
-
-	opts := models.TransactionsListOpts{
-		CursorListOpts: models.CursorListOpts{
-			Limit:         25,
-			Cursor:        "CUR",
-			SortDirection: "desc",
-			StartDate:     "2026-01-01",
-			EndDate:       "2026-02-01",
-		},
-		Filters: models.TransactionsFilters{
-			AssetCode:          "USD",
-			Status:             "APPROVED",
-			Reference:          "inv-99",
-			SourceAccount:      "@src",
-			DestinationAccount: "@dst",
-			Route:              "cashin",
-			MetadataKey:        "transferId",
-			MetadataValue:      "abc-123",
-		},
-	}
-
-	if _, err := newTestTransactionsFacade(t, srv).List(context.Background(), txOrgID, txLedgerID, opts); err != nil {
-		t.Fatalf("List: %v", err)
-	}
-
-	want := map[string]string{
-		"limit":               "25",
-		"cursor":              "CUR",
-		"sort_order":          "desc",
-		"start_date":          "2026-01-01",
-		"end_date":            "2026-02-01",
-		"asset_code":          "USD",
-		"status":              "APPROVED",
-		"reference":           "inv-99",
-		"source_account":      "@src",
-		"destination_account": "@dst",
-		"route":               "cashin",
-		"metadata.transferId": "abc-123",
-	}
-	for k, v := range want {
-		if got := q.Get(k); got != v {
-			t.Fatalf("query[%q] = %q, want %q (full query: %v)", k, got, v, q)
-		}
-	}
-}
-
 // TestTransactionsFacade_Count parses X-Total-Count from the HEAD response and
 // sends only the filters the count endpoint honors (status/route/dates).
 func TestTransactionsFacade_Count(t *testing.T) {

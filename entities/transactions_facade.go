@@ -402,10 +402,32 @@ func (f *transactionsFacade) Get(ctx context.Context, orgID, ledgerID, transacti
 
 // List retrieves one cursor page of transactions under an org+ledger. The
 // endpoint is CURSOR-paginated: opts carry a Cursor (never a Page). The
-// generated GetAllTransactionsParams only exposes the cursor/limit/sort/date
-// slots — the six transaction filters (asset_code/status/reference/
-// source_account/destination_account/route) and the metadata predicate have no
-// slot, so they ride as query-param request editors rather than being dropped.
+// generated GetAllTransactionsParams exposes only the cursor/limit/sort/date
+// slots, and the metadata predicate rides as a query-param request editor.
+//
+// The six transaction filters (asset_code/status/reference/source_account/
+// destination_account/route) are REFUSED here, exactly as on /v2. They never
+// narrowed anything on this surface either, and that is settled at the handler
+// rather than inferred from a spec:
+//
+//   - Both list routes call the SAME server function. transaction_handler.go:500
+//     and transaction_v2_mirror_handler.go:148 both invoke
+//     handler.getAllTransactions with the raw query values.
+//   - status and asset_code are parsed and then DISCARDED.
+//     QueryHeader.ToCursorPagination (pkg/net/http/httputils.go:533-539) returns
+//     only Limit, Cursor, SortOrder, StartDate and EndDate, and that struct is
+//     the only value handed to the repository
+//     (transaction.postgresql.go:1333, FindOrListAllWithOperations).
+//   - reference, source_account, destination_account and route are never parsed
+//     at all: the query switch (httputils.go:150-252) has no case matching any
+//     of them.
+//
+// So a caller setting Filters.Status here received EVERY transaction in the
+// ledger and had no way to know. Sending them under their legacy query names was
+// how the surface shipped; v5 is a breaking major and stops pretending.
+//
+// Count is unaffected: countTransactionsByFilters DOES declare and honour status
+// and route.
 func (f *transactionsFacade) List(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
 	const operation = "Transactions.List"
 
@@ -417,8 +439,12 @@ func (f *transactionsFacade) List(ctx context.Context, orgID, ledgerID string, o
 		return nil, err
 	}
 
+	if err := refuseUndeclaredListFilters(operation, opts.Filters); err != nil {
+		return nil, err
+	}
+
 	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
-	resp, err := f.ledger.GetAllTransactions(ctx, orgID, ledgerID, listTransactionsParams(opts), listTransactionsReqEditors(opts)...)
+	resp, err := f.ledger.GetAllTransactions(ctx, orgID, ledgerID, listTransactionsParams(opts), metadataFilterEditors(opts)...)
 
 	return readList[models.Transaction](operation, resp, err)
 }
@@ -550,47 +576,6 @@ func listTransactionsParams(opts models.TransactionsListOpts) *genledger.GetAllT
 	}
 
 	return params
-}
-
-// listTransactionsReqEditors carries the transaction filters the generated
-// GetAllTransactionsParams cannot express. The ledger OAS omits every
-// TransactionsFilters field from the list params (it exposes only a single
-// opaque metadata JSON slot), so the SDK injects each filter as a query param
-// under its legacy wire name rather than dropping it silently — including the
-// single metadata predicate rendered as metadata.<key>=<value>. Returns nil
-// when no filter is set so the common path adds zero overhead.
-func listTransactionsReqEditors(opts models.TransactionsListOpts) []genledger.RequestEditorFn {
-	var editors []genledger.RequestEditorFn
-
-	if opts.Filters.AssetCode != "" {
-		editors = append(editors, setQueryParam("asset_code", opts.Filters.AssetCode))
-	}
-
-	if opts.Filters.Status != "" {
-		editors = append(editors, setQueryParam("status", opts.Filters.Status))
-	}
-
-	if opts.Filters.Reference != "" {
-		editors = append(editors, setQueryParam("reference", opts.Filters.Reference))
-	}
-
-	if opts.Filters.SourceAccount != "" {
-		editors = append(editors, setQueryParam("source_account", opts.Filters.SourceAccount))
-	}
-
-	if opts.Filters.DestinationAccount != "" {
-		editors = append(editors, setQueryParam("destination_account", opts.Filters.DestinationAccount))
-	}
-
-	if opts.Filters.Route != "" {
-		editors = append(editors, setQueryParam("route", opts.Filters.Route))
-	}
-
-	if opts.Filters.MetadataKey != "" && opts.Filters.MetadataValue != "" {
-		editors = append(editors, setQueryParam("metadata."+opts.Filters.MetadataKey, opts.Filters.MetadataValue))
-	}
-
-	return editors
 }
 
 // countTransactionsParams renders ONLY the four filters the HEAD count endpoint
