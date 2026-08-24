@@ -41,6 +41,19 @@ type problemEnvelope struct {
 	// field name. Values are not always strings (an unexpected field carries the
 	// offending value), hence map[string]any.
 	Fields *map[string]any `json:"fields"`
+
+	// Upstream is the RFC 9457 extension member carrying the error a proxied
+	// third-party provider reported. It is the ONE member that survives the
+	// server's >= 500 scrub, so on a scrubbed 5xx it is the only actionable
+	// diagnostic the caller gets — see decodeUpstream.
+	Upstream *problemUpstream `json:"upstream"`
+}
+
+// problemUpstream mirrors the "upstream" extension member: the provider's own
+// code and message, verbatim and bounded (never its raw response body).
+type problemUpstream struct {
+	Code    *string `json:"code"`
+	Message *string `json:"message"`
 }
 
 // problemErrorDetail mirrors a single RFC 9457 field error.
@@ -65,6 +78,11 @@ type problemErrorDetail struct {
 // Message→Message and Fields→field-errors (keys into Fields, the whole map into
 // Details["fields"]), plus EntityType. Without this the whole /v1 surface reported
 // nothing but "API error with status code N" and dropped every field violation.
+//
+// The "upstream" extension member — a proxied provider's own code and message —
+// lands in Details["upstream"] regardless of which shape carried it. The server
+// scrubs detail, errors[] and code at status >= 500 but lifts this member through
+// the scrub, so on a 5xx it is often the only actionable diagnostic there is.
 //
 // Retryability is not decided here: it is a property of the resulting
 // *Error, keyed by the shared status→category adapter and the Code-suffix
@@ -105,6 +123,14 @@ func DecodeProblemJSON(httpStatus int, body []byte, requestID string) error {
 		fields, details = decodeLegacyFieldErrors(env.Fields)
 	}
 
+	if upstream := decodeUpstream(env.Upstream); upstream != nil {
+		if details == nil {
+			details = map[string]any{}
+		}
+
+		details["upstream"] = upstream
+	}
+
 	return ErrorFromHTTPResponseWithDetails(
 		statusCode,
 		requestID,
@@ -132,6 +158,32 @@ func decodeLegacyFieldErrors(legacy *map[string]any) (fields []string, details m
 	fields = slices.Sorted(maps.Keys(*legacy))
 
 	return fields, map[string]any{"fields": *legacy}
+}
+
+// decodeUpstream renders the "upstream" extension member into the Details map,
+// keeping only the members the provider actually sent so a consumer can tell
+// "provider reported no code" from "code was empty". An absent or wholly empty
+// member yields nil, so Details never grows a hollow key.
+func decodeUpstream(upstream *problemUpstream) map[string]any {
+	if upstream == nil {
+		return nil
+	}
+
+	rendered := map[string]any{}
+
+	if code := deref(upstream.Code); code != "" {
+		rendered["code"] = code
+	}
+
+	if message := deref(upstream.Message); message != "" {
+		rendered["message"] = message
+	}
+
+	if len(rendered) == 0 {
+		return nil
+	}
+
+	return rendered
 }
 
 // decodeProblemFieldErrors flattens RFC 9457 Errors[] into the SDK's

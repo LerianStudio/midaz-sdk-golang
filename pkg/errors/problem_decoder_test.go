@@ -289,3 +289,79 @@ func TestErrorDecoder(t *testing.T) {
 		})
 	}
 }
+
+// TestDecodeProblemJSON_Upstream covers the RFC 9457 "upstream" extension member
+// the server planes emit for a proxied third-party failure.
+//
+// It matters most exactly where nothing else survives: lib-commons scrubs detail,
+// errors[] and code at status >= 500, and lifts "upstream" through that scrub as
+// the single exception. Dropping it there leaves the caller a generic 5xx message
+// and no provider code to act on.
+func TestDecodeProblemJSON_Upstream(t *testing.T) {
+	tests := []struct {
+		name        string
+		httpStatus  int
+		body        string
+		wantPresent bool
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			name:       "scrubbed 502 still carries the provider code and message",
+			httpStatus: http.StatusBadGateway,
+			body: `{
+				"title":"Internal Server Error",
+				"detail":"An internal server error occurred.",
+				"status":502,
+				"upstream":{"code":"E4001","message":"account not found at provider"}
+			}`,
+			wantPresent: true,
+			wantCode:    "E4001",
+			wantMessage: "account not found at provider",
+		},
+		{
+			name:        "partial upstream carries only what the provider sent",
+			httpStatus:  http.StatusBadGateway,
+			body:        `{"detail":"upstream failed","upstream":{"code":"E9"}}`,
+			wantPresent: true,
+			wantCode:    "E9",
+		},
+		{
+			name:        "absent member adds no Details key",
+			httpStatus:  http.StatusBadRequest,
+			body:        `{"code":"LEDGER-0001","detail":"bad request"}`,
+			wantPresent: false,
+		},
+		{
+			name:        "empty member adds no Details key",
+			httpStatus:  http.StatusBadGateway,
+			body:        `{"detail":"upstream failed","upstream":{}}`,
+			wantPresent: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := DecodeProblemJSON(tt.httpStatus, []byte(tt.body), "req-upstream")
+
+			var e *Error
+			require.ErrorAs(t, err, &e)
+
+			upstream, ok := e.Details["upstream"].(map[string]any)
+			if !tt.wantPresent {
+				require.False(t, ok, "Details[upstream] must be absent, got %v", e.Details["upstream"])
+
+				return
+			}
+
+			require.True(t, ok, "Details[upstream] should carry the provider error")
+			assert.Equal(t, tt.wantCode, upstream["code"])
+
+			if tt.wantMessage == "" {
+				assert.NotContains(t, upstream, "message")
+			} else {
+				assert.Equal(t, tt.wantMessage, upstream["message"])
+			}
+		})
+	}
+}
