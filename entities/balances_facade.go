@@ -261,19 +261,15 @@ func (f *balancesFacade) CreateBalance(ctx context.Context, organizationID, ledg
 // ListBalancesByAccountAlias returns every balance of the account carrying an
 // alias, resolved by the alias as a path segment.
 //
-// This endpoint is NOT paginated and accepts no query parameters: the server
-// answers with the account's full balance set in one response. opts therefore
-// has to be empty — a limit or cursor set here would be dropped on the way out
-// and the caller would read an unnarrowed result as if it had been narrowed, so
-// it is rejected instead.
-func (f *balancesFacade) ListBalancesByAccountAlias(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+// There is no opts parameter and no Pages / All sibling, and that is the
+// endpoint's contract rather than an omission: the server accepts no query
+// parameters here and answers with the account's full balance set in one
+// response. A limit or cursor would be dropped on the way out, and an iterator
+// over a single fixed page is a loop that can only mislead.
+func (f *balancesFacade) ListBalancesByAccountAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.ListResponse[models.Balance], error) {
 	const operation = "Balances.ListBalancesByAccountAlias"
 
 	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "alias", alias); err != nil {
-		return nil, err
-	}
-
-	if err := rejectUnsupportedBalanceListOpts(operation, opts); err != nil {
 		return nil, err
 	}
 
@@ -285,30 +281,12 @@ func (f *balancesFacade) ListBalancesByAccountAlias(ctx context.Context, organiz
 	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
 }
 
-// ListBalancesByAccountAliasPages yields the single page this endpoint answers
-// with. Kept for shape parity with the paginated lists.
-func (f *balancesFacade) ListBalancesByAccountAliasPages(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return cursorPages(ctx, opts, func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
-		return f.ListBalancesByAccountAlias(ctx, organizationID, ledgerID, alias, current)
-	})
-}
-
-// ListBalancesByAccountAliasAll yields every balance of the aliased account.
-func (f *balancesFacade) ListBalancesByAccountAliasAll(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
-	return flattenPages(f.ListBalancesByAccountAliasPages(ctx, organizationID, ledgerID, alias, opts))
-}
-
 // ListBalancesByExternalCode returns the balances of the external account for an
-// asset code. Same non-paginated, no-query contract as
-// ListBalancesByAccountAlias.
-func (f *balancesFacade) ListBalancesByExternalCode(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+// asset code. Same one-shot, no-query contract as ListBalancesByAccountAlias.
+func (f *balancesFacade) ListBalancesByExternalCode(ctx context.Context, organizationID, ledgerID, code string) (*models.ListResponse[models.Balance], error) {
 	const operation = "Balances.ListBalancesByExternalCode"
 
 	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "code", code); err != nil {
-		return nil, err
-	}
-
-	if err := rejectUnsupportedBalanceListOpts(operation, opts); err != nil {
 		return nil, err
 	}
 
@@ -318,20 +296,6 @@ func (f *balancesFacade) ListBalancesByExternalCode(ctx context.Context, organiz
 	}
 
 	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
-}
-
-// ListBalancesByExternalCodePages yields the single page this endpoint answers
-// with.
-func (f *balancesFacade) ListBalancesByExternalCodePages(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return cursorPages(ctx, opts, func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
-		return f.ListBalancesByExternalCode(ctx, organizationID, ledgerID, code, current)
-	})
-}
-
-// ListBalancesByExternalCodeAll yields every external-account balance for the
-// code.
-func (f *balancesFacade) ListBalancesByExternalCodeAll(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
-	return flattenPages(f.ListBalancesByExternalCodePages(ctx, organizationID, ledgerID, code, opts))
 }
 
 // decodeBalancePage maps a paginated balance envelope, decoding the body
@@ -425,21 +389,6 @@ func accountBalancesListParams(opts models.BalancesListOpts) *genledger.GetAllBa
 		StartDate: params.StartDate,
 		EndDate:   params.EndDate,
 	}
-}
-
-// rejectUnsupportedBalanceListOpts fails loud when a caller narrows a balance
-// list that has no query parameters at all. Mirrors
-// models.ValidateCursorListOptsNoDates: a filter with no wire slot returns the
-// full result set while the caller believes it was narrowed, so the SDK refuses
-// the request instead of silently widening it.
-func rejectUnsupportedBalanceListOpts(operation string, opts models.BalancesListOpts) error {
-	if opts.CursorListOpts == (models.CursorListOpts{}) {
-		return nil
-	}
-
-	return errors.NewValidationError(operation,
-		"this endpoint accepts no pagination, sort or date parameters and always returns the account's full balance set",
-		stderrors.New("opts must be the zero value"))
 }
 
 // balanceHistoryDateLayouts are the instant formats the server's date parser

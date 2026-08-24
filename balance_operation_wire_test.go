@@ -110,7 +110,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/accounts/alias/@cash/balances",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.V1.Balances.ListBalancesByAccountAlias(ctx, "org-1", "led-1", "@cash", models.BalancesListOpts{})
+				_, err := c.V1.Balances.ListBalancesByAccountAlias(ctx, "org-1", "led-1", "@cash")
 				return err
 			},
 		},
@@ -119,7 +119,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/accounts/external/USD/balances",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.V1.Balances.ListBalancesByExternalCode(ctx, "org-1", "led-1", "USD", models.BalancesListOpts{})
+				_, err := c.V1.Balances.ListBalancesByExternalCode(ctx, "org-1", "led-1", "USD")
 				return err
 			},
 		},

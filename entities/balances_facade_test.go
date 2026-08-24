@@ -389,7 +389,7 @@ func TestBalancesFacade_AccountLookups(t *testing.T) {
 
 		facade := newTestBalancesFacade(t, srv)
 
-		got, err := facade.ListBalancesByAccountAlias(context.Background(), balancesOrgID, balancesLedgerID, "@cash", models.BalancesListOpts{})
+		got, err := facade.ListBalancesByAccountAlias(context.Background(), balancesOrgID, balancesLedgerID, "@cash")
 		if err != nil {
 			t.Fatalf("ListBalancesByAccountAlias: %v", err)
 		}
@@ -399,22 +399,16 @@ func TestBalancesFacade_AccountLookups(t *testing.T) {
 		if len(got.Items) != 1 {
 			t.Fatalf("items = %+v", got.Items)
 		}
-
-		all, err := CollectAll(facade.ListBalancesByAccountAliasAll(context.Background(), balancesOrgID, balancesLedgerID, "@cash", models.BalancesListOpts{}))
-		if err != nil {
-			t.Fatalf("ListBalancesByAccountAliasAll: %v", err)
-		}
-		if len(all) != 1 {
-			t.Fatalf("ListBalancesByAccountAliasAll = %+v", all)
-		}
-		if requests != 2 {
-			t.Fatalf("requests = %d, want 2 (one per call, no pagination)", requests)
+		if requests != 1 {
+			t.Fatalf("requests = %d, want 1 (the endpoint answers in one shot)", requests)
 		}
 	})
 
 	t.Run("by external code", func(t *testing.T) {
 		var p string
+		var requests int
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests++
 			p = r.URL.Path
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(body))
@@ -423,41 +417,18 @@ func TestBalancesFacade_AccountLookups(t *testing.T) {
 
 		facade := newTestBalancesFacade(t, srv)
 
-		if _, err := facade.ListBalancesByExternalCode(context.Background(), balancesOrgID, balancesLedgerID, "USD", models.BalancesListOpts{}); err != nil {
+		got, err := facade.ListBalancesByExternalCode(context.Background(), balancesOrgID, balancesLedgerID, "USD")
+		if err != nil {
 			t.Fatalf("ListBalancesByExternalCode: %v", err)
 		}
 		if want := balancesLedgerScope() + "/accounts/external/USD/balances"; p != want {
 			t.Fatalf("path = %q, want %q", p, want)
 		}
-
-		all, err := CollectAll(facade.ListBalancesByExternalCodeAll(context.Background(), balancesOrgID, balancesLedgerID, "USD", models.BalancesListOpts{}))
-		if err != nil {
-			t.Fatalf("ListBalancesByExternalCodeAll: %v", err)
+		if len(got.Items) != 1 {
+			t.Fatalf("items = %+v", got.Items)
 		}
-		if len(all) != 1 {
-			t.Fatalf("ListBalancesByExternalCodeAll = %+v", all)
-		}
-	})
-
-	// No-silent-widening guard: these endpoints take no query parameters, so a
-	// caller-supplied limit or cursor would be dropped and the caller would read
-	// an unnarrowed result set as if it had been narrowed.
-	t.Run("rejects narrowing options it cannot send", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			t.Error("server must not be hit when the options cannot be expressed")
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer srv.Close()
-
-		facade := newTestBalancesFacade(t, srv)
-		narrowed := models.BalancesListOpts{CursorListOpts: models.CursorListOpts{Limit: 5}}
-
-		if _, err := facade.ListBalancesByAccountAlias(context.Background(), balancesOrgID, balancesLedgerID, "@cash", narrowed); err == nil {
-			t.Fatal("expected a limit on the alias lookup to be rejected")
-		}
-
-		if _, err := facade.ListBalancesByExternalCode(context.Background(), balancesOrgID, balancesLedgerID, "USD", narrowed); err == nil {
-			t.Fatal("expected a limit on the external-code lookup to be rejected")
+		if requests != 1 {
+			t.Fatalf("requests = %d, want 1 (the endpoint answers in one shot)", requests)
 		}
 	})
 }
@@ -537,10 +508,10 @@ func TestBalancesFacade_ErrorDecodes(t *testing.T) {
 	_, err = facade.GetAccountBalancesHistory(context.Background(), balancesOrgID, balancesLedgerID, balancesAcctID, balancesInstant)
 	assertDecoded(t, err)
 
-	_, err = facade.ListBalancesByAccountAlias(context.Background(), balancesOrgID, balancesLedgerID, "@cash", models.BalancesListOpts{})
+	_, err = facade.ListBalancesByAccountAlias(context.Background(), balancesOrgID, balancesLedgerID, "@cash")
 	assertDecoded(t, err)
 
-	_, err = facade.ListBalancesByExternalCode(context.Background(), balancesOrgID, balancesLedgerID, "USD", models.BalancesListOpts{})
+	_, err = facade.ListBalancesByExternalCode(context.Background(), balancesOrgID, balancesLedgerID, "USD")
 	assertDecoded(t, err)
 }
 
