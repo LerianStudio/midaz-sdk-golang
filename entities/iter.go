@@ -47,7 +47,7 @@ import (
 // # Example
 //
 //	accounts, err := entities.Collect(
-//	    client.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts),
+//	    client.V1.Accounts.All(ctx, orgID, ledgerID, opts),
 //	    1000,
 //	)
 //	if err != nil {

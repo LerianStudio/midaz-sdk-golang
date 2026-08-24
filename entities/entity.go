@@ -3,10 +3,13 @@
 // portfolios, segments, transactions, and CRM resources (holders, instruments).
 //
 // The package entry point is [Entity], constructed via [NewEntityWithConfig]
-// (or [NewEntityWithConfigContext] for explicit context propagation). Each
-// service is exposed as an interface on Entity (for example Entity.Accounts,
-// Entity.Transactions), letting callers depend on the interface and mock it
-// in tests.
+// (or [NewEntityWithConfigContext] for explicit context propagation). Ledger
+// services are reached through the version group that serves them
+// (Entity.V1.Accounts, Entity.V2.Holders — see [V1Services] and [V2Services]);
+// Tracer services stay flat on Entity (Entity.Rules, Entity.Limits). Each
+// accessor is a concrete facade, so callers who want to mock the SDK declare
+// the narrow interface they actually call and let the facade satisfy it
+// structurally.
 //
 // All HTTP traffic flows through a shared [HTTPClient] that handles auth
 // injection, retries, idempotency keys, and observability hooks. Service
@@ -148,10 +151,8 @@ type Entity struct {
 	httpClient *HTTPClient
 
 	// planes holds the two generated, typed plane clients (Ledger + Tracer).
-	// They are the low-level surface the hand-written facade migrates onto in
-	// Phases 2-4; during the transition the legacy per-service *HTTPClient
-	// above still serves the 2 legacy services (Balances, Operations).
-	// Nil only when construction never reached the plane-client build step.
+	// They are the low-level surface every facade is built on. Nil only when
+	// construction never reached the plane-client build step.
 	planes *PlaneClients
 
 	// Observability provider for tracing, metrics, and logging
@@ -375,20 +376,18 @@ func (e *Entity) GetObservabilityProvider() observability.Provider {
 	return e.observability
 }
 
-// SetHTTPClient replaces the HTTP client used by the LEGACY per-service surface
-// only — Balances and Operations — and preserves the entity's tenant
-// ID and auth token across the swap.
+// SetHTTPClient swaps the *HTTPClient the entity hands back from
+// [Entity.GetEntityHTTPClient], preserving the auth token and the rest of the
+// client configuration across the swap.
 //
-// LIMITATION: it does NOT re-transport the 18 plane facades (Organizations,
-// Ledgers, Accounts, Transactions, Encryption, and the rest). initServices
-// rebuilds those facades over the already-constructed e.planes.Ledger /
-// e.planes.Tracer clients, whose transport is fixed at construction and is not
-// rebuilt here; only the legacy pair picks up the new client. To control the
-// transport for the facades/planes, pass config.WithHTTPClient(client) when the
-// client is constructed rather than swapping it afterward.
+// It changes NO API traffic. Every accessor routes over the two generated plane
+// clients, whose transport is fixed when they are constructed and is not
+// rebuilt here — the pair of services this method used to re-transport is gone.
+// To control the transport an actual request uses, pass
+// config.WithHTTPClient(client) at construction rather than swapping afterward.
 //
 // Parameters:
-//   - client: The HTTP client to use for API requests (legacy pair only).
+//   - client: The HTTP client to install on the entity's *HTTPClient.
 func (e *Entity) SetHTTPClient(client *http.Client) {
 	if e == nil {
 		return

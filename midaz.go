@@ -13,7 +13,7 @@
 //	if err != nil { return err }
 //	defer c.Shutdown(ctx)
 //
-//	org, err := c.Organizations.Get(ctx, "org-id")
+//	org, err := c.V1.Organizations.Get(ctx, "org-id")
 //
 // # Authentication
 //
@@ -104,11 +104,13 @@ const Version = version.Version
 // It provides access to all API services, connection management,
 // authentication, rate limiting, and retry handling.
 //
-// All services are exposed as promoted fields via the embedded *entities.Entity.
-// In v4, prefer c.Accounts.X over c.Entity.Accounts.X — they refer to the same
-// instance, but the shorter form is the canonical idiom. The embedded Entity
-// pointer remains accessible as c.Entity for back-compat during the v2 → v4
-// migration window.
+// Every service is reached through the embedded *entities.Entity, grouped by
+// the server version that serves it: c.V1.Accounts, c.V2.Holders. The grouping
+// is a fact about Midaz, which keeps both ledger surfaces alive and does not
+// mirror every resource across them — see [entities.V1Services] and
+// [entities.V2Services]. The Tracer serves a single surface and stays flat:
+// c.Rules, c.Limits, c.Validations, c.Reservations, c.AuditEvents. The embedded
+// pointer is also reachable as c.Entity.
 //
 // Client wraps a small subset of Entity methods (SetObservability,
 // GetObservabilityProvider) so the Client view of state never drifts from the
@@ -124,8 +126,8 @@ type Client struct {
 	configMutated bool
 
 	// Embedded Entity. Promoted fields expose every service directly on Client:
-	//   c.Accounts, c.Transactions, c.Ledgers, c.Organizations, etc.
-	// The embedded pointer is also accessible as c.Entity for back-compat.
+	//   c.V1.Accounts, c.V1.Transactions, c.V2.Holders, c.Rules, etc.
+	// The embedded pointer is also accessible as c.Entity.
 	*entities.Entity
 
 	// pendingObservability is the observability provider accumulated by
@@ -191,8 +193,9 @@ type Option func(*Client) error
 //
 // Returns:
 //
-//   - *Client: A fully-initialized client. All service fields (c.Accounts,
-//     c.Transactions, etc.) are non-nil and ready for API calls.
+//   - *Client: A fully-initialized client. Every service accessor
+//     (c.V1.Accounts, c.V1.Transactions, c.V2.Holders, c.Rules, ...) is
+//     non-nil and ready for API calls.
 //
 //   - error: A *errors.Error with a category appropriate to the failure
 //     class. The classification space is:

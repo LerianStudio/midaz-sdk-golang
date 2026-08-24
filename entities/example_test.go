@@ -15,8 +15,8 @@ import (
 // time, so a normal range-over-func loop just works.
 //
 // For one-page-at-a-time access (page metadata, custom batching), use
-// c.Accounts.List; for page-level iteration with metadata, use
-// c.Accounts.Pages.
+// c.V1.Accounts.List; for page-level iteration with metadata, use
+// c.V1.Accounts.Pages.
 func Example_accountsListAll() {
 	cfg, err := config.NewConfig(config.FromEnvironment())
 	if err != nil {

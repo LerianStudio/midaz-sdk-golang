@@ -549,9 +549,10 @@ func WithDebug(enabled bool) Option {
 // exposure on SDK errors. When enabled, upstream 4xx/5xx response bodies are
 // attached without redaction and only truncated.
 //
-// This affects ONLY the legacy *HTTPClient path (Balances, Operations,
-// Aliases). The two-plane facades decode errors via errors.DecodeProblemJSON,
-// which never attaches the raw upstream body, so the flag is a no-op for them.
+// The flag no longer changes anything an SDK call returns. Every accessor
+// routes over the two generated plane clients, which decode errors via
+// errors.DecodeProblemJSON and never attach the raw upstream body; the legacy
+// *HTTPClient path this flag reached serves no resource any more.
 func WithErrorBodyExposure(enabled bool) Option {
 	return func(c *Config) error {
 		if c == nil {
