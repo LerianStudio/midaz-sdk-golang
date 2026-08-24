@@ -24,8 +24,8 @@ type accountTypeGenerator struct {
 // NewAccountTypeGenerator creates a new account type generator.
 func NewAccountTypeGenerator(e *entities.Entity, obs observability.Provider) AccountTypeGenerator {
 	g := &accountTypeGenerator{obs: obs}
-	if e != nil && e.AccountTypes != nil {
-		g.accountTypes = e.AccountTypes
+	if e != nil && e.V1.AccountTypes != nil {
+		g.accountTypes = e.V1.AccountTypes
 	}
 
 	return g

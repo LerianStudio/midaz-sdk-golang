@@ -284,7 +284,7 @@ func createC2MTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID st
 		transferInput := buildC2MTransactionInput(index, customerAccount, merchantAccount, idempotencyKey)
 
 		startTime := time.Now()
-		tx, err := midazClient.Transactions.CreateJSON(txCtx, orgID, ledgerID, transferInput)
+		tx, err := midazClient.V1.Transactions.CreateJSON(txCtx, orgID, ledgerID, transferInput)
 		duration := time.Since(startTime)
 
 		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(duration.Milliseconds()))
@@ -517,7 +517,7 @@ func createM2CSingleTransactionProcessor(midazClient *midaz.Client, orgID, ledge
 		index := extractTransactionIndex(txCtx, input)
 		txStartTime := time.Now()
 
-		tx, err := midazClient.Transactions.CreateJSON(txCtx, orgID, ledgerID, input)
+		tx, err := midazClient.V1.Transactions.CreateJSON(txCtx, orgID, ledgerID, input)
 		txDuration := time.Since(txStartTime)
 		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(txDuration.Milliseconds()))
 

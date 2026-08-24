@@ -41,8 +41,8 @@ func NewOrganizationGenerator(e *entities.Entity, obs observability.Provider) Or
 	}
 
 	g := &orgGenerator{obs: obs, mc: mc}
-	if e != nil && e.Organizations != nil {
-		g.orgs = e.Organizations
+	if e != nil && e.V1.Organizations != nil {
+		g.orgs = e.V1.Organizations
 	}
 
 	return g

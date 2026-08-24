@@ -44,7 +44,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/balances",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Balances.ListBalances(ctx, "org-1", "led-1", models.BalancesListOpts{})
+				_, err := c.V1.Balances.ListBalances(ctx, "org-1", "led-1", models.BalancesListOpts{})
 				return err
 			},
 		},
@@ -53,7 +53,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/accounts/acc-1/balances",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Balances.ListAccountBalances(ctx, "org-1", "led-1", "acc-1", models.BalancesListOpts{})
+				_, err := c.V1.Balances.ListAccountBalances(ctx, "org-1", "led-1", "acc-1", models.BalancesListOpts{})
 				return err
 			},
 		},
@@ -62,7 +62,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/balances/bal-1",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Balances.GetBalance(ctx, "org-1", "led-1", "bal-1")
+				_, err := c.V1.Balances.GetBalance(ctx, "org-1", "led-1", "bal-1")
 				return err
 			},
 		},
@@ -72,7 +72,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantPath:   ledgerScope + "/balances/bal-1/history",
 			wantQuery:  map[string]string{"date": historyDate},
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Balances.GetBalanceHistory(ctx, "org-1", "led-1", "bal-1", historyDate)
+				_, err := c.V1.Balances.GetBalanceHistory(ctx, "org-1", "led-1", "bal-1", historyDate)
 				return err
 			},
 		},
@@ -82,7 +82,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantPath:   ledgerScope + "/balances/bal-1",
 			call: func(ctx context.Context, c *Client) error {
 				allow := false
-				_, err := c.Balances.UpdateBalance(ctx, "org-1", "led-1", "bal-1",
+				_, err := c.V1.Balances.UpdateBalance(ctx, "org-1", "led-1", "bal-1",
 					&models.UpdateBalanceInput{AllowSending: &allow})
 				return err
 			},
@@ -92,7 +92,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodDelete,
 			wantPath:   ledgerScope + "/balances/bal-1",
 			call: func(ctx context.Context, c *Client) error {
-				return c.Balances.DeleteBalance(ctx, "org-1", "led-1", "bal-1")
+				return c.V1.Balances.DeleteBalance(ctx, "org-1", "led-1", "bal-1")
 			},
 		},
 		{
@@ -100,7 +100,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodPost,
 			wantPath:   ledgerScope + "/accounts/acc-1/balances",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Balances.CreateBalance(ctx, "org-1", "led-1", "acc-1",
+				_, err := c.V1.Balances.CreateBalance(ctx, "org-1", "led-1", "acc-1",
 					&models.CreateBalanceInput{Key: "default"})
 				return err
 			},
@@ -110,7 +110,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/accounts/alias/@cash/balances",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Balances.ListBalancesByAccountAlias(ctx, "org-1", "led-1", "@cash", models.BalancesListOpts{})
+				_, err := c.V1.Balances.ListBalancesByAccountAlias(ctx, "org-1", "led-1", "@cash", models.BalancesListOpts{})
 				return err
 			},
 		},
@@ -119,7 +119,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/accounts/external/USD/balances",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Balances.ListBalancesByExternalCode(ctx, "org-1", "led-1", "USD", models.BalancesListOpts{})
+				_, err := c.V1.Balances.ListBalancesByExternalCode(ctx, "org-1", "led-1", "USD", models.BalancesListOpts{})
 				return err
 			},
 		},
@@ -129,7 +129,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantPath:   ledgerScope + "/accounts/acc-1/balances/history",
 			wantQuery:  map[string]string{"date": historyDate},
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Balances.GetAccountBalancesHistory(ctx, "org-1", "led-1", "acc-1", historyDate)
+				_, err := c.V1.Balances.GetAccountBalancesHistory(ctx, "org-1", "led-1", "acc-1", historyDate)
 				return err
 			},
 		},
@@ -138,7 +138,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/accounts/acc-1/operations",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Operations.ListOperations(ctx, "org-1", "led-1", "acc-1", models.OperationsListOpts{})
+				_, err := c.V1.Operations.ListOperations(ctx, "org-1", "led-1", "acc-1", models.OperationsListOpts{})
 				return err
 			},
 		},
@@ -147,7 +147,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodGet,
 			wantPath:   ledgerScope + "/accounts/acc-1/operations/op-1",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Operations.GetOperation(ctx, "org-1", "led-1", "acc-1", "op-1")
+				_, err := c.V1.Operations.GetOperation(ctx, "org-1", "led-1", "acc-1", "op-1")
 				return err
 			},
 		},
@@ -156,7 +156,7 @@ func TestBalanceAndOperationWirePaths(t *testing.T) {
 			wantMethod: http.MethodPatch,
 			wantPath:   ledgerScope + "/transactions/tx-1/operations/op-1",
 			call: func(ctx context.Context, c *Client) error {
-				_, err := c.Operations.UpdateTransactionOperation(ctx, "org-1", "led-1", "tx-1", "op-1",
+				_, err := c.V1.Operations.UpdateTransactionOperation(ctx, "org-1", "led-1", "tx-1", "op-1",
 					&models.UpdateOperationInput{Description: "updated"})
 				return err
 			},
@@ -247,7 +247,7 @@ func TestListBalances_DoesNotSendPageOnCursorEndpoint(t *testing.T) {
 	c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
 	require.NoError(t, err)
 
-	_, err = c.Balances.ListBalances(context.Background(), "org-1", "led-1", models.BalancesListOpts{
+	_, err = c.V1.Balances.ListBalances(context.Background(), "org-1", "led-1", models.BalancesListOpts{
 		CursorListOpts: models.CursorListOpts{Limit: 5, Cursor: "cur-1", SortDirection: models.SortDescending},
 	})
 	require.NoError(t, err)
@@ -291,7 +291,7 @@ func TestListBalancesAll_AdvancesByCursor(t *testing.T) {
 
 	var ids []string
 
-	for balance, err := range c.Balances.ListBalancesAll(context.Background(), "org-1", "led-1",
+	for balance, err := range c.V1.Balances.ListBalancesAll(context.Background(), "org-1", "led-1",
 		models.BalancesListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}}) {
 		require.NoError(t, err)
 		ids = append(ids, balance.ID)
@@ -319,7 +319,7 @@ func TestListOperations_SendsOnlyHonoredFilters(t *testing.T) {
 	c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
 	require.NoError(t, err)
 
-	_, err = c.Operations.ListOperations(context.Background(), "org-1", "led-1", "acc-1", models.OperationsListOpts{
+	_, err = c.V1.Operations.ListOperations(context.Background(), "org-1", "led-1", "acc-1", models.OperationsListOpts{
 		Filters: models.OperationsFilters{
 			Type:      "DEBIT",
 			Direction: "debit",

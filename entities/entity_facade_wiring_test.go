@@ -37,14 +37,14 @@ func TestEntity_PlaneFacadeAccessorsWired(t *testing.T) {
 		{"Validations", entity.Validations == nil},
 		{"Reservations", entity.Reservations == nil},
 		{"AuditEvents", entity.AuditEvents == nil},
-		{"ProtectionAudit", entity.ProtectionAudit == nil},
-		{"Encryption", entity.Encryption == nil},
-		{"Instruments", entity.Instruments == nil},
-		{"Composition", entity.Composition == nil},
-		{"FeePackages", entity.FeePackages == nil},
-		{"FeeEstimates", entity.FeeEstimates == nil},
-		{"BillingPackages", entity.BillingPackages == nil},
-		{"BillingCalculations", entity.BillingCalculations == nil},
+		{"ProtectionAudit", entity.V2.ProtectionAudit == nil},
+		{"Encryption", entity.V2.Encryption == nil},
+		{"Instruments", entity.V2.Instruments == nil},
+		{"Composition", entity.V2.Composition == nil},
+		{"FeePackages", entity.V2.FeePackages == nil},
+		{"FeeEstimates", entity.V2.FeeEstimates == nil},
+		{"BillingPackages", entity.V2.BillingPackages == nil},
+		{"BillingCalculations", entity.V2.BillingCalculations == nil},
 	}
 	for _, a := range newAccessors {
 		if a.isNil {
@@ -53,7 +53,7 @@ func TestEntity_PlaneFacadeAccessorsWired(t *testing.T) {
 	}
 
 	// Coexistence: a representative legacy accessor is still wired.
-	if entity.Transactions == nil {
+	if entity.V1.Transactions == nil {
 		t.Error("legacy accessor Transactions is nil — additive wiring must not disturb coexistence")
 	}
 }

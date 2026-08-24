@@ -40,8 +40,8 @@ func NewLedgerGenerator(e *entities.Entity, obs observability.Provider, defaultO
 	}
 
 	g := &ledgerGenerator{obs: obs, defaultOrg: defaultOrg, mc: mc}
-	if e != nil && e.Ledgers != nil {
-		g.ledgers = e.Ledgers
+	if e != nil && e.V1.Ledgers != nil {
+		g.ledgers = e.V1.Ledgers
 	}
 
 	return g

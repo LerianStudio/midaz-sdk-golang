@@ -27,7 +27,7 @@ func CreateAsset(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID
 	fmt.Println("Creating USD asset...")
 
 	reqCtx := sdkctx.WithIdempotencyKey(ctx, fmt.Sprintf("asset-%s-%s-USD", orgID, ledgerID))
-	usdAsset, err := midazClient.Assets.Create(
+	usdAsset, err := midazClient.V1.Assets.Create(
 		reqCtx, orgID, ledgerID,
 		models.NewCreateAssetInputWithType("US Dollar", "USD", "currency").
 			WithMetadata(map[string]any{"purpose": "main"}),

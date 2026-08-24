@@ -145,7 +145,7 @@ func BatchTransactions(
 		ctx = context.Background()
 	}
 
-	if midazClient == nil || midazClient.Entity == nil || midazClient.Transactions == nil {
+	if midazClient == nil || midazClient.Entity == nil || midazClient.V1.Transactions == nil {
 		return nil, stdErrors.New("transaction service is not initialized")
 	}
 
@@ -168,7 +168,7 @@ func BatchTransactions(
 
 	processor := &batchProcessor{
 		ctx:          ctx,
-		transactions: midazClient.Transactions,
+		transactions: midazClient.V1.Transactions,
 		orgID:        orgID,
 		ledgerID:     ledgerID,
 		inputs:       inputs,

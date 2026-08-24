@@ -20,8 +20,8 @@ type lifecycle struct {
 // NewTransactionLifecycle creates a TransactionLifecycle implementation.
 func NewTransactionLifecycle(e *entities.Entity, obs observability.Provider) TransactionLifecycle {
 	l := &lifecycle{obs: obs}
-	if e != nil && e.Transactions != nil {
-		l.transactions = e.Transactions
+	if e != nil && e.V1.Transactions != nil {
+		l.transactions = e.V1.Transactions
 	}
 
 	return l

@@ -38,12 +38,12 @@ const generatedAssetRateMaxScale = 18
 func NewAssetGenerator(e *entities.Entity, obs observability.Provider) AssetGenerator {
 	g := &assetGenerator{obs: obs}
 	if e != nil {
-		if e.Assets != nil {
-			g.assets = e.Assets
+		if e.V1.Assets != nil {
+			g.assets = e.V1.Assets
 		}
 
-		if e.AssetRates != nil {
-			g.assetRates = e.AssetRates
+		if e.V1.AssetRates != nil {
+			g.assetRates = e.V1.AssetRates
 		}
 	}
 

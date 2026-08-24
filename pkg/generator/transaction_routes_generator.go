@@ -23,8 +23,8 @@ type transactionRouteGenerator struct {
 // NewTransactionRouteGenerator creates a new generator for transaction routes.
 func NewTransactionRouteGenerator(e *entities.Entity, obs observability.Provider) TransactionRouteGenerator {
 	g := &transactionRouteGenerator{obs: obs}
-	if e != nil && e.TransactionRoutes != nil {
-		g.transactionRoutes = e.TransactionRoutes
+	if e != nil && e.V1.TransactionRoutes != nil {
+		g.transactionRoutes = e.V1.TransactionRoutes
 	}
 
 	return g

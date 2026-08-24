@@ -63,12 +63,12 @@ type Checker struct {
 // NewChecker creates a new Checker.
 func NewChecker(e *entities.Entity) *Checker {
 	c := &Checker{e: e}
-	if e != nil && e.Accounts != nil {
-		c.accounts = e.Accounts
+	if e != nil && e.V1.Accounts != nil {
+		c.accounts = e.V1.Accounts
 	}
 
-	if e != nil && e.Balances != nil {
-		c.balances = e.Balances
+	if e != nil && e.V1.Balances != nil {
+		c.balances = e.V1.Balances
 	}
 
 	return c

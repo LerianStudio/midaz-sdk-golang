@@ -111,8 +111,8 @@ func TestNewClient(t *testing.T) {
 	}
 
 	require.NotNil(t, client.Entity)
-	require.NotNil(t, client.Holders)
-	require.NotNil(t, client.MetadataIndexes)
+	require.NotNil(t, client.V2.Holders)
+	require.NotNil(t, client.V1.MetadataIndexes)
 
 	// Test creating a client with a complete config
 	cfg, err := config.NewConfig(
@@ -141,9 +141,9 @@ func TestEntityAlwaysInitialized(t *testing.T) {
 	}
 
 	require.NotNil(t, c.Entity, "v3 must always initialize Entity")
-	require.NotNil(t, c.Accounts)
-	require.NotNil(t, c.Transactions)
-	require.NotNil(t, c.Organizations)
+	require.NotNil(t, c.V1.Accounts)
+	require.NotNil(t, c.V1.Transactions)
+	require.NotNil(t, c.V1.Organizations)
 }
 
 func TestGetConfig(t *testing.T) {
@@ -504,7 +504,7 @@ func TestFactoryTrapMethodsRemoved_AtCompileTime(t *testing.T) {
 		assert.False(t, ok, "%s must stay removed from *Client", methodName)
 	}
 
-	require.NotNil(t, c.Accounts, "service surface must remain — only the trap factories are gone")
+	require.NotNil(t, c.V1.Accounts, "service surface must remain — only the trap factories are gone")
 }
 
 // TestServiceHandles_PersistAcrossPostConstructionMutations is the M2
@@ -528,7 +528,7 @@ func TestServiceHandles_PersistAcrossPostConstructionMutations(t *testing.T) {
 	require.NotNil(t, c.Entity)
 
 	// Capture the service handle before any further mutation.
-	originalAccounts := c.Accounts
+	originalAccounts := c.V1.Accounts
 
 	// A subsequent SetObservability triggers Entity.RefreshHTTPConfiguration
 	// internally via Entity.SetObservability. The service handles must
@@ -541,7 +541,7 @@ func TestServiceHandles_PersistAcrossPostConstructionMutations(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, c.SetObservability(replacement))
 
-	assert.Equal(t, originalAccounts, c.Accounts,
+	assert.Equal(t, originalAccounts, c.V1.Accounts,
 		"RefreshHTTPConfiguration must preserve service handles — recreating them on every config tweak is the v2-era waste this test guards against")
 }
 
@@ -695,7 +695,7 @@ func TestNewWithValidConfigSucceeds(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	require.NotNil(t, c.Entity)
-	require.NotNil(t, c.Accounts, "Accounts service must be initialized via embedded Entity")
+	require.NotNil(t, c.V1.Accounts, "Accounts service must be initialized via embedded Entity")
 }
 
 // TestNewRejectsConstructionWithoutAuthSource verifies the v3 auth-required

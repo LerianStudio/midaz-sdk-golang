@@ -34,7 +34,7 @@ func main() {
 		}
 	}()
 
-	page, err := c.Organizations.List(context.Background(), models.OrganizationsListOpts{
+	page, err := c.V1.Organizations.List(context.Background(), models.OrganizationsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 5},
 	})
 	if err != nil {

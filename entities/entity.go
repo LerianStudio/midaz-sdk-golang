@@ -163,42 +163,29 @@ type Entity struct {
 	// facade's constructor by initServices.
 	enableIdempotency bool
 
-	// Ledger-plane resource accessors. Every one of them routes to a concrete
-	// plane facade (*xFacade) over e.planes.Ledger; nothing here still builds its
-	// own URLs or shares the legacy *HTTPClient.
-	Accounts          *accountsFacade
-	AccountTypes      *accountTypesFacade
-	Assets            *assetsFacade
-	AssetRates        *assetRatesFacade
-	Balances          *balancesFacade
-	Holders           *holdersFacade
-	Ledgers           *ledgersFacade
-	MetadataIndexes   *metadataIndexesFacade
-	Operations        *operationsFacade
-	OperationRoutes   *operationRoutesFacade
-	Organizations     *organizationsFacade
-	Portfolios        *portfoliosFacade
-	Segments          *segmentsFacade
-	Transactions      *transactionsFacade
-	TransactionRoutes *transactionRoutesFacade
+	// Ledger-plane accessors, grouped by the server version that serves them.
+	// Midaz keeps both surfaces alive and does not mirror every resource across
+	// them, so the group a resource lives in is a fact about the server, not a
+	// preference — see [V1Services] and [V2Services]. Reached as client.V1.X /
+	// client.V2.X (promoted through the embedded *Entity).
+	//
+	// These are struct VALUES, not pointers, and deliberately so: a hand-rolled
+	// zero-value &Entity{} is legal (Entity and InitServices are both exported),
+	// and with a value group its members are simply nil there — exactly as the
+	// flat accessors used to be. A pointer group would make the idiomatic guard
+	// `if e != nil && e.V1.Accounts != nil` panic on that same zero value, one
+	// level deeper than the caller's nil check can see.
+	V1 V1Services
+	V2 V2Services
 
-	// Plane-native facades. Additive accessors over the typed generated plane
-	// clients, alongside the resource accessors above. Reached fluently via
-	// client.X.Method (promoted through the embedded *Entity). Nil when the
-	// Entity was built without plane clients.
-	Rules               *rulesFacade
-	Limits              *limitsFacade
-	Validations         *validationsFacade
-	Reservations        *reservationsFacade
-	AuditEvents         *auditEventsFacade
-	ProtectionAudit     *auditFacade
-	Encryption          *encryptionFacade
-	Instruments         *instrumentsFacade
-	Composition         *compositionFacade
-	FeePackages         *feePackagesFacade
-	FeeEstimates        *feeEstimateFacade
-	BillingPackages     *billingPackagesFacade
-	BillingCalculations *billingCalculateFacade
+	// Tracer-plane accessors. NOT version-grouped: the Tracer serves one surface
+	// and carries its version in the base URL rather than in each path, so these
+	// stay flat. Nil when the Entity was built without plane clients.
+	Rules        *rulesFacade
+	Limits       *limitsFacade
+	Validations  *validationsFacade
+	Reservations *reservationsFacade
+	AuditEvents  *auditEventsFacade
 }
 
 // NewEntityWithConfig creates a new Entity using a Config object.
@@ -312,35 +299,14 @@ func (e *Entity) initServices() {
 	// It exists only so a hand-rolled zero-value &Entity{} — legal because
 	// Entity and InitServices are exported — cannot nil-deref the plane clients.
 	if e.planes != nil {
-		e.Organizations = newOrganizationsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Ledgers = newLedgersFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Accounts = newAccountsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Assets = newAssetsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.AssetRates = newAssetRatesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Portfolios = newPortfoliosFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Segments = newSegmentsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.AccountTypes = newAccountTypesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.MetadataIndexes = newMetadataIndexesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.OperationRoutes = newOperationRoutesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.TransactionRoutes = newTransactionRoutesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Holders = newHoldersFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Transactions = newTransactionsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Balances = newBalancesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Operations = newOperationsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.V1 = newV1Services(e.planes.Ledger, e.enableIdempotency)
+		e.V2 = newV2Services(e.planes.Ledger, e.enableIdempotency)
 
 		e.Rules = newRulesFacade(e.planes.Tracer, e.enableIdempotency)
 		e.Limits = newLimitsFacade(e.planes.Tracer, e.enableIdempotency)
 		e.Validations = newValidationsFacade(e.planes.Tracer)
 		e.Reservations = newReservationsFacade(e.planes.Tracer)
 		e.AuditEvents = newAuditEventsFacade(e.planes.Tracer)
-		e.ProtectionAudit = newAuditFacade(e.planes.Ledger)
-		e.Encryption = newEncryptionFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Instruments = newInstrumentsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Composition = newCompositionFacade(e.planes.Ledger, e.enableIdempotency)
-		e.FeePackages = newFeePackagesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.FeeEstimates = newFeeEstimateFacade(e.planes.Ledger)
-		e.BillingPackages = newBillingPackagesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.BillingCalculations = newBillingCalculateFacade(e.planes.Ledger)
 	}
 }
 

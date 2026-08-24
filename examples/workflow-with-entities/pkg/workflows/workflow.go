@@ -401,7 +401,7 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *midaz.Clien
 		"purpose": "deletion_test",
 	})
 
-	demoRoute, err := midazClient.OperationRoutes.Create(ctx, orgID, ledgerID, demoInput)
+	demoRoute, err := midazClient.V1.OperationRoutes.Create(ctx, orgID, ledgerID, demoInput)
 	if err != nil {
 		return fmt.Errorf("failed to create demo operation route: %w", err)
 	}

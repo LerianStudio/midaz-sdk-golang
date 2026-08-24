@@ -94,7 +94,7 @@ func manualCursorLoop(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 
 	pageNum := 0
 	for {
-		page, err := c.Transactions.List(ctx, orgID, ledgerID, opts)
+		page, err := c.V1.Transactions.List(ctx, orgID, ledgerID, opts)
 		if err != nil {
 			return fmt.Errorf("list transactions page %d: %w", pageNum, err)
 		}
@@ -124,7 +124,7 @@ func pageIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID string) 
 	}
 
 	pageNum := 0
-	for page, err := range c.Transactions.Pages(ctx, orgID, ledgerID, opts) {
+	for page, err := range c.V1.Transactions.Pages(ctx, orgID, ledgerID, opts) {
 		if err != nil {
 			return fmt.Errorf("page iter: %w", err)
 		}
@@ -149,7 +149,7 @@ func flatItemIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID, acc
 	}
 
 	count := 0
-	for op, err := range c.Operations.ListOperationsAll(ctx, orgID, ledgerID, accountID, opts) {
+	for op, err := range c.V1.Operations.ListOperationsAll(ctx, orgID, ledgerID, accountID, opts) {
 		if err != nil {
 			return fmt.Errorf("operation iter: %w", err)
 		}
@@ -176,7 +176,7 @@ func earlyTermination(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 		CursorListOpts: models.CursorListOpts{Limit: 25},
 	}
 
-	for tx, err := range c.Transactions.All(ctx, orgID, ledgerID, opts) {
+	for tx, err := range c.V1.Transactions.All(ctx, orgID, ledgerID, opts) {
 		if err != nil {
 			return fmt.Errorf("tx iter: %w", err)
 		}

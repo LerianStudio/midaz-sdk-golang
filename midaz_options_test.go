@@ -90,7 +90,7 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = c.Organizations.Create(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
+	_, err = c.V1.Organizations.Create(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
 	require.NoError(t, err)
 	require.NoError(t, <-writeErrs)
 	require.NotEmpty(t, seenIdempotency)

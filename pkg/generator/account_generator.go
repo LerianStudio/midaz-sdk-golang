@@ -37,8 +37,8 @@ func NewAccountGenerator(e *entities.Entity, obs observability.Provider) Account
 	}
 
 	g := &accountGenerator{obs: obs, mc: mc}
-	if e != nil && e.Accounts != nil {
-		g.accounts = e.Accounts
+	if e != nil && e.V1.Accounts != nil {
+		g.accounts = e.V1.Accounts
 	}
 
 	return g

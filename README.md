@@ -43,8 +43,10 @@ v4 is the current major version. Highlights:
 - **Idempotency by default**: auto-generated `X-Idempotency` per unsafe
   request. Override with `sdkctx.WithIdempotencyKey` for stable
   caller-supplied keys; suppress per-call with `WithoutAutoIdempotency`.
-- **Mocks via `go.uber.org/mock`**: pre-generated mocks for every service
-  ship under `entities/mocks/`. Regenerate with `go generate ./entities/...`.
+- **Consumer-declared test doubles**: every accessor is a concrete facade, so
+  there are no pre-generated mocks to import. Declare the narrow interface your
+  code actually calls — the accessor satisfies it structurally. See
+  [Testing with mocks](#testing-with-mocks).
 
 ## Installation
 
@@ -82,7 +84,7 @@ func main() {
     }
     defer c.Shutdown(context.Background())
 
-    page, err := c.Organizations.List(context.Background(),
+    page, err := c.V1.Organizations.List(context.Background(),
         models.OrganizationsListOpts{
             PageListOpts: models.PageListOpts{Limit: 5},
         })
@@ -102,33 +104,44 @@ matrix see [`docs/auth.md`](docs/auth.md) and [`docs/configuration.md`](docs/con
 
 ### Service access
 
-Every public service is a promoted field on `*midaz.Client`. The canonical
-shape is `c.<Service>.<Method>`:
+Midaz serves two ledger surfaces at once — `/v1`, deprecated but alive, and
+`/v2`, the current one — and does not mirror every resource across them. The SDK
+groups the ledger services by the version that actually serves them, so reaching
+for a resource the other version does not have is a compile error instead of a
+404:
 
 ```go
-orgs, err := c.Organizations.List(ctx, opts)
-ledger, err := c.Ledgers.Create(ctx, orgID, input)
-account, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
-balance, err := c.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
-tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+orgs, err := c.V1.Organizations.List(ctx, opts)
+ledger, err := c.V1.Ledgers.Create(ctx, orgID, input)
+account, err := c.V1.Accounts.Get(ctx, orgID, ledgerID, accountID)
+balance, err := c.V1.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
+tx, err := c.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+
+holder, err := c.V2.Holders.Get(ctx, orgID, holderID)
 ```
 
-The full service list: `Organizations`, `Ledgers`, `Assets`, `AssetRates`,
-`Accounts`, `AccountTypes`, `Aliases`, `Balances`, `Holders`, `MetadataIndexes`,
-`Operations`, `OperationRoutes`, `Portfolios`, `Segments`, `Transactions`,
-`TransactionRoutes`.
+`c.V1` — `Organizations`, `Ledgers`, `Accounts`, `AccountTypes`, `Assets`,
+`AssetRates`, `Balances`, `Operations`, `Portfolios`, `Segments`,
+`OperationRoutes`, `TransactionRoutes`, `Transactions`, `MetadataIndexes`.
 
-The v4 remodel adds plane-native accessors over the Tracer plane (`Rules`,
-`Limits`, `Validations`, `Reservations`, `AuditEvents`) and ledger-plane
-extensions (`ProtectionAudit`, `Encryption`, `Instruments`, `Composition`,
-`FeePackages`, `FeeEstimates`, `BillingPackages`, `BillingCalculations`). They
-expose the same generic CRUD shape and are documented in
-[`docs/mapping/external_apis.md`](docs/mapping/external_apis.md).
+`c.V2` — `Holders`, `Instruments`, `Encryption`, `Composition`,
+`ProtectionAudit`, `BillingPackages`, `FeePackages`, `FeeEstimates`,
+`BillingCalculations`. Every one of these was **removed** from `/v1`, and the
+billing family is **ledger-scoped** on `/v2`, so its methods take a ledger ID.
+
+Two asymmetries are worth knowing: `AssetRates` and the `Transactions` creation
+styles (`CreateJSON`, inflow, outflow, annotation) exist on `/v1` only, so there
+is deliberately no `c.V2` twin for them.
+
+Tracer-plane services are **not** version-grouped — the Tracer serves one
+surface and carries its version in the base URL — so they stay flat on the
+client: `c.Rules`, `c.Limits`, `c.Validations`, `c.Reservations`,
+`c.AuditEvents`.
 
 ### Settlement waits
 
 An accepted transaction (HTTP 201) is not settled. Wait on the balance effect
-with `transaction.WaitForSettlement(ctx, c.Balances, orgID, ledgerID,
+with `transaction.WaitForSettlement(ctx, c.V1.Balances, orgID, ledgerID,
 accountID, settled)`, passing a `func(models.Balance) bool` predicate (pin the
 asset on a multi-asset account). See
 [`pkg/transaction`](pkg/transaction/settlement.go).
@@ -147,16 +160,16 @@ Every list method ships in three flavors:
 
 ```go
 // One page, you decide when to advance.
-page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
+page, err := c.V1.Accounts.List(ctx, orgID, ledgerID, opts)
 
 // iter.Seq2 over every item across every page (SDK handles paging).
-for acc, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
+for acc, err := range c.V1.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil { return err }
     process(acc)
 }
 
 // iter.Seq2 over page envelopes (with metadata for checkpointing).
-for batch, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
+for batch, err := range c.V1.Accounts.Pages(ctx, orgID, ledgerID, opts) {
     if err != nil { return err }
     log.Printf("page %d: %d items", batch.Pagination.Page, len(batch.Items))
 }
@@ -192,7 +205,7 @@ Every error is a `*pkg/errors.Error`. Use the typed predicates or
 ```go
 import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 
-acc, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
+acc, err := c.V1.Accounts.Get(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -309,7 +322,7 @@ See [`docs/multi-tenancy.md`](docs/multi-tenancy.md).
 ### Testing with mocks
 
 Depend on a narrow interface you declare yourself — only the methods you call.
-`c.Accounts` (and the other accessors) satisfy it structurally in production, and
+`c.V1.Accounts` (and the other accessors) satisfy it structurally in production, and
 a tiny local mock satisfies it in tests ("accept interfaces, return structs"):
 
 ```go
@@ -332,7 +345,7 @@ func TestMyHandler(t *testing.T) {
             return &models.Account{ID: "acc-1"}, nil
         },
     }
-    // ... inject svc into your code under test; in production pass c.Accounts.
+    // ... inject svc into your code under test; in production pass c.V1.Accounts.
 }
 ```
 

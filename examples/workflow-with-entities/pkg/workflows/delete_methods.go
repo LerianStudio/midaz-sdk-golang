@@ -51,7 +51,7 @@ func testDeleteMethods(ctx context.Context, midazClient *midaz.Client, orgID, le
 func deleteAllSegments(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all segments...")
 
-	segmentsResponse, err := midazClient.Segments.List(ctx, orgID, ledgerID, models.SegmentsListOpts{})
+	segmentsResponse, err := midazClient.V1.Segments.List(ctx, orgID, ledgerID, models.SegmentsListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}
@@ -59,7 +59,7 @@ func deleteAllSegments(ctx context.Context, midazClient *midaz.Client, orgID, le
 	for _, segment := range segmentsResponse.Items {
 		fmt.Printf("   Deleting segment: %q (ID: %q)...\n", segment.Name, segment.ID)
 
-		if err := midazClient.Segments.Delete(ctx, orgID, ledgerID, segment.ID); err != nil {
+		if err := midazClient.V1.Segments.Delete(ctx, orgID, ledgerID, segment.ID); err != nil {
 			return fmt.Errorf("failed to delete segment %q: %w", segment.ID, err)
 		}
 
@@ -72,7 +72,7 @@ func deleteAllSegments(ctx context.Context, midazClient *midaz.Client, orgID, le
 func deleteAllPortfolios(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all portfolios...")
 
-	portfoliosResponse, err := midazClient.Portfolios.List(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
+	portfoliosResponse, err := midazClient.V1.Portfolios.List(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
@@ -80,7 +80,7 @@ func deleteAllPortfolios(ctx context.Context, midazClient *midaz.Client, orgID, 
 	for _, portfolio := range portfoliosResponse.Items {
 		fmt.Printf("   Deleting portfolio: %q (ID: %q)...\n", portfolio.Name, portfolio.ID)
 
-		if err := midazClient.Portfolios.Delete(ctx, orgID, ledgerID, portfolio.ID); err != nil {
+		if err := midazClient.V1.Portfolios.Delete(ctx, orgID, ledgerID, portfolio.ID); err != nil {
 			return fmt.Errorf("failed to delete portfolio %q: %w", portfolio.ID, err)
 		}
 
@@ -93,7 +93,7 @@ func deleteAllPortfolios(ctx context.Context, midazClient *midaz.Client, orgID, 
 func deleteAllAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all accounts...")
 
-	accountsResponse, err := midazClient.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{})
+	accountsResponse, err := midazClient.V1.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -106,7 +106,7 @@ func deleteAllAccounts(ctx context.Context, midazClient *midaz.Client, orgID, le
 
 		fmt.Printf("   Deleting account: %q (ID: %q)...\n", account.Name, account.ID)
 
-		if err := midazClient.Accounts.Delete(ctx, orgID, ledgerID, account.ID); err != nil {
+		if err := midazClient.V1.Accounts.Delete(ctx, orgID, ledgerID, account.ID); err != nil {
 			return fmt.Errorf("failed to delete account %q: %w", account.ID, err)
 		}
 
@@ -119,7 +119,7 @@ func deleteAllAccounts(ctx context.Context, midazClient *midaz.Client, orgID, le
 func deleteLedgerAndOrg(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting ledger...")
 
-	if err := midazClient.Ledgers.Delete(ctx, orgID, ledgerID); err != nil {
+	if err := midazClient.V1.Ledgers.Delete(ctx, orgID, ledgerID); err != nil {
 		fmt.Printf("   ⚠️  Could not delete ledger (ID: %q): %q\n", ledgerID, err.Error())
 		fmt.Println("   Note: Ledger deletion may be restricted in staging/production environments")
 	} else {
@@ -128,7 +128,7 @@ func deleteLedgerAndOrg(ctx context.Context, midazClient *midaz.Client, orgID, l
 
 	fmt.Println("\nDeleting organization...")
 
-	if err := midazClient.Organizations.Delete(ctx, orgID); err != nil {
+	if err := midazClient.V1.Organizations.Delete(ctx, orgID); err != nil {
 		fmt.Printf("   ⚠️  Could not delete organization (ID: %q): %q\n", orgID, err.Error())
 		fmt.Println("   Note: Organization deletion may be restricted in staging/production environments")
 	} else {
