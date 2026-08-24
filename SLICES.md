@@ -7,9 +7,10 @@ backend: a **Ledger plane** (generated client `internal/genledger`) and a
 **Tracer plane** (generated client `internal/gentracer`), both wired through
 `entities/plane_clients.go`. Nearly every resource is now exposed through a
 hand-written facade (`entities/<domain>_facade.go`) that adapts the SDK-native
-`models.*` types onto the oapi-codegen-generated `ClientWithResponses`. Three
-legacy direct-implementation resources survive during migration
-(`entities/balances.go`, `entities/operations.go`, `entities/aliases.go`).
+`models.*` types onto the oapi-codegen-generated `ClientWithResponses`. Every
+resource now routes that way: the last legacy direct implementations (balances,
+operations) moved onto the generated client and the alias resource was removed
+with the server surface it served.
 
 ## Slices
 
@@ -122,7 +123,6 @@ docs/comprehensive-architecture.md
 Note: `entities/mockgen_smoke_test.go` verifies mock generation for the surviving legacy resources and is reviewed here alongside codegen tooling.
 
 ```text
-entities/mockgen_smoke_test.go
 ```
 
 ## Slice 3: Shared Transport Runtime Safety
@@ -136,13 +136,9 @@ entities/entity.go
 entities/entity_test.go
 entities/entity_facade_wiring_test.go
 entities/entity_http_client_safety_regression_test.go
-entities/service.go
 entities/shared_http_client_test.go
-entities/mock_http_client_test.go
 entities/constants.go
 entities/constants_test.go
-entities/request.go
-entities/url.go
 entities/internal_context.go
 entities/observability.go
 entities/business_observability_test.go
@@ -247,8 +243,6 @@ Backend comparison anchor: validate query parameter names and list shapes agains
 ```text
 entities/iter.go
 entities/iter_test.go
-entities/iter_behavior_test.go
-entities/list_opts_validation_test.go
 
 models/model.go
 models/model_test.go
@@ -339,7 +333,7 @@ docs/mapping/internal_apis.md
 
 Review goal: account types, accounts, account/balance reads and pagination, the account-utility package, and payment instruments (account-scoped). Instruments are a new Ledger-plane domain and reference `models.Account`.
 
-Backend comparison anchor: `../midaz` ledger component. Note `entities/balances.go` is a surviving legacy direct implementation (no facade yet).
+Backend comparison anchor: `../midaz` ledger component. Balances route the Ledger plane via `entities/balances_facade.go`.
 
 ```text
 entities/account_types_facade.go
@@ -348,10 +342,6 @@ entities/accounts_facade.go
 entities/accounts_facade_test.go
 entities/instruments_facade.go
 entities/instruments_facade_test.go
-entities/balances.go
-entities/balances_test.go
-entities/balances_pagination_integration_test.go
-entities/mocks/mock_balances.go
 
 models/account_type.go
 models/account_types_list_opts.go
@@ -435,15 +425,12 @@ docs/mapping/internal_apis.md
 
 Review goal: canonical transaction creation over the Ledger plane, operation read/update, transaction response parsing, lifecycle endpoints, idempotency-sensitive mutation behavior.
 
-Backend comparison anchor: `../midaz` ledger component. Note `entities/operations.go` is a surviving legacy direct implementation (no facade yet). Idempotency stamping specifics live in Slice 3.
+Backend comparison anchor: `../midaz` ledger component. Operations route the Ledger plane via `entities/operations_facade.go`. Idempotency stamping specifics live in Slice 3.
 
 ```text
 entities/transactions_facade.go
 entities/transactions_facade_test.go
 entities/transaction_contract_regression_test.go
-entities/operations.go
-entities/operations_test.go
-entities/mocks/mock_operations.go
 
 models/transaction.go
 models/transaction_test.go
@@ -529,7 +516,7 @@ docs/mapping/internal_apis.md
 
 ## Slice 12: CRM Identity + Composition
 
-Review goal: holders, aliases, CRM shared helpers, holder-account composition (atomic holder+account creation bridging CRM and Ledger). Holders now route the Ledger plane via facade; aliases remain a legacy direct implementation.
+Review goal: holders, holder-account composition (atomic holder+account creation bridging CRM and Ledger). Holders route the Ledger plane via facade. The alias resource is gone: Midaz renamed it to instruments on /v2 and removed it from /v1, so there was no server surface left for it.
 
 Backend comparison anchor: `../midaz` CRM component. `composition_facade.go` bridges CRM holders and Ledger accounts.
 
@@ -538,19 +525,11 @@ entities/holders_facade.go
 entities/holders_facade_test.go
 entities/composition_facade.go
 entities/composition_facade_test.go
-entities/crm_shared.go
-entities/crm_contract_regression_test.go
-entities/aliases.go
-entities/aliases_test.go
-entities/mocks/mock_aliases.go
 
 models/holder.go
 models/holders_list_opts.go
 models/composition.go
 models/composition_test.go
-models/alias.go
-models/aliases_list_opts.go
-models/crm_test.go
 models/crm_and_response_models_regression_test.go
 
 docs/mapping/external_apis.md
@@ -932,10 +911,10 @@ Facade pattern: 26 resources are exposed as `entities/<domain>_facade.go`,
 each adapting SDK-native `models.*` types onto the generated
 `ClientWithResponses`. Plane routing is unambiguous from `genledger.` /
 `gentracer.` usage: 21 facades hit the Ledger plane; 5 hit the Tracer plane
-(rules, limits, validations, reservations, audit_events — Slice 13). Three
-legacy direct-implementation resources have not been migrated to facades:
-`entities/balances.go`, `entities/operations.go`, `entities/aliases.go`
-(their mocks in `entities/mocks/` are the only surviving mocks).
+(rules, limits, validations, reservations, audit_events — Slice 13). No
+direct-implementation resources remain: balances and operations moved onto the
+generated client, the alias resource was removed, and `entities/mocks/` went
+with them.
 
 Transport hotspot: `entities/http.go` (1242 lines) remains the blast-radius
 center for the low-level HTTP client, but the v4 remodel split cross-cutting
@@ -962,7 +941,7 @@ internal/obslogbridge/ is an empty package directory (no .go files) — dead sca
 
 Two facades named "audit" split across planes: entities/audit_facade.go (Ledger plane, protection audit) and entities/audit_events_facade.go (Tracer plane) both consume models.AuditEvent. Confirm the shared model is intentional and that the two planes' AuditEvent shapes have not silently diverged from a single source.
 
-Legacy un-migrated resources: entities/balances.go, entities/operations.go, entities/aliases.go are the only resources still using direct implementations instead of the facade pattern (and the only ones with mocks in entities/mocks/). Confirm this is a tracked, intentional migration remainder rather than an oversight.
+Legacy un-migrated resources: none remain. Balances and operations route the generated Ledger client like every other resource, the alias resource was removed with its server surface, and the generated mocks in entities/mocks/ went with them.
 
 contract/ ships its own go.mod/go.sum (separate module). contract/drift_test.go will NOT run under the root module's `go test ./...` — verify CI invokes it explicitly (e.g. via scripts/check-codegen-drift.sh) or codegen drift goes unchecked.
 
