@@ -63,10 +63,12 @@ func TestEveryDeleteRoutesThroughTheSharedSeam(t *testing.T) {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Body == nil {
+				offenders = append(offenders, packageScopeEscape(fset, name, decl, deleteOps)...)
+
 				continue
 			}
 
-			parsed, raw := deleteOperationsNamedBy(fn, deleteOps)
+			parsed, raw := deleteOperationsNamedBy(fn.Body, deleteOps)
 			if len(parsed) == 0 && len(raw) == 0 {
 				continue
 			}
@@ -108,6 +110,49 @@ func TestEveryDeleteRoutesThroughTheSharedSeam(t *testing.T) {
 	// decide inline. Adding a delete raises it; losing one fails here.
 	require.GreaterOrEqual(t, seamed, 29,
 		"expected the delete seam on at least 29 facade functions (27 ledger + 2 tracer); found %d", seamed)
+}
+
+// packageScopeEscape reports a generated delete operation named OUTSIDE any
+// function body, which is how a facade reaches the banned parser without any
+// function in the package appearing to name it.
+//
+// Both scans in this package walked function bodies only, and two compiling
+// shapes went straight through:
+//
+//	var escapeDeleteAccount = (*genledger.ClientWithResponses).DeleteAccountWithResponse
+//
+//	var escapeDeletes = map[string]func(...) (*genledger.DeleteAccountResponse, error){
+//	    "account": func(c *genledger.ClientWithResponses, ...) (...) {
+//	        return c.DeleteAccountWithResponse(ctx, orgID, ledgerID, id)
+//	    },
+//	}
+//
+// In both, the facade then calls a plain identifier — escapeDeleteAccount(...)
+// or escapeDeletes["account"](...) — which carries no operation name, so the
+// per-function accounting sees nothing to check. Both were written against the
+// real generated client, confirmed to leave this test AND
+// TestEveryPathParameterOperationIsGuarded green, and deleted once this sweep
+// failed on them.
+//
+// A package-level var, const or type cannot name a generated delete operation
+// for any innocent reason, so naming one is the whole signal — no seam is
+// credited, the declaration is simply refused.
+//
+// Known ceiling: reflection is out of AST reach. A client method resolved by
+// name at runtime is invisible to any scan of this kind, in this test and in its
+// sibling. Nothing in this package does that, and the scans do not pretend to
+// cover it.
+func packageScopeEscape(fset *token.FileSet, path string, decl ast.Decl, deleteOps map[string]bool) []string {
+	parsed, raw := deleteOperationsNamedBy(decl, deleteOps)
+	if len(parsed) == 0 && len(raw) == 0 {
+		return nil
+	}
+
+	return []string{"the package-level declaration at " + filepath.Base(path) + ":" +
+		strconv.Itoa(fset.Position(decl.Pos()).Line) + " names " +
+		strings.Join(append(parsed, raw...), ", ") +
+		"; a generated delete reached from package scope leaves every caller naming a bare " +
+		"identifier, which no scan of function bodies can attribute to a delete"}
 }
 
 // statusDecidingDeletes are the deletes that do NOT route through deleteResource
@@ -187,20 +232,22 @@ func collectDeleteOperations(t *testing.T, path string, file *ast.File, ops map[
 	}
 }
 
-// deleteOperationsNamedBy splits the generated delete operations a function
-// names into the ones reached through the generated parser (*WithResponse) and
-// the ones reached raw.
+// deleteOperationsNamedBy splits the generated delete operations a node names
+// into the ones reached through the generated parser (*WithResponse) and the
+// ones reached raw.
 //
-// It inspects SelectorExpr nodes rather than call targets, and asks nothing
-// about the receiver. A generated delete operation cannot be NAMED in a facade
-// body for any innocent reason, so naming one is the whole signal — whether it
-// is called on f.ledger, on a hoisted local, on a differently-spelled field, or
-// handed to something else as a function value.
-func deleteOperationsNamedBy(fn *ast.FuncDecl, deleteOps map[string]bool) (parsed, raw []string) {
+// It takes any ast.Node — a function body, or a whole package-level declaration
+// — so the same matching covers both scopes. It inspects SelectorExpr nodes
+// rather than call targets, and asks nothing about the receiver. A generated
+// delete operation cannot be NAMED for any innocent reason, so naming one is the
+// whole signal — whether it is called on f.ledger, on a hoisted local, on a
+// differently-spelled field, handed to something else as a function value, or
+// bound to a package-level var.
+func deleteOperationsNamedBy(node ast.Node, deleteOps map[string]bool) (parsed, raw []string) {
 	seenParsed := map[string]bool{}
 	seenRaw := map[string]bool{}
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
+	ast.Inspect(node, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
 		if !ok {
 			return true

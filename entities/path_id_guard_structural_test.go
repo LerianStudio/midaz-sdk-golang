@@ -63,6 +63,20 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Body == nil {
+				// Not a function body. A package-level var, const or type that
+				// binds a path-parameter operation leaves every caller naming a
+				// bare identifier, which no scan of function bodies can attribute
+				// back to the operation — so the guard requirement evaporates
+				// silently. See packageScopeEscape (delete_seam_structural_test.go)
+				// for the two shapes this was proven against and for the
+				// reflection ceiling both scans share.
+				if ops := pathOperationsNamedBy(decl, pathOps); len(ops) > 0 {
+					unguarded = append(unguarded, "the package-level declaration in "+
+						filepath.Base(name)+":"+strconv.Itoa(fset.Position(decl.Pos()).Line)+
+						" binds "+strings.Join(ops, ", ")+
+						", which no caller can then be checked for a guard")
+				}
+
 				continue
 			}
 
@@ -70,7 +84,7 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 				helperGuards[fn.Name.Name] = callsRequirePathIDs(fn)
 			}
 
-			switch ops := pathOperationsNamedBy(fn, pathOps); {
+			switch ops := pathOperationsNamedBy(fn.Body, pathOps); {
 			case len(ops) == 0:
 			case guardsPathIDs(fn):
 				guarded++
@@ -218,13 +232,16 @@ func formatsAPathParameter(fn *ast.FuncDecl) bool {
 	return found
 }
 
-// pathOperationsNamedBy returns the path-parameter operations a facade function
-// names, whether it CALLS the generated method or passes it as a function value
-// to a transition helper. Both reach the same request builder, so both count.
-func pathOperationsNamedBy(fn *ast.FuncDecl, pathOps map[string]bool) []string {
+// pathOperationsNamedBy returns the path-parameter operations a node names,
+// whether it CALLS the generated method or passes it as a function value to a
+// transition helper. Both reach the same request builder, so both count.
+//
+// It takes any ast.Node — a function body, or a whole package-level declaration
+// — so the same matching covers both scopes.
+func pathOperationsNamedBy(node ast.Node, pathOps map[string]bool) []string {
 	seen := map[string]bool{}
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
+	ast.Inspect(node, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
 		if !ok {
 			return true
