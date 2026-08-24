@@ -437,7 +437,7 @@ func (e *balancesEntity) DeleteBalance(
 // Note: the configured base URL is bare; the "/v1" this service needs is stamped
 // on here by [serviceEntity.legacyV1BaseURL].
 func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) string {
-	baseURL := e.legacyV1BaseURL("transaction")
+	baseURL := e.legacyV1BaseURL()
 
 	if balanceID == "" {
 		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
@@ -452,7 +452,7 @@ func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) st
 // Note: the configured base URL is bare; the "/v1" this service needs is stamped
 // on here by [serviceEntity.legacyV1BaseURL].
 func (e *balancesEntity) buildAccountURL(organizationID, ledgerID, accountID string) string {
-	baseURL := e.legacyV1BaseURL("transaction")
+	baseURL := e.legacyV1BaseURL()
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(accountID))
 }
@@ -632,25 +632,25 @@ func (e *balancesEntity) GetAccountBalancesHistory(ctx context.Context, organiza
 
 // buildAccountAliasURL builds the URL for balance lookups by account alias.
 func (e *balancesEntity) buildAccountAliasURL(organizationID, ledgerID, alias string) string {
-	baseURL := e.legacyV1BaseURL("transaction")
+	baseURL := e.legacyV1BaseURL()
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s/balances", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(alias))
 }
 
 // buildExternalCodeURL builds the URL for balance lookups by external code.
 func (e *balancesEntity) buildExternalCodeURL(organizationID, ledgerID, code string) string {
-	baseURL := e.legacyV1BaseURL("transaction")
+	baseURL := e.legacyV1BaseURL()
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(code))
 }
 
 func (e *balancesEntity) buildBalanceHistoryURL(organizationID, ledgerID, balanceID, date string) string {
-	baseURL := e.legacyV1BaseURL("transaction")
+	baseURL := e.legacyV1BaseURL()
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s/history?date=%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(balanceID), url.QueryEscape(date))
 }
 
 func (e *balancesEntity) buildAccountHistoryURL(organizationID, ledgerID, accountID, date string) string {
-	baseURL := e.legacyV1BaseURL("transaction")
+	baseURL := e.legacyV1BaseURL()
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances/history?date=%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(accountID), url.QueryEscape(date))
 }
 

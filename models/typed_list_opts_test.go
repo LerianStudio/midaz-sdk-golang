@@ -384,11 +384,6 @@ func TestPageListOpts_TypedShape_AllPageBased(t *testing.T) {
 			overMax: AccountsListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
 		},
 		{
-			name:    "AliasesListOpts",
-			atMax:   AliasesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
-			overMax: AliasesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
-		},
-		{
 			name:    "AssetsListOpts",
 			atMax:   AssetsListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
 			overMax: AssetsListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
@@ -549,19 +544,6 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		assert.Equal(t, "Deposit", params["name"])
 		assert.Equal(t, "deposit", params["key_value"])
 		assert.Equal(t, "true", params["include_deleted"])
-	})
-
-	t.Run("AliasesListOpts filters", func(t *testing.T) {
-		opts := AliasesListOpts{
-			Filters: AliasesFilters{
-				HolderID:  "h-123",
-				AccountID: "a-456",
-			},
-		}
-		require.NoError(t, opts.Validate())
-		params := opts.ToQueryParams()
-		assert.Equal(t, "h-123", params["holder_id"])
-		assert.Equal(t, "a-456", params["account_id"])
 	})
 
 	t.Run("AssetsListOpts filters", func(t *testing.T) {
@@ -740,12 +722,12 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 
 // TestUpdateInputMarshalJSON_NilPointersReturnNull is the M31 nil-safety
 // smoke test for the four Update*Input types whose MarshalJSON receivers
-// were migrated from value to pointer (account, alias, holder,
+// were migrated from value to pointer (account, instrument, holder,
 // operation_route). Marshaling a nil pointer must round-trip as JSON
 // "null" instead of panicking.
 func TestUpdateInputMarshalJSON_NilPointersReturnNull(t *testing.T) {
-	t.Run("UpdateAliasInput nil pointer", func(t *testing.T) {
-		var input *UpdateAliasInput
+	t.Run("UpdateInstrumentInput nil pointer", func(t *testing.T) {
+		var input *UpdateInstrumentInput
 
 		got, err := json.Marshal(input)
 		require.NoError(t, err)

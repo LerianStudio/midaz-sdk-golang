@@ -6,17 +6,17 @@ import (
 
 // serviceEntity is the embeddable base for every entity service implementation.
 //
-// All 16 services (accounts, account_types, aliases, asset_rates, assets,
+// All 15 services (accounts, account_types, asset_rates, assets,
 // balances, holders, ledgers, metadata_indexes, operations, operation_routes,
 // organizations, portfolios, segments, transactions, transaction_routes)
 // share the same two fields. Embedding `serviceEntity` removes per-file
 // duplication.
 //
-// In production every Entity hands the SAME [*HTTPClient] pointer to all 16
+// In production every Entity hands the SAME [*HTTPClient] pointer to all 15
 // services (see [Entity.initServices]). Sharing the client at this level is
 // essential: it is the bus that carries mutable auth-token state, the
 // singleflight token-refresh group, the customRetryPolicy, and the
-// observability fields. Sixteen separate clients would each refresh tokens
+// observability fields. Fifteen separate clients would each refresh tokens
 // independently on a 401 burst and ignore mid-lifetime [*HTTPClient].SetX
 // calls made on the parent Entity.
 //
@@ -42,7 +42,7 @@ func (e *serviceEntity) entityHTTPClient() *HTTPClient {
 
 // newSharedServiceEntity wraps a pre-built *HTTPClient inside the embeddable
 // serviceEntity. Used by [Entity.initServices] to hand the SAME parent
-// [*HTTPClient] to every service entity, so all 16 services share one
+// [*HTTPClient] to every service entity, so all 15 services share one
 // auth-token cache, one singleflight token-refresh group, one
 // customRetryPolicy, and one observability surface.
 func newSharedServiceEntity(httpClient *HTTPClient, baseURLs map[string]string) serviceEntity {
@@ -55,7 +55,7 @@ func newSharedServiceEntity(httpClient *HTTPClient, baseURLs map[string]string) 
 // newServiceEntity is the test-friendly constructor used by the per-service
 // newXxxEntity functions when a service is built in isolation (i.e., outside
 // the parent Entity). Production code always routes through
-// [Entity.initServices] which uses [newSharedServiceEntity] so all 16
+// [Entity.initServices] which uses [newSharedServiceEntity] so all 15
 // services share one client.
 //
 // Tests that call newXxxEntity directly construct a fresh *HTTPClient here.

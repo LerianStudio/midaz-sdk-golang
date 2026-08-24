@@ -66,18 +66,6 @@ func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs
 	return entity
 }
 
-func TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
-	t.Setenv("MIDAZ_CRM_URL", "")
-
-	normalized, err := normalizeBaseURLs(map[string]string{
-		"onboarding":  "https://api.example.com/onboarding",
-		"transaction": "https://api.example.com/transaction",
-	}, false)
-
-	require.NoError(t, err)
-	require.Equal(t, "https://api.example.com/onboarding", normalized["crm"])
-}
-
 // TestNormalizeBaseURLs_LedgerVersionSuffix pins the asymmetry between the two
 // planes: the Ledger base URL must be bare (its version rides inside every
 // operation path), the Tracer base URL must carry "/v1" (its spec declares
@@ -88,8 +76,6 @@ func TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
 // it would double the segment and 404 every request with nothing pointing at the
 // base URL as the cause.
 func TestNormalizeBaseURLs_LedgerVersionSuffix(t *testing.T) {
-	t.Setenv("MIDAZ_CRM_URL", "")
-
 	tests := []struct {
 		name          string
 		baseURLs      map[string]string
@@ -174,8 +160,6 @@ func TestNormalizeBaseURLs_LedgerVersionSuffix(t *testing.T) {
 }
 
 func TestNormalizeBaseURLs_RequiresOnboardingKey(t *testing.T) {
-	t.Setenv("MIDAZ_CRM_URL", "https://api.example.com/crm")
-
 	baseURLs, err := normalizeBaseURLs(map[string]string{
 		"transaction": "https://api.example.com/transaction",
 	}, false)

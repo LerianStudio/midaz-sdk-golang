@@ -69,11 +69,8 @@ func TestZeroValueEntityExportedMethods_AreSafe(t *testing.T) {
 	require.NotPanics(t, func() { e.SetHTTPClient(&http.Client{Timeout: time.Second}) })
 }
 
-// Default-CRM-to-onboarding behavior is covered in entity_test.go via
-// TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding (Batch 1E refactor).
-
 // TestEntityURLs_NormalizePerPlaneAndRejectUnsafeDirectURLs pins the per-plane
-// version contract. The Ledger keys (onboarding/transaction/crm) keep a BARE
+// version contract. The Ledger keys (onboarding/transaction) keep a BARE
 // base because the Ledger spec carries the version inside every path
 // ("/v1/organizations", "/v2/organizations") — stamping "/v1" here would produce
 // "/v1/v1/..." and 404 the whole plane. The Tracer key keeps "/v1" because its
@@ -82,12 +79,10 @@ func TestEntityURLs_NormalizePerPlaneAndRejectUnsafeDirectURLs(t *testing.T) {
 	normalized, err := normalizeBaseURLs(map[string]string{
 		"onboarding":  "http://localhost:3002///",
 		"transaction": "http://localhost:3002/api",
-		"crm":         "http://localhost:4003",
 	}, false)
 	require.NoError(t, err)
 	require.Equal(t, "http://localhost:3002", normalized["onboarding"])
 	require.Equal(t, "http://localhost:3002/api", normalized["transaction"])
-	require.Equal(t, "http://localhost:4003", normalized["crm"])
 
 	// Tracer is absent from the input map, so it inherits the Ledger base — and
 	// must still come back carrying "/v1".
@@ -114,7 +109,6 @@ func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: 30 * time.Second}, "", map[string]string{
 		"onboarding":  "http://localhost:3002",
 		"transaction": "http://localhost:3002",
-		"crm":         "http://localhost:3002",
 	}, nil)
 	entity.GetEntityHTTPClient().SetDebug(true)
 	entity.GetEntityHTTPClient().SetUserAgent("entity-http-client-agent")

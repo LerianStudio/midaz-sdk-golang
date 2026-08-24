@@ -80,36 +80,6 @@ func pageBasedHandler[T any](t *testing.T, page1 []T, page2 []T) (http.Handler, 
 	return handler, &calls
 }
 
-func TestAliasesEntity_ListAliasesPages_AdvancesAndStops(t *testing.T) {
-	// Aliases is org-scoped (not ledger-scoped) and lives on the CRM service.
-	// Use zero-value Alias entries — we only test iteration shape, not field
-	// round-trips (the Alias model is large and exhaustive coverage isn't the
-	// concern here).
-	handler, calls := pageBasedHandler(t,
-		[]models.Alias{{}, {}},
-		[]models.Alias{{}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newAliasesEntity(server.Client(), map[string]string{"crm": server.URL})
-	opts := models.AliasesListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.Alias]
-
-	for page, err := range entity.ListAliasesPages(context.Background(), "org", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.False(t, pages[1].Pagination.HasMore())
-	assert.Equal(t, int32(2), calls.Load())
-	// Page 1 yielded 2 items, page 2 yielded 1.
-	assert.Len(t, pages[0].Items, 2)
-	assert.Len(t, pages[1].Items, 1)
-}
-
 func TestBalancesEntity_ListBalancesPages_AdvancesAndStops(t *testing.T) {
 	handler, calls := pageBasedHandler(t,
 		[]models.Balance{{ID: "b-1"}, {ID: "b-2"}},
@@ -258,7 +228,7 @@ func runListAllSubtest[T any](
 }
 
 // TestListXxxAll_DelegatesToPages covers H30: the All-variant iterators for the
-// surviving trio (Aliases, Balances, Operations) are 1-line wrappers over
+// surviving pair (Balances, Operations) are 1-line wrappers over
 // `flattenPages(Pages(...))`. Without a single drive-through, every All variant
 // sits at 0% coverage despite being ALL the work flattenPages was extracted to
 // share. This parametrized test exercises each surviving All iterator over a
@@ -270,17 +240,6 @@ func runListAllSubtest[T any](
 //
 //nolint:revive // cognitive-complexity: the surviving ListXxxAll wrappers are each drive-tested through a t.Run; the runListAllSubtest helper collapses every subtest body to a single call, so the residual complexity is the unavoidable count of entities.
 func TestListXxxAll_DelegatesToPages(t *testing.T) {
-
-	t.Run("AliasesAll", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.Alias]{Items: []models.Alias{{}}},
-			func(s *httptest.Server) iter.Seq2[models.Alias, error] {
-				e := newAliasesEntity(s.Client(), map[string]string{"crm": s.URL})
-				return e.ListAliasesAll(context.Background(), "org", models.AliasesListOpts{})
-			},
-			func(got []models.Alias) { assert.Len(t, got, 1) },
-		)
-	})
 
 	t.Run("BalancesAll", func(t *testing.T) {
 		runListAllSubtest(t,

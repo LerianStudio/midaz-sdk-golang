@@ -367,7 +367,7 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, organ
 		return nil, errors.NewValidationError(operation, "update validation failed", err)
 	}
 
-	url := buildLedgerScopedURL(e.legacyV1BaseURL("transaction"), organizationID, ledgerID, "transactions", transactionID, "operations", operationID)
+	url := buildLedgerScopedURL(e.legacyV1BaseURL(), organizationID, ledgerID, "transactions", transactionID, "operations", operationID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -396,10 +396,10 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, organ
 // buildURL builds the URL for operations API calls using the account-based endpoint.
 func (e *operationsEntity) buildURL(organizationID, ledgerID, accountID, operationID string) string {
 	if operationID == "" {
-		return buildLedgerScopedURL(e.legacyV1BaseURL("transaction"), organizationID, ledgerID, "accounts", accountID, "operations")
+		return buildLedgerScopedURL(e.legacyV1BaseURL(), organizationID, ledgerID, "accounts", accountID, "operations")
 	}
 
-	return buildLedgerScopedURL(e.legacyV1BaseURL("transaction"), organizationID, ledgerID, "accounts", accountID, "operations", operationID)
+	return buildLedgerScopedURL(e.legacyV1BaseURL(), organizationID, ledgerID, "accounts", accountID, "operations", operationID)
 }
 
 func normalizeOperationListResponse(response *models.ListResponse[models.Operation]) {

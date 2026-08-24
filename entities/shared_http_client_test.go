@@ -21,28 +21,27 @@ import (
 // docs/plans/2026-06-30-sdk-v4-remodel.md:571/:621 classify these as
 // droppable-with-note DX; re-homing to the plane path is the optional Task
 // 5.2.6). The shared-*HTTPClient invariant (H4/H5/H6) now applies only to the
-// still-legacy services: Balances, Operations, Aliases. These tests are
-// narrowed to that trio.
+// still-legacy services: Balances and Operations. These tests are
+// narrowed to that pair.
 
 // TestSharedHTTPClient_LegacyServicesShareOneInstance verifies the still-legacy
 // services created by initServices point at the SAME *HTTPClient as the parent
 // Entity, so mid-lifetime Set* calls propagate and refresh dedup holds. Scoped
-// to the legacy trio (Balances/Operations/Aliases) after the facade swap — the
+// to the legacy pair (Balances/Operations) after the facade swap — the
 // facade accessors no longer route through the shared *HTTPClient.
 func TestSharedHTTPClient_LegacyServicesShareOneInstance(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: time.Second}, "token", map[string]string{
 		"onboarding":  "http://localhost",
 		"transaction": "http://localhost",
-		"crm":         "http://localhost",
 	}, nil)
 
 	parentHTTPClient := entity.GetEntityHTTPClient()
 	require.NotNil(t, parentHTTPClient, "parent HTTPClient must not be nil")
 
-	// Only the legacy trio still shares the parent *HTTPClient (the 13 ledger
+	// Only the legacy pair still shares the parent *HTTPClient (the 13 ledger
 	// accessors are plane facades — Epic 5.3).
-	services := []any{entity.Balances, entity.Operations, entity.Aliases}
-	require.Len(t, services, 3, "the still-legacy service trio")
+	services := []any{entity.Balances, entity.Operations}
+	require.Len(t, services, 2, "the still-legacy service pair")
 
 	for i, svc := range services {
 		reader, ok := svc.(interface{ entityHTTPClient() *HTTPClient })
@@ -69,17 +68,16 @@ func TestSharedHTTPClient_SetUserAgentMidLifetimePropagates(t *testing.T) {
 	entity := newTestEntity(t, srv.Client(), "token", map[string]string{
 		"onboarding":  srv.URL,
 		"transaction": srv.URL,
-		"crm":         srv.URL,
 	}, nil)
 
 	// Mid-lifetime: flip the user-agent AFTER initServices already ran.
 	entity.GetEntityHTTPClient().SetUserAgent("rotated-ua/1.0")
 
 	// Two different legacy services must BOTH observe the new UA.
-	_, err := entity.Aliases.ListAliases(context.Background(), "org-1", models.AliasesListOpts{})
+	_, err := entity.Balances.ListBalances(context.Background(), "org-1", "ledger-1", models.BalancesListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, "rotated-ua/1.0", seenUserAgent.Load(),
-		"Aliases must observe the post-construction SetUserAgent")
+		"Balances must observe the post-construction SetUserAgent")
 
 	_, err = entity.Operations.ListOperations(context.Background(), "org-1", "ledger-1", "acct-1", models.OperationsListOpts{})
 	require.NoError(t, err)
@@ -93,11 +91,10 @@ func TestSharedHTTPClient_SetDebugMidLifetimePropagates(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: time.Second}, "token", map[string]string{
 		"onboarding":  "http://localhost",
 		"transaction": "http://localhost",
-		"crm":         "http://localhost",
 	}, nil)
 
 	parent := entity.GetEntityHTTPClient()
-	legacy := []any{entity.Balances, entity.Operations, entity.Aliases}
+	legacy := []any{entity.Balances, entity.Operations}
 
 	require.False(t, parent.cloneConfiguration().debug)
 	for _, svc := range legacy {
@@ -154,13 +151,12 @@ func TestSharedHTTPClient_TokenRefreshVisibleAcrossServices(t *testing.T) {
 	entity := newTestEntity(t, srv.Client(), "stale", map[string]string{
 		"onboarding":  srv.URL,
 		"transaction": srv.URL,
-		"crm":         srv.URL,
 	}, nil)
 
 	entity.GetEntityHTTPClient().setAuthTokenProvider(tokenProvider, nil)
 
 	// Legacy service A hits 401, refreshes, retries with the new token.
-	_, err := entity.Aliases.ListAliases(context.Background(), "org-1", models.AliasesListOpts{})
+	_, err := entity.Balances.ListBalances(context.Background(), "org-1", "ledger-1", models.BalancesListOpts{})
 	require.NoError(t, err)
 
 	// Legacy service B reuses the refreshed token without another refresh.
@@ -211,21 +207,15 @@ func TestSharedHTTPClient_ConcurrentRefreshDeduplicates(t *testing.T) {
 	entity := newTestEntity(t, srv.Client(), "stale", map[string]string{
 		"onboarding":  srv.URL,
 		"transaction": srv.URL,
-		"crm":         srv.URL,
 	}, nil)
 
 	entity.GetEntityHTTPClient().setAuthTokenProvider(tokenProvider, nil)
 
-	// Fire concurrent requests across the legacy trio; the shared singleflight
+	// Fire concurrent requests across the legacy pair; the shared singleflight
 	// must collapse their 401s onto ONE provider call.
 	var wg sync.WaitGroup
-	errs := make(chan error, 3)
-	wg.Add(3)
-	go func() {
-		defer wg.Done()
-		_, err := entity.Aliases.ListAliases(context.Background(), "org-1", models.AliasesListOpts{})
-		errs <- err
-	}()
+	errs := make(chan error, 2)
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		_, err := entity.Operations.ListOperations(context.Background(), "org-1", "ledger-1", "acct-1", models.OperationsListOpts{})

@@ -16,7 +16,7 @@ import (
 )
 
 // TestPageListOpts_OverLimit_ValidatesBeforeRequest covers H29: the surviving
-// interface-backed page-list methods (Aliases, Balances) must short-circuit on
+// interface-backed page-list method (Balances) must short-circuit on
 // Validate() before issuing any HTTP request when opts.Limit > MaxLimit. This
 // is the entity-side regression pinning the contract that backs
 // ValidatePageListOpts and ValidateCursorListOpts (already covered at the model
@@ -37,15 +37,6 @@ func TestPageListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 		// Returns the entity-layer error.
 		run func(t *testing.T, baseURL string) error
 	}{
-		{
-			name: "ListAliases",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newAliasesEntity(http.DefaultClient, map[string]string{"crm": baseURL})
-				_, err := e.ListAliases(context.Background(), "org",
-					models.AliasesListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
 		{
 			name: "ListBalances",
 			run: func(_ *testing.T, baseURL string) error {

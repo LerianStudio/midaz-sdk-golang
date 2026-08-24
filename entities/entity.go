@@ -1,6 +1,6 @@
 // Package entities provides the service interfaces for interacting with the
 // Midaz API resources — organizations, ledgers, accounts, assets, balances,
-// portfolios, segments, transactions, and CRM resources.
+// portfolios, segments, transactions, and CRM resources (holders, instruments).
 //
 // The package entry point is [Entity], constructed via [NewEntityWithConfig]
 // (or [NewEntityWithConfigContext] for explicit context propagation). Each
@@ -149,7 +149,7 @@ type Entity struct {
 	// planes holds the two generated, typed plane clients (Ledger + Tracer).
 	// They are the low-level surface the hand-written facade migrates onto in
 	// Phases 2-4; during the transition the legacy per-service *HTTPClient
-	// above still serves the 3 legacy services (Balances, Operations, Aliases).
+	// above still serves the 2 legacy services (Balances, Operations).
 	// Nil only when construction never reached the plane-client build step.
 	planes *PlaneClients
 
@@ -164,7 +164,7 @@ type Entity struct {
 
 	// Ledger-plane resource accessors. Epic 5.3 swap: these 13 now route to the
 	// concrete plane facades (*xFacade) over e.planes.Ledger, not the legacy
-	// per-service interfaces. Balances/Operations/Aliases stay legacy (no facade
+	// per-service interfaces. Balances/Operations stay legacy (no facade
 	// exists yet — Epic 5.4 gap resolution).
 	Accounts          *accountsFacade
 	AccountTypes      *accountTypesFacade
@@ -172,7 +172,6 @@ type Entity struct {
 	AssetRates        *assetRatesFacade
 	Balances          BalancesService
 	Holders           *holdersFacade
-	Aliases           AliasesService
 	Ledgers           *ledgersFacade
 	MetadataIndexes   *metadataIndexesFacade
 	Operations        OperationsService
@@ -185,8 +184,8 @@ type Entity struct {
 
 	// Plane-native facades (Phases 3-4). Additive accessors over the typed
 	// generated plane clients; they coexist with the resource accessors above
-	// (13 already plane facades, plus the legacy Balances/Operations/Aliases
-	// trio) until the Phase 5 cutover repoints the remaining trio too. Reached
+	// (13 already plane facades, plus the legacy Balances/Operations
+	// pair) until the Phase 5 cutover repoints the remaining pair too. Reached
 	// fluently via client.X.Method (promoted through the embedded *Entity). Nil
 	// when the Entity was built without plane clients.
 	Rules               *rulesFacade
@@ -295,7 +294,7 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 
 // initServices initializes the service interfaces for the entity.
 //
-// The 3 legacy service entities (Balances, Operations, Aliases) share the SAME
+// The 2 legacy service entities (Balances, Operations) share the SAME
 // parent [*HTTPClient] — passed via [newSharedServiceEntity]. That single
 // instance owns the auth-token cache, the singleflight token-refresh group,
 // the customRetryPolicy, the observability surface, and the
@@ -326,7 +325,7 @@ func (e *Entity) initServices() {
 	}
 
 	// Build the shared base once per service. The *HTTPClient is a pointer,
-	// so all 3 legacy services see the same mutable state (auth token, refresh
+	// so both legacy services see the same mutable state (auth token, refresh
 	// group, customRetryPolicy, etc.); baseURLs is cloned per service via
 	// prepareServiceBaseURLs so per-service mutation cannot bleed across
 	// services.
@@ -335,10 +334,9 @@ func (e *Entity) initServices() {
 	}
 
 	// Legacy per-service surface. Epic 5.3 repointed the 13 ledger resources to
-	// facades (below); only Balances/Operations/Aliases remain legacy-wired
+	// facades (below); only Balances/Operations remain legacy-wired
 	// (no facade exists yet — Epic 5.4 gap).
 	e.Balances = &balancesEntity{serviceEntity: shared()}
-	e.Aliases = &aliasesEntity{serviceEntity: shared()}
 	e.Operations = &operationsEntity{serviceEntity: shared()}
 
 	// Plane-native facades. The 13 ledger resource accessors (Epic 5.3 swap)
@@ -446,19 +444,19 @@ func (e *Entity) GetObservabilityProvider() observability.Provider {
 }
 
 // SetHTTPClient replaces the HTTP client used by the LEGACY per-service surface
-// only — Balances, Operations, and Aliases — and preserves the entity's tenant
+// only — Balances and Operations — and preserves the entity's tenant
 // ID and auth token across the swap.
 //
 // LIMITATION: it does NOT re-transport the 18 plane facades (Organizations,
 // Ledgers, Accounts, Transactions, Encryption, and the rest). initServices
 // rebuilds those facades over the already-constructed e.planes.Ledger /
 // e.planes.Tracer clients, whose transport is fixed at construction and is not
-// rebuilt here; only the legacy trio picks up the new client. To control the
+// rebuilt here; only the legacy pair picks up the new client. To control the
 // transport for the facades/planes, pass config.WithHTTPClient(client) when the
 // client is constructed rather than swapping it afterward.
 //
 // Parameters:
-//   - client: The HTTP client to use for API requests (legacy trio only).
+//   - client: The HTTP client to use for API requests (legacy pair only).
 func (e *Entity) SetHTTPClient(client *http.Client) {
 	if e == nil {
 		return
@@ -547,10 +545,6 @@ func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[
 		normalized["transaction"] = onboarding
 	}
 
-	if strings.TrimSpace(normalized["crm"]) == "" {
-		normalized["crm"] = onboarding
-	}
-
 	// The Tracer fallback must happen BEFORE normalization so the loop below can
 	// stamp the plane's "/v1" onto a URL inherited from the (now bare) Ledger base.
 	if strings.TrimSpace(normalized["tracer"]) == "" {
@@ -574,7 +568,7 @@ func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[
 // The two planes version themselves differently, and the difference is fixed by
 // each plane's OpenAPI contract, not by preference:
 //
-//   - Ledger (onboarding/transaction/crm): its spec declares servers:[{url: "/"}]
+//   - Ledger (onboarding/transaction): its spec declares servers:[{url: "/"}]
 //     and carries the version inside every path ("/v1/organizations",
 //     "/v2/organizations"). A base-URL pin here would produce "/v1/v1/...".
 //   - Tracer: its spec declares servers:[{url: "/v1"}] with unversioned paths

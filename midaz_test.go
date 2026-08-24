@@ -112,7 +112,6 @@ func TestNewClient(t *testing.T) {
 
 	require.NotNil(t, client.Entity)
 	require.NotNil(t, client.Holders)
-	require.NotNil(t, client.Aliases)
 	require.NotNil(t, client.MetadataIndexes)
 
 	// Test creating a client with a complete config

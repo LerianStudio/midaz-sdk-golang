@@ -2,7 +2,7 @@ package entities
 
 // Header names used in HTTP requests.
 //
-// Service-name string keys ("onboarding", "transaction", "crm") are defined
+// Service-name string keys ("onboarding", "transaction") are defined
 // once in [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config]; do not
 // re-define them here. Internal entity code reaches them through the
 // baseURLs map keyed by the same strings.
@@ -17,8 +17,8 @@ const (
 	// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.DefaultTracerAPIVersionPath].
 	tracerAPIVersionPath = "/v1"
 
-	// ledgerV1VersionPath is the version segment the three hand-rolled Ledger
-	// services (balances, operations, aliases) must stamp onto their base URL.
+	// ledgerV1VersionPath is the version segment the two hand-rolled Ledger
+	// services (balances, operations) must stamp onto their base URL.
 	// The Ledger plane base URL is bare — the generated client carries the
 	// version inside every operation path — so a service that concatenates its
 	// own path has to supply the version itself. See [serviceEntity.legacyV1BaseURL].
