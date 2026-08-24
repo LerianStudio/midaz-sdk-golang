@@ -263,11 +263,6 @@ func setQueryParam(key, value string) genledger.RequestEditorFn {
 	}
 }
 
-// writeJSON is the shared write path for the facade layer (the money-path
-// exemplar). It marshals a SDK-native input, hands it to send as a *bytes.Reader
-// (rewindable so the auth round tripper can replay after a 401), and decodes the
-// success body into T. send returns the raw *http.Response + body so error
-// mapping and request-ID correlation stay identical to the read path.
 // reconcileBodyLedgerID reconciles the ledger that travels in the URL path with
 // the ledgerId the same request also carries in its body.
 //
@@ -296,6 +291,11 @@ func reconcileBodyLedgerID(operation, pathLedgerID string, bodyLedgerID *string)
 	return nil
 }
 
+// writeJSON is the shared write path for the facade layer (the money-path
+// exemplar). It marshals a SDK-native input, hands it to send as a *bytes.Reader
+// (rewindable so the auth round tripper can replay after a 401), and decodes the
+// success body into T. send returns the raw *http.Response + body so error
+// mapping and request-ID correlation stay identical to the read path.
 func writeJSON[T any](_ context.Context, operation string, input any, send func(body io.Reader) (*http.Response, []byte, error)) (*T, error) {
 	payload, err := json.Marshal(input)
 	if err != nil {
