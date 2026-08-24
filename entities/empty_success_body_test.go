@@ -13,15 +13,20 @@ import (
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
-// emptySuccessBodies are the four 2xx shapes that carry no resource. Each one
+// emptySuccessBodies are the five 2xx shapes that carry no resource. Each one
 // unmarshals into a zero-valued model with a NIL error, which is the whole
 // defect: a caller who branches on err != nil books a settled transfer whose id
 // is "" and whose status is "".
 //
-//   - ""    a proxy or gateway that dropped the body
-//   - "  "  the same, with whitespace surviving
-//   - null  the JSON literal; json.Unmarshal on it is a documented no-op
-//   - {}    a well-formed object that sets nothing
+//   - ""       a proxy or gateway that dropped the body
+//   - "  "     the same, with whitespace surviving
+//   - null     the JSON literal; json.Unmarshal on it is a documented no-op
+//   - "null\n" the same, as most JSON writers actually emit it — a trailing
+//     newline is the default from json.Encoder and from a shell pipe, so this is
+//     the spelling a real proxy is likeliest to produce. It is here because the
+//     guard's TrimSpace was pinned by exactly ONE row (the Cancel whitespace
+//     case), which left every other endpoint free to lose the trim unnoticed.
+//   - {}       a well-formed object that sets nothing
 var emptySuccessBodies = []struct {
 	name string
 	body string
@@ -29,6 +34,7 @@ var emptySuccessBodies = []struct {
 	{name: "empty body", body: ""},
 	{name: "whitespace body", body: "  \n\t "},
 	{name: "null literal", body: "null"},
+	{name: "null literal with trailing newline", body: "null\n"},
 	{name: "empty object", body: "{}"},
 }
 

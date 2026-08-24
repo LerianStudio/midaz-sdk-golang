@@ -460,9 +460,19 @@ func (f *transactionsV2Facade) Revert(ctx context.Context, orgID, ledgerID, tran
 // the settled state the caller called in order to observe. Synthesizing either
 // would fabricate money data, so both fail loudly through the shared guard.
 //
+// WHAT THE SYNTHESIZED VALUE CARRIES, AND WHAT IT DOES NOT. Only ID and
+// Status.Code. Amount, AssetCode, Operations, Metadata and every timestamp are
+// the ZERO value, with a nil error — so a caller that reads Operations or
+// CreatedAt off a Cancel result gets an empty slice and a zero time rather than
+// a failure. Read the transaction back with Get if the record matters.
+//
 // The tolerated shape is a proxy or gateway that dropped the body, not a
-// documented server behaviour — the /v2 cancel declares a populated response —
-// and it is kept for parity with the /v1 cancel, where it was observed.
+// documented server behaviour, and against the pinned server the branch is
+// unreachable: CancelTransactionV2 is a shell over the same commitTransaction
+// core the /v1 cancel calls and always projects a populated body
+// (transaction_handler_v2.go:208-213; the /v1 shell is
+// transaction_handler.go:293-298). It is kept for parity with the /v1 cancel,
+// where the empty shape was observed.
 func (f *transactionsV2Facade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.Cancel"
 

@@ -292,6 +292,18 @@ func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transa
 // carries no resource is refused in decodeOne, Commit and Revert included. See
 // transactionsV2Facade.Cancel for why cancel alone can synthesize and they
 // cannot.
+//
+// WHAT THE SYNTHESIZED VALUE CARRIES, AND WHAT IT DOES NOT. Only ID and
+// Status.Code. Amount, AssetCode, Operations, Metadata and every timestamp are
+// the ZERO value, with a nil error — so a caller that reads Operations or
+// CreatedAt off a Cancel result gets an empty slice and a zero time rather than
+// a failure. Read the transaction back with Get if the record matters.
+//
+// Against the pinned server this branch is unreachable: CancelTransaction always
+// answers with a populated body (transaction_handler.go:293-298 projects the
+// transaction commitTransaction returned), as does its /v2 shell over the same
+// core (transaction_handler_v2.go:208-213). The tolerance is for a gateway or
+// proxy that drops the body, not for a server behaviour.
 func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Cancel"
 
