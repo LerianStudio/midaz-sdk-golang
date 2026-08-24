@@ -517,7 +517,13 @@ func (f *transactionsFacade) All(ctx context.Context, orgID, ledgerID string, op
 // (count_transactions_by_filters.go:63-65 and 75-77). So Count with a zero
 // TransactionsListOpts answers "how many transactions today", which a caller
 // reading it as the ledger total will misread — and the number looks plausible.
-// Set StartDate and EndDate to count any other span.
+//
+// To count any other span, set StartDate and EndDate as YYYY-MM-DD — the SAME
+// format List takes, from the same opts struct. Both bounds name a WHOLE day and
+// both are inclusive: 2026-01-01 to 2026-01-31 counts from the first instant of
+// January 1st through the last instant of January 31st. (The endpoint itself
+// parses RFC3339 rather than YYYY-MM-DD; countTransactionsParams widens the days
+// to the boundary instants, so the caller never carries two date formats.)
 //
 // It calls the LOWER-LEVEL raw CountTransactionsByFilters (returning the raw
 // *http.Response) rather than the generated WithResponse variant on purpose: a
@@ -599,9 +605,33 @@ func listTransactionsParams(opts models.TransactionsListOpts) *genledger.GetAllT
 	return params
 }
 
+// The instants a named DAY widens to on the count endpoint.
+//
+// The count endpoint strict-parses its dates as RFC3339
+// (count_transactions_by_filters.go:57 and 69, time.Parse(time.RFC3339, ...)),
+// while every list on this plane takes YYYY-MM-DD (httputils.go:176). Callers
+// pass ONE opts struct to both, so the SDK keeps ONE caller-facing format —
+// YYYY-MM-DD — and widens it here rather than making the same two fields mean
+// different things depending on which method reads them.
+//
+// The chosen instants are the server's own: with no dates at all buildCountFilter
+// fills start = today 00:00:00 UTC and end = today 23:59:59.999999999 UTC
+// (count_transactions_by_filters.go:63-65 and 75-77). Both bounds are INCLUSIVE
+// in the query (created_at >= start AND created_at <= end,
+// transaction.postgresql.go:1594-1595), so END-of-day is what makes a caller
+// asking "through Jan 31" actually receive Jan 31.
+const (
+	countStartOfDayUTC = "T00:00:00Z"
+	countEndOfDayUTC   = "T23:59:59.999999999Z"
+)
+
 // countTransactionsParams renders ONLY the four filters the HEAD count endpoint
 // honors (status/route/start_date/end_date). Cursor/limit/sort do not apply to
-// a count.
+// a count. Shared by both surfaces: countTransactionsV2Params delegates here.
+//
+// The date pair arrives as YYYY-MM-DD — opts.Validate() has already proved that,
+// and Count is the only caller — and leaves widened to the day boundaries the
+// endpoint's RFC3339 parser needs.
 func countTransactionsParams(opts models.TransactionsListOpts) *genledger.CountTransactionsByFiltersParams {
 	params := &genledger.CountTransactionsByFiltersParams{}
 
@@ -614,11 +644,11 @@ func countTransactionsParams(opts models.TransactionsListOpts) *genledger.CountT
 	}
 
 	if opts.StartDate != "" {
-		params.StartDate = strPtr(opts.StartDate)
+		params.StartDate = strPtr(opts.StartDate + countStartOfDayUTC)
 	}
 
 	if opts.EndDate != "" {
-		params.EndDate = strPtr(opts.EndDate)
+		params.EndDate = strPtr(opts.EndDate + countEndOfDayUTC)
 	}
 
 	return params

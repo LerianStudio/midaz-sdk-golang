@@ -896,7 +896,12 @@ func TestTransactionsFacade_Count(t *testing.T) {
 	if n != 42 {
 		t.Fatalf("count = %d, want 42", n)
 	}
-	for k, v := range map[string]string{"status": "APPROVED", "route": "cashin", "start_date": "2026-01-01", "end_date": "2026-02-01"} {
+	for k, v := range map[string]string{
+		"status": "APPROVED", "route": "cashin",
+		// Days in, day boundaries out — see countTransactionsParams.
+		"start_date": "2026-01-01T00:00:00Z",
+		"end_date":   "2026-02-01T23:59:59.999999999Z",
+	} {
 		if got := q.Get(k); got != v {
 			t.Fatalf("count query[%q] = %q, want %q", k, got, v)
 		}

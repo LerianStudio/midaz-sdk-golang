@@ -511,7 +511,13 @@ func (f *transactionsV2Facade) Cancel(ctx context.Context, orgID, ledgerID, tran
 // (count_transactions_by_filters.go:63-65 and 75-77). So Count with a zero
 // TransactionsListOpts answers "how many transactions today", which a caller
 // reading it as the ledger total will misread — and the number looks plausible.
-// Set StartDate and EndDate to count any other span.
+//
+// To count any other span, set StartDate and EndDate as YYYY-MM-DD — the SAME
+// format List takes, from the same opts struct. Both bounds name a WHOLE day and
+// both are inclusive: 2026-01-01 to 2026-01-31 counts from the first instant of
+// January 1st through the last instant of January 31st. (The endpoint itself
+// parses RFC3339 rather than YYYY-MM-DD; countTransactionsParams widens the days
+// to the boundary instants, so the caller never carries two date formats.)
 func (f *transactionsV2Facade) Count(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (int, error) {
 	if err := requirePathIDs("V2.Transactions.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
 		return 0, err

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
@@ -274,6 +275,124 @@ func TestTransactionCountStillHonoursStatusAndRoute(t *testing.T) {
 
 			if got.Get("status") != "APPROVED" || got.Get("route") != "route-1" {
 				t.Fatalf("count must send status and route, got %v", got)
+			}
+		})
+	}
+}
+
+// countServer answers a HEAD count and records the query it was asked with.
+func countServer(t *testing.T, query *url.Values) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if query != nil {
+			*query = r.URL.Query()
+		}
+
+		w.Header().Set("X-Total-Count", "3")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// TestTransactionCountTakesADateRange is the pin behind the promise the Count
+// docs make, on BOTH surfaces.
+//
+// Before this, NO spelling of a Count date range worked. The opts struct is
+// shared with List, so its validator enforces the list format (YYYY-MM-DD) and
+// refused an RFC3339 value locally; a YYYY-MM-DD value passed the SDK and the
+// count endpoint then rejected it with ErrInvalidDatetimeFormat, because that
+// endpoint strict-parses RFC3339 (count_transactions_by_filters.go:57 and 69).
+// A caller asking "how many transactions in January" could not be answered at
+// all while three doc sites said they could — and Count is where the refused
+// list filters steer them.
+//
+// One format for the caller (YYYY-MM-DD, as List takes), widened here to the day
+// boundaries. END-of-day on the upper bound is the load-bearing half: the query
+// compares created_at <= end_date (transaction.postgresql.go:1595), so a naive
+// midnight bound would silently drop every transaction on the last day the
+// caller named.
+func TestTransactionCountTakesADateRange(t *testing.T) {
+	for _, surface := range listFilterSurfaces {
+		t.Run(surface.name, func(t *testing.T) {
+			var got url.Values
+
+			opts := models.TransactionsListOpts{
+				CursorListOpts: models.CursorListOpts{StartDate: "2026-01-01", EndDate: "2026-01-31"},
+			}
+
+			if _, err := surface.count(t, countServer(t, &got), opts); err != nil {
+				t.Fatalf("a YYYY-MM-DD range must reach the count endpoint: %v", err)
+			}
+
+			// Literals, deliberately not the countStartOfDayUTC /
+			// countEndOfDayUTC constants: asserting against the same constant
+			// the code interpolates pins nothing — it passes for any value,
+			// including a midnight upper bound that loses the last day.
+			for key, want := range map[string]string{
+				"start_date": "2026-01-01T00:00:00Z",
+				"end_date":   "2026-01-31T23:59:59.999999999Z",
+			} {
+				if got.Get(key) != want {
+					t.Fatalf("%s = %q, want %q", key, got.Get(key), want)
+				}
+			}
+
+			// Both bounds must parse as RFC3339 or the server answers 400 —
+			// the exact failure this fix removes.
+			for _, key := range []string{"start_date", "end_date"} {
+				if _, err := time.Parse(time.RFC3339, got.Get(key)); err != nil {
+					t.Fatalf("%s = %q does not parse as RFC3339: %v", key, got.Get(key), err)
+				}
+			}
+		})
+	}
+}
+
+// TestTransactionCountOmitsAnUnsetDateRange is the other half: widening must not
+// invent a window. With no dates set the SDK sends none, which is what lets the
+// server apply its documented today-only default rather than a range the caller
+// never asked for.
+func TestTransactionCountOmitsAnUnsetDateRange(t *testing.T) {
+	for _, surface := range listFilterSurfaces {
+		t.Run(surface.name, func(t *testing.T) {
+			var got url.Values
+
+			if _, err := surface.count(t, countServer(t, &got), models.TransactionsListOpts{}); err != nil {
+				t.Fatalf("count without dates: %v", err)
+			}
+
+			for _, key := range []string{"start_date", "end_date"} {
+				if got.Has(key) {
+					t.Fatalf("%s must be omitted when unset, got %q", key, got.Get(key))
+				}
+			}
+		})
+	}
+}
+
+// TestTransactionCountStillRefusesAMalformedDate keeps the local refusal: the
+// widening appends a suffix and trusts the validator that ran first, so a value
+// that is not a calendar day must never reach it.
+func TestTransactionCountStillRefusesAMalformedDate(t *testing.T) {
+	for _, surface := range listFilterSurfaces {
+		t.Run(surface.name, func(t *testing.T) {
+			for _, bad := range []string{"01/2026", "2026-01-01T00:00:00Z", "yesterday"} {
+				opts := models.TransactionsListOpts{
+					CursorListOpts: models.CursorListOpts{StartDate: bad},
+				}
+
+				_, err := surface.count(t, countServer(t, nil), opts)
+				if err == nil {
+					t.Fatalf("%q is not a day and must be refused locally", bad)
+				}
+
+				if !sdkerrors.IsValidationError(err) {
+					t.Fatalf("%q must be a validation error, got %v", bad, err)
+				}
 			}
 		})
 	}
