@@ -471,20 +471,30 @@ func TestBareArrayReadKeepsTheRealErrorStatus(t *testing.T) {
 			for _, s := range statuses {
 				t.Run(s.name, func(t *testing.T) {
 					_, err := read.call(t, emptyBodyServer(t, s.status, ""))
-					if err == nil {
-						t.Fatalf("a %d must not read as a successful empty result set", s.status)
-					}
 
-					if sdkerrors.IsInternalError(err) {
-						t.Fatalf("a %d with an empty body must not become an SDK-internal fault: %v", s.status, err)
-					}
-
-					if !s.is(err) {
-						t.Fatalf("want the %d preserved, got %v", s.status, err)
-					}
+					assertStatusSurvived(t, err, s.status, s.is)
 				})
 			}
 		})
+	}
+}
+
+// assertStatusSurvived checks one empty-body error status: it must surface, must
+// not be reclassified as an SDK fault, and must still be the status the server
+// sent.
+func assertStatusSurvived(t *testing.T, err error, status int, is func(error) bool) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("a %d must not read as a successful empty result set", status)
+	}
+
+	if sdkerrors.IsInternalError(err) {
+		t.Fatalf("a %d with an empty body must not become an SDK-internal fault: %v", status, err)
+	}
+
+	if !is(err) {
+		t.Fatalf("want the %d preserved, got %v", status, err)
 	}
 }
 
