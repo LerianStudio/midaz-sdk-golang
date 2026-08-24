@@ -11,21 +11,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestErrorDecoder covers the unified RFC 9457 problem+json envelope decode
-// into *Error: field mapping, retryability keyed on Status, and the Code
-// suffix override the status cannot express.
+// TestErrorDecoder covers the decode of BOTH live server error shapes into
+// *Error — the RFC 9457 problem+json envelope (/v2 + Tracer) and the legacy /v1
+// shape (code/message/title/entityType/fields) — including field mapping,
+// retryability keyed on Status, and the Code suffix override the status cannot
+// express.
 func TestErrorDecoder(t *testing.T) {
 	tests := []struct {
-		name          string
-		httpStatus    int
-		body          string
-		wantCategory  ErrorCategory
-		wantAPICode   string
-		wantTitle     string
-		wantStatus    int
-		wantRetryable bool
-		wantFields    []string
-		checkDetails  func(t *testing.T, e *Error)
+		name           string
+		httpStatus     int
+		body           string
+		wantCategory   ErrorCategory
+		wantAPICode    string
+		wantTitle      string
+		wantMessage    string
+		wantEntityType string
+		wantStatus     int
+		wantRetryable  bool
+		wantFields     []string
+		checkDetails   func(t *testing.T, e *Error)
 	}{
 		{
 			name:       "422 unprocessable without errors[] is non-retryable",
@@ -39,6 +43,7 @@ func TestErrorDecoder(t *testing.T) {
 			wantCategory:  CategoryUnprocessable,
 			wantAPICode:   "LEDGER-0042",
 			wantTitle:     "Unprocessable",
+			wantMessage:   "business rule violated",
 			wantStatus:    422,
 			wantRetryable: false,
 		},
@@ -162,6 +167,89 @@ func TestErrorDecoder(t *testing.T) {
 			wantStatus:    422,
 			wantRetryable: false,
 		},
+		{
+			// The whole /v1 surface emits this shape (application/json, LegacyError).
+			// Before it was decoded, every /v1 error read "API error with status
+			// code 400" and dropped the per-field detail entirely.
+			name:       "v1 legacy body maps message, entityType and fields",
+			httpStatus: http.StatusBadRequest,
+			body: `{
+					"code":"0065",
+					"title":"Invalid Path Parameter",
+					"message":"the account id is not a valid UUID",
+					"entityType":"Account",
+					"fields":{"name":"is required","chartOfAccounts":"unexpected field"}
+				}`,
+			wantCategory:   CategoryValidation,
+			wantAPICode:    "0065",
+			wantTitle:      "Invalid Path Parameter",
+			wantMessage:    "the account id is not a valid UUID",
+			wantEntityType: "Account",
+			wantStatus:     400,
+			wantRetryable:  false,
+			// Sorted, so the slice is deterministic across map iterations.
+			wantFields: []string{"chartOfAccounts", "name"},
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				legacyFields, ok := e.Details["fields"].(map[string]any)
+				require.True(t, ok, "Details[fields] should carry the raw legacy map")
+				assert.Equal(t, "is required", legacyFields["name"])
+			},
+		},
+		{
+			name:       "v1 legacy body without fields still carries the message",
+			httpStatus: http.StatusConflict,
+			body: `{
+					"code":"0072",
+					"title":"Duplicate Ledger",
+					"message":"a ledger with this name already exists"
+				}`,
+			wantCategory:  CategoryConflict,
+			wantAPICode:   "0072",
+			wantTitle:     "Duplicate Ledger",
+			wantMessage:   "a ledger with this name already exists",
+			wantStatus:    409,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.Nil(t, e.Fields, "no fields object means no field-errors")
+			},
+		},
+		{
+			// A body carrying both members reads as RFC 9457: "detail" and
+			// "errors" win so a server mid-migration is never downgraded.
+			name:       "rfc 9457 members win over the legacy ones",
+			httpStatus: http.StatusBadRequest,
+			body: `{
+					"code":"LEDGER-0001",
+					"title":"Validation failed",
+					"detail":"rfc detail",
+					"message":"legacy message",
+					"errors":[{"location":"body.name","message":"is required"}],
+					"fields":{"legacyOnly":"ignored"}
+				}`,
+			wantCategory:  CategoryValidation,
+			wantAPICode:   "LEDGER-0001",
+			wantTitle:     "Validation failed",
+			wantMessage:   "rfc detail",
+			wantStatus:    400,
+			wantRetryable: false,
+			wantFields:    []string{"body.name"},
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.NotContains(t, e.Details, "fields", "legacy fields must not shadow errors[]")
+			},
+		},
+		{
+			name:          "legacy body with an empty message falls back to http status",
+			httpStatus:    http.StatusInternalServerError,
+			body:          `{"code":"0500","title":"Internal","message":""}`,
+			wantCategory:  CategoryInternal,
+			wantAPICode:   "0500",
+			wantMessage:   "API error with status code 500",
+			wantStatus:    500,
+			wantRetryable: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -181,6 +269,14 @@ func TestErrorDecoder(t *testing.T) {
 
 			if tt.wantTitle != "" {
 				assert.Equal(t, tt.wantTitle, sdkErr.Title, "title")
+			}
+
+			if tt.wantMessage != "" {
+				assert.Equal(t, tt.wantMessage, sdkErr.Message, "message")
+			}
+
+			if tt.wantEntityType != "" {
+				assert.Equal(t, tt.wantEntityType, sdkErr.EntityType, "entity type")
 			}
 
 			if tt.wantFields != nil {
