@@ -3,6 +3,7 @@ package entities
 import (
 	"go/ast"
 	"go/token"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -130,4 +131,14 @@ func sortedKeys(set map[string]bool) []string {
 	sort.Strings(out)
 
 	return out
+}
+
+// readFileForScan reads a source file for the scans that need its raw text.
+func readFileForScan(t *testing.T, path string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	return string(data)
 }
