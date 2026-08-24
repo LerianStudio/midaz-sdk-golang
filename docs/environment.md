@@ -108,15 +108,15 @@ Plane-specific URLs override `MIDAZ_BASE_URL` for their plane.
 
 ```env
 MIDAZ_BASE_URL=https://midaz.example.com
-MIDAZ_LEDGER_URL=https://ledger.example.com/v1
+MIDAZ_LEDGER_URL=https://ledger.example.com
 ```
 
 With this configuration:
 
-- Ledger (onboarding + transactions) uses `https://ledger.example.com/v1`
+- Ledger (onboarding + transactions) uses `https://ledger.example.com`
 - Tracer uses `https://midaz.example.com/v1`
 
-`MIDAZ_BASE_URL` derives plane URLs and appends `/v1` when needed. For localhost without a port, the SDK uses port `3002` for the Ledger plane and port `4020` for the Tracer plane.
+The Ledger URL must NOT carry a version segment: the SDK versions each Ledger path itself (`/v1/...`, `/v2/...`), so a `/v1` or `/v2` suffix here is rejected at construction. The Tracer URL does carry `/v1`, and `MIDAZ_BASE_URL` appends it for the Tracer plane. For localhost without a port, the SDK uses port `3002` for the Ledger plane and port `4020` for the Tracer plane.
 
 ```env
 MIDAZ_BASE_URL=http://localhost
@@ -125,7 +125,7 @@ MIDAZ_BASE_URL=http://localhost
 This resolves to:
 
 ```text
-Ledger:  http://localhost:3002/v1
+Ledger:  http://localhost:3002
 Tracer:  http://localhost:4020/v1
 ```
 
@@ -227,7 +227,7 @@ MIDAZ_ENVIRONMENT=local
 
 # Service URLs
 MIDAZ_BASE_URL=http://localhost
-MIDAZ_LEDGER_URL=http://localhost:3002/v1
+MIDAZ_LEDGER_URL=http://localhost:3002
 MIDAZ_TRACER_URL=http://localhost:4020/v1
 
 # Access Manager authentication

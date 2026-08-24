@@ -132,7 +132,7 @@ Default config values include:
 | Retry wait maximum | `30s` at the config layer |
 | Retries enabled | `true` |
 | Idempotency enabled | `true` |
-| Local Ledger base URL | `http://localhost:3002/v1` |
+| Local Ledger base URL | `http://localhost:3002` |
 | Local CRM base URL | `http://localhost:4003/v1` |
 
 The HTTP retry engine has its own default options in `pkg/retry`:
@@ -193,7 +193,7 @@ The config package uses three service names internally:
 
 For local defaults:
 
-- Ledger API uses `http://localhost:3002/v1`
+- Ledger API uses `http://localhost:3002`
 - CRM API uses `http://localhost:4003/v1`
 
 For development and production defaults, CRM falls back to the Ledger base URL unless you provide `MIDAZ_CRM_URL` or `config.WithCRMURL(...)`.

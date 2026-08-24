@@ -350,7 +350,7 @@ templates are [`.env.example`](.env.example) (alias of
 | Variable | Type | Effect |
 |---|---|---|
 | `MIDAZ_ENVIRONMENT` | `local\|development\|production` | Selects per-environment URL defaults |
-| `MIDAZ_BASE_URL` | URL | Host base; the SDK appends `/v1` for service routes |
+| `MIDAZ_BASE_URL` | URL | Host base. The Ledger plane uses it as-is (the SDK versions each Ledger path itself, so a `/v1` or `/v2` suffix is rejected); the Tracer plane gets `/v1` appended |
 | `MIDAZ_LEDGER_URL` | URL | Specific override for the Ledger plane (onboarding + transactions). Wins over `MIDAZ_BASE_URL` |
 | `MIDAZ_TRACER_URL` | URL | Specific override for the Tracer plane. Derived from `MIDAZ_BASE_URL` when unset |
 | `MIDAZ_TRACER_API_KEY` | string | **Optional** `X-API-Key` for the Tracer plane. When unset, the Tracer plane shares the Ledger Bearer token |
