@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -348,4 +349,55 @@ func TestBalanceAndOperationBaseURLIsNotDoubleVersioned(t *testing.T) {
 	urls := c.GetConfig().ServiceURLs
 	require.Equal(t, "https://ledger.example.com", urls["onboarding"])
 	require.Equal(t, "https://ledger.example.com/v1", urls["tracer"])
+}
+
+// TestLedgerURLAloneIsEnoughToConstruct pins the configuration surface down to
+// the one URL a caller actually has to supply.
+//
+// There used to be a second mandatory Ledger key — an internal "transaction"
+// routing label populated from the same Ledger URL. Once every accessor moved
+// onto the generated plane clients, nothing read it, but construction still
+// FAILED when it was absent: an operator handing the SDK a hand-built config
+// with only a Ledger URL got an error naming a service that no longer exists as
+// a distinct thing. Supplying the Ledger plane is now sufficient.
+//
+// Both spellings are checked, because they derive the Tracer base differently
+// and only one of them touches it: WithLedgerURL addresses the Ledger alone and
+// leaves the Tracer on its environment default, while WithBaseURL declares one
+// shared origin and fans it out to both planes. Either way the Tracer base ends
+// up carrying the "/v1" its spec requires.
+func TestLedgerURLAloneIsEnoughToConstruct(t *testing.T) {
+	t.Run("WithLedgerURL leaves the tracer on its default", func(t *testing.T) {
+		cfg, err := config.NewConfig(
+			config.WithAnonymous(),
+			config.WithEnvironment(config.EnvironmentLocal),
+			config.WithLedgerURL("https://ledger.example.com"),
+		)
+		require.NoError(t, err, "a Ledger URL on its own must be a valid configuration")
+		require.NoError(t, cfg.Validate())
+
+		c, err := New(WithConfig(cfg))
+		require.NoError(t, err, "construction must succeed with only a Ledger URL supplied")
+
+		urls := c.GetConfig().ServiceURLs
+		require.Equal(t, "https://ledger.example.com", urls[config.ServiceOnboarding])
+		require.Equal(t, "http://localhost:4020/v1", urls[config.ServiceTracer],
+			"the tracer keeps its own base; WithLedgerURL addresses the Ledger only")
+	})
+
+	t.Run("WithBaseURL fans one origin out to both planes", func(t *testing.T) {
+		cfg, err := config.NewConfig(
+			config.WithAnonymous(),
+			config.WithBaseURL("https://midaz.example.com"),
+		)
+		require.NoError(t, err)
+		require.NoError(t, cfg.Validate())
+
+		c, err := New(WithConfig(cfg))
+		require.NoError(t, err)
+
+		urls := c.GetConfig().ServiceURLs
+		require.Equal(t, "https://midaz.example.com", urls[config.ServiceOnboarding])
+		require.Equal(t, "https://midaz.example.com/v1", urls[config.ServiceTracer])
+	})
 }

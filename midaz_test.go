@@ -679,16 +679,9 @@ func TestPublicConfigValidate(t *testing.T) {
 		require.Error(t, cfg.Validate())
 	})
 
-	t.Run("missing transaction URL fails", func(t *testing.T) {
-		cfg := createTestConfig(t)
-		delete(cfg.ServiceURLs, config.ServiceTransaction)
-		require.Error(t, cfg.Validate())
-	})
-
 	t.Run("missing ledger URL surfaces as ledger URL error", func(t *testing.T) {
 		cfg := createTestConfig(t)
 		delete(cfg.ServiceURLs, config.ServiceOnboarding)
-		delete(cfg.ServiceURLs, config.ServiceTransaction)
 		err := cfg.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "ledger URL is required")

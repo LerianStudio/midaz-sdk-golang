@@ -32,21 +32,16 @@ type ServiceType string
 
 // Service types constants define the available Midaz services.
 //
-// The consolidated Midaz server exposes exactly two planes: the Ledger
-// (onboarding + transaction + CRM/fees/billing endpoints, all under one host)
-// and the Tracer. ServiceOnboarding and ServiceTransaction are internal
-// routing labels that both resolve to [Config.LedgerURL]; ServiceTracer
-// resolves to [Config.TracerURL].
+// The consolidated Midaz server exposes exactly two planes: the Ledger (every
+// onboarding, transaction, CRM, fee and billing endpoint, all under one host)
+// and the Tracer. ServiceOnboarding is the internal routing label for the
+// Ledger and resolves to [Config.LedgerURL]; ServiceTracer resolves to
+// [Config.TracerURL].
 const (
-	// ServiceOnboarding is the internal routing label for the onboarding subset
-	// of Ledger endpoints. It shares its base URL with [ServiceTransaction];
-	// both are populated from [WithLedgerURL].
+	// ServiceOnboarding is the internal routing label for the Ledger plane. It
+	// is populated from [WithLedgerURL] and addresses every Ledger endpoint,
+	// not only the onboarding subset its name suggests.
 	ServiceOnboarding ServiceType = "onboarding"
-
-	// ServiceTransaction is the internal routing label for the transaction
-	// subset of Ledger endpoints. See [ServiceOnboarding] for the
-	// shared-base-URL note.
-	ServiceTransaction ServiceType = "transaction"
 
 	// ServiceTracer is the internal routing label for the Tracer plane.
 	// It is populated from [WithTracerURL] (or the shared base URL) and is
@@ -113,10 +108,10 @@ type Config struct {
 	// This affects the default URLs used if not explicitly overridden.
 	Environment Environment
 
-	// LedgerURL is the base URL of the Ledger plane (onboarding + transaction
-	// + CRM/fees/billing endpoints). It is the user-facing knob; the internal
-	// ServiceURLs[ServiceOnboarding]/[ServiceTransaction] entries are derived
-	// from it. Set via [WithLedgerURL].
+	// LedgerURL is the base URL of the Ledger plane (onboarding, transaction,
+	// CRM, fee and billing endpoints). It is the user-facing knob; the internal
+	// ServiceURLs[ServiceOnboarding] entry is derived from it. Set via
+	// [WithLedgerURL].
 	LedgerURL string
 
 	// TracerURL is the base URL of the Tracer plane. Set via [WithTracerURL].
@@ -280,7 +275,6 @@ func WithLedgerURL(ledgerURL string) Option {
 		trimmed := strings.TrimRight(ledgerURL, "/")
 		c.LedgerURL = trimmed
 		c.ServiceURLs[ServiceOnboarding] = trimmed
-		c.ServiceURLs[ServiceTransaction] = trimmed
 		c.ledgerURLSet = true
 
 		return nil
@@ -416,7 +410,6 @@ func WithBaseURL(baseURL string) Option {
 		if !c.ledgerURLSet {
 			c.LedgerURL = planeURL
 			c.ServiceURLs[ServiceOnboarding] = planeURL
-			c.ServiceURLs[ServiceTransaction] = planeURL
 		}
 
 		if !c.tracerURLSet {
@@ -1251,7 +1244,6 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 	if !config.ledgerURLSet {
 		config.LedgerURL = serviceURLs.ledgerURL
 		config.ServiceURLs[ServiceOnboarding] = serviceURLs.ledgerURL
-		config.ServiceURLs[ServiceTransaction] = serviceURLs.ledgerURL
 	}
 
 	if !config.tracerURLSet {
@@ -1273,9 +1265,8 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 // v4 Track 8).
 //
 // Validation rules:
-//   - ServiceURLs[ServiceOnboarding] and ServiceURLs[ServiceTransaction] must
-//     both be set — these are populated from LedgerURL (the single user-facing
-//     knob) and used internally to route onboarding vs transaction endpoints.
+//   - ServiceURLs[ServiceOnboarding] must be set — it is populated from
+//     LedgerURL (the single user-facing knob) and addresses the Ledger plane.
 //   - Exactly one auth source must be configured: either WithAccessManager
 //     (enables AccessManager and requires Address) or WithAnonymous (explicit
 //     auth-less mode). Construction without either fails.
@@ -1306,17 +1297,11 @@ func validateConfig(config *Config) error {
 }
 
 // validateServiceURLs enforces that the Ledger service URL is configured.
-// The onboarding and transaction internal routes both resolve to LedgerURL,
-// so both map entries must be populated for the entity layer to function.
 // It also refuses the AllowInsecureHTTP opt-in in the production
 // environment, mirroring the Access Manager equivalent — the flag is for
 // in-cluster or controlled-network deployments, never the public internet.
 func validateServiceURLs(config *Config) error {
 	if onboardingURL, ok := config.ServiceURLs[ServiceOnboarding]; !ok || strings.TrimSpace(onboardingURL) == "" {
-		return errors.New("ledger URL is required")
-	}
-
-	if transactionURL, ok := config.ServiceURLs[ServiceTransaction]; !ok || strings.TrimSpace(transactionURL) == "" {
 		return errors.New("ledger URL is required")
 	}
 

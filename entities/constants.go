@@ -2,7 +2,7 @@ package entities
 
 // Header names used in HTTP requests.
 //
-// Service-name string keys ("onboarding", "transaction") are defined
+// Service-name string keys ("onboarding", "tracer") are defined
 // once in [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config]; do not
 // re-define them here.
 const (

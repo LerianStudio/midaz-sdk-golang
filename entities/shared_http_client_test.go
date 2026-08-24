@@ -37,8 +37,7 @@ func requestJSON(t *testing.T, entity *Entity, url string) error {
 // per-call copy.
 func TestSharedHTTPClient_EntityExposesOneInstance(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: time.Second}, "token", map[string]string{
-		"onboarding":  "http://localhost",
-		"transaction": "http://localhost",
+		"onboarding": "http://localhost",
 	}, nil)
 
 	first := entity.GetEntityHTTPClient()
@@ -60,8 +59,7 @@ func TestSharedHTTPClient_SetUserAgentMidLifetimePropagates(t *testing.T) {
 	defer srv.Close()
 
 	entity := newTestEntity(t, srv.Client(), "token", map[string]string{
-		"onboarding":  srv.URL,
-		"transaction": srv.URL,
+		"onboarding": srv.URL,
 	}, nil)
 
 	// Mid-lifetime: flip the user-agent AFTER initServices already ran.
@@ -76,8 +74,7 @@ func TestSharedHTTPClient_SetUserAgentMidLifetimePropagates(t *testing.T) {
 // readable on the same instance immediately after being set.
 func TestSharedHTTPClient_SetDebugMidLifetimePropagates(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: time.Second}, "token", map[string]string{
-		"onboarding":  "http://localhost",
-		"transaction": "http://localhost",
+		"onboarding": "http://localhost",
 	}, nil)
 
 	parent := entity.GetEntityHTTPClient()
@@ -129,8 +126,7 @@ func TestSharedHTTPClient_TokenRefreshVisibleAcrossRequests(t *testing.T) {
 	defer srv.Close()
 
 	entity := newTestEntity(t, srv.Client(), "stale", map[string]string{
-		"onboarding":  srv.URL,
-		"transaction": srv.URL,
+		"onboarding": srv.URL,
 	}, nil)
 
 	entity.GetEntityHTTPClient().setAuthTokenProvider(tokenProvider, nil)
@@ -188,8 +184,7 @@ func TestSharedHTTPClient_ConcurrentRefreshDeduplicates(t *testing.T) {
 	defer srv.Close()
 
 	entity := newTestEntity(t, srv.Client(), "stale", map[string]string{
-		"onboarding":  srv.URL,
-		"transaction": srv.URL,
+		"onboarding": srv.URL,
 	}, nil)
 
 	entity.GetEntityHTTPClient().setAuthTokenProvider(tokenProvider, nil)

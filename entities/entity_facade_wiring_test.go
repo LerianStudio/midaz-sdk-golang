@@ -17,9 +17,8 @@ import (
 // only the additive surface and that the legacy accessors still coexist.
 func TestEntity_PlaneFacadeAccessorsWired(t *testing.T) {
 	baseURLs := map[string]string{
-		"onboarding":  "https://api.example.com/onboarding",
-		"transaction": "https://api.example.com/transaction",
-		"tracer":      "https://api.example.com/tracer/v1",
+		"onboarding": "https://api.example.com/onboarding",
+		"tracer":     "https://api.example.com/tracer/v1",
 	}
 
 	entity, err := NewEntityWithConfig(&mockPluginAuthConfig{httpClient: http.DefaultClient, baseURLs: baseURLs})

@@ -110,14 +110,6 @@ func TestNormalizeBaseURLs_LedgerVersionSuffix(t *testing.T) {
 			wantErrSubstr: `base URL must not end in "/v1"`,
 		},
 		{
-			name: "v1-suffixed transaction base is rejected",
-			baseURLs: map[string]string{
-				"onboarding":  "https://api.example.com",
-				"transaction": "https://api.example.com/v1",
-			},
-			wantErrSubstr: `invalid transaction URL: base URL must not end in "/v1"`,
-		},
-		{
 			name: "explicit tracer base keeps its v1 suffix",
 			baseURLs: map[string]string{
 				"onboarding": "https://api.example.com",
@@ -159,9 +151,7 @@ func TestNormalizeBaseURLs_LedgerVersionSuffix(t *testing.T) {
 }
 
 func TestNormalizeBaseURLs_RequiresOnboardingKey(t *testing.T) {
-	baseURLs, err := normalizeBaseURLs(map[string]string{
-		"transaction": "https://api.example.com/transaction",
-	}, false)
+	baseURLs, err := normalizeBaseURLs(map[string]string{}, false)
 
 	require.Error(t, err)
 	require.Nil(t, baseURLs)

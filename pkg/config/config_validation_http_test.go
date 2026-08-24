@@ -23,9 +23,8 @@ func TestValidateConfig_MissingLedgerURL(t *testing.T) {
 func TestValidateConfig_Valid(t *testing.T) {
 	config := &Config{
 		ServiceURLs: map[ServiceType]string{
-			ServiceOnboarding:  "https://api.example.com/v1",
-			ServiceTransaction: "https://api.example.com/v1",
-			ServiceTracer:      "https://tracer.example.com/v1",
+			ServiceOnboarding: "https://api.example.com/v1",
+			ServiceTracer:     "https://tracer.example.com/v1",
 		},
 		Anonymous: true,
 	}
@@ -37,8 +36,7 @@ func TestValidateConfig_Valid(t *testing.T) {
 func TestValidateConfig_TracerURLIsOptional(t *testing.T) {
 	config := &Config{
 		ServiceURLs: map[ServiceType]string{
-			ServiceOnboarding:  "https://api.example.com/v1",
-			ServiceTransaction: "https://api.example.com/v1",
+			ServiceOnboarding: "https://api.example.com/v1",
 		},
 		// Anonymous=true is the v3-canonical way to assert no-auth at
 		// validation time without going through the option chain.
@@ -71,7 +69,6 @@ func TestWithBaseURL_InitializesServiceURLsMap(t *testing.T) {
 	assert.NotNil(t, config.ServiceURLs)
 	// Ledger base stays bare; the Ledger spec versions its own paths.
 	assert.Equal(t, "https://api.example.com", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://api.example.com", config.ServiceURLs[ServiceTransaction])
 	// Tracer keeps "/v1": its spec declares servers:[{url: "/v1"}].
 	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceTracer])
 }
@@ -164,7 +161,6 @@ func TestWithLedgerURL_InitializesServiceURLsMap(t *testing.T) {
 	assert.NotNil(t, config.ServiceURLs)
 	// Ledger base stays bare; the Ledger spec versions its own paths.
 	assert.Equal(t, "https://api.example.com", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://api.example.com", config.ServiceURLs[ServiceTransaction])
 	// WithLedgerURL pins only the Ledger plane; it must not seed the Tracer.
 	assert.Empty(t, config.ServiceURLs[ServiceTracer])
 }

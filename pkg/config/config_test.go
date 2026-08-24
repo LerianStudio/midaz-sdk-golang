@@ -72,7 +72,6 @@ func TestDefaultConstants(t *testing.T) {
 
 func TestServiceTypeConstants(t *testing.T) {
 	assert.Equal(t, ServiceOnboarding, ServiceType("onboarding"))
-	assert.Equal(t, ServiceTransaction, ServiceType("transaction"))
 	assert.Equal(t, ServiceTracer, ServiceType("tracer"))
 }
 
@@ -108,7 +107,6 @@ func TestNewConfig_Defaults(t *testing.T) {
 	assert.False(t, config.Debug)
 	assert.NotNil(t, config.HTTPClient)
 	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewConfig_WithAllOptions(t *testing.T) {
@@ -141,7 +139,6 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 
 	assert.Equal(t, EnvironmentProduction, config.Environment)
 	assert.Equal(t, "https://custom.example.com", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://custom.example.com", config.ServiceURLs[ServiceTransaction])
 	assert.NotSame(t, customClient, config.HTTPClient)
 	assert.Equal(t, customClient.Timeout, config.HTTPClient.Timeout)
 	assert.NotNil(t, config.HTTPClient.CheckRedirect)
@@ -226,7 +223,6 @@ func TestWithEnvironment_WithBaseURL(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.env, config.Environment)
 			assert.Equal(t, tc.expectedLedgerURL, config.ServiceURLs[ServiceOnboarding])
-			assert.Equal(t, tc.expectedLedgerURL, config.ServiceURLs[ServiceTransaction])
 		})
 	}
 }
@@ -250,7 +246,6 @@ func TestWithLedgerURL_Valid(t *testing.T) {
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.url, config.ServiceURLs[ServiceOnboarding])
-			assert.Equal(t, tc.url, config.ServiceURLs[ServiceTransaction])
 		})
 	}
 }
@@ -288,7 +283,6 @@ func TestWithBaseURL_LocalEnvironment(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://custom.example.com", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://custom.example.com", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
@@ -303,8 +297,7 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			env:     EnvironmentDevelopment,
 			baseURL: "https://custom.example.com",
 			expected: map[ServiceType]string{
-				ServiceOnboarding:  "https://custom.example.com",
-				ServiceTransaction: "https://custom.example.com",
+				ServiceOnboarding: "https://custom.example.com",
 			},
 		},
 		{
@@ -312,8 +305,7 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			env:     EnvironmentProduction,
 			baseURL: "https://api.prod.example.com",
 			expected: map[ServiceType]string{
-				ServiceOnboarding:  "https://api.prod.example.com",
-				ServiceTransaction: "https://api.prod.example.com",
+				ServiceOnboarding: "https://api.prod.example.com",
 			},
 		},
 	}
@@ -327,7 +319,6 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected[ServiceOnboarding], config.ServiceURLs[ServiceOnboarding])
-			assert.Equal(t, tc.expected[ServiceTransaction], config.ServiceURLs[ServiceTransaction])
 		})
 	}
 }
@@ -742,10 +733,9 @@ func TestFromEnvironment_TwoPlanes(t *testing.T) {
 	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
-	// Ledger plane feeds both onboarding and transaction internal routes.
+	// The Ledger plane feeds the onboarding internal route.
 	assert.Equal(t, "https://ledger.example.com", config.LedgerURL)
 	assert.Equal(t, "https://ledger.example.com", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://ledger.example.com", config.ServiceURLs[ServiceTransaction])
 
 	// Tracer plane is its own explicit URL.
 	assert.Equal(t, "https://tracer.example.com/v1", config.TracerURL)
@@ -790,7 +780,6 @@ func TestWithBaseURL_FansOutToBothPlanes(t *testing.T) {
 	// /v2) while the Tracer base carries "/v1" (its spec declares
 	// servers:[{url: "/v1"}] with unversioned paths).
 	assert.Equal(t, "https://api.example.com", cfg.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://api.example.com", cfg.ServiceURLs[ServiceTransaction])
 	assert.Equal(t, "https://api.example.com/v1", cfg.ServiceURLs[ServiceTracer])
 }
 
@@ -816,7 +805,6 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 	assert.Equal(t, "env-client-id", config.AccessManager.ClientID)
 	assert.Equal(t, "env-client-secret", config.AccessManager.ClientSecret)
 	assert.Equal(t, "https://env.example.com", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://env.example.com", config.ServiceURLs[ServiceTransaction])
 	assert.Equal(t, 45*time.Second, config.Timeout)
 	assert.True(t, config.Debug)
 	assert.Equal(t, 7, config.MaxRetries)
@@ -908,7 +896,6 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://specific.example.com", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://specific.example.com", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
@@ -954,7 +941,6 @@ func TestDefaultConfig(t *testing.T) {
 	assert.NotNil(t, config.HTTPClient)
 	assert.NotNil(t, config.ServiceURLs)
 	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewLocalConfig(t *testing.T) {
@@ -964,7 +950,6 @@ func TestNewLocalConfig(t *testing.T) {
 	assert.Equal(t, EnvironmentLocal, config.Environment)
 	assert.False(t, config.AccessManager.Enabled)
 	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewLocalConfig_WithEnvVars(t *testing.T) {
@@ -1004,7 +989,6 @@ func TestGetBaseURLs(t *testing.T) {
 	baseURLs := config.GetBaseURLs()
 
 	assert.Equal(t, "https://api.example.com/v1", baseURLs["onboarding"])
-	assert.Equal(t, "https://api.example.com/v1", baseURLs["transaction"])
 }
 
 func TestGetHTTPClient(t *testing.T) {
@@ -1105,10 +1089,8 @@ func TestOptionOrderMatters(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// WithLedgerURL applied after WithBaseURL wins for both onboarding and
-	// transaction routes.
+	// WithLedgerURL applied after WithBaseURL wins for the Ledger route.
 	assert.Equal(t, "https://specific.example.com", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://specific.example.com", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestIsLocalhost(t *testing.T) {
@@ -1296,7 +1278,6 @@ func TestWithAllowInsecureHTTP_LedgerURL(t *testing.T) {
 		assert.True(t, cfg.AllowInsecureHTTP)
 		assert.True(t, cfg.GetAllowInsecureHTTP())
 		assert.Equal(t, clusterURL, cfg.ServiceURLs[ServiceOnboarding])
-		assert.Equal(t, clusterURL, cfg.ServiceURLs[ServiceTransaction])
 	})
 
 	t.Run("DefaultRejectsClusterLocalHTTP", func(t *testing.T) {
@@ -1502,7 +1483,6 @@ func TestSetDefaultServiceURLs_AllEnvironments(t *testing.T) {
 			err := setDefaultServiceURLs(config)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedLedgerURL, config.ServiceURLs[ServiceOnboarding])
-			assert.Equal(t, tc.expectedLedgerURL, config.ServiceURLs[ServiceTransaction])
 		})
 	}
 }

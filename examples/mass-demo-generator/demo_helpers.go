@@ -490,7 +490,6 @@ func printBootstrapInfo(cfg *config.Config, gcfg gen.GeneratorConfig) {
 	fmt.Println("Mass Demo Generator - Bootstrap")
 	fmt.Println("Environment:", cfg.Environment)
 	fmt.Println("Onboarding API:", cfg.ServiceURLs[config.ServiceOnboarding])
-	fmt.Println("Transaction API:", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Printf("Config: orgs=%d ledgers/org=%d accounts/ledger=%d tx/account=%d concurrency=%d batch=%d\n",
 		gcfg.Organizations,
 		gcfg.LedgersPerOrg,

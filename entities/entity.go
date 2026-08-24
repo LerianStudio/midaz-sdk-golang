@@ -507,10 +507,6 @@ func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[
 		return nil, errors.New("missing onboarding URL in service URLs map")
 	}
 
-	if strings.TrimSpace(normalized["transaction"]) == "" {
-		normalized["transaction"] = onboarding
-	}
-
 	// The Tracer fallback must happen BEFORE normalization so the loop below can
 	// stamp the plane's "/v1" onto a URL inherited from the (now bare) Ledger base.
 	if strings.TrimSpace(normalized["tracer"]) == "" {
@@ -534,7 +530,7 @@ func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[
 // The two planes version themselves differently, and the difference is fixed by
 // each plane's OpenAPI contract, not by preference:
 //
-//   - Ledger (onboarding/transaction): its spec declares servers:[{url: "/"}]
+//   - Ledger (onboarding): its spec declares servers:[{url: "/"}]
 //     and carries the version inside every path ("/v1/organizations",
 //     "/v2/organizations"). A base-URL pin here would produce "/v1/v1/...".
 //   - Tracer: its spec declares servers:[{url: "/v1"}] with unversioned paths

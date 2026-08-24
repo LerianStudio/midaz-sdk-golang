@@ -450,10 +450,6 @@ func (c *Client) setupEntity() error {
 		return errors.New("missing onboarding URL in config")
 	}
 
-	if _, ok := serviceURLs["transaction"]; !ok {
-		return errors.New("missing transaction URL in config")
-	}
-
 	if err := config.WithObservabilityProvider(c.pendingObservability)(c.config); err != nil {
 		return fmt.Errorf("failed to configure observability provider: %w", err)
 	}

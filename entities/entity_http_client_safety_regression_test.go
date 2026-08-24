@@ -77,16 +77,23 @@ func TestZeroValueEntityExportedMethods_AreSafe(t *testing.T) {
 // spec declares servers:[{url: "/v1"}] with unversioned paths.
 func TestEntityURLs_NormalizePerPlaneAndRejectUnsafeDirectURLs(t *testing.T) {
 	normalized, err := normalizeBaseURLs(map[string]string{
-		"onboarding":  "http://localhost:3002///",
-		"transaction": "http://localhost:3002/api",
+		"onboarding": "http://localhost:3002///",
 	}, false)
 	require.NoError(t, err)
 	require.Equal(t, "http://localhost:3002", normalized["onboarding"])
-	require.Equal(t, "http://localhost:3002/api", normalized["transaction"])
 
 	// Tracer is absent from the input map, so it inherits the Ledger base — and
 	// must still come back carrying "/v1".
 	require.Equal(t, "http://localhost:3002/v1", normalized["tracer"])
+
+	// A Ledger base carrying a subpath keeps it, and the Tracer stamps "/v1"
+	// after that subpath rather than replacing it.
+	normalized, err = normalizeBaseURLs(map[string]string{
+		"onboarding": "http://localhost:3002/api",
+	}, false)
+	require.NoError(t, err)
+	require.Equal(t, "http://localhost:3002/api", normalized["onboarding"])
+	require.Equal(t, "http://localhost:3002/api/v1", normalized["tracer"])
 
 	// An explicit Tracer base that already carries "/v1" must not be doubled.
 	normalized, err = normalizeBaseURLs(map[string]string{
@@ -107,8 +114,7 @@ func TestEntityURLs_NormalizePerPlaneAndRejectUnsafeDirectURLs(t *testing.T) {
 
 func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: 30 * time.Second}, "", map[string]string{
-		"onboarding":  "http://localhost:3002",
-		"transaction": "http://localhost:3002",
+		"onboarding": "http://localhost:3002",
 	}, nil)
 	entity.GetEntityHTTPClient().SetDebug(true)
 	entity.GetEntityHTTPClient().SetUserAgent("entity-http-client-agent")

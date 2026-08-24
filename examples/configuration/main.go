@@ -78,7 +78,6 @@ func basicConfiguration() error {
 	}
 
 	fmt.Printf("Using onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("Using transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
@@ -125,15 +124,12 @@ func environmentBasedConfiguration() error {
 	// Display the different URLs for each environment
 	fmt.Println("Local Environment URLs:")
 	fmt.Printf("  Onboarding: %s\n", localClient.GetConfig().ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("  Transaction: %s\n", localClient.GetConfig().ServiceURLs[config.ServiceTransaction])
 
 	fmt.Println("Staging Environment URLs:")
 	fmt.Printf("  Onboarding: %s\n", stagingConfig.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("  Transaction: %s\n", stagingConfig.ServiceURLs[config.ServiceTransaction])
 
 	fmt.Println("Production Environment URLs:")
 	fmt.Printf("  Onboarding: %s\n", productionConfig.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("  Transaction: %s\n", productionConfig.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
@@ -204,7 +200,6 @@ func configurationFromEnvironment() error {
 	fmt.Printf("Environment (from env): %s\n", cfg.Environment)
 	fmt.Printf("Debug Mode (from env): %t\n", cfg.Debug)
 	fmt.Printf("Onboarding URL: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("Transaction URL: %s\n", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
@@ -293,7 +288,6 @@ func comprehensiveConfiguration() error {
 	fmt.Printf("Debug Mode: %t\n", cfg.Debug)
 	fmt.Printf("Enable Idempotency: %t\n", cfg.EnableIdempotency)
 	fmt.Printf("Onboarding URL: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("Transaction URL: %s\n", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
