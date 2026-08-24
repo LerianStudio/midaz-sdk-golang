@@ -71,15 +71,15 @@ func TestAuditFacade_ListDecodes(t *testing.T) {
 	}
 }
 
-// The class is a RESPONSE DECODE error, not an internal one: the server
-// answered and the SDK could not read the answer, which is a different
-// fact from "the SDK is broken" and is what a caller needs in order to
-// decide whether to reconcile.
 // TestAuditFacade_ListMalformed2xxBody covers the malformed-2xx-body branch:
 // the server returns 200 but the body cannot unmarshal into
 // ListResponse[AuditEvent] (items is a string, not an array). The facade must
-// surface a non-nil *errors.Error (internal), NOT a silent empty page and NOT a
-// panic.
+// surface a non-nil *errors.Error, NOT a silent empty page and NOT a panic.
+//
+// The class is a RESPONSE DECODE error, not an internal one: the server
+// answered and the SDK could not read the answer, which is a different fact
+// from "the SDK is broken" and is what a caller needs in order to decide
+// whether to reconcile.
 func TestAuditFacade_ListMalformed2xxBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
