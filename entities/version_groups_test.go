@@ -4,8 +4,14 @@
 package entities
 
 import (
+	"go/ast"
+	"go/token"
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestVersionGroups_ZeroValueEntityIsGuardable is the reason V1 and V2 are struct
@@ -128,39 +134,91 @@ func TestVersionGroups_MembershipMatchesServerSurface(t *testing.T) {
 // until Epic 2 reconciled them, so the same wire call answered "now" through one
 // accessor and a past instant through the other.
 //
-// V2 has one spelling per endpoint. Adding ListBalances to V2.Accounts, or the
-// transaction-scoped operation update to V2.Transactions, re-opens exactly that
-// drift — so it fails here rather than in a bug report six months later.
+// V2 has one spelling per endpoint, and this asserts it by ENDPOINT rather than
+// by method name. An earlier version listed the method names that must not come
+// back — ListBalances, ListOperations, BalancesAtTimestamp — which a helpful
+// contributor walks straight past by choosing a different name for the same
+// wire call. A generated operation is one HTTP method and one path, so counting
+// the V2 facades that reach each one is counting the spellings of an endpoint;
+// re-adding an account's balance read to V2.Accounts fails here whatever it is
+// called.
 func TestV2HasOneSpellingPerEndpoint(t *testing.T) {
-	tests := []struct {
-		owner  string
-		typ    reflect.Type
-		absent []string
-		reason string
-	}{
-		{
-			owner:  "V2.Accounts",
-			typ:    reflect.TypeOf(&accountsV2Facade{}),
-			absent: []string{"ListBalances", "ListOperations", "BalancesAtTimestamp"},
-			reason: "these are balance and operation reads; V2 spells them on V2.Balances / V2.Operations",
-		},
-		{
-			owner:  "V2.Transactions",
-			typ:    reflect.TypeOf(&transactionsV2Facade{}),
-			absent: []string{"UpdateOperation", "UpdateTransactionOperation"},
-			reason: "the transaction-scoped operation update is spelled on V2.Operations",
-		},
+	fset := token.NewFileSet()
+
+	// operation -> the V2 facade types that reach it.
+	owners := map[string]map[string]bool{}
+
+	for _, file := range parseGoFiles(t, fset, ".") {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+
+			owner, ok := v2FacadeReceiver(fn)
+			if !ok {
+				continue
+			}
+
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+
+				op, ok := generatedOperation(sel.Sel.Name)
+				if !ok || !strings.HasSuffix(op, "V2") {
+					return true
+				}
+
+				if owners[op] == nil {
+					owners[op] = map[string]bool{}
+				}
+
+				owners[op][owner] = true
+
+				return true
+			})
+		}
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.owner, func(t *testing.T) {
-			for _, name := range tt.absent {
-				if _, ok := tt.typ.MethodByName(name); ok {
-					t.Errorf("%s.%s must not exist: %s", tt.owner, name, tt.reason)
-				}
-			}
-		})
+	require.NotEmpty(t, owners, "found no V2 operations reached by a V2 facade; the scan is broken, not the code")
+
+	var doubled []string
+
+	for op, types := range owners {
+		if len(types) > 1 {
+			doubled = append(doubled, op+" is reached by "+strings.Join(sortedKeys(types), " and "))
+		}
 	}
+
+	sort.Strings(doubled)
+
+	require.Empty(t, doubled,
+		"every /v2 endpoint must have exactly one spelling; two facades reaching one operation is the "+
+			"/v1 drift this surface was built to avoid:\n  %s",
+		strings.Join(doubled, "\n  "))
+
+	t.Logf("one spelling each across %d V2 operations", len(owners))
+}
+
+// v2FacadeReceiver returns the V2 facade type a method hangs off, if it is one.
+func v2FacadeReceiver(fn *ast.FuncDecl) (string, bool) {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return "", false
+	}
+
+	recv := fn.Recv.List[0].Type
+	if star, ok := recv.(*ast.StarExpr); ok {
+		recv = star.X
+	}
+
+	ident, ok := recv.(*ast.Ident)
+	if !ok || !strings.HasSuffix(ident.Name, "V2Facade") {
+		return "", false
+	}
+
+	return ident.Name, true
 }
 
 // TestV2OwnsTheDeDuplicatedEndpoints is the positive half of
