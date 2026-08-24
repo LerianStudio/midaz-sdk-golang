@@ -26,10 +26,10 @@ func ruleJSON(id, status string) string {
 		`"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}`
 }
 
-// TestRulesFacade_Create201 is the 201-drift red. The server returns 201 on
-// create; the generated CreateRuleResp parser only fills JSON200 on an exact 200,
-// so a WithResponse-based create misclassifies the success body as an error. The
-// facade MUST route through the raw call + 2xx success gate so 201 decodes.
+// TestRulesFacade_Create201 guards the raw 2xx gate. The server returns 201 on
+// create and the generated CreateRuleResp parser is status-exact, so the facade
+// MUST route through the raw call + 2xx success gate rather than depend on one
+// exact success status.
 func TestRulesFacade_Create201(t *testing.T) {
 	var method, path string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

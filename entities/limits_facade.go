@@ -32,11 +32,13 @@ func newLimitsFacade(tracer *gentracer.ClientWithResponses, enableIdempotency bo
 	return &limitsFacade{tracer: tracer, enableIdempotency: enableIdempotency}
 }
 
-// Create registers a new limit. The server returns 201, but the generated
-// CreateLimitResp parser only fills JSON200 on an exact 200 — so the write routes
-// through the raw ...WithBody call + readRawResponse + the 2xx success gate in
-// writeJSON, which decodes any 2xx (including 201) into models.Limit. The opaque
-// openapi_types.File body forces the WithBody variant regardless.
+// Create registers a new limit. The server returns 201, and the generated
+// CreateLimitResp parser is status-EXACT (it fills JSON201 on exactly 201 and
+// nothing else), so the write routes through the raw ...WithBody call +
+// readRawResponse + the 2xx success gate in writeJSON instead: the facade decodes
+// any 2xx into models.Limit and therefore does not break if the server ever
+// answers a different success status. The opaque openapi_types.File body forces
+// the WithBody variant regardless.
 func (f *limitsFacade) Create(ctx context.Context, input *models.CreateLimitInput) (*models.Limit, error) {
 	const operation = "Limits.Create"
 

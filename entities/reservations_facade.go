@@ -30,11 +30,12 @@ func newReservationsFacade(tracer *gentracer.ClientWithResponses) *reservationsF
 // Reserve holds capacity against the active limits for a transaction
 // (POST /v1/reservations).
 //
-// The server returns 201 on a new reservation, but the generated
-// CreateReservationResp parser only fills JSON200 on an exact 200 — a status-exact
-// parse would DROP the 201 body. So the write routes through the raw ...WithBody
-// call + readRawResponse + the 2xx success gate in writeJSON, which decodes any
-// 2xx (including 201) into models.ReserveResponse. The tracer dedups on the
+// The server returns 201 on a new reservation, and the generated
+// CreateReservationResp parser is status-EXACT (it fills JSON201 on exactly 201
+// and nothing else). So the write routes through the raw ...WithBody call +
+// readRawResponse + the 2xx success gate in writeJSON instead, which decodes any
+// 2xx into models.ReserveResponse and therefore does not break if the server ever
+// answers a different success status. The tracer dedups on the
 // TransactionID BODY field, so no X-Idempotency header is wired. The opaque
 // openapi_types.File body forces the WithBody variant regardless.
 func (f *reservationsFacade) Reserve(ctx context.Context, input *models.ReserveInput) (*models.ReserveResponse, error) {

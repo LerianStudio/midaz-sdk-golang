@@ -38,11 +38,10 @@ func newCreateLimit() *models.CreateLimitInput {
 		WithScope(models.Scope{TransactionType: strPtr(limitScopeTxn)})
 }
 
-// TestLimitsFacade_Create201Money is the combined 201-drift + MONEY-PATH red.
-// The server returns 201 (the generated CreateLimitResp parser only fills JSON200
-// on an exact 200, so a WithResponse-based create misclassifies it as an error),
-// and the high-precision maxAmount must survive marshal → wire → decode with no
-// loss. The facade MUST route through the raw call + 2xx gate.
+// TestLimitsFacade_Create201Money is the combined 201 + MONEY-PATH guard. The
+// server returns 201 and the generated CreateLimitResp parser is status-exact, so
+// the facade must gate on any 2xx rather than on one status; and the
+// high-precision maxAmount must survive marshal → wire → decode with no loss.
 func TestLimitsFacade_Create201Money(t *testing.T) {
 	var method, path, reqBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
