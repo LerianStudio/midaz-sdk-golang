@@ -44,6 +44,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.pipeline.outputs.new_release_git_tag }}
           fetch-depth: 0
 
       - name: Import GPG key
