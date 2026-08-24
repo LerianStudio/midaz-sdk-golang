@@ -104,8 +104,7 @@ func TestDotSegmentPathID_EscalatesDestructiveScope(t *testing.T) {
 }
 
 // TestUnsafePathID_RejectedShapes enumerates the id shapes that must never
-// become a URL, and names the one shape that is allowed through so the boundary
-// stays pinned from both sides.
+// become a URL.
 func TestUnsafePathID_RejectedShapes(t *testing.T) {
 	rejected := []struct {
 		name string
@@ -118,6 +117,10 @@ func TestUnsafePathID_RejectedShapes(t *testing.T) {
 		{"an embedded separator", "bal-1/../../org-1"},
 		{"a backslash separator", `bal-1\..\..`},
 		{"a padded dot segment", "  ..  "},
+		{"a percent-encoded dot", "%2e"},
+		{"a percent-encoded parent segment", "%2e%2e"},
+		{"a percent-encoded separator", "..%2f"},
+		{"a bare percent sign", "bal-1%"},
 	}
 
 	for _, tt := range rejected {
@@ -144,18 +147,26 @@ func TestUnsafePathID_RejectedShapes(t *testing.T) {
 		})
 	}
 
-	// A percent-encoded dot is NOT a dot segment, and the guard deliberately
-	// lets it through: it rejects shapes, not strings that merely look like one.
+	// A percent-encoded dot segment used to be allowed through, and the reasoning
+	// was sound as far as it went: the id is escaped once on its way into the
+	// path, so "%2e" leaves as "%252e", RFC 3986 removal finds nothing, and one
+	// server-side decode yields the literal text "%2e" rather than ".". Reaching
+	// a traversal needed a server that decoded twice.
 	//
-	// It cannot become a dot on the way out. The id is escaped once on its way
-	// into the path, so the "%" is itself encoded and "%2e" leaves as "%252e";
-	// RFC 3986 dot-segment removal runs on that encoded path and finds nothing
-	// to remove. One server-side decode yields the literal text "%2e", not ".".
-	// Reaching a dot segment from here needs a server that decodes the path
-	// TWICE, which would be a defect on that side of the wire — pinning the
-	// exact bytes here makes any future change to the escaping visible as a diff
-	// on this line rather than as a silent traversal.
-	t.Run("a percent-encoded dot reaches the wire uncollapsed", func(t *testing.T) {
+	// It is refused now because that safety was BORROWED. It held only while the
+	// client escaped exactly once and nothing between the SDK and the ledger
+	// decoded again — neither of which this SDK gets to promise, and a gateway
+	// that normalizes before forwarding turns the 404 back into the scope-
+	// escalated DELETE the dot-segment guard exists to prevent.
+	//
+	// Refusing costs nothing, which is the other half of the decision: no value
+	// Midaz can serve from a path segment contains "%", because none can have
+	// been created with one. Every UUID parameter is uuid.Parse'd, entity_name is
+	// a closed enum, an alias is constrained to ^[a-zA-Z0-9@:_-]+$ at account
+	// creation, and a metadata index key to ^[a-zA-Z][a-zA-Z0-9_]*$ at index
+	// creation. A "%" arriving here is a mistake or an attack, never a record
+	// someone is trying to read.
+	t.Run("a legitimate id shape still reaches the wire", func(t *testing.T) {
 		var gotPath string
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -170,9 +181,9 @@ func TestUnsafePathID_RejectedShapes(t *testing.T) {
 		c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
 		require.NoError(t, err)
 
-		_, err = c.V1.Balances.GetBalance(context.Background(), "org-1", "led-1", "%2e")
+		_, err = c.V1.Balances.GetBalance(context.Background(), "org-1", "led-1", "@person1:main-1")
 		require.NoError(t, err)
-		require.Equal(t, "/v1/organizations/org-1/ledgers/led-1/balances/%252e", gotPath,
-			"a percent-encoded dot must stay encoded and stay its own segment")
+		require.Equal(t, "/v1/organizations/org-1/ledgers/led-1/balances/@person1:main-1", gotPath,
+			"the guard must not refuse the characters a real alias is made of")
 	})
 }

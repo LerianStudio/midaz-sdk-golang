@@ -43,6 +43,33 @@ import (
 // which takes the bare asset code. No id Midaz accepts contains a separator, so
 // no per-parameter exemption is needed.
 //
+// "%" is rejected for the same reason one step earlier. A percent-encoded dot
+// segment ("%2e%2e", "..%2f") is not a dot segment on our side: the generated
+// client escapes the id once on its way into the path, so "%2e" leaves as
+// "%252e" and RFC 3986 removal finds nothing. That safety is REAL but it is
+// borrowed — it holds only while the client escapes exactly once and nothing
+// between here and the ledger decodes twice, and neither of those is this SDK's
+// to promise. A gateway that normalizes before forwarding turns a 404 into the
+// scope-escalated DELETE the dot-segment guard exists to prevent, silently.
+//
+// The reason it costs nothing to refuse is that no value Midaz can serve here
+// contains "%" — not because a lookup would reject one, but because none can
+// ever have been CREATED:
+//
+//   - Every UUID parameter is uuid.Parse'd, which accepts hex and hyphens only.
+//   - entity_name is matched against a closed map of entity names.
+//   - An alias is constrained to ^[a-zA-Z0-9@:_-]+$ when the account is created
+//     (pkg/constant/account.go:10), so no stored alias carries one.
+//   - A metadata index key is constrained to ^[a-zA-Z][a-zA-Z0-9_]*$ when the
+//     index is created (pkg/net/http/withBody.go, validateMetadataKeyFormat),
+//     so no index that exists can be named with one.
+//   - Asset and external codes are ISO-style tickers.
+//
+// Some of those lookups do not re-validate the path segment, so the server would
+// accept a "%" and simply match nothing. That is an absence of validation, not
+// an allowance: a "%" reaching this guard is a mistake or an attack, never a
+// record someone is trying to read.
+//
 // Arguments alternate name and value, so the error can name the parameter the
 // caller got wrong:
 //
@@ -59,9 +86,9 @@ func requirePathIDs(operation string, pairs ...string) error {
 			return errors.NewMissingParameterError(operation, pairs[i])
 		}
 
-		if value == "." || value == ".." || strings.ContainsAny(value, `/\`) {
+		if value == "." || value == ".." || strings.ContainsAny(value, `/\%`) {
 			return errors.NewValidationError(operation,
-				"path id must not be a dot segment or contain a path separator",
+				"path id must not be a dot segment or contain a path separator or percent sign",
 				fmt.Errorf("%s = %q", pairs[i], pairs[i+1]))
 		}
 	}
