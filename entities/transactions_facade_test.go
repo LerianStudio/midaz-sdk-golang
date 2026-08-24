@@ -40,10 +40,9 @@ func newTestTransactionsFacade(t *testing.T, srv *httptest.Server) *transactions
 	return newTransactionsFacade(newTestLedgerClient(t, srv), true)
 }
 
-// txResponseBody is a 200 create response carrying the two skip flags the SDK
-// model must now surface, plus a real id.
+// txResponseBody is a 200 create response with a real id.
 func txResponseBody() string {
-	return `{"id":"` + txID + `","assetCode":"USD","amount":"100","status":{"code":"APPROVED"},"feesSkipped":true,"tracerSkipped":true}`
+	return `{"id":"` + txID + `","assetCode":"USD","amount":"100","status":{"code":"APPROVED"}}`
 }
 
 func sampleTransactionInput() *models.CreateTransactionInput {
@@ -176,10 +175,6 @@ func TestTransactionsFacade_Create(t *testing.T) {
 				}
 			}
 
-			// Skip flags the SDK model previously dropped must decode.
-			if !tx.FeesSkipped || !tx.TracerSkipped {
-				t.Fatalf("skip flags not decoded: FeesSkipped=%v TracerSkipped=%v", tx.FeesSkipped, tx.TracerSkipped)
-			}
 			if tx.ID != txID {
 				t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
 			}
@@ -782,9 +777,6 @@ func TestTransactionsFacade_Get(t *testing.T) {
 	}
 	if tx.ID != txID {
 		t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
-	}
-	if !tx.FeesSkipped || !tx.TracerSkipped {
-		t.Fatalf("skip flags not decoded on Get: FeesSkipped=%v TracerSkipped=%v", tx.FeesSkipped, tx.TracerSkipped)
 	}
 }
 

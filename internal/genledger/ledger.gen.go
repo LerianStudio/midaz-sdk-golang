@@ -1149,7 +1149,6 @@ type Transaction struct {
 	DeletedAt                *time.Time              `json:"deletedAt"`
 	Description              string                  `json:"description"`
 	Destination              *[]string               `json:"destination"`
-	FeesSkipped              bool                    `json:"feesSkipped"`
 	Id                       openapi_types.UUID      `json:"id"`
 	LedgerId                 openapi_types.UUID      `json:"ledgerId"`
 	Metadata                 *map[string]interface{} `json:"metadata,omitempty"`
@@ -1160,7 +1159,6 @@ type Transaction struct {
 	RouteId                  *openapi_types.UUID     `json:"routeId,omitempty"`
 	Source                   *[]string               `json:"source"`
 	Status                   TransactionStatus       `json:"status"`
-	TracerSkipped            bool                    `json:"tracerSkipped"`
 	UpdatedAt                time.Time               `json:"updatedAt"`
 }
 
@@ -1576,7 +1574,7 @@ type DeleteAccountParams struct {
 
 // GetAllAssetRatesByAssetCodeParams defines parameters for GetAllAssetRatesByAssetCode.
 type GetAllAssetRatesByAssetCodeParams struct {
-	// To Filter by destination asset codes
+	// To Filter by destination asset codes as one comma-separated list (e.g. USD,EUR) — the published serialization is explode=false. Repeated to keys are also accepted at runtime.
 	To *[]string `form:"to,omitempty" json:"to,omitempty"`
 
 	// Limit Max items per page (1-100, default 10)

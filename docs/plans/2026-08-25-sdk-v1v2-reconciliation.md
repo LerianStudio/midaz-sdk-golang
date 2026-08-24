@@ -4,7 +4,7 @@
 **Branch:** `agent/sdk-v1v2-reconciliation` (worktree `/srv/worktrees/sdk-v1v2-reconciliation`, based on develop @ 4143472; rename to `feat/...` before PR)
 **Decision (Fred, 2026-08-25):** the SDK serves BOTH Midaz surfaces — v1 (deprecated but alive) and v2 (the real one) — with explicit version mechanics mirroring the server. No single-version pin.
 
-## Diagnosis (verified against .references/midaz @ 07cebd20e, develop)
+## Diagnosis (verified against .references/midaz @ d816e289b, develop)
 
 - Midaz built the full /v2 surface Jun–Aug 2026, deprecated ALL of /v1 (`db56dde04`), and **removed from /v1**: CRM (`cede08b1a`), fees (`109e9c1de`), composition (`804825a93`).
 - v2 dropped legacy transaction creates (`7150848bd`) — creation is `POST /v2/transactions/direct|hold`, plus `block|unblock`, all top-level (not org/ledger-scoped in the URL).
@@ -61,7 +61,7 @@
 
 ## Findings from Epic 2 (input for Epics 3-4)
 
-Everything below was verified against `.references/midaz` @ `07cebd20e` or against a live `httptest.Server` through the public client.
+Everything below was verified against `.references/midaz` @ `d816e289b` or against a live `httptest.Server` through the public client.
 
 **Corrections to earlier claims:**
 
