@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"iter"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
@@ -266,6 +268,34 @@ func setQueryParam(key, value string) genledger.RequestEditorFn {
 // (rewindable so the auth round tripper can replay after a 401), and decodes the
 // success body into T. send returns the raw *http.Response + body so error
 // mapping and request-ID correlation stay identical to the read path.
+// reconcileBodyLedgerID reconciles the ledger that travels in the URL path with
+// the ledgerId the same request also carries in its body.
+//
+// Two server endpoints (billing calculation and fee estimation) are ledger-scoped
+// in the path AND require ledgerId in the request schema. Unreconciled, a caller
+// can send path ledger A with body ledger B and the request goes through — a
+// money-adjacent calculation attributed to a ledger the caller did not address.
+//
+// Empty body value inherits the path ledger (the path is the addressed ledger, so
+// there is nothing to disagree with). A body value that differs is a caller
+// mistake, rejected before the request leaves the SDK with both values named.
+func reconcileBodyLedgerID(operation, pathLedgerID string, bodyLedgerID *string) error {
+	if strings.TrimSpace(*bodyLedgerID) == "" {
+		*bodyLedgerID = pathLedgerID
+
+		return nil
+	}
+
+	if *bodyLedgerID != pathLedgerID {
+		return errors.NewValidationError(operation, fmt.Sprintf(
+			"ledgerId %q in the request body does not match ledger %q in the request path",
+			*bodyLedgerID, pathLedgerID,
+		), nil)
+	}
+
+	return nil
+}
+
 func writeJSON[T any](_ context.Context, operation string, input any, send func(body io.Reader) (*http.Response, []byte, error)) (*T, error) {
 	payload, err := json.Marshal(input)
 	if err != nil {

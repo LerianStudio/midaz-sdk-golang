@@ -216,10 +216,61 @@ func TestBillingCalculateFacade_Validation(t *testing.T) {
 	if _, err := facade.CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, &models.BillingCalculateInput{LedgerID: billingCalcLedgerID}); err == nil {
 		t.Fatal("CalculateBilling with empty period must fail validation")
 	}
-	// Missing ledgerId.
-	if _, err := facade.CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, &models.BillingCalculateInput{Period: "2026-01"}); err == nil {
-		t.Fatal("CalculateBilling with empty ledgerId must fail validation")
+	// A ledgerId that contradicts the addressed ledger is rejected here, not sent.
+	if _, err := facade.CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID,
+		&models.BillingCalculateInput{LedgerID: "33333333-3333-3333-3333-333333333333", Period: "2026-01"}); err == nil {
+		t.Fatal("CalculateBilling with a body ledgerId different from the path ledger must fail validation")
 	}
+}
+
+// TestBillingCalculateFacade_LedgerReconciliation covers the path-vs-body ledger:
+// the server takes the ledger from the URL AND requires ledgerId in the body, so
+// an empty body value must inherit the addressed ledger and a contradicting one
+// must never reach the wire (it would bill a ledger the caller did not address).
+func TestBillingCalculateFacade_LedgerReconciliation(t *testing.T) {
+	t.Run("empty body ledgerId inherits the path ledger", func(t *testing.T) {
+		var body string
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, _ := io.ReadAll(r.Body)
+			body = string(b)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":null,"summary":{"totalResults":0}}`))
+		}))
+		defer srv.Close()
+
+		input := &models.BillingCalculateInput{Period: "2026-01"}
+		if _, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, input); err != nil {
+			t.Fatalf("CalculateBilling: %v", err)
+		}
+
+		if !strings.Contains(body, `"ledgerId":"`+billingCalcLedgerID+`"`) {
+			t.Fatalf("body = %q, want the path ledger filled into ledgerId", body)
+		}
+
+		if input.LedgerID != "" {
+			t.Fatalf("caller input mutated: LedgerID = %q, want it left empty", input.LedgerID)
+		}
+	})
+
+	t.Run("mismatched body ledgerId is rejected before transport", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			t.Fatal("no request may reach the server when the ledgers disagree")
+		}))
+		defer srv.Close()
+
+		const otherLedger = "33333333-3333-3333-3333-333333333333"
+
+		_, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID,
+			&models.BillingCalculateInput{LedgerID: otherLedger, Period: "2026-01"})
+		if err == nil {
+			t.Fatal("CalculateBilling must reject a body ledgerId that differs from the path ledger")
+		}
+
+		if !strings.Contains(err.Error(), otherLedger) || !strings.Contains(err.Error(), billingCalcLedgerID) {
+			t.Fatalf("error = %v, want both ledger IDs named", err)
+		}
+	})
 }
 
 func newTestBillingCalculateFacade(t *testing.T, srv *httptest.Server) *billingCalculateFacade {
