@@ -1,0 +1,431 @@
+// Copyright 2025 Lerian Studio
+// SPDX-License-Identifier: Elastic-2.0
+
+package entities
+
+import (
+	"context"
+	"encoding/json"
+	stderrors "errors"
+	"io"
+	"iter"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+)
+
+// balancesFacade serves the balance surface over the generated
+// genledger.ClientWithResponses, following the Accounts exemplar.
+//
+// Balances carry money, so two properties of this facade are load-bearing:
+//
+//   - Amounts never pass through a float. The response body is decoded straight
+//     into models.Balance / models.BalanceHistory, whose Available and OnHold are
+//     shopspring decimals, so a value the server sent as "1500.00000001" arrives
+//     intact.
+//   - Every list here advances by opaque cursor, never by page number. The three
+//     lists that paginate echo the response next_cursor into the next request;
+//     the two account-lookup lists (by alias, by external code) are not
+//     paginated at all and answer in one shot.
+//
+// The public surface stays models.* + *errors.Error; the generated types never
+// leak.
+type balancesFacade struct {
+	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
+}
+
+// newBalancesFacade wires the facade over a ledger plane client.
+func newBalancesFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *balancesFacade {
+	return &balancesFacade{ledger: ledger, enableIdempotency: enableIdempotency}
+}
+
+// ListBalances retrieves one cursor page of every balance on a ledger.
+//
+// Advance by reading page.Pagination.NextCursor into opts.Cursor, or let
+// ListBalancesPages / ListBalancesAll do it.
+func (f *balancesFacade) ListBalances(ctx context.Context, organizationID, ledgerID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+	const operation = "Balances.ListBalances"
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	resp, err := f.ledger.GetAllBalancesWithResponse(ctx, organizationID, ledgerID, balancesListParams(opts))
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// ListBalancesPages yields one cursor page per iteration, advancing by the
+// response next_cursor until it is empty.
+func (f *balancesFacade) ListBalancesPages(ctx context.Context, organizationID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return cursorPages(ctx, opts, func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+		return f.ListBalances(ctx, organizationID, ledgerID, current)
+	})
+}
+
+// ListBalancesAll yields every balance on the ledger across cursor pages.
+func (f *balancesFacade) ListBalancesAll(ctx context.Context, organizationID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return flattenPages(f.ListBalancesPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListAccountBalances retrieves one cursor page of an account's balances — one
+// entry per asset and balance key the account holds.
+func (f *balancesFacade) ListAccountBalances(ctx context.Context, organizationID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+	const operation = "Balances.ListAccountBalances"
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	resp, err := f.ledger.GetAllBalancesByAccountIDWithResponse(ctx, organizationID, ledgerID, accountID, accountBalancesListParams(opts))
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// ListAccountBalancesPages yields one cursor page of the account's balances per
+// iteration.
+func (f *balancesFacade) ListAccountBalancesPages(ctx context.Context, organizationID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return cursorPages(ctx, opts, func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+		return f.ListAccountBalances(ctx, organizationID, ledgerID, accountID, current)
+	})
+}
+
+// ListAccountBalancesAll yields every balance the account holds across cursor
+// pages.
+func (f *balancesFacade) ListAccountBalancesAll(ctx context.Context, organizationID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return flattenPages(f.ListAccountBalancesPages(ctx, organizationID, ledgerID, accountID, opts))
+}
+
+// GetBalance retrieves one balance by ID.
+func (f *balancesFacade) GetBalance(ctx context.Context, organizationID, ledgerID, balanceID string) (*models.Balance, error) {
+	const operation = "Balances.GetBalance"
+
+	resp, err := f.ledger.GetBalanceByIDWithResponse(ctx, organizationID, ledgerID, balanceID)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeOne[models.Balance](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// GetBalanceHistory returns a balance as it stood at a point in time.
+//
+// The date must name an instant, not a day: "2026-01-02 03:04:05",
+// "2026-01-02T03:04:05" or RFC3339. A date with no time component is rejected
+// here rather than on the wire, because the server rejects it too.
+func (f *balancesFacade) GetBalanceHistory(ctx context.Context, organizationID, ledgerID, balanceID, date string) (*models.BalanceHistory, error) {
+	const operation = "Balances.GetBalanceHistory"
+
+	if err := validateBalanceHistoryDate(operation, date); err != nil {
+		return nil, err
+	}
+
+	resp, err := f.ledger.GetBalanceAtTimestampWithResponse(ctx, organizationID, ledgerID, balanceID,
+		&genledger.GetBalanceAtTimestampParams{Date: strPtr(date)})
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeOne[models.BalanceHistory](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// GetAccountBalancesHistory returns every balance of an account as it stood at a
+// point in time. The response is a bare array, not a paginated envelope. Same
+// date contract as GetBalanceHistory.
+func (f *balancesFacade) GetAccountBalancesHistory(ctx context.Context, organizationID, ledgerID, accountID, date string) ([]models.BalanceHistory, error) {
+	const operation = "Balances.GetAccountBalancesHistory"
+
+	if err := validateBalanceHistoryDate(operation, date); err != nil {
+		return nil, err
+	}
+
+	resp, err := f.ledger.GetAccountBalancesAtTimestampWithResponse(ctx, organizationID, ledgerID, accountID,
+		&genledger.GetAccountBalancesAtTimestampParams{Date: strPtr(date)})
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	if !isSuccess(resp.StatusCode()) {
+		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	var out []models.BalanceHistory
+	if err := json.Unmarshal(resp.Body, &out); err != nil {
+		return nil, errors.NewResponseDecodeError(operation, resp.StatusCode(), err)
+	}
+
+	return out, nil
+}
+
+// UpdateBalance patches a balance's send/receive permissions and settings.
+//
+// Metadata is not part of the server's update contract and the input's own
+// validation rejects it.
+func (f *balancesFacade) UpdateBalance(ctx context.Context, organizationID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error) {
+	const operation = "Balances.UpdateBalance"
+
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.Balance](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		resp, err := f.ledger.UpdateBalanceWithBodyWithResponse(ctx, organizationID, ledgerID, balanceID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return resp.HTTPResponse, resp.Body, nil
+	})
+}
+
+// DeleteBalance removes a balance. The server answers 204 with no body.
+func (f *balancesFacade) DeleteBalance(ctx context.Context, organizationID, ledgerID, balanceID string) error {
+	const operation = "Balances.DeleteBalance"
+
+	resp, err := f.ledger.DeleteBalanceWithResponse(ctx, organizationID, ledgerID, balanceID, idempotencyEditors(ctx, f.enableIdempotency)...)
+	if err != nil {
+		return errors.NewInternalError(operation, err)
+	}
+
+	if !isSuccess(resp.StatusCode()) {
+		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	return nil
+}
+
+// CreateBalance adds a balance to an account, letting one account hold several
+// balances under different keys.
+func (f *balancesFacade) CreateBalance(ctx context.Context, organizationID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error) {
+	const operation = "Balances.CreateBalance"
+
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.Balance](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		resp, err := f.ledger.CreateAdditionalBalanceWithBodyWithResponse(ctx, organizationID, ledgerID, accountID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return resp.HTTPResponse, resp.Body, nil
+	})
+}
+
+// ListBalancesByAccountAlias returns every balance of the account carrying an
+// alias, resolved by the alias as a path segment.
+//
+// This endpoint is NOT paginated and accepts no query parameters: the server
+// answers with the account's full balance set in one response. opts therefore
+// has to be empty — a limit or cursor set here would be dropped on the way out
+// and the caller would read an unnarrowed result as if it had been narrowed, so
+// it is rejected instead.
+func (f *balancesFacade) ListBalancesByAccountAlias(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+	const operation = "Balances.ListBalancesByAccountAlias"
+
+	if err := rejectUnsupportedBalanceListOpts(operation, opts); err != nil {
+		return nil, err
+	}
+
+	resp, err := f.ledger.GetBalancesByAliasWithResponse(ctx, organizationID, ledgerID, alias)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// ListBalancesByAccountAliasPages yields the single page this endpoint answers
+// with. Kept for shape parity with the paginated lists.
+func (f *balancesFacade) ListBalancesByAccountAliasPages(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return cursorPages(ctx, opts, func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+		return f.ListBalancesByAccountAlias(ctx, organizationID, ledgerID, alias, current)
+	})
+}
+
+// ListBalancesByAccountAliasAll yields every balance of the aliased account.
+func (f *balancesFacade) ListBalancesByAccountAliasAll(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return flattenPages(f.ListBalancesByAccountAliasPages(ctx, organizationID, ledgerID, alias, opts))
+}
+
+// ListBalancesByExternalCode returns the balances of the external account for an
+// asset code. Same non-paginated, no-query contract as
+// ListBalancesByAccountAlias.
+func (f *balancesFacade) ListBalancesByExternalCode(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+	const operation = "Balances.ListBalancesByExternalCode"
+
+	if err := rejectUnsupportedBalanceListOpts(operation, opts); err != nil {
+		return nil, err
+	}
+
+	resp, err := f.ledger.GetBalancesExternalByCodeWithResponse(ctx, organizationID, ledgerID, code)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeBalancePage(operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// ListBalancesByExternalCodePages yields the single page this endpoint answers
+// with.
+func (f *balancesFacade) ListBalancesByExternalCodePages(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return cursorPages(ctx, opts, func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+		return f.ListBalancesByExternalCode(ctx, organizationID, ledgerID, code, current)
+	})
+}
+
+// ListBalancesByExternalCodeAll yields every external-account balance for the
+// code.
+func (f *balancesFacade) ListBalancesByExternalCodeAll(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return flattenPages(f.ListBalancesByExternalCodePages(ctx, organizationID, ledgerID, code, opts))
+}
+
+// decodeBalancePage maps a paginated balance envelope, decoding the body
+// straight into the SDK model so Available/OnHold keep full decimal precision.
+func decodeBalancePage(operation string, status int, body []byte, httpResp *http.Response) (*models.ListResponse[models.Balance], error) {
+	if !isSuccess(status) {
+		return nil, errors.DecodeProblemJSON(status, body, requestIDOf(httpResp))
+	}
+
+	var page models.ListResponse[models.Balance]
+	if err := json.Unmarshal(body, &page); err != nil {
+		return nil, errors.NewResponseDecodeError(operation, status, err)
+	}
+
+	return &page, nil
+}
+
+// cursorPages drives a cursor-paginated balance list, echoing each response's
+// next_cursor into the following request.
+//
+// The stop condition is an EMPTY next_cursor, deliberately not
+// Pagination.HasMore(): HasMore()'s page-based branch can report true on a full
+// terminal page that carries a page field but no cursor, which would reset the
+// cursor to "" and re-request the first page forever.
+func cursorPages(ctx context.Context, opts models.BalancesListOpts, fetch func(models.BalancesListOpts) (*models.ListResponse[models.Balance], error)) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
+		current := opts
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := fetch(current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if page.Pagination.NextCursor == "" {
+				return
+			}
+
+			current.Cursor = page.Pagination.NextCursor
+		}
+	}
+}
+
+// balancesListParams renders the cursor/sort/date fields the ledger-wide
+// balances list honors. The endpoint carries no other filters.
+func balancesListParams(opts models.BalancesListOpts) *genledger.GetAllBalancesParams {
+	params := &genledger.GetAllBalancesParams{}
+
+	if opts.Limit > 0 {
+		params.Limit = strPtr(strconv.Itoa(opts.Limit))
+	}
+
+	if opts.Cursor != "" {
+		params.Cursor = strPtr(opts.Cursor)
+	}
+
+	if opts.SortDirection != "" {
+		params.SortOrder = strPtr(string(opts.SortDirection))
+	}
+
+	if opts.StartDate != "" {
+		params.StartDate = strPtr(opts.StartDate)
+	}
+
+	if opts.EndDate != "" {
+		params.EndDate = strPtr(opts.EndDate)
+	}
+
+	return params
+}
+
+// accountBalancesListParams is the account-scoped sibling of balancesListParams.
+// The account is pinned by the path, so the honored query set is identical.
+func accountBalancesListParams(opts models.BalancesListOpts) *genledger.GetAllBalancesByAccountIDParams {
+	params := balancesListParams(opts)
+
+	return &genledger.GetAllBalancesByAccountIDParams{
+		Limit:     params.Limit,
+		Cursor:    params.Cursor,
+		SortOrder: params.SortOrder,
+		StartDate: params.StartDate,
+		EndDate:   params.EndDate,
+	}
+}
+
+// rejectUnsupportedBalanceListOpts fails loud when a caller narrows a balance
+// list that has no query parameters at all. Mirrors
+// models.ValidateCursorListOptsNoDates: a filter with no wire slot returns the
+// full result set while the caller believes it was narrowed, so the SDK refuses
+// the request instead of silently widening it.
+func rejectUnsupportedBalanceListOpts(operation string, opts models.BalancesListOpts) error {
+	if opts.CursorListOpts == (models.CursorListOpts{}) {
+		return nil
+	}
+
+	return errors.NewValidationError(operation,
+		"this endpoint accepts no pagination, sort or date parameters and always returns the account's full balance set",
+		stderrors.New("opts must be the zero value"))
+}
+
+// balanceHistoryDateLayouts are the instant formats the server's date parser
+// accepts. A date-only value ("2026-01-02") parses there too but is then
+// rejected for lacking a time component, so it is absent here on purpose.
+var balanceHistoryDateLayouts = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05",
+	"2006-01-02 15:04:05",
+}
+
+// validateBalanceHistoryDate enforces the point-in-time date contract before the
+// request leaves the SDK.
+func validateBalanceHistoryDate(operation, date string) error {
+	if date == "" {
+		return errors.NewMissingParameterError(operation, "date")
+	}
+
+	for _, layout := range balanceHistoryDateLayouts {
+		if _, err := time.Parse(layout, date); err == nil {
+			return nil
+		}
+	}
+
+	return errors.NewValidationError(operation,
+		`date must name an instant, for example "2026-01-02 03:04:05" or an RFC3339 timestamp`,
+		stderrors.New("got "+date))
+}

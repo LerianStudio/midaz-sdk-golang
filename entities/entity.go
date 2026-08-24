@@ -162,19 +162,18 @@ type Entity struct {
 	// facade's constructor by initServices.
 	enableIdempotency bool
 
-	// Ledger-plane resource accessors. Epic 5.3 swap: these 13 now route to the
-	// concrete plane facades (*xFacade) over e.planes.Ledger, not the legacy
-	// per-service interfaces. Balances/Operations stay legacy (no facade
-	// exists yet — Epic 5.4 gap resolution).
+	// Ledger-plane resource accessors. Every one of them routes to a concrete
+	// plane facade (*xFacade) over e.planes.Ledger; nothing here still builds its
+	// own URLs or shares the legacy *HTTPClient.
 	Accounts          *accountsFacade
 	AccountTypes      *accountTypesFacade
 	Assets            *assetsFacade
 	AssetRates        *assetRatesFacade
-	Balances          BalancesService
+	Balances          *balancesFacade
 	Holders           *holdersFacade
 	Ledgers           *ledgersFacade
 	MetadataIndexes   *metadataIndexesFacade
-	Operations        OperationsService
+	Operations        *operationsFacade
 	OperationRoutes   *operationRoutesFacade
 	Organizations     *organizationsFacade
 	Portfolios        *portfoliosFacade
@@ -182,12 +181,10 @@ type Entity struct {
 	Transactions      *transactionsFacade
 	TransactionRoutes *transactionRoutesFacade
 
-	// Plane-native facades (Phases 3-4). Additive accessors over the typed
-	// generated plane clients; they coexist with the resource accessors above
-	// (13 already plane facades, plus the legacy Balances/Operations
-	// pair) until the Phase 5 cutover repoints the remaining pair too. Reached
-	// fluently via client.X.Method (promoted through the embedded *Entity). Nil
-	// when the Entity was built without plane clients.
+	// Plane-native facades. Additive accessors over the typed generated plane
+	// clients, alongside the resource accessors above. Reached fluently via
+	// client.X.Method (promoted through the embedded *Entity). Nil when the
+	// Entity was built without plane clients.
 	Rules               *rulesFacade
 	Limits              *limitsFacade
 	Validations         *validationsFacade
@@ -292,25 +289,12 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 	return entity, nil
 }
 
-// initServices initializes the service interfaces for the entity.
+// initServices initializes the service accessors for the entity.
 //
-// The 2 legacy service entities (Balances, Operations) share the SAME
-// parent [*HTTPClient] — passed via [newSharedServiceEntity]. That single
-// instance owns the auth-token cache, the singleflight token-refresh group,
-// the customRetryPolicy, the observability surface, and the
-// userAgent/debug/idempotency knobs. Sharing
-// the client matters in three places:
-//
-//   - Token refresh on 401: when one service refreshes via [HTTPClient.refreshAuthToken]
-//     the new token is visible to every other service immediately because
-//     they read from the same authToken field under c.mu.
-//   - Singleflight dedup: a 401 burst hitting multiple services collapses
-//     onto one underlying tokenProvider call, since [HTTPClient.tokenRefreshGroup]
-//     is one [singleflight.Group] not three.
-//   - Set* propagation: [Entity.GetEntityHTTPClient] returns the same client
-//     that every service uses, so SetDebug / SetUserAgent / SetLogger and
-//     friends take effect on the next request from any service — no
-//     "post-construction propagate" step required.
+// Every accessor is a facade over one of the two generated plane clients. The
+// entity's own [*HTTPClient] no longer serves any resource; it survives as the
+// object [Entity.GetEntityHTTPClient] hands back for debug/user-agent/retry
+// tuning.
 func (e *Entity) initServices() {
 	if e == nil || e.httpClient == nil {
 		return
@@ -324,24 +308,8 @@ func (e *Entity) initServices() {
 		e.baseURLs = map[string]string{}
 	}
 
-	// Build the shared base once per service. The *HTTPClient is a pointer,
-	// so both legacy services see the same mutable state (auth token, refresh
-	// group, customRetryPolicy, etc.); baseURLs is cloned per service via
-	// prepareServiceBaseURLs so per-service mutation cannot bleed across
-	// services.
-	shared := func() serviceEntity {
-		return newSharedServiceEntity(e.httpClient, e.baseURLs)
-	}
-
-	// Legacy per-service surface. Epic 5.3 repointed the 13 ledger resources to
-	// facades (below); only Balances/Operations remain legacy-wired
-	// (no facade exists yet — Epic 5.4 gap).
-	e.Balances = &balancesEntity{serviceEntity: shared()}
-	e.Operations = &operationsEntity{serviceEntity: shared()}
-
-	// Plane-native facades. The 13 ledger resource accessors (Epic 5.3 swap)
-	// join the Phase 3-4 additive facades here — all route over the typed plane
-	// clients, not the legacy *HTTPClient. The e.planes != nil guard is
+	// Plane-native facades: every accessor routes over the typed plane clients.
+	// The e.planes != nil guard is
 	// defensive: no first-party constructor reaches this with planes == nil
 	// (buildPlaneClients either errors or returns a non-nil PlaneClients, and
 	// NewEntityWithConfigContext always assigns e.planes before initServices).
@@ -361,6 +329,8 @@ func (e *Entity) initServices() {
 		e.TransactionRoutes = newTransactionRoutesFacade(e.planes.Ledger, e.enableIdempotency)
 		e.Holders = newHoldersFacade(e.planes.Ledger, e.enableIdempotency)
 		e.Transactions = newTransactionsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Balances = newBalancesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Operations = newOperationsFacade(e.planes.Ledger, e.enableIdempotency)
 
 		e.Rules = newRulesFacade(e.planes.Tracer, e.enableIdempotency)
 		e.Limits = newLimitsFacade(e.planes.Tracer, e.enableIdempotency)

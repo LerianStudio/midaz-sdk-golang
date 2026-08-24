@@ -9,13 +9,9 @@ package models
 // This is a CURSOR-PAGINATED endpoint, so it embeds CursorListOpts
 // (Limit/Cursor/SortDirection/StartDate/EndDate) — never Page.
 //
-// Its filter set differs from the top-level OperationsListOpts: the
-// account-operations endpoint honors type/direction/route_id/route_code
-// (the account is already pinned by the path), not the status/asset_code
-// filters the ledger-wide operations list exposes. Modeling that
-// difference explicitly is deliberate — reusing OperationsFilters here
-// would silently drop direction/route filters and expose two filters this
-// endpoint ignores.
+// OperationsListOpts is an alias of this type: the server has exactly one
+// operations list and it is account-scoped, so both names address the same
+// endpoint and honour the same filters.
 //
 // AccountOperationsListOpts is a value type. Concurrent-safe by construction.
 type AccountOperationsListOpts struct {

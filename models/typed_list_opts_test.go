@@ -389,11 +389,6 @@ func TestPageListOpts_TypedShape_AllPageBased(t *testing.T) {
 			overMax: AssetsListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
 		},
 		{
-			name:    "BalancesListOpts",
-			atMax:   BalancesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
-			overMax: BalancesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
-		},
-		{
 			name:    "LedgersListOpts",
 			atMax:   LedgersListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
 			overMax: LedgersListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
@@ -457,11 +452,6 @@ func TestCursorListOpts_TypedShape_AllCursorBased(t *testing.T) {
 			name:    "InstrumentsListOpts",
 			atMax:   InstrumentsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
 			overMax: InstrumentsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
-		},
-		{
-			name:    "OperationsListOpts",
-			atMax:   OperationsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
-			overMax: OperationsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
 		},
 		{
 			name:    "OperationRoutesListOpts",
@@ -563,21 +553,6 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		assert.Equal(t, "ACTIVE", params["status"])
 	})
 
-	t.Run("BalancesListOpts filters", func(t *testing.T) {
-		opts := BalancesListOpts{
-			Filters: BalancesFilters{
-				AssetCode: "BRL",
-				AccountID: "acc-1",
-				Status:    "ACTIVE",
-			},
-		}
-		require.NoError(t, opts.Validate())
-		params := opts.ToQueryParams()
-		assert.Equal(t, "BRL", params["asset_code"])
-		assert.Equal(t, "acc-1", params["account_id"])
-		assert.Equal(t, "ACTIVE", params["status"])
-	})
-
 	t.Run("HoldersListOpts filters", func(t *testing.T) {
 		opts := HoldersListOpts{
 			Filters: HoldersFilters{
@@ -640,24 +615,6 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		assert.Equal(t, "VIP", params["name"])
 		assert.Equal(t, "ACTIVE", params["status"])
 		assert.Equal(t, "true", params["include_deleted"])
-	})
-
-	t.Run("OperationsListOpts filters", func(t *testing.T) {
-		opts := OperationsListOpts{
-			CursorListOpts: CursorListOpts{Limit: 20, Cursor: "c1"},
-			Filters: OperationsFilters{
-				Type:      "DEBIT",
-				AssetCode: "USD",
-				Status:    "ACTIVE",
-			},
-		}
-		require.NoError(t, opts.Validate())
-		params := opts.ToQueryParams()
-		assert.Equal(t, "20", params["limit"])
-		assert.Equal(t, "c1", params["cursor"])
-		assert.Equal(t, "DEBIT", params["type"])
-		assert.Equal(t, "USD", params["asset_code"])
-		assert.Equal(t, "ACTIVE", params["status"])
 	})
 
 	t.Run("OperationRoutesListOpts filters", func(t *testing.T) {
