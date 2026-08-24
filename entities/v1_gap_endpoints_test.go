@@ -75,26 +75,33 @@ func TestTransactionsFacade_BlockAndUnblock(t *testing.T) {
 				t.Fatal("X-Idempotency missing: a block/unblock is a create, so a retry must not post twice")
 			}
 
-			// The body must be the mapper output, same as CreateJSON — the
-			// action label is applied server-side, not carried in the payload.
-			var wire map[string]any
-			if err := json.Unmarshal(gotBody, &wire); err != nil {
-				t.Fatalf("body not a JSON object: %v (%s)", err, gotBody)
-			}
-
-			send, ok := wire["send"].(map[string]any)
-			if !ok {
-				t.Fatalf("send envelope missing: %s", gotBody)
-			}
-
-			if send["value"] != "100" {
-				t.Fatalf("send.value = %v, want %q: %s", send["value"], "100", gotBody)
-			}
+			assertSendEnvelope(t, gotBody)
 
 			if tx.ID != txID {
 				t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
 			}
 		})
+	}
+}
+
+// assertSendEnvelope checks that a create body is the mapper output, same as
+// CreateJSON: the action label is applied server-side, never carried in the
+// payload, so block and unblock must send exactly what a JSON create sends.
+func assertSendEnvelope(t *testing.T, body []byte) {
+	t.Helper()
+
+	var wire map[string]any
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatalf("body not a JSON object: %v (%s)", err, body)
+	}
+
+	send, ok := wire["send"].(map[string]any)
+	if !ok {
+		t.Fatalf("send envelope missing: %s", body)
+	}
+
+	if send["value"] != "100" {
+		t.Fatalf("send.value = %v, want %q: %s", send["value"], "100", body)
 	}
 }
 
