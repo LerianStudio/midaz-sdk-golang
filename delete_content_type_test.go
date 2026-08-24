@@ -65,6 +65,18 @@ func TestDeleteSucceedsOnBodilessJSONContentType(t *testing.T) {
 				return c.V2.Holders.Delete(ctx, "org-1", "hol-1")
 			},
 		},
+		{
+			name: "account on the v2 surface",
+			call: func(ctx context.Context, c *Client) error {
+				return c.V2.Accounts.Delete(ctx, "org-1", "led-1", "acc-1")
+			},
+		},
+		{
+			name: "balance on the v2 surface (money path)",
+			call: func(ctx context.Context, c *Client) error {
+				return c.V2.Balances.DeleteBalance(ctx, "org-1", "led-1", "bal-1")
+			},
+		},
 	}
 
 	for _, tt := range tests {

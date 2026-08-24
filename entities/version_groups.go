@@ -88,17 +88,77 @@ type V1Services struct {
 	MetadataIndexes *metadataIndexesFacade
 }
 
-// V2Services is the current Midaz /v2 ledger surface.
+// V2Services is the current Midaz /v2 ledger surface, and the one to build
+// against: /v1 is deprecated server-side.
 //
-// It carries only the families Midaz REMOVED from /v1, which is why it is
-// narrower than [V1Services] today: the dual-served families (organizations,
-// ledgers, accounts, and the rest) reach /v1 for now and gain their V2 twins in
-// a later epic. Nothing here has a V1 equivalent to fall back to — /v1 answers
-// 404 for every one of them.
+// It is WIDER than [V1Services], not narrower. Every dual-served family has its
+// twin here, the families Midaz removed from /v1 exist only here, and the only
+// things /v1 still serves alone are asset rates and the four legacy transaction
+// creation styles that /v2 replaced with direct/hold.
+//
+// Two members differ in SHAPE from their V1 namesake rather than just in path,
+// and a caller moving across will meet both:
+//
+//   - Transactions creates at the TOP level (/v2/transactions/direct) with the
+//     organization and ledger travelling in the body, and answers with
+//     [models.TransactionV2] — four /v1 fields fewer, two more.
+//   - Accounts does NOT re-expose the account-scoped balance and operation
+//     reads. /v1 spells those on two facades each; /v2 spells them once, on
+//     Balances and Operations.
 //
 // Reached as client.V2.<Service> (promoted through the embedded *Entity). Held
 // by VALUE on Entity — see the V1 field there for why.
 type V2Services struct {
+	// Organizations is the tenant root. Also exposes Count.
+	Organizations *organizationsV2Facade
+
+	// Ledgers is the ledger surface. Also exposes GetSettings / UpdateSettings
+	// and Count.
+	Ledgers *ledgersV2Facade
+
+	// Accounts is the account surface, including the alias and external-code
+	// lookups. The account-scoped balance and operation reads live on Balances
+	// and Operations — see the type doc.
+	Accounts *accountsV2Facade
+
+	// AccountTypes is the account-type surface. No count endpoint exists on
+	// either version.
+	AccountTypes *accountTypesV2Facade
+
+	// Assets is the asset surface. Also exposes Count.
+	Assets *assetsV2Facade
+
+	// Balances is the balance surface: the ledger-wide and account-scoped lists,
+	// the point-in-time reads, the alias and external-code lookups, and the
+	// balance writes.
+	Balances *balancesV2Facade
+
+	// Operations is the account-scoped operation surface plus the
+	// transaction-scoped operation update.
+	Operations *operationsV2Facade
+
+	// Portfolios is the portfolio surface. Also exposes Count.
+	Portfolios *portfoliosV2Facade
+
+	// Segments is the segment surface. Also exposes Count.
+	Segments *segmentsV2Facade
+
+	// OperationRoutes is the operation-route surface.
+	OperationRoutes *operationRoutesV2Facade
+
+	// TransactionRoutes is the transaction-route surface.
+	TransactionRoutes *transactionRoutesV2Facade
+
+	// Transactions is the transaction surface: the four top-level creates
+	// (direct, hold, block, unblock), the commit / revert / cancel transitions,
+	// the reads, the patch and Count. Its creates and its responses both differ
+	// in shape from V1 — see the type doc.
+	Transactions *transactionsV2Facade
+
+	// MetadataIndexes is the global metadata-index surface
+	// (/v2/settings/metadata-indexes, not organization-scoped).
+	MetadataIndexes *metadataIndexesV2Facade
+
 	// Holders is the holder surface (organization-scoped). V2 ONLY.
 	Holders *holdersFacade
 
@@ -159,6 +219,19 @@ func newV1Services(ledger *genledger.ClientWithResponses, enableIdempotency bool
 // newV2Services wires every V2 ledger accessor over one plane client.
 func newV2Services(ledger *genledger.ClientWithResponses, enableIdempotency bool) V2Services {
 	return V2Services{
+		Organizations:       newOrganizationsV2Facade(ledger, enableIdempotency),
+		Ledgers:             newLedgersV2Facade(ledger, enableIdempotency),
+		Accounts:            newAccountsV2Facade(ledger, enableIdempotency),
+		AccountTypes:        newAccountTypesV2Facade(ledger, enableIdempotency),
+		Assets:              newAssetsV2Facade(ledger, enableIdempotency),
+		Balances:            newBalancesV2Facade(ledger, enableIdempotency),
+		Operations:          newOperationsV2Facade(ledger, enableIdempotency),
+		Portfolios:          newPortfoliosV2Facade(ledger, enableIdempotency),
+		Segments:            newSegmentsV2Facade(ledger, enableIdempotency),
+		OperationRoutes:     newOperationRoutesV2Facade(ledger, enableIdempotency),
+		TransactionRoutes:   newTransactionRoutesV2Facade(ledger, enableIdempotency),
+		Transactions:        newTransactionsV2Facade(ledger, enableIdempotency),
+		MetadataIndexes:     newMetadataIndexesV2Facade(ledger, enableIdempotency),
 		Holders:             newHoldersFacade(ledger, enableIdempotency),
 		Instruments:         newInstrumentsFacade(ledger, enableIdempotency),
 		Encryption:          newEncryptionFacade(ledger, enableIdempotency),

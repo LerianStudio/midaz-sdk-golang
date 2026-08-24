@@ -80,6 +80,9 @@ func TestVersionGroups_MembershipMatchesServerSurface(t *testing.T) {
 			group: "V2",
 			typ:   reflect.TypeOf(V2Services{}),
 			want: []string{
+				"Organizations", "Ledgers", "Accounts", "AccountTypes", "Assets",
+				"Balances", "Operations", "Portfolios", "Segments",
+				"OperationRoutes", "TransactionRoutes", "Transactions", "MetadataIndexes",
 				"Holders", "Instruments", "Encryption", "Composition",
 				"ProtectionAudit", "BillingPackages", "FeePackages", "FeeEstimates",
 				"BillingCalculations",
@@ -107,6 +110,88 @@ func TestVersionGroups_MembershipMatchesServerSurface(t *testing.T) {
 				t.Errorf("%s has %d members, want exactly %d — a new accessor needs a "+
 					"line in this test naming the server version that serves it",
 					tt.group, got, len(tt.want))
+			}
+		})
+	}
+}
+
+// TestV2HasOneSpellingPerEndpoint pins the de-duplication decision the V2 surface
+// was built on, because it is the kind of thing a later contributor undoes by
+// being helpful.
+//
+// Three account-scoped endpoints — an account's balances, its operations, its
+// balances at an instant — are reachable on /v1 through BOTH V1.Accounts and
+// V1.Balances / V1.Operations. Both spellings work and both are tested; they
+// exist because they were written at different times, and every fix to one has
+// to be remembered on the other. The point-in-time read is the proof that this
+// costs something real: the two /v1 spellings enforced DIFFERENT date contracts
+// until Epic 2 reconciled them, so the same wire call answered "now" through one
+// accessor and a past instant through the other.
+//
+// V2 has one spelling per endpoint. Adding ListBalances to V2.Accounts, or the
+// transaction-scoped operation update to V2.Transactions, re-opens exactly that
+// drift — so it fails here rather than in a bug report six months later.
+func TestV2HasOneSpellingPerEndpoint(t *testing.T) {
+	tests := []struct {
+		owner  string
+		typ    reflect.Type
+		absent []string
+		reason string
+	}{
+		{
+			owner:  "V2.Accounts",
+			typ:    reflect.TypeOf(&accountsV2Facade{}),
+			absent: []string{"ListBalances", "ListOperations", "BalancesAtTimestamp"},
+			reason: "these are balance and operation reads; V2 spells them on V2.Balances / V2.Operations",
+		},
+		{
+			owner:  "V2.Transactions",
+			typ:    reflect.TypeOf(&transactionsV2Facade{}),
+			absent: []string{"UpdateOperation", "UpdateTransactionOperation"},
+			reason: "the transaction-scoped operation update is spelled on V2.Operations",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.owner, func(t *testing.T) {
+			for _, name := range tt.absent {
+				if _, ok := tt.typ.MethodByName(name); ok {
+					t.Errorf("%s.%s must not exist: %s", tt.owner, name, tt.reason)
+				}
+			}
+		})
+	}
+}
+
+// TestV2OwnsTheDeDuplicatedEndpoints is the positive half of
+// TestV2HasOneSpellingPerEndpoint: removing a spelling from V2.Accounts is only
+// de-duplication if the endpoint is still reachable somewhere. Without this, a
+// deletion on both sides would pass the negative test and leave a v2 client
+// unable to read an account's balances at all.
+func TestV2OwnsTheDeDuplicatedEndpoints(t *testing.T) {
+	tests := []struct {
+		owner string
+		typ   reflect.Type
+		want  []string
+	}{
+		{
+			owner: "V2.Balances",
+			typ:   reflect.TypeOf(&balancesV2Facade{}),
+			want:  []string{"ListAccountBalances", "GetAccountBalancesHistory"},
+		},
+		{
+			owner: "V2.Operations",
+			typ:   reflect.TypeOf(&operationsV2Facade{}),
+			want:  []string{"ListOperations", "UpdateTransactionOperation"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.owner, func(t *testing.T) {
+			for _, name := range tt.want {
+				if _, ok := tt.typ.MethodByName(name); !ok {
+					t.Errorf("%s.%s is missing: V2.Accounts does not spell it either, so the endpoint is unreachable", tt.owner, name)
+				}
 			}
 		})
 	}
