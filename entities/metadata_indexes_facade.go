@@ -5,13 +5,11 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // metadataIndexesFacade is the Phase 2 (Task 2.1.d) hand-written facade over the
@@ -50,21 +48,10 @@ func (f *metadataIndexesFacade) List(ctx context.Context, entityName string) ([]
 		params.EntityName = strPtr(entityName)
 	}
 
-	resp, err := f.ledger.GetAllMetadataIndexesWithResponse(ctx, params)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readSlice drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllMetadataIndexes(ctx, params)
 
-	if !isSuccess(resp.StatusCode()) {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var indexes []models.MetadataIndex
-	if err := json.Unmarshal(resp.Body, &indexes); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return indexes, nil
+	return readSlice[models.MetadataIndex](operation, resp, err)
 }
 
 // Create registers a new metadata index for an entity via the write-facade

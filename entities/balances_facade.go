@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	stderrors "errors"
 	"io"
 	"iter"
@@ -168,22 +167,11 @@ func (f *balancesFacade) GetAccountBalancesHistory(ctx context.Context, organiza
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAccountBalancesAtTimestampWithResponse(ctx, organizationID, ledgerID, accountID,
+	//nolint:bodyclose // readSlice drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID,
 		&genledger.GetAccountBalancesAtTimestampParams{Date: strPtr(date)})
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var out []models.BalanceHistory
-	if err := json.Unmarshal(resp.Body, &out); err != nil {
-		return nil, errors.NewResponseDecodeError(operation, resp.StatusCode(), err)
-	}
-
-	return out, nil
+	return readSlice[models.BalanceHistory](operation, resp, err)
 }
 
 // UpdateBalance patches a balance's send/receive permissions and settings.

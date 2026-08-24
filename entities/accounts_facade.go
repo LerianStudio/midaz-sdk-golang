@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -364,21 +363,10 @@ func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerI
 
 	params := &genledger.GetAccountBalancesAtTimestampParams{Date: strPtr(timestamp)}
 
-	resp, err := f.ledger.GetAccountBalancesAtTimestampWithResponse(ctx, orgID, ledgerID, accountID, params)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readSlice drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountBalancesAtTimestamp(ctx, orgID, ledgerID, accountID, params)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var out []models.BalanceHistory
-	if err := json.Unmarshal(resp.Body, &out); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return out, nil
+	return readSlice[models.BalanceHistory](operation, resp, err)
 }
 
 // Count returns the total number of accounts under an org+ledger via

@@ -361,25 +361,153 @@ func TestEmptySuccessBodyIsRefusedOnAList(t *testing.T) {
 	})
 }
 
-// TestBareArrayReadStillAcceptsNull pins the deliberate exception.
+// bareArrayReads are the endpoints that answer with a bare JSON ARRAY instead of
+// a paginated envelope: the two point-in-time balance reads (reachable through
+// three facades) and the metadata-index list, on BOTH surfaces.
 //
-// The point-in-time balance reads answer with a bare JSON ARRAY, and Go's
-// encoding/json marshals a nil slice as the literal "null". So on that shape
-// "null" is what a handler with no results actually emits, and applying the
-// object guard there would turn "no balances at that instant" into an error.
+// The v1 half is here because it was the last corner still reading through the
+// generated status-exact parser after the rest of the SDK moved off it. That
+// parser unmarshals the body itself whenever the content type says json, so it
+// failed BEFORE any facade logic ran, and the facade could only report the
+// parser's failure: an unreadable 2xx became internal_error rather than a decode
+// error, and — the expensive one — a gateway 403 or 404 with an empty body
+// became internal_error/500, destroying the status the caller needed to act on.
+// The v2 twins had none of that, so the same endpoint answered differently
+// depending on which surface reached it.
+var bareArrayReads = []struct {
+	name string
+	call func(t *testing.T, srv *httptest.Server) (int, error)
+}{
+	{
+		name: "V1.Balances.GetAccountBalancesHistory",
+		call: func(t *testing.T, srv *httptest.Server) (int, error) {
+			t.Helper()
+
+			got, err := newBalancesFacade(newTestLedgerClient(t, srv), true).
+				GetAccountBalancesHistory(context.Background(), txOrgID, txLedgerID, txID, balanceInstant)
+
+			return len(got), err
+		},
+	},
+	{
+		name: "V1.Accounts.BalancesAtTimestamp",
+		call: func(t *testing.T, srv *httptest.Server) (int, error) {
+			t.Helper()
+
+			got, err := newTestAccountsFacade(t, srv).
+				BalancesAtTimestamp(context.Background(), txOrgID, txLedgerID, txID, balanceInstant)
+
+			return len(got), err
+		},
+	},
+	{
+		name: "V1.MetadataIndexes.List",
+		call: func(t *testing.T, srv *httptest.Server) (int, error) {
+			t.Helper()
+
+			got, err := newTestMetadataIndexesFacade(t, srv).List(context.Background(), "transaction")
+
+			return len(got), err
+		},
+	},
+	{
+		name: "V2.Balances.GetAccountBalancesHistory",
+		call: func(t *testing.T, srv *httptest.Server) (int, error) {
+			t.Helper()
+
+			got, err := newBalancesV2Facade(newTestLedgerClient(t, srv), true).
+				GetAccountBalancesHistory(context.Background(), txOrgID, txLedgerID, txID, balanceInstant)
+
+			return len(got), err
+		},
+	},
+}
+
+// balanceInstant is a point in time the balance-history date contract accepts.
+const balanceInstant = "2025-01-01T00:00:00Z"
+
+// TestBareArrayReadStillAcceptsNull pins the deliberate exception to the
+// empty-body guard.
+//
+// These endpoints answer with a bare JSON ARRAY, and Go's encoding/json marshals
+// a nil slice as the literal "null". So on that shape "null" is what a handler
+// with no results actually emits, and applying the object guard there would turn
+// "no balances at that instant" into an error.
 func TestBareArrayReadStillAcceptsNull(t *testing.T) {
-	srv := emptyBodyServer(t, http.StatusOK, "null")
+	for _, read := range bareArrayReads {
+		t.Run(read.name, func(t *testing.T) {
+			n, err := read.call(t, emptyBodyServer(t, http.StatusOK, "null"))
+			if err != nil {
+				t.Fatalf("a bare array read must treat null as an empty result set, got %v", err)
+			}
 
-	facade := newBalancesV2Facade(newTestLedgerClient(t, srv), true)
+			if n != 0 {
+				t.Fatalf("want an empty result set, got %d", n)
+			}
+		})
+	}
+}
 
-	got, err := facade.GetAccountBalancesHistory(
-		context.Background(), txOrgID, txLedgerID, txID, "2025-01-01T00:00:00Z")
-	if err != nil {
-		t.Fatalf("a bare array read must treat null as an empty result set, got %v", err)
+// TestBareArrayReadKeepsTheRealErrorStatus is the failure the generated parser
+// was hiding, and the one that costs an operator the most.
+//
+// A gateway answers 403 or 404 with "Content-Type: application/json" and NO
+// body. The caller needs "you are not allowed" or "it is not there" — two
+// different next actions. Through the generated parser both arrived as an
+// internal error carrying status 500: retryable-looking, unattributable, and
+// wrong about whose fault it is.
+func TestBareArrayReadKeepsTheRealErrorStatus(t *testing.T) {
+	statuses := []struct {
+		status int
+		is     func(error) bool
+		name   string
+	}{
+		{http.StatusForbidden, sdkerrors.IsAuthorizationError, "403 stays an authorization error"},
+		{http.StatusNotFound, sdkerrors.IsNotFoundError, "404 stays a not-found error"},
 	}
 
-	if len(got) != 0 {
-		t.Fatalf("want an empty result set, got %d", len(got))
+	for _, read := range bareArrayReads {
+		t.Run(read.name, func(t *testing.T) {
+			for _, s := range statuses {
+				t.Run(s.name, func(t *testing.T) {
+					_, err := read.call(t, emptyBodyServer(t, s.status, ""))
+					if err == nil {
+						t.Fatalf("a %d must not read as a successful empty result set", s.status)
+					}
+
+					if sdkerrors.IsInternalError(err) {
+						t.Fatalf("a %d with an empty body must not become an SDK-internal fault: %v", s.status, err)
+					}
+
+					if !s.is(err) {
+						t.Fatalf("want the %d preserved, got %v", s.status, err)
+					}
+				})
+			}
+		})
+	}
+}
+
+// TestBareArrayReadReportsAnUnreadableBodyAsADecodeError is the other half of the
+// same swap: a 2xx whose body cannot be read is a fact about the RESPONSE, not
+// about the SDK. Reporting it as internal sends the caller looking for a bug in
+// their own client.
+func TestBareArrayReadReportsAnUnreadableBodyAsADecodeError(t *testing.T) {
+	// Truncated (a proxy that cut the stream) and dropped entirely — the two
+	// shapes a bare-array read can receive that "null" does not cover.
+	for _, body := range []string{`[{"id":"a"`, ""} {
+		for _, read := range bareArrayReads {
+			t.Run(read.name+"/"+body, func(t *testing.T) {
+				_, err := read.call(t, emptyBodyServer(t, http.StatusOK, body))
+				if err == nil {
+					t.Fatalf("a 200 carrying %q is not a readable result set", body)
+				}
+
+				if !sdkerrors.IsResponseDecodeError(err) {
+					t.Fatalf("want a response-decode error (the server answered, the SDK could not read it), got %v", err)
+				}
+			})
+		}
 	}
 }
 
