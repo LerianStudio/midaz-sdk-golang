@@ -61,7 +61,7 @@ func (f *limitsFacade) Get(ctx context.Context, id string) (*models.Limit, error
 	return decodeOne[models.Limit](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
 }
 
-// Update patches a limit by ID (PATCH, 200). LimitType and Currency are immutable
+// Update patches a limit by ID (PATCH, 200). LimitType and Asset are immutable
 // and structurally absent from UpdateLimitInput, so the body never carries them.
 func (f *limitsFacade) Update(ctx context.Context, id string, input *models.UpdateLimitInput) (*models.Limit, error) {
 	const operation = "Limits.Update"

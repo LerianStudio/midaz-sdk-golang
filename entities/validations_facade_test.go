@@ -55,7 +55,7 @@ func validationResponseJSON(decision string) string {
 // transactionValidationJSON is a canonical stored record (the Get body).
 func transactionValidationJSON() string {
 	return `{"validationId":"` + validationID + `","requestId":"` + valRequestID + `",` +
-		`"decision":"DENY","reason":"limit exceeded","amount":"` + bigMoney + `","currency":"USD",` +
+		`"decision":"DENY","reason":"limit exceeded","amount":"` + bigMoney + `","asset":"USD",` +
 		`"transactionType":"PIX",` +
 		`"account":{"accountId":"` + valAccountID + `","status":"ACTIVE","type":"deposit"},` +
 		`"matchedRuleIds":["` + valMatchedID + `"],"evaluatedRuleIds":["` + valMatchedID + `"],` +
@@ -68,7 +68,7 @@ func transactionValidationJSON() string {
 func validationSummaryJSON(id string) string {
 	return `{"validationId":"` + id + `","accountId":"` + valAccountID + `",` +
 		`"segmentId":"` + valSegmentID + `","portfolioId":"` + valPortfolioX + `",` +
-		`"amount":"` + bigMoney + `","currency":"USD","decision":"ALLOW","reason":"ok",` +
+		`"amount":"` + bigMoney + `","asset":"USD","decision":"ALLOW","reason":"ok",` +
 		`"transactionType":"CARD","matchedRuleIds":["` + valMatchedID + `"],` +
 		`"exceededLimitIds":["` + valLimitID + `"],"processingTimeMs":1.1,` +
 		`"createdAt":"2026-01-01T00:00:00Z"}`
@@ -355,7 +355,7 @@ func TestValidationsFacade_ValidateBeforeWire(t *testing.T) {
 	}{
 		{"zero amount", models.NewValidateTransactionInput(valRequestID, decimal.Zero, "USD", "2026-01-01T00:00:00Z", acct)},
 		{"negative amount", models.NewValidateTransactionInput(valRequestID, decimal.RequireFromString("-1"), "USD", "2026-01-01T00:00:00Z", acct)},
-		{"bad currency", models.NewValidateTransactionInput(valRequestID, decimal.NewFromInt(1), "US", "2026-01-01T00:00:00Z", acct)},
+		{"bad asset", models.NewValidateTransactionInput(valRequestID, decimal.NewFromInt(1), "US", "2026-01-01T00:00:00Z", acct)},
 		{"empty requestId", models.NewValidateTransactionInput("  ", decimal.NewFromInt(1), "USD", "2026-01-01T00:00:00Z", acct)},
 		{"missing account", models.NewValidateTransactionInput(valRequestID, decimal.NewFromInt(1), "USD", "2026-01-01T00:00:00Z", models.AccountContext{})},
 	}

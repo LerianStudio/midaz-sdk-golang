@@ -36,8 +36,8 @@ type ValidateTransactionInput struct {
 	// Amount is the transaction amount as exact decimal money. Required, > 0.
 	Amount decimal.Decimal `json:"amount"`
 
-	// Currency is the ISO-4217 currency code. Required, exactly 3 chars.
-	Currency string `json:"currency"`
+	// Asset is the ISO-4217 asset code. Required, exactly 3 chars.
+	Asset string `json:"asset"`
 
 	// TransactionTimestamp is the transaction time (RFC3339). Required; the
 	// server enforces a window (≤ now+skew, ≥ now-24h).
@@ -66,13 +66,13 @@ type ValidateTransactionInput struct {
 }
 
 // NewValidateTransactionInput builds a validation payload with the required
-// fields. Amount must be strictly positive and Currency exactly 3 characters —
+// fields. Amount must be strictly positive and Asset exactly 3 characters —
 // Validate enforces both before the round trip.
-func NewValidateTransactionInput(requestID string, amount decimal.Decimal, currency, transactionTimestamp string, account AccountContext) *ValidateTransactionInput {
+func NewValidateTransactionInput(requestID string, amount decimal.Decimal, asset, transactionTimestamp string, account AccountContext) *ValidateTransactionInput {
 	return &ValidateTransactionInput{
 		RequestID:            requestID,
 		Amount:               amount,
-		Currency:             currency,
+		Asset:                asset,
 		TransactionTimestamp: transactionTimestamp,
 		Account:              account,
 	}
@@ -145,7 +145,7 @@ func (input *ValidateTransactionInput) WithMetadata(metadata map[string]any) *Va
 }
 
 // Validate enforces SDK-side preconditions before the round trip: RequestID
-// non-empty, Amount strictly positive, Currency exactly 3 chars,
+// non-empty, Amount strictly positive, Asset exactly 3 chars,
 // TransactionTimestamp non-empty, and an Account present (non-empty AccountID).
 func (input *ValidateTransactionInput) Validate() error {
 	if input == nil {
@@ -162,8 +162,8 @@ func (input *ValidateTransactionInput) Validate() error {
 		errs.Append("amount", "must be greater than zero")
 	}
 
-	if len(input.Currency) != currencyCodeLength {
-		errs.Append("currency", fmt.Sprintf("must be exactly %d characters", currencyCodeLength))
+	if len(input.Asset) != assetCodeLength {
+		errs.Append("asset", fmt.Sprintf("must be exactly %d characters", assetCodeLength))
 	}
 
 	if strings.TrimSpace(input.TransactionTimestamp) == "" {
@@ -236,8 +236,8 @@ type TransactionValidation struct {
 	// Amount is the evaluated transaction amount as exact decimal money.
 	Amount decimal.Decimal `json:"amount"`
 
-	// Currency is the ISO-4217 currency code.
-	Currency string `json:"currency"`
+	// Asset is the ISO-4217 asset code.
+	Asset string `json:"asset"`
 
 	// TransactionType is the transaction type (e.g. CARD, WIRE, PIX).
 	TransactionType string `json:"transactionType"`
@@ -304,8 +304,8 @@ type ValidationSummary struct {
 	// Amount is the evaluated transaction amount as exact decimal money.
 	Amount decimal.Decimal `json:"amount"`
 
-	// Currency is the ISO-4217 currency code.
-	Currency string `json:"currency"`
+	// Asset is the ISO-4217 asset code.
+	Asset string `json:"asset"`
 
 	// Decision is the verdict (ALLOW, DENY, REVIEW).
 	Decision string `json:"decision"`

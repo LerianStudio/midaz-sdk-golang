@@ -27,7 +27,7 @@ const (
 // maxAmount as a quoted decimal string.
 func limitJSON(id, status, maxAmount string) string {
 	return `{"limitId":"` + id + `","name":"daily-cap","limitType":"DAILY",` +
-		`"maxAmount":"` + maxAmount + `","currency":"USD","status":"` + status + `",` +
+		`"maxAmount":"` + maxAmount + `","asset":"USD","status":"` + status + `",` +
 		`"scopes":[{"transactionType":"` + limitScopeTxn + `"}],` +
 		`"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}`
 }
@@ -76,7 +76,7 @@ func TestLimitsFacade_Create201Money(t *testing.T) {
 }
 
 // TestLimitsFacade_UpdateOmitsImmutable proves the PATCH omit-unset body reaches
-// the server as PATCH and never carries the immutable limitType/currency keys.
+// the server as PATCH and never carries the immutable limitType/asset keys.
 func TestLimitsFacade_UpdateOmitsImmutable(t *testing.T) {
 	var method, path, body string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,8 +96,8 @@ func TestLimitsFacade_UpdateOmitsImmutable(t *testing.T) {
 	if method != http.MethodPatch || path != "/v1/limits/"+limitID {
 		t.Fatalf("update req = %s %s, want PATCH /v1/limits/%s", method, path, limitID)
 	}
-	if strings.Contains(body, "limitType") || strings.Contains(body, "currency") {
-		t.Fatalf("update body = %q, must NOT contain immutable limitType/currency", body)
+	if strings.Contains(body, "limitType") || strings.Contains(body, "asset") {
+		t.Fatalf("update body = %q, must NOT contain immutable limitType/asset", body)
 	}
 	if !strings.Contains(body, `"maxAmount"`) {
 		t.Fatalf("update body = %q, want the set maxAmount field", body)

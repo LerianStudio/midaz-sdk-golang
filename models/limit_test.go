@@ -39,7 +39,7 @@ func TestLimit_MaxAmountMoneyRoundTrip(t *testing.T) {
 	// Unmarshal path: the server echo decodes back into the decimal field.
 	var lim Limit
 	if err := json.Unmarshal([]byte(`{"limitId":"x","name":"daily-cap","limitType":"DAILY",`+
-		`"maxAmount":"`+highPrecision+`","currency":"USD","status":"DRAFT",`+
+		`"maxAmount":"`+highPrecision+`","asset":"USD","status":"DRAFT",`+
 		`"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}`), &lim); err != nil {
 		t.Fatalf("unmarshal Limit: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestUsageSnapshot_MoneyDecimalRatioFloat(t *testing.T) {
 }
 
 // TestUpdateLimitInput_OmitsImmutableFields is the immutable-field red. The
-// server rejects an update body containing limitType or currency with a 400. The
+// server rejects an update body containing limitType or asset with a 400. The
 // PATCH body MUST never carry either key regardless of which fields are set.
 func TestUpdateLimitInput_OmitsImmutableFields(t *testing.T) {
 	up := NewUpdateLimitInput().
@@ -84,8 +84,8 @@ func TestUpdateLimitInput_OmitsImmutableFields(t *testing.T) {
 	if strings.Contains(s, "limitType") {
 		t.Fatalf("update body = %s, must NOT contain limitType (immutable)", s)
 	}
-	if strings.Contains(s, "currency") {
-		t.Fatalf("update body = %s, must NOT contain currency (immutable)", s)
+	if strings.Contains(s, "asset") {
+		t.Fatalf("update body = %s, must NOT contain asset (immutable)", s)
 	}
 	if !strings.Contains(s, `"name"`) || !strings.Contains(s, `"maxAmount"`) {
 		t.Fatalf("update body = %s, want the set fields present", s)
@@ -100,7 +100,7 @@ func TestUpdateLimitInput_EmptyRejected(t *testing.T) {
 	}
 }
 
-// TestCreateLimitInput_Validate covers the closed-enum + money + currency +
+// TestCreateLimitInput_Validate covers the closed-enum + money + asset +
 // scope-count preconditions.
 func TestCreateLimitInput_Validate(t *testing.T) {
 	good := Scope{TransactionType: strPtrLimitTest("PIX")}
@@ -115,7 +115,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 		{"bad limit type", NewCreateLimitInput("cap", "HOURLY", pos, "USD").WithScope(good), true},
 		{"zero max amount", NewCreateLimitInput("cap", LimitTypeDaily, decimal.Zero, "USD").WithScope(good), true},
 		{"negative max amount", NewCreateLimitInput("cap", LimitTypeDaily, decimal.RequireFromString("-1"), "USD").WithScope(good), true},
-		{"two-char currency", NewCreateLimitInput("cap", LimitTypeDaily, pos, "US").WithScope(good), true},
+		{"two-char asset", NewCreateLimitInput("cap", LimitTypeDaily, pos, "US").WithScope(good), true},
 		{"no scopes", NewCreateLimitInput("cap", LimitTypeDaily, pos, "USD"), true},
 		{"empty name", NewCreateLimitInput("  ", LimitTypeDaily, pos, "USD").WithScope(good), true},
 	}

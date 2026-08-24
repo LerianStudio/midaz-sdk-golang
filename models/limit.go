@@ -29,10 +29,10 @@ const (
 	maxLimitNameLength        = 255
 	maxLimitDescriptionLength = 1000
 	maxLimitScopes            = 100
-	currencyCodeLength        = 3
+	assetCodeLength           = 3
 )
 
-// Limit is the SDK-native tracer limit: a MaxAmount ceiling in a Currency,
+// Limit is the SDK-native tracer limit: a MaxAmount ceiling in an Asset,
 // accrued over a LimitType window and scoped by one or more Scopes, with a
 // DRAFT → ACTIVE → INACTIVE lifecycle. The wire shape mirrors the generated
 // gentracer.Limit (camelCase tags, limitId as the identity field).
@@ -58,8 +58,8 @@ type Limit struct {
 	// MaxAmount is the ceiling, as exact decimal money (never float).
 	MaxAmount decimal.Decimal `json:"maxAmount"`
 
-	// Currency is the ISO-4217 currency code. Immutable after create.
-	Currency string `json:"currency"`
+	// Asset is the ISO-4217 asset code. Immutable after create.
+	Asset string `json:"asset"`
 
 	// Scopes narrows the transactions this limit applies to (1-100 entries).
 	Scopes []Scope `json:"scopes,omitempty"`
@@ -115,14 +115,14 @@ type UsageSnapshot struct {
 }
 
 // CreateLimitInput is the SDK-native limit creation payload. Name, LimitType,
-// MaxAmount, Currency, and at least one Scope are required. The date fields are
+// MaxAmount, Asset, and at least one Scope are required. The date fields are
 // wire strings on input (the server parses them).
 type CreateLimitInput struct {
 	Name            string          `json:"name"`
 	Description     *string         `json:"description,omitempty"`
 	LimitType       string          `json:"limitType"`
 	MaxAmount       decimal.Decimal `json:"maxAmount"`
-	Currency        string          `json:"currency"`
+	Asset           string          `json:"asset"`
 	Scopes          []Scope         `json:"scopes,omitempty"`
 	ActiveTimeStart *string         `json:"activeTimeStart,omitempty"`
 	ActiveTimeEnd   *string         `json:"activeTimeEnd,omitempty"`
@@ -131,12 +131,12 @@ type CreateLimitInput struct {
 }
 
 // NewCreateLimitInput builds a limit creation payload with the required fields.
-func NewCreateLimitInput(name, limitType string, maxAmount decimal.Decimal, currency string) *CreateLimitInput {
+func NewCreateLimitInput(name, limitType string, maxAmount decimal.Decimal, asset string) *CreateLimitInput {
 	return &CreateLimitInput{
 		Name:      name,
 		LimitType: limitType,
 		MaxAmount: maxAmount,
-		Currency:  currency,
+		Asset:     asset,
 	}
 }
 
@@ -198,7 +198,7 @@ func (input *CreateLimitInput) WithCustomDateRange(start, end string) *CreateLim
 }
 
 // Validate enforces SDK-side preconditions before the round trip: Name 1-255,
-// LimitType in the closed enum, MaxAmount strictly positive, Currency exactly 3
+// LimitType in the closed enum, MaxAmount strictly positive, Asset exactly 3
 // chars, 1-100 scopes.
 func (input *CreateLimitInput) Validate() error {
 	if input == nil {
@@ -210,7 +210,7 @@ func (input *CreateLimitInput) Validate() error {
 	validateLimitName(&errs, input.Name)
 	validateLimitType(&errs, input.LimitType)
 	validateLimitMaxAmount(&errs, input.MaxAmount)
-	validateLimitCurrency(&errs, input.Currency)
+	validateLimitAsset(&errs, input.Asset)
 	validateLimitScopes(&errs, input.Scopes)
 
 	if input.Description != nil && len(*input.Description) > maxLimitDescriptionLength {
@@ -221,7 +221,7 @@ func (input *CreateLimitInput) Validate() error {
 }
 
 // UpdateLimitInput is the PATCH payload for a limit. It deliberately OMITS
-// LimitType and Currency: those are immutable after create and the server
+// LimitType and Asset: those are immutable after create and the server
 // rejects any update body containing either with a 400 (ErrLimitImmutableField).
 // Because the fields do not exist here, the marshaled body can never carry them.
 //
@@ -328,7 +328,7 @@ func (input *UpdateLimitInput) isEmpty() bool {
 }
 
 // Validate rejects an empty PATCH and checks each set field against the same
-// bounds as create (LimitType and Currency are absent — immutable).
+// bounds as create (LimitType and Asset are absent — immutable).
 func (input *UpdateLimitInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
@@ -360,7 +360,7 @@ func (input *UpdateLimitInput) Validate() error {
 }
 
 // MarshalJSON emits only the fields explicitly set on the PATCH input, under
-// their server wire names. LimitType and Currency are structurally absent, so
+// their server wire names. LimitType and Asset are structurally absent, so
 // the body can never carry an immutable field.
 func (input *UpdateLimitInput) MarshalJSON() ([]byte, error) {
 	if input == nil {
@@ -471,9 +471,9 @@ func validateLimitMaxAmount(errs *validation.FieldErrors, maxAmount decimal.Deci
 	}
 }
 
-func validateLimitCurrency(errs *validation.FieldErrors, currency string) {
-	if len(currency) != currencyCodeLength {
-		errs.Append("currency", fmt.Sprintf("must be exactly %d characters", currencyCodeLength))
+func validateLimitAsset(errs *validation.FieldErrors, asset string) {
+	if len(asset) != assetCodeLength {
+		errs.Append("asset", fmt.Sprintf("must be exactly %d characters", assetCodeLength))
 	}
 }
 
