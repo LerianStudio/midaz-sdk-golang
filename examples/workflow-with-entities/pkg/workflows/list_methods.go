@@ -153,11 +153,11 @@ func testListLedgers(ctx context.Context, midazClient *midaz.Client, orgID strin
 	return nil
 }
 
-// testListAccountsWithPagination tests the ListAccounts method using v3 typed
+// testListAccountsWithPagination tests V1.Accounts.List using v3 typed
 // AccountsListOpts and demonstrates iter.Seq2 transparent pagination via
-// ListAccountsPages.
+// V1.Accounts.Pages.
 func testListAccountsWithPagination(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
-	fmt.Println("\n🔍 Testing ListAccounts with pagination and filtering...")
+	fmt.Println("\n🔍 Testing V1.Accounts.List with pagination and filtering...")
 
 	accountOptions := models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{
@@ -210,7 +210,7 @@ func printAccountsResults(accountsResponse *models.ListResponse[models.Account])
 }
 
 // demonstrateAccountPagination demonstrates multi-page iteration through accounts
-// via v3 ListAccountsPages iter.Seq2. Limits to 3 pages for demo purposes.
+// via v3 V1.Accounts.Pages iter.Seq2. Limits to 3 pages for demo purposes.
 func demonstrateAccountPagination(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, opts models.AccountsListOpts) error {
 	fmt.Println("\n📚 Demonstrating multi-page iteration through accounts...")
 

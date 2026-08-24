@@ -17,13 +17,13 @@ import (
 //
 // The v3 contract demonstrated here:
 //   - Typed AccountsListOpts (no pointer, concurrent-safe)
-//   - ListAccountsAll iter.Seq2 for transparent pagination
+//   - V1.Accounts.All iter.Seq2 for transparent pagination
 //   - entities.Collect to materialize a bounded slice
 //
 // This file replaces the v2 multi-page-with-NextPageOptionsFrom demo
 // that depended on the now-deleted Pagination.NextPageOptions and
 // PrevPageOptions methods (Track 5 Batch 5B). Customers iterating
-// page-by-page in v3 use ListAccountsPages or call ListAccounts
+// page-by-page in v3 use V1.Accounts.Pages or call V1.Accounts.List
 // repeatedly with opts.Page++.
 func ListAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n📋 STEP 8: ACCOUNT LISTING")
@@ -64,15 +64,15 @@ func demonstrateBasicListing(ctx context.Context, midazClient *midaz.Client, org
 	}
 
 	if resp.Pagination.HasMore() {
-		fmt.Println("   (More accounts available — see ListAccountsAll demo below)")
+		fmt.Println("   (More accounts available — see V1.Accounts.All demo below)")
 	}
 
 	return nil
 }
 
-// demonstrateAllAccountsIteration shows ListAccountsAll iter.Seq2.
+// demonstrateAllAccountsIteration shows V1.Accounts.All iter.Seq2.
 func demonstrateAllAccountsIteration(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
-	fmt.Println("\nDemonstrating ListAccountsAll (iter.Seq2 transparent pagination)...")
+	fmt.Println("\nDemonstrating V1.Accounts.All (iter.Seq2 transparent pagination)...")
 
 	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

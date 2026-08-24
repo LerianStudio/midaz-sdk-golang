@@ -63,12 +63,12 @@ func main() {
 	demoEveryPage(ctx, c, orgID, ledgerID)
 }
 
-// demoOnePage uses ListAccounts: returns exactly one page. The caller
+// demoOnePage uses V1.Accounts.List: returns exactly one page. The caller
 // decides whether to fetch more by examining the response and re-calling
 // with an incremented Page. This is the right shape when the caller has
 // a UI 'next page' button or wants explicit per-page control.
 func demoOnePage(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
-	fmt.Println("--- ListAccounts (one page) ---")
+	fmt.Println("--- V1.Accounts.List (one page) ---")
 
 	page, err := c.V1.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{
@@ -77,7 +77,7 @@ func demoOnePage(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
 		},
 	})
 	if err != nil {
-		log.Printf("ListAccounts: %v", err)
+		log.Printf("V1.Accounts.List: %v", err)
 		return
 	}
 
@@ -87,12 +87,12 @@ func demoOnePage(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
 	}
 }
 
-// demoEveryItem uses ListAccountsAll: a single iter.Seq2 that walks
+// demoEveryItem uses V1.Accounts.All: a single iter.Seq2 that walks
 // every account across every page. The SDK handles paging internally.
 // This is the right shape for batch jobs, exports, or anything where
 // the caller wants to think 'collection,' not 'page.'
 func demoEveryItem(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
-	fmt.Println("--- ListAccountsAll (every item) ---")
+	fmt.Println("--- V1.Accounts.All (every item) ---")
 
 	count := 0
 	for acc, err := range c.V1.Accounts.All(ctx, orgID, ledgerID, models.AccountsListOpts{
@@ -114,13 +114,13 @@ func demoEveryItem(ctx context.Context, c *midaz.Client, orgID, ledgerID string)
 	fmt.Printf("walked %d accounts total\n", count)
 }
 
-// demoEveryPage uses ListAccountsPages: yields *ListResponse envelopes,
+// demoEveryPage uses V1.Accounts.Pages: yields *ListResponse envelopes,
 // not individual items. Use when you need page-level metadata
 // (Pagination.NextPage, the count of items in this batch, etc.) — for
 // example, to log per-page checkpoints in a long-running export, or to
 // short-circuit before pulling the next page based on some condition.
 func demoEveryPage(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
-	fmt.Println("--- ListAccountsPages (every page envelope) ---")
+	fmt.Println("--- V1.Accounts.Pages (every page envelope) ---")
 
 	pageNum := 0
 	for batch, err := range c.V1.Accounts.Pages(ctx, orgID, ledgerID, models.AccountsListOpts{

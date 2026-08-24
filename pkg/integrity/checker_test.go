@@ -121,7 +121,7 @@ func (s *testAccountsService) Get(ctx context.Context, orgID, ledgerID, id strin
 }
 
 // newTestChecker builds a Checker with a mock accounts getter + balances lister
-// (client.Accounts and client.Balances are concrete facades, not injectable via
+// (client.V1.Accounts and client.V1.Balances are concrete facades, not injectable via
 // the entity).
 func newTestChecker(accounts accountsGetter, balances balancesLister) *Checker {
 	return &Checker{e: &entities.Entity{}, accounts: accounts, balances: balances}

@@ -3,8 +3,8 @@
 
 package models
 
-// OrganizationsListOpts is the typed options struct for ListOrganizations and
-// the ListOrganizationsAll / ListOrganizationsPages iterators.
+// OrganizationsListOpts is the typed options struct for the organization list
+// surface: V1.Organizations.List and the All / Pages iterators.
 //
 // Embeds PageListOpts for the shared pagination/sort/date-range
 // fields; attaches a OrganizationsFilters sub-struct carrying only the

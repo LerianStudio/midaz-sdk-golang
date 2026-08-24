@@ -36,14 +36,14 @@ type Report struct {
 }
 
 // accountsGetter is the narrow slice of the accounts accessor the checker needs
-// (consumer-side interface; client.Accounts is a concrete facade).
+// (consumer-side interface; client.V1.Accounts is a concrete facade).
 type accountsGetter interface {
 	Get(ctx context.Context, orgID, ledgerID, accountID string) (*models.Account, error)
 }
 
 // balancesLister is the narrow slice of the balances accessor the checker needs.
 // Same consumer-side pattern as accountsGetter, for the same reason:
-// client.Balances is a concrete facade, so the seam that lets a caller stand in
+// client.V1.Balances is a concrete facade, so the seam that lets a caller stand in
 // a fake has to live here.
 type balancesLister interface {
 	ListBalancesAll(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]

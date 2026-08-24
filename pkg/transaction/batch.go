@@ -262,7 +262,7 @@ func normalizeOptions(options *BatchOptions) *BatchOptions {
 
 // batchProcessor handles the batch transaction processing logic.
 // transactionCreator is the narrow slice of the transactions accessor the
-// batch processor needs (Epic 5.3 consumer-side interface; client.Transactions
+// batch processor needs (Epic 5.3 consumer-side interface; client.V1.Transactions
 // is now a concrete facade). Tests inject a mock satisfying just this.
 type transactionCreator interface {
 	CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)

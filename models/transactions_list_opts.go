@@ -10,8 +10,8 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
 )
 
-// TransactionsListOpts is the typed options struct for ListTransactions and
-// the ListTransactionsAll / ListTransactionsPages iterators.
+// TransactionsListOpts is the typed options struct for the transaction list
+// surface: V1.Transactions.List and the All / Pages iterators.
 //
 // Embeds CursorListOpts for the shared cursor/sort/date-range fields;
 // attaches a TransactionsFilters sub-struct carrying the filter fields the

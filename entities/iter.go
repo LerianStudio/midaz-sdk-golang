@@ -98,15 +98,15 @@ func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error) {
 //
 // CollectAll is appropriate for endpoints where the result set is
 // known to be small by domain construction — for example a list of
-// asset types defined on a specific ledger.
+// account types defined on a specific ledger.
 //
 // # Example
 //
-//	assetTypes, err := entities.CollectAll(
-//	    client.AccountTypes.ListAccountTypesAll(ctx, orgID, ledgerID, opts),
+//	accountTypes, err := entities.CollectAll(
+//	    client.V1.AccountTypes.All(ctx, orgID, ledgerID, opts),
 //	)
 //	if err != nil {
-//	    return fmt.Errorf("failed to collect asset types: %w", err)
+//	    return fmt.Errorf("failed to collect account types: %w", err)
 //	}
 func CollectAll[T any](seq iter.Seq2[T, error]) ([]T, error) {
 	if seq == nil {

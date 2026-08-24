@@ -3,8 +3,9 @@
 
 package models
 
-// TransactionRoutesListOpts is the typed options struct for ListTransactionRoutes and
-// the ListTransactionRoutesAll / ListTransactionRoutesPages iterators.
+// TransactionRoutesListOpts is the typed options struct for the
+// transaction-route list surface: V1.TransactionRoutes.List and the All / Pages
+// iterators.
 //
 // Embeds CursorListOpts for the shared cursor/sort/date-range fields;
 // attaches a TransactionRoutesFilters sub-struct carrying only the filter

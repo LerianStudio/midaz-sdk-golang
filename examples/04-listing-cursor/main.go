@@ -12,15 +12,16 @@
 //     cursor by hand. The wire-level shape; useful when you need explicit
 //     control over per-page behavior.
 //
-//  2. ListTransactionsPages — an iter.Seq2 over *ListResponse[T] pages.
+//  2. V1.Transactions.Pages — an iter.Seq2 over *ListResponse[T] pages.
 //     Use when you want page-level metadata (Pagination, ItemCount) but
 //     don't want to manage the cursor yourself.
 //
-//  3. ListTransactionsAll — an iter.Seq2 over individual T values.
+//  3. V1.Transactions.All — an iter.Seq2 over individual T values.
 //     The flattened, range-loop-friendly form. Use this 90% of the time.
 //
-// The same patterns apply to ListOperations*, ListOperationRoutes*, and
-// ListTransactionRoutes* — substitute the entity name and Filters type.
+// The same three shapes exist on every cursor-paginated surface — operations,
+// operation routes, transaction routes — as List / Pages / All under the
+// matching accessor; substitute the entity name and Filters type.
 package main
 
 import (
@@ -112,11 +113,11 @@ func manualCursorLoop(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 	return nil
 }
 
-// pageIterator demonstrates ListTransactionsPages — the iter.Seq2 over
+// pageIterator demonstrates V1.Transactions.Pages — the iter.Seq2 over
 // *ListResponse pages. The cursor advance is fully automated; you keep
 // page-level metadata access.
 func pageIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID string) error {
-	fmt.Println("\n[2] ListTransactionsPages — page-level iter.Seq2")
+	fmt.Println("\n[2] V1.Transactions.Pages — page-level iter.Seq2")
 
 	opts := models.TransactionsListOpts{
 		CursorListOpts: models.CursorListOpts{Limit: 50},

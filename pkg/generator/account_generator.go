@@ -14,7 +14,7 @@ import (
 )
 
 // accountsAPI is the narrow slice of the accounts facade this generator needs.
-// Consumer-side interface (Epic 5.3 swap: client.Accounts is now a concrete
+// Consumer-side interface (Epic 5.3 swap: client.V1.Accounts is now a concrete
 // *entities.accountsFacade); tests inject a mock satisfying just this.
 type accountsAPI interface {
 	Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
