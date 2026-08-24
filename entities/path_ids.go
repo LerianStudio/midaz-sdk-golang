@@ -35,7 +35,7 @@ func requirePathIDs(operation string, pairs ...string) error {
 			fmt.Errorf("requirePathIDs got %d arguments; name/value pairs must be even", len(pairs)))
 	}
 
-	for i := 0; i < len(pairs); i += 2 {
+	for i := 0; i+1 < len(pairs); i += 2 {
 		if strings.TrimSpace(pairs[i+1]) == "" {
 			return errors.NewMissingParameterError(operation, pairs[i])
 		}

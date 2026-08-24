@@ -321,63 +321,15 @@ func TestAccountScopedCursorIterators_AdvanceByCursor(t *testing.T) {
 		name    string
 		collect func(context.Context, *Client) ([]string, error)
 	}{
-		{
-			name: "account balances",
-			collect: func(ctx context.Context, c *Client) ([]string, error) {
-				var ids []string
-
-				for balance, err := range c.V1.Balances.ListAccountBalancesAll(ctx, "org-1", "led-1", "acc-1",
-					models.BalancesListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}}) {
-					if err != nil {
-						return ids, err
-					}
-
-					ids = append(ids, balance.ID)
-				}
-
-				return ids, nil
-			},
-		},
-		{
-			name: "account operations",
-			collect: func(ctx context.Context, c *Client) ([]string, error) {
-				var ids []string
-
-				for op, err := range c.V1.Operations.ListOperationsAll(ctx, "org-1", "led-1", "acc-1",
-					models.OperationsListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}}) {
-					if err != nil {
-						return ids, err
-					}
-
-					ids = append(ids, op.ID)
-				}
-
-				return ids, nil
-			},
-		},
+		{"account balances", collectAccountBalanceIDs},
+		{"account operations", collectAccountOperationIDs},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var seenCursors []string
 
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				cursor := r.URL.Query().Get("cursor")
-				seenCursors = append(seenCursors, cursor)
-
-				if len(seenCursors) > 4 {
-					t.Fatalf("iterator did not terminate: %d requests, cursors=%v", len(seenCursors), seenCursors)
-				}
-
-				w.Header().Set("Content-Type", "application/json")
-
-				if cursor == "cur-2" {
-					_, _ = w.Write([]byte(`{"items":[{"id":"x-2","assetCode":"USD","available":"20"}],"limit":1}`))
-					return
-				}
-
-				_, _ = w.Write([]byte(`{"items":[{"id":"x-1","assetCode":"USD","available":"10"}],"limit":1,"next_cursor":"cur-2"}`))
-			}))
+			srv := httptest.NewServer(twoCursorPageHandler(t, &seenCursors))
 			defer srv.Close()
 
 			c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
@@ -389,6 +341,61 @@ func TestAccountScopedCursorIterators_AdvanceByCursor(t *testing.T) {
 			require.Equal(t, []string{"", "cur-2"}, seenCursors, "the iterator must advance by next_cursor")
 		})
 	}
+}
+
+// twoCursorPageHandler serves exactly two cursor pages and fails the test if it
+// is asked for more than a handful, so a page-number iterator hits a fast
+// failure instead of looping forever.
+func twoCursorPageHandler(t *testing.T, seenCursors *[]string) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		cursor := r.URL.Query().Get("cursor")
+		*seenCursors = append(*seenCursors, cursor)
+
+		if len(*seenCursors) > 4 {
+			t.Fatalf("iterator did not terminate: %d requests, cursors=%v", len(*seenCursors), *seenCursors)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if cursor == "cur-2" {
+			_, _ = w.Write([]byte(`{"items":[{"id":"x-2","assetCode":"USD","available":"20"}],"limit":1}`))
+			return
+		}
+
+		_, _ = w.Write([]byte(`{"items":[{"id":"x-1","assetCode":"USD","available":"10"}],"limit":1,"next_cursor":"cur-2"}`))
+	}
+}
+
+func collectAccountBalanceIDs(ctx context.Context, c *Client) ([]string, error) {
+	var ids []string
+
+	for balance, err := range c.V1.Balances.ListAccountBalancesAll(ctx, "org-1", "led-1", "acc-1",
+		models.BalancesListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}}) {
+		if err != nil {
+			return ids, err
+		}
+
+		ids = append(ids, balance.ID)
+	}
+
+	return ids, nil
+}
+
+func collectAccountOperationIDs(ctx context.Context, c *Client) ([]string, error) {
+	var ids []string
+
+	for op, err := range c.V1.Operations.ListOperationsAll(ctx, "org-1", "led-1", "acc-1",
+		models.OperationsListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}}) {
+		if err != nil {
+			return ids, err
+		}
+
+		ids = append(ids, op.ID)
+	}
+
+	return ids, nil
 }
 
 // TestListOperations_SendsOnlyHonoredFilters pins the account-operations filter

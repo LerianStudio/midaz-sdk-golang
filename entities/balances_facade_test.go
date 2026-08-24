@@ -368,11 +368,9 @@ func TestBalancesFacade_PointInTime(t *testing.T) {
 	})
 }
 
-// TestBalancesFacade_AccountLookups pins the two non-paginated lookups: the
-// alias and external-code paths, the single page their iterators yield, and the
-// refusal to accept narrowing options the endpoints cannot express.
-//
-//nolint:revive // cognitive-complexity: three independent subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
+// TestBalancesFacade_AccountLookups pins the two one-shot lookups: the alias and
+// external-code paths, and that each answers the caller's full balance set in a
+// single request.
 func TestBalancesFacade_AccountLookups(t *testing.T) {
 	body := `{"items":[{"id":"b-1","assetCode":"USD","available":"10"}],"limit":10}`
 
