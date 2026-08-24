@@ -56,7 +56,6 @@ func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs
 
 	entity := &Entity{
 		httpClient:    NewHTTPClient(client, authToken, provider),
-		baseURLs:      normalizedBaseURLs,
 		planes:        planes,
 		observability: provider,
 	}

@@ -142,9 +142,10 @@ func configPlaneRetry(config Config) (retry.Options, func(*http.Response, error)
 // It acts as a factory for creating specific entity interfaces for different resource types
 // and operations.
 type Entity struct {
-	// HTTP client configuration
+	// httpClient no longer serves any resource — every accessor routes over a
+	// plane client. It survives because [Entity.GetEntityHTTPClient] hands it to
+	// callers for debug/user-agent/retry tuning.
 	httpClient *HTTPClient
-	baseURLs   map[string]string
 
 	// planes holds the two generated, typed plane clients (Ledger + Tracer).
 	// They are the low-level surface the hand-written facade migrates onto in
@@ -263,7 +264,6 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 
 	entity := &Entity{
 		httpClient:        httpClient,
-		baseURLs:          normalizedBaseURLs,
 		observability:     config.GetObservabilityProvider(),
 		enableIdempotency: configEnableIdempotency(config),
 	}
@@ -302,10 +302,6 @@ func (e *Entity) initServices() {
 
 	if e.httpClient.client == nil {
 		e.httpClient.client = defaultHTTPClient()
-	}
-
-	if e.baseURLs == nil {
-		e.baseURLs = map[string]string{}
 	}
 
 	// Plane-native facades: every accessor routes over the typed plane clients.
