@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
@@ -12,20 +13,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestBalanceAndOperationWirePaths pins the method, path and query every balance
-// and operation call puts on the wire, driving the REAL pipeline: the client is
-// built from the public options (WithBaseURL against a live test server), so the
-// assertion covers base-URL normalization AND path construction together.
+// TestBalanceAndOperationWirePaths pins ROUTING for every balance and operation
+// call: the HTTP method, the URL path, and the query parameters. That is the
+// whole of what it guards.
 //
-// This is deliberately NOT a baseURLs-map injection test. Injecting a base that
-// already carries "/v1" makes every path assertion pass while the shipped client
-// — whose Ledger base is bare, because the generated client versions its own
-// paths — emits an unversioned path the server routes nowhere. The bug that
-// motivated this test was invisible to the injected-map tests for exactly that
-// reason.
-// The table holds one row per balance/operation endpoint: the length is the
-// endpoint count, and collapsing rows would hide the exact wire contract this
-// guard exists to pin.
+// It guards nothing else, on purpose. The fake answers 200 with a
+// path-shaped body to every request and the only assertion on the call itself
+// is that it returned no error, so request bodies, status handling, and decode
+// behavior are all outside this table. Those live in the per-facade tests in
+// entities/ and in the decode and idempotency suites; growing this fake into a
+// mock server would duplicate them and rot.
+//
+// Routing is worth its own table because the client is built from the PUBLIC
+// options (WithBaseURL against a live test server), so the assertion covers
+// base-URL normalization and path construction together. A baseURLs-map
+// injection test cannot: injecting a base that already carries "/v1" makes
+// every path assertion pass while the shipped client — whose Ledger base is
+// bare, because the generated client versions its own paths — emits an
+// unversioned path the server routes nowhere. The bug that motivated this test
+// was invisible to the injected-map tests for exactly that reason.
+//
+// One row per endpoint: the length is the endpoint count, and collapsing rows
+// would hide the exact routing contract this guard exists to pin.
 func TestBalanceAndOperationWirePaths(t *testing.T) {
 	const (
 		ledgerScope = "/v1/organizations/org-1/ledgers/led-1"
@@ -217,12 +226,11 @@ func balanceOperationWireBody(path string) string {
 	)
 
 	switch {
-	case path[len(path)-len("/balances/history"):] == "/balances/history":
+	case strings.HasSuffix(path, "/balances/history"):
 		return `[{"id":"` + balanceUUID + `","accountId":"` + accountUUID + `","assetCode":"USD","available":"10"}]`
-	case path[len(path)-len("/history"):] == "/history":
+	case strings.HasSuffix(path, "/history"):
 		return `{"id":"` + balanceUUID + `","accountId":"` + accountUUID + `","assetCode":"USD","available":"10"}`
-	case path[len(path)-len("/balances"):] == "/balances",
-		path[len(path)-len("/operations"):] == "/operations":
+	case strings.HasSuffix(path, "/balances"), strings.HasSuffix(path, "/operations"):
 		return `{"items":[],"limit":10}`
 	default:
 		return `{"id":"` + balanceUUID + `","accountId":"` + accountUUID + `","assetCode":"USD","available":"10","description":"updated"}`
@@ -299,6 +307,88 @@ func TestListBalancesAll_AdvancesByCursor(t *testing.T) {
 
 	require.Equal(t, []string{"b-1", "b-2"}, ids)
 	require.Equal(t, []string{"", "cur-2"}, seenCursors, "the iterator must advance by next_cursor")
+}
+
+// TestAccountScopedCursorIterators_AdvanceByCursor is the sibling of
+// TestListBalancesAll_AdvancesByCursor for the two account-scoped iterators.
+// Same money-path hazard: both endpoints advance by next_cursor, so an iterator
+// that incremented a page number instead would re-request the FIRST page for as
+// long as the server reported more results — an unbounded loop yielding the same
+// balances or operations forever. The request cap turns that into a fast failure
+// instead of a hang.
+func TestAccountScopedCursorIterators_AdvanceByCursor(t *testing.T) {
+	tests := []struct {
+		name    string
+		collect func(context.Context, *Client) ([]string, error)
+	}{
+		{
+			name: "account balances",
+			collect: func(ctx context.Context, c *Client) ([]string, error) {
+				var ids []string
+
+				for balance, err := range c.V1.Balances.ListAccountBalancesAll(ctx, "org-1", "led-1", "acc-1",
+					models.BalancesListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}}) {
+					if err != nil {
+						return ids, err
+					}
+
+					ids = append(ids, balance.ID)
+				}
+
+				return ids, nil
+			},
+		},
+		{
+			name: "account operations",
+			collect: func(ctx context.Context, c *Client) ([]string, error) {
+				var ids []string
+
+				for op, err := range c.V1.Operations.ListOperationsAll(ctx, "org-1", "led-1", "acc-1",
+					models.OperationsListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}}) {
+					if err != nil {
+						return ids, err
+					}
+
+					ids = append(ids, op.ID)
+				}
+
+				return ids, nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var seenCursors []string
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				cursor := r.URL.Query().Get("cursor")
+				seenCursors = append(seenCursors, cursor)
+
+				if len(seenCursors) > 4 {
+					t.Fatalf("iterator did not terminate: %d requests, cursors=%v", len(seenCursors), seenCursors)
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+
+				if cursor == "cur-2" {
+					_, _ = w.Write([]byte(`{"items":[{"id":"x-2","assetCode":"USD","available":"20"}],"limit":1}`))
+					return
+				}
+
+				_, _ = w.Write([]byte(`{"items":[{"id":"x-1","assetCode":"USD","available":"10"}],"limit":1,"next_cursor":"cur-2"}`))
+			}))
+			defer srv.Close()
+
+			c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
+			require.NoError(t, err)
+
+			ids, err := tt.collect(context.Background(), c)
+			require.NoError(t, err)
+			require.Equal(t, []string{"x-1", "x-2"}, ids)
+			require.Equal(t, []string{"", "cur-2"}, seenCursors, "the iterator must advance by next_cursor")
+		})
+	}
 }
 
 // TestListOperations_SendsOnlyHonoredFilters pins the account-operations filter
