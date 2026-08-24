@@ -11,6 +11,10 @@ on:
       - '*.md'
       - '**/*.txt'
       - '*.txt'
+      - '.github/**'
+      - 'docs/**'
+      - 'LICENSE*'
+      - '.golangci.yml'
     tags-ignore:
       - '**'
 
