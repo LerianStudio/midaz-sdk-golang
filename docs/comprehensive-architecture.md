@@ -133,7 +133,7 @@ Default config values include:
 | Retries enabled | `true` |
 | Idempotency enabled | `true` |
 | Local Ledger base URL | `http://localhost:3002` |
-| Local CRM base URL | `http://localhost:4003/v1` |
+| Local Tracer base URL | `http://localhost:4020` (the SDK stamps `/v1`) |
 
 The HTTP retry engine has its own default options in `pkg/retry`:
 
@@ -169,9 +169,10 @@ Supported environment variables read by `config.FromEnvironment()` are:
 | `PLUGIN_AUTH_ADDRESS` | Sets the Access Manager base address. |
 | `MIDAZ_CLIENT_ID` | Sets the Access Manager client ID. |
 | `MIDAZ_CLIENT_SECRET` | Sets the Access Manager client secret. |
-| `MIDAZ_BASE_URL` | Sets a shared base URL. The SDK derives Ledger and CRM service URLs from it. |
-| `MIDAZ_LEDGER_URL` | Overrides the Ledger service URL (onboarding + transactions). |
-| `MIDAZ_CRM_URL` | Overrides the CRM service URL. |
+| `MIDAZ_BASE_URL` | Sets a shared base URL. The SDK derives the Ledger and Tracer plane URLs from it. |
+| `MIDAZ_LEDGER_URL` | Overrides the Ledger plane URL. Must be bare — a `/v1` or `/v2` suffix is rejected at construction. |
+| `MIDAZ_TRACER_URL` | Overrides the Tracer plane URL. Carries `/v1`; the SDK stamps it when absent. |
+| `MIDAZ_TRACER_API_KEY` | Sets an `X-API-Key` for the Tracer plane. When unset, the Tracer shares the Ledger Bearer token. |
 | `MIDAZ_TIMEOUT` | Sets HTTP timeout in seconds. |
 | `MIDAZ_DEBUG` | Enables debug mode when set to `true`. |
 | `MIDAZ_MAX_RETRIES` | Sets maximum retry attempts. |
@@ -189,20 +190,20 @@ The config package uses three service names internally:
 | --- | --- |
 | `onboarding` | Ledger API resources historically grouped under onboarding, such as organizations, ledgers, accounts, assets, portfolios, and segments. |
 | `transaction` | Ledger API transaction-side resources, such as transactions, operations, balances, routes, metadata indexes, and asset rates. |
-| `crm` | CRM aliases. Holders moved to the Ledger `onboarding` URL in the v4 remodel. |
+| `crm` | Ledger CRM-domain resources (aliases). Not a plane of its own: it inherits the Ledger base URL. Holders moved to the Ledger `onboarding` URL in the v4 remodel. |
 
 For local defaults:
 
 - Ledger API uses `http://localhost:3002`
-- CRM API uses `http://localhost:4003/v1`
+- Tracer API uses `http://localhost:4020/v1`
 
-For development and production defaults, CRM falls back to the Ledger base URL unless you provide `MIDAZ_CRM_URL` or `config.WithCRMURL(...)`.
+There is no separate CRM URL setting. The `crm` service name resolves to the Ledger base URL.
 
 `midaz.WithBaseURL(...)` derives service URLs from a shared base:
 
 - Ledger services use port `3002` for localhost without an explicit port.
-- CRM uses port `4003` for localhost without an explicit port.
-- The SDK appends `/v1` when the path does not already end in `/v1`.
+- Tracer uses port `4020` for localhost without an explicit port.
+- The two planes version themselves differently, and the SDK follows each plane's contract. Ledger paths carry the version (`/v1/organizations`, `/v2/organizations`), so the Ledger base URL stays bare and a `/v1` or `/v2` suffix on it is rejected at construction. Tracer paths are unversioned, so the SDK stamps `/v1` onto the Tracer base URL when it is absent.
 
 ## Entity services
 
@@ -790,7 +791,7 @@ alias, err := c.Aliases.CreateAlias(
 )
 ```
 
-If no CRM URL is configured, the entity layer falls back to the onboarding URL — which is also where holders live. For local development, prefer setting `MIDAZ_CRM_URL=http://localhost:4003/v1` or using `midaz.WithCRMURL(...)` for the alias path.
+The `crm` service URL is not separately configurable: the entity layer resolves it to the Ledger base URL — which is also where holders live. Point `MIDAZ_LEDGER_URL` (or `MIDAZ_BASE_URL`) at the Ledger and the alias path follows.
 
 ## Security boundaries
 
@@ -885,7 +886,7 @@ Pass SDK configuration through environment variables at runtime:
 ```bash
 docker run --rm \
   -e MIDAZ_BASE_URL=https://midaz.example.com \
-  -e MIDAZ_CRM_URL=https://crm.midaz.example.com/v1 \
+  -e MIDAZ_TRACER_URL=https://tracer.midaz.example.com/v1 \
   -e PLUGIN_AUTH_ENABLED=false \
   midaz-mass-demo-generator
 ```
@@ -898,7 +899,7 @@ Use these supported extension points:
 
 | Need | Extension point |
 | --- | --- |
-| Custom service URLs | `midaz.WithBaseURL`, `midaz.WithLedgerURL`, `midaz.WithCRMURL`, or config equivalents. |
+| Custom service URLs | `midaz.WithBaseURL`, `midaz.WithLedgerURL`, `midaz.WithTracerURL`, or config equivalents. |
 | Custom HTTP behavior | `midaz.WithHTTPClient(...)` or `config.WithHTTPClient(...)`. |
 | Retry tuning | `midaz.WithRetryOptions(retry.Option...)`, `midaz.WithoutRetries()`, or `midaz.WithCustomRetryPolicy(...)`. |
 | Access Manager authentication | `midaz.WithAccessManager(...)`, `config.WithAccessManager(...)`, or `config.FromEnvironment()`. |
