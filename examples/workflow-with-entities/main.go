@@ -29,7 +29,7 @@
 // You can set these variables in a .env file:
 //
 //	MIDAZ_ENVIRONMENT=local  # Can be local, development, or production
-//	MIDAZ_LEDGER_URL=http://localhost:3002/v1 # Optional override
+//	MIDAZ_LEDGER_URL=http://localhost:3002 # Optional override
 //	MIDAZ_DEBUG=true # Optional, enables detailed API logging
 //
 // # Workflow Steps
