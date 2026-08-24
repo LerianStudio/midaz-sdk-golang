@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -48,45 +49,32 @@ var transitionHelpers = map[string]bool{
 // checked-in list, so a newly generated operation or a newly written facade
 // method is covered the moment it lands, without anyone remembering to add it.
 func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
-	pathOps := operationsWithPathParameters(t)
-	require.NotEmpty(t, pathOps, "found no generated operations with path parameters; the scan is broken, not the code")
-
 	fset := token.NewFileSet()
 
-	pkgs, err := parser.ParseDir(fset, ".", nil, 0)
-	require.NoError(t, err)
+	pathOps := operationsWithPathParameters(t, fset)
+	require.NotEmpty(t, pathOps, "found no generated operations with path parameters; the scan is broken, not the code")
 
 	var unguarded []string
 
 	guarded := 0
 	helperGuards := map[string]bool{}
 
-	for _, pkg := range pkgs {
-		for name, file := range pkg.Files {
-			if strings.HasSuffix(name, "_test.go") {
+	for name, file := range parseGoFiles(t, fset, ".") {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
 				continue
 			}
 
-			for _, decl := range file.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok || fn.Body == nil {
-					continue
-				}
+			if transitionHelpers[fn.Name.Name] {
+				helperGuards[fn.Name.Name] = callsRequirePathIDs(fn)
+			}
 
-				if transitionHelpers[fn.Name.Name] {
-					helperGuards[fn.Name.Name] = callsRequirePathIDs(fn)
-				}
-
-				ops := pathOperationsNamedBy(fn, pathOps)
-				if len(ops) == 0 {
-					continue
-				}
-
-				if guardsPathIDs(fn) {
-					guarded++
-					continue
-				}
-
+			switch ops := pathOperationsNamedBy(fn, pathOps); {
+			case len(ops) == 0:
+			case guardsPathIDs(fn):
+				guarded++
+			default:
 				unguarded = append(unguarded, funcLabel(fn)+" reaches "+strings.Join(ops, ", ")+
 					" (declared at "+filepath.Base(name)+":"+
 					strconv.Itoa(fset.Position(fn.Pos()).Line)+")")
@@ -124,39 +112,70 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 // operationsWithPathParameters reads the generated clients and returns the
 // operations whose request builder formats at least one value into the URL
 // path. oapi-codegen marks exactly those with runtime.ParamLocationPath.
-func operationsWithPathParameters(t *testing.T) map[string]bool {
+func operationsWithPathParameters(t *testing.T, fset *token.FileSet) map[string]bool {
 	t.Helper()
 
 	ops := map[string]bool{}
 
 	for _, dir := range []string{"../internal/genledger", "../internal/gentracer"} {
-		fset := token.NewFileSet()
-
-		pkgs, err := parser.ParseDir(fset, dir, nil, 0)
-		require.NoError(t, err)
-
-		for _, pkg := range pkgs {
-			for _, file := range pkg.Files {
-				for _, decl := range file.Decls {
-					fn, ok := decl.(*ast.FuncDecl)
-					if !ok || fn.Body == nil || fn.Recv != nil {
-						continue
-					}
-
-					op, ok := requestBuilderOperation(fn.Name.Name)
-					if !ok {
-						continue
-					}
-
-					if formatsAPathParameter(fn) {
-						ops[op] = true
-					}
-				}
-			}
+		for _, file := range parseGoFiles(t, fset, dir) {
+			collectPathOperations(file, ops)
 		}
 	}
 
 	return ops
+}
+
+// collectPathOperations records every request builder in one generated file
+// that formats a value into the URL path.
+func collectPathOperations(file *ast.File, ops map[string]bool) {
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil || fn.Recv != nil {
+			continue
+		}
+
+		op, ok := requestBuilderOperation(fn.Name.Name)
+		if !ok {
+			continue
+		}
+
+		if formatsAPathParameter(fn) {
+			ops[op] = true
+		}
+	}
+}
+
+// parseGoFiles parses the non-test Go files in dir, keyed by path.
+//
+// This is what go/parser's ParseDir used to do before it was deprecated, minus
+// the package grouping these scans never needed: both callers want a flat list
+// of files, and dropping the package level takes a loop out of each of them.
+func parseGoFiles(t *testing.T, fset *token.FileSet, dir string) map[string]*ast.File {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	files := map[string]*ast.File{}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+
+		path := filepath.Join(dir, name)
+
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		require.NoError(t, err)
+
+		files[path] = file
+	}
+
+	require.NotEmpty(t, files, "no non-test Go files found in %s; the scan is broken, not the code", dir)
+
+	return files
 }
 
 // requestBuilderOperation maps a generated request-builder name back to its

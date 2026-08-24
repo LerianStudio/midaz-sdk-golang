@@ -2,7 +2,6 @@ package entities
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"path/filepath"
 	"sort"
@@ -31,51 +30,37 @@ import (
 func TestEveryInputValidationIsTyped(t *testing.T) {
 	fset := token.NewFileSet()
 
-	pkgs, err := parser.ParseDir(fset, ".", nil, 0)
-	require.NoError(t, err)
-
 	var unwrapped []string
 
 	wrapped, exempt := 0, 0
 
-	for _, pkg := range pkgs {
-		for name, file := range pkg.Files {
-			if strings.HasSuffix(name, "_test.go") {
-				continue
+	for name, file := range parseGoFiles(t, fset, ".") {
+		typedByValidationErr := wrappedValidateCalls(file)
+
+		ast.Inspect(file, func(n ast.Node) bool {
+			sel, ok := validateCallReceiver(n)
+			if !ok {
+				return true
 			}
 
-			typedByValidationErr := wrappedValidateCalls(file)
+			switch {
+			case typedByValidationErr[n.Pos()]:
+				wrapped++
+			case isListOptsReceiver(sel):
+				// List options are validated by ValidatePageListOpts /
+				// ValidateCursorListOpts, which build the SDK error type
+				// themselves, so wrapping would be a no-op. The exemption is
+				// not taken on trust: TestListOptsValidationIsTyped exercises
+				// it through the public pipeline.
+				exempt++
+			default:
+				unwrapped = append(unwrapped,
+					filepath.Base(name)+":"+strconv.Itoa(fset.Position(n.Pos()).Line)+
+						" — "+exprText(sel)+".Validate() is returned without validationErr")
+			}
 
-			ast.Inspect(file, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-
-				sel, ok := call.Fun.(*ast.SelectorExpr)
-				if !ok || sel.Sel.Name != "Validate" {
-					return true
-				}
-
-				switch {
-				case typedByValidationErr[call.Pos()]:
-					wrapped++
-				case isListOptsReceiver(sel.X):
-					// List options are validated by ValidatePageListOpts /
-					// ValidateCursorListOpts, which build the SDK error type
-					// themselves, so wrapping would be a no-op. The exemption is
-					// not taken on trust: TestListOptsValidationIsTyped exercises
-					// it through the public pipeline.
-					exempt++
-				default:
-					unwrapped = append(unwrapped,
-						filepath.Base(name)+":"+strconv.Itoa(fset.Position(call.Pos()).Line)+
-							" — "+exprText(sel.X)+".Validate() is returned without validationErr")
-				}
-
-				return true
-			})
-		}
+			return true
+		})
 	}
 
 	sort.Strings(unwrapped)
@@ -90,6 +75,22 @@ func TestEveryInputValidationIsTyped(t *testing.T) {
 	// Floors, so a scan that silently stops matching cannot read as success.
 	require.Greater(t, wrapped, 40, "expected validationErr on more than 40 input sites, found %d", wrapped)
 	require.Greater(t, exempt, 20, "expected more than 20 list-opts sites, found %d", exempt)
+}
+
+// validateCallReceiver reports whether a node is a `X.Validate()` call and, if
+// so, returns the X it was called on.
+func validateCallReceiver(n ast.Node) (ast.Expr, bool) {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return nil, false
+	}
+
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Validate" {
+		return nil, false
+	}
+
+	return sel.X, true
 }
 
 // wrappedValidateCalls returns the positions of the Validate calls that appear
