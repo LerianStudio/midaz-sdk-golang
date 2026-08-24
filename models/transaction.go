@@ -143,6 +143,14 @@ type Transaction struct {
 // validatePositiveDecimalString rejects anything that is not a positive decimal
 // money value. Every caller validates a field named "value" — send.value or a
 // leg amount's value — so the name is fixed here instead of threaded through.
+//
+// It judges the string EXACTLY as it will be sent, whitespace included. An
+// earlier version trimmed before parsing, which let "  100  " pass here and then
+// travel to the ledger verbatim, where it fails as a malformed decimal: local
+// validation said one thing and the wire carried another. The SDK does not
+// rewrite money text — a caller's amount reaches the ledger byte for byte — so
+// the only way to keep those two answers in agreement is to validate the bytes
+// that leave.
 func validatePositiveDecimalString(value any) error {
 	const field = "value"
 
@@ -150,7 +158,7 @@ func validatePositiveDecimalString(value any) error {
 		return err
 	}
 
-	parsed, err := decimal.NewFromString(strings.TrimSpace(decimalStringFromAny(value)))
+	parsed, err := decimal.NewFromString(decimalStringFromAny(value))
 	if err != nil {
 		return fmt.Errorf("%s must be a valid decimal", field)
 	}
@@ -167,7 +175,9 @@ func validateDecimalInputBound(value any, field string) error {
 		return fmt.Errorf("%s must be a finite decimal", field)
 	}
 
-	if decimalText := strings.TrimSpace(decimalStringFromAny(value)); len(decimalText) > maxDecimalInputLength {
+	// Untrimmed, for the same reason the parse below is: the bound applies to
+	// what goes on the wire.
+	if decimalText := decimalStringFromAny(value); len(decimalText) > maxDecimalInputLength {
 		return fmt.Errorf("%s exceeds maximum length of %d characters", field, maxDecimalInputLength)
 	}
 
@@ -455,6 +465,9 @@ type Rate struct {
 }
 
 const (
+	// maxTransactionDescriptionLength bounds a transaction description. Both
+	// surfaces update through one server-side struct carrying a single "max=256"
+	// validator, so /v1 and /v2 share this bound rather than spelling it twice.
 	maxTransactionDescriptionLength = 256
 	maxTransactionCodeLength        = 100
 )
@@ -1306,8 +1319,8 @@ func (input *UpdateTransactionInput) Validate() error {
 
 	var errs validation.FieldErrors
 
-	if input.Description != "" && len(input.Description) > 256 {
-		errs.Append("description", "must not exceed 256 characters")
+	if len(input.Description) > maxTransactionDescriptionLength {
+		errs.Append("description", fmt.Sprintf("must not exceed %d characters", maxTransactionDescriptionLength))
 	}
 
 	if input.Metadata != nil {

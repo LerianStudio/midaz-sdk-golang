@@ -6,6 +6,7 @@ package models
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
@@ -350,11 +351,36 @@ func appendV2SideErrors(errs *validation.FieldErrors, side string, legs []Transa
 	}
 }
 
-// validate enforces the per-leg obligations: an alias, a complete scope, and
-// exactly one value expression.
+// aliasSeparator is the character Midaz builds and parses its COMPOSITE aliases
+// with, and therefore the one character a client-supplied alias may not contain.
+// See TransactionV2Leg.validate.
+const aliasSeparator = "#"
+
+// validate enforces the per-leg obligations: an alias free of the composite
+// separator, a complete scope, and exactly one value expression.
 func (leg TransactionV2Leg) validate() error {
 	if leg.Alias == "" {
 		return errors.New("alias is required")
+	}
+
+	// The ledger refuses an alias containing '#' on every v2 leg, and the reason
+	// is a lost entry rather than a formatting preference. Downstream it rewrites
+	// each accepted alias into a composite "index#alias#balanceKey" form and keys
+	// its per-entry maps on that string; an alias that ALREADY looks composite is
+	// left spelled exactly as the client sent it, so a client-forged one reaches
+	// those maps unmutated. There it either collides with another entry's key or
+	// matches none of them, and a transaction that loses one side's entry moves
+	// value in one direction only.
+	//
+	// The rule is narrow on purpose — only '#', not the full registered-alias
+	// charset — because '/' must stay legal for "@external/<ASSET>", the alias
+	// every ledger's external account carries and the only way to spell funding
+	// or withdrawal on a surface with no inflow/outflow action.
+	// (pkg/mtransaction/v2_input.go validateV2Alias; AliasSeparator in
+	// pkg/mtransaction/transaction.go.)
+	if strings.Contains(leg.Alias, aliasSeparator) {
+		return fmt.Errorf("alias %q must not contain %q: the ledger builds its internal composite "+
+			"aliases with that character and refuses a client-supplied one", leg.Alias, aliasSeparator)
 	}
 
 	if leg.OrganizationID == "" || leg.LedgerID == "" {
@@ -390,13 +416,27 @@ func (share *TransactionV2Share) validate() error {
 	return nil
 }
 
-// UpdateTransactionV2Input patches the mutable fields of a /v2 transaction.
-//
-// It is a distinct type from UpdateTransactionInput because the surfaces differ:
-// /v1 also accepts an externalId here, and /v2 does not serve one at all.
-// Description and metadata are the whole of what a posted transaction can
-// change — the value it moved and the accounts it touched are immutable by
+// UpdateTransactionV2Input patches the mutable fields of a /v2 transaction:
+// description and metadata, which are the whole of what a posted transaction can
+// change. The value it moved and the accounts it touched are immutable by
 // design.
+//
+// It is a distinct type from UpdateTransactionInput only because /v1's carries a
+// vestigial ExternalID field. Both surfaces send the SAME request schema —
+// updateTransaction and updateTransactionV2 both reference
+// TransactionUpdateTransactionInput — and /v1's ExternalID is json:"-", so it
+// never reaches the wire either. The two types are wire-identical.
+//
+// The ledger spec marks BOTH description and metadata required on that schema,
+// and this input omits each when empty anyway. That is safe, not a gamble: the
+// server never applies that schema at request time. Both update routes register
+// with SkipValidateBody and read a raw body
+// (components/ledger/internal/adapters/http/in/transaction_routes.go:142 and
+// transaction_v2_mirror_register.go:60), then decode imperatively into a struct
+// whose only validators are "max=256" on the description and per-entry bounds on
+// the metadata — no required tag on either
+// (components/ledger/internal/adapters/postgres/transaction/transaction.go:90).
+// A description-only patch is accepted.
 type UpdateTransactionV2Input struct {
 	// Description replaces the transaction description.
 	Description string `json:"description,omitempty"`
@@ -408,6 +448,9 @@ type UpdateTransactionV2Input struct {
 // Validate refuses an empty patch: a PATCH that changes nothing is a write that
 // costs a round trip and an audit entry for no effect, and it is far more often
 // a caller bug than an intention.
+//
+// The description bound matches UpdateTransactionInput.Validate on /v1, because
+// the two surfaces share one server-side struct and one "max=256" validator.
 func (input *UpdateTransactionV2Input) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
@@ -415,6 +458,10 @@ func (input *UpdateTransactionV2Input) Validate() error {
 
 	if input.Description == "" && len(input.Metadata) == 0 {
 		return errors.New("update requires at least one of description or metadata")
+	}
+
+	if len(input.Description) > maxTransactionDescriptionLength {
+		return fmt.Errorf("description must not exceed %d characters", maxTransactionDescriptionLength)
 	}
 
 	if len(input.Metadata) > 0 {
