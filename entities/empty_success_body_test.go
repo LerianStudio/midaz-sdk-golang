@@ -179,6 +179,71 @@ func TestEmptySuccessBodyGuardLetsRealBodiesThrough(t *testing.T) {
 	})
 }
 
+// TestEmptySuccessBodyIsRefusedOnAList is the same defect one shape over, and on
+// a reconciliation path it is arguably the worse one: "null" and "{}" decode
+// into a zero-valued envelope, which reads as an EMPTY PAGE with no next cursor.
+// A caller walking a ledger's transactions stops on the first dropped body and
+// concludes the ledger is empty — with a nil error.
+//
+// No legitimate list body is any of these shapes: every list envelope the ledger
+// declares marks items and limit REQUIRED, so an empty page is
+// {"items":[],"limit":N}.
+func TestEmptySuccessBodyIsRefusedOnAList(t *testing.T) {
+	ctx := context.Background()
+
+	for _, shape := range emptySuccessBodies {
+		t.Run(shape.name, func(t *testing.T) {
+			srv := emptyBodyServer(t, http.StatusOK, shape.body)
+
+			_, err := newTestTransactionsV2Facade(t, srv).
+				List(ctx, txOrgID, txLedgerID, models.TransactionsListOpts{})
+			if err == nil {
+				t.Fatalf("a 200 carrying %q must not read as an empty page", shape.body)
+			}
+
+			if !sdkerrors.IsResponseDecodeError(err) {
+				t.Fatalf("want a response-decode error, got %v", err)
+			}
+		})
+	}
+
+	t.Run("a real empty page still decodes", func(t *testing.T) {
+		srv := emptyBodyServer(t, http.StatusOK, `{"items":[],"limit":10}`)
+
+		page, err := newTestTransactionsV2Facade(t, srv).
+			List(ctx, txOrgID, txLedgerID, models.TransactionsListOpts{})
+		if err != nil {
+			t.Fatalf("an empty page is a real answer and must decode: %v", err)
+		}
+
+		if len(page.Items) != 0 {
+			t.Fatalf("items = %d, want 0", len(page.Items))
+		}
+	})
+}
+
+// TestBareArrayReadStillAcceptsNull pins the deliberate exception.
+//
+// The point-in-time balance reads answer with a bare JSON ARRAY, and Go's
+// encoding/json marshals a nil slice as the literal "null". So on that shape
+// "null" is what a handler with no results actually emits, and applying the
+// object guard there would turn "no balances at that instant" into an error.
+func TestBareArrayReadStillAcceptsNull(t *testing.T) {
+	srv := emptyBodyServer(t, http.StatusOK, "null")
+
+	facade := newBalancesV2Facade(newTestLedgerClient(t, srv), true)
+
+	got, err := facade.GetAccountBalancesHistory(
+		context.Background(), txOrgID, txLedgerID, txID, "2025-01-01T00:00:00Z")
+	if err != nil {
+		t.Fatalf("a bare array read must treat null as an empty result set, got %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Fatalf("want an empty result set, got %d", len(got))
+	}
+}
+
 // TestCancelStillSynthesizesOnAnEmptyBody pins the ONE endpoint that is allowed
 // to answer a single-object request with nothing.
 //

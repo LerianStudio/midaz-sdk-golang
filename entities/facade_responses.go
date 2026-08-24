@@ -106,6 +106,20 @@ func readList[T any](operation string, resp *http.Response, err error) (*models.
 		return nil, errors.DecodeProblemJSON(httpResp.StatusCode, body, requestIDOf(httpResp))
 	}
 
+	// Same refusal decodeOne makes, for the same reason: "null" and "{}" both
+	// decode into a zero-valued envelope with a nil error, which reads as an
+	// EMPTY PAGE with no next cursor. A caller iterating a ledger's transactions
+	// stops on the first dropped body and concludes the ledger is empty.
+	//
+	// No legitimate list body is any of these shapes: every list envelope the
+	// ledger declares (Pagination, TransactionV2ListBody) marks items and limit
+	// REQUIRED, so an empty page is {"items":[],"limit":N} and never {} or null.
+	// The bare-ARRAY reads go through readSlice, not here, and that distinction
+	// matters — see the note there.
+	if isEmptyBody(body) {
+		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, errEmptySuccessBody)
+	}
+
 	var page models.ListResponse[T]
 	if err := json.Unmarshal(body, &page); err != nil {
 		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, err)
@@ -120,6 +134,14 @@ func readList[T any](operation string, resp *http.Response, err error) (*models.
 
 // readSlice maps a bare JSON array response (the point-in-time balance reads and
 // the metadata-index list answer with one, not with a paginated envelope).
+//
+// Deliberately WITHOUT the empty-body refusal decodeOne and readList apply, and
+// the exception is narrow rather than an oversight. Those two read objects,
+// where "null" cannot be a real answer. This reads an ARRAY, and Go's
+// encoding/json marshals a nil slice as the literal "null" — so a handler
+// returning an empty result set emits exactly the shape the guard would refuse,
+// and adding it here would turn "no balances at that instant" into an error. An
+// empty body still fails, in the unmarshal, as it always did.
 func readSlice[T any](operation string, resp *http.Response, err error) ([]T, error) {
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(resp, err)
