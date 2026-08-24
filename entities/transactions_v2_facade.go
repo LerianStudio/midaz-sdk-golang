@@ -272,10 +272,24 @@ func (f *transactionsV2Facade) Get(ctx context.Context, orgID, ledgerID, transac
 
 // List retrieves one cursor page of transactions under an org+ledger.
 //
-// Only the metadata predicate and the date range narrow the result set; the
-// other TransactionsFilters fields are sent under their legacy query names and
-// ignored by the ledger. That is the /v1 behaviour unchanged — see
-// models.TransactionsFilters for which endpoint honours which.
+// Only the metadata predicate and the date range narrow the result set. Asking
+// for any other narrowing is REFUSED here rather than sent and ignored, which is
+// the position operationsV2Facade.ListOperations already takes for its own
+// filters: a filter with no wire slot is worse than an absent one, because the
+// caller reads a full unfiltered result set as if it had been narrowed. On a
+// money surface that is a reconciliation reading every transaction in the ledger
+// and believing it read one status.
+//
+// The /v1 list has the same contract and does NOT refuse — it still sends the
+// six filters under their legacy query names for the ledger to ignore. That is
+// a compatibility choice on a surface that already shipped that way, not a
+// contract difference: getAllTransactions and getAllTransactionsV2 declare
+// byte-identical query sets (metadata, limit, start_date, end_date, sort_order,
+// cursor) in the pinned ledger spec. Narrowing on /v1 is therefore just as
+// silent, and closing it there is a separate decision about a shipped surface.
+//
+// Count is unaffected on both surfaces: countTransactionsByFilters and its /v2
+// twin DO declare status and route, so those two filters are honoured there.
 func (f *transactionsV2Facade) List(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.TransactionV2], error) {
 	const operation = "V2.Transactions.List"
 
@@ -287,11 +301,54 @@ func (f *transactionsV2Facade) List(ctx context.Context, orgID, ledgerID string,
 		return nil, err
 	}
 
+	if err := refuseUndeclaredListFilters(operation, opts.Filters); err != nil {
+		return nil, err
+	}
+
 	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
 	resp, err := f.ledger.GetAllTransactionsV2(ctx, orgID, ledgerID, listTransactionsV2Params(opts),
-		listTransactionsReqEditors(opts)...)
+		metadataFilterEditors(opts)...)
 
 	return readList[models.TransactionV2](operation, resp, err)
+}
+
+// refuseUndeclaredListFilters rejects the TransactionsFilters fields the /v2
+// list operation does not declare, naming every one the caller set so a caller
+// with three of them set fixes all three at once.
+//
+// Status and Route are on the list because the LIST endpoint does not declare
+// them; the count endpoint does, and Count does not call this.
+func refuseUndeclaredListFilters(operation string, filters models.TransactionsFilters) error {
+	undeclared := []struct {
+		field string
+		value string
+	}{
+		{"AssetCode", filters.AssetCode},
+		{"Status", filters.Status},
+		{"Reference", filters.Reference},
+		{"SourceAccount", filters.SourceAccount},
+		{"DestinationAccount", filters.DestinationAccount},
+		{"Route", filters.Route},
+	}
+
+	var named []string
+
+	for _, f := range undeclared {
+		if strings.TrimSpace(f.value) != "" {
+			named = append(named, f.field)
+		}
+	}
+
+	if len(named) == 0 {
+		return nil
+	}
+
+	return errors.NewValidationError(operation, fmt.Sprintf(
+		"the /v2 transaction list does not narrow by %s; it honours only the metadata predicate "+
+			"and the date range, so sending these would return every transaction in the ledger "+
+			"unfiltered. Narrow client-side, carry the identifier in metadata, or use Count for "+
+			"Status and Route",
+		strings.Join(named, ", ")), nil)
 }
 
 // Pages yields one cursor page per iteration, advancing by the response

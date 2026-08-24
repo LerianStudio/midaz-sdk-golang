@@ -213,6 +213,26 @@ func listTransactionRoutesV2Params(opts models.TransactionRoutesListOpts) *genle
 	}
 }
 
+// metadataFilterEditors carries the metadata predicate the generated
+// GetAllTransactionsV2Params cannot express, rendered as metadata.<key>=<value>.
+//
+// It is the /v2 counterpart of listTransactionsReqEditors and deliberately
+// carries NOTHING else. Its /v1 sibling also injects the six filters the ledger
+// does not declare, so that they are sent rather than silently dropped; on /v2
+// those are refused before the request is built (see
+// transactionsV2Facade.List), which leaves the metadata predicate as the only
+// filter with anywhere to go. Returns nil when unset, so the common path adds
+// zero overhead.
+func metadataFilterEditors(opts models.TransactionsListOpts) []genledger.RequestEditorFn {
+	if opts.Filters.MetadataKey == "" || opts.Filters.MetadataValue == "" {
+		return nil
+	}
+
+	return []genledger.RequestEditorFn{
+		setQueryParam("metadata."+opts.Filters.MetadataKey, opts.Filters.MetadataValue),
+	}
+}
+
 // listTransactionsV2Params renders the V2 query set for this list.
 func listTransactionsV2Params(opts models.TransactionsListOpts) *genledger.GetAllTransactionsV2Params {
 	v1 := listTransactionsParams(opts)

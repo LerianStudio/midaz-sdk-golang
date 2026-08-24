@@ -44,10 +44,18 @@ type TransactionsListOpts struct {
 //   - Count: Status and Route, plus the date range (countTransactionsByFilters
 //     declares both filters).
 //
-// The remaining fields are still sent on List under their legacy query-param
-// names, but the pinned ledger contract neither declares nor applies them —
-// narrow client-side, or carry the identifier in metadata, rather than relying on
-// them.
+// The remaining fields are handled DIFFERENTLY by the two list surfaces, and
+// the difference is a compatibility choice rather than a contract difference —
+// getAllTransactions and getAllTransactionsV2 declare byte-identical query sets:
+//
+//   - V2.Transactions.List REFUSES them. Setting one returns a validation error
+//     naming it, because a filter with no wire slot returns every transaction in
+//     the ledger and a caller reads that as a narrowed result.
+//   - V1.Transactions.List still SENDS them under their legacy query-param
+//     names, where the ledger ignores them. That is how the surface shipped.
+//
+// On either surface: narrow client-side, carry the identifier in metadata, or
+// use Count for Status and Route, rather than relying on these here.
 type TransactionsFilters struct {
 	// AssetCode narrows by asset code (e.g. "USD").
 	//
