@@ -170,6 +170,28 @@ func (f *accountsFacade) GetByAlias(ctx context.Context, orgID, ledgerID, alias 
 	return decodeOne[models.Account](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
 }
 
+// GetByExternalCode retrieves the ledger's EXTERNAL account for an asset code —
+// the counterparty every deposit is drawn from and every withdrawal is paid
+// into, which is what makes an inflow or an outflow balance.
+//
+// The code is the bare asset code ("USD"), a path segment on
+// .../accounts/external/{code}. The alias spelling of the same account
+// ("@external/USD") is deliberately NOT accepted anywhere: Midaz prohibits the
+// "@external/" prefix on a client-supplied alias, so this route is the only way
+// to reach it.
+func (f *accountsFacade) GetByExternalCode(ctx context.Context, orgID, ledgerID, code string) (*models.Account, error) {
+	const operation = "Accounts.GetByExternalCode"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "code", code); err != nil {
+		return nil, err
+	}
+
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountExternalByCode(ctx, orgID, ledgerID, code)
+
+	return readOne[models.Account](operation, resp, err)
+}
+
 // Update patches an account by ID under an org+ledger. Same write-facade
 // pattern as Create.
 func (f *accountsFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {

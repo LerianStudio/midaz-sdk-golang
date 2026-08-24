@@ -191,6 +191,58 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 	})
 }
 
+// CreateBlock creates a transaction that BLOCKS value on the accounts it names,
+// via POST .../transactions/block.
+//
+// The body is the same shape as CreateJSON — the endpoint takes
+// CreateTransactionInput and the wire body is json.Marshal(input), routed
+// through ToLibTransaction(). What differs is entirely server-side: the ledger
+// stamps every resulting operation with the BLOCK type and forces the
+// transaction non-pending, so it settles immediately instead of waiting for a
+// commit. Reverse it with CreateUnblock, not with Cancel.
+func (f *transactionsFacade) CreateBlock(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
+	const operation = "Transactions.CreateBlock"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
+		return nil, err
+	}
+
+	params := &genledger.CreateTransactionBlockParams{}
+	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
+	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
+
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateTransactionBlockWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+	})
+}
+
+// CreateUnblock releases value a block transaction held, via
+// POST .../transactions/unblock. Same body and same immediate-settlement
+// semantics as CreateBlock; the ledger stamps UNBLOCK instead of BLOCK.
+func (f *transactionsFacade) CreateUnblock(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
+	const operation = "Transactions.CreateUnblock"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
+		return nil, err
+	}
+
+	params := &genledger.CreateTransactionUnblockParams{}
+	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
+	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
+
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateTransactionUnblockWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+	})
+}
+
 // Commit finalizes a PENDING transaction (PENDING → APPROVED) via
 // POST .../transactions/{id}/commit. Success is HTTP 201. The action carries no
 // body and is not auto-idempotent: it stamps X-Idempotency only when the caller
