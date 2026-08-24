@@ -1,0 +1,216 @@
+// Copyright 2025 Lerian Studio
+// SPDX-License-Identifier: Elastic-2.0
+
+package entities
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+)
+
+// emptySuccessBodies are the four 2xx shapes that carry no resource. Each one
+// unmarshals into a zero-valued model with a NIL error, which is the whole
+// defect: a caller who branches on err != nil books a settled transfer whose id
+// is "" and whose status is "".
+//
+//   - ""    a proxy or gateway that dropped the body
+//   - "  "  the same, with whitespace surviving
+//   - null  the JSON literal; json.Unmarshal on it is a documented no-op
+//   - {}    a well-formed object that sets nothing
+var emptySuccessBodies = []struct {
+	name string
+	body string
+}{
+	{name: "empty body", body: ""},
+	{name: "whitespace body", body: "  \n\t "},
+	{name: "null literal", body: "null"},
+	{name: "empty object", body: "{}"},
+}
+
+// emptyBodyServer answers every request with status and body.
+func emptyBodyServer(t *testing.T, status int, body string) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// TestEmptySuccessBodyIsRefused is the money-path guard behind the central
+// decodeOne empty-body check.
+//
+// The failure it prevents is the worst shape a money SDK has: a 201 whose body
+// the server (or any gateway in front of it) dropped, decoded into a
+// zero-valued transaction and returned with a nil error. Nothing downstream can
+// tell that apart from a real settlement — the id is "", the status is "", and
+// err is nil. Refusing it as a RESPONSE DECODE error is the honest answer,
+// because on a create the transaction may well exist server-side: the caller
+// must reconcile, not retry blindly.
+//
+// One create, one lifecycle transition and one plain read, on BOTH surfaces,
+// because the guard is central and any of the twenty single-object reads would
+// prove it — these six are the ones where being wrong costs money.
+func TestEmptySuccessBodyIsRefused(t *testing.T) {
+	ctx := context.Background()
+
+	calls := []struct {
+		name   string
+		status int
+		call   func(*testing.T, *httptest.Server) error
+	}{
+		{
+			name:   "V1.Transactions.CreateJSON",
+			status: http.StatusCreated,
+			call: func(t *testing.T, srv *httptest.Server) error {
+				_, err := newTestTransactionsFacade(t, srv).
+					CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+
+				return err
+			},
+		},
+		{
+			name:   "V1.Transactions.Commit",
+			status: http.StatusCreated,
+			call: func(t *testing.T, srv *httptest.Server) error {
+				_, err := newTestTransactionsFacade(t, srv).Commit(ctx, txOrgID, txLedgerID, txID)
+
+				return err
+			},
+		},
+		{
+			name:   "V1.Transactions.Get",
+			status: http.StatusOK,
+			call: func(t *testing.T, srv *httptest.Server) error {
+				_, err := newTestTransactionsFacade(t, srv).Get(ctx, txOrgID, txLedgerID, txID)
+
+				return err
+			},
+		},
+		{
+			name:   "V2.Transactions.CreateDirect",
+			status: http.StatusCreated,
+			call: func(t *testing.T, srv *httptest.Server) error {
+				_, err := newTestTransactionsV2Facade(t, srv).
+					CreateDirect(ctx, txOrgID, txLedgerID, sampleV2Input())
+
+				return err
+			},
+		},
+		{
+			name:   "V2.Transactions.Revert",
+			status: http.StatusCreated,
+			call: func(t *testing.T, srv *httptest.Server) error {
+				_, err := newTestTransactionsV2Facade(t, srv).Revert(ctx, txOrgID, txLedgerID, txID)
+
+				return err
+			},
+		},
+		{
+			name:   "V2.Transactions.Get",
+			status: http.StatusOK,
+			call: func(t *testing.T, srv *httptest.Server) error {
+				_, err := newTestTransactionsV2Facade(t, srv).Get(ctx, txOrgID, txLedgerID, txID)
+
+				return err
+			},
+		},
+	}
+
+	for _, c := range calls {
+		t.Run(c.name, func(t *testing.T) {
+			for _, shape := range emptySuccessBodies {
+				t.Run(shape.name, func(t *testing.T) {
+					err := c.call(t, emptyBodyServer(t, c.status, shape.body))
+					if err == nil {
+						t.Fatalf("a %d carrying %q must not read as a successful %s",
+							c.status, shape.body, c.name)
+					}
+
+					if !sdkerrors.IsResponseDecodeError(err) {
+						t.Fatalf("want a response-decode error (outcome unknown), got %v", err)
+					}
+				})
+			}
+		})
+	}
+}
+
+// TestEmptySuccessBodyGuardLetsRealBodiesThrough is the other half: a guard
+// that refused everything would also pass the test above. These are the bodies
+// the guard must NOT touch.
+func TestEmptySuccessBodyGuardLetsRealBodiesThrough(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("V1 transaction body decodes", func(t *testing.T) {
+		srv := emptyBodyServer(t, http.StatusOK, txResponseBody())
+
+		got, err := newTestTransactionsFacade(t, srv).Get(ctx, txOrgID, txLedgerID, txID)
+		if err != nil {
+			t.Fatalf("a populated body must decode: %v", err)
+		}
+
+		if got.ID != txID {
+			t.Fatalf("id = %q, want %q", got.ID, txID)
+		}
+	})
+
+	t.Run("V2 transaction body decodes", func(t *testing.T) {
+		srv := emptyBodyServer(t, http.StatusOK, `{"id":"`+txID+`","status":{"code":"APPROVED"}}`)
+
+		got, err := newTestTransactionsV2Facade(t, srv).Get(ctx, txOrgID, txLedgerID, txID)
+		if err != nil {
+			t.Fatalf("a populated body must decode: %v", err)
+		}
+
+		if got.ID != txID {
+			t.Fatalf("id = %q, want %q", got.ID, txID)
+		}
+	})
+}
+
+// TestCancelStillSynthesizesOnAnEmptyBody pins the ONE endpoint that is allowed
+// to answer a single-object request with nothing.
+//
+// Cancel is exempt because its outcome is fully determined by the request: the
+// transaction the caller named is CANCELED. Commit and Revert are not — a
+// revert's answer is a NEW child transaction whose id the caller cannot know,
+// and a commit's answer carries the settled state the caller called to observe.
+// Synthesizing either would invent money data; failing loudly does not.
+func TestCancelStillSynthesizesOnAnEmptyBody(t *testing.T) {
+	ctx := context.Background()
+
+	for _, shape := range emptySuccessBodies {
+		t.Run(shape.name, func(t *testing.T) {
+			srv := emptyBodyServer(t, http.StatusCreated, shape.body)
+
+			v1, err := newTestTransactionsFacade(t, srv).Cancel(ctx, txOrgID, txLedgerID, txID)
+			if err != nil {
+				t.Fatalf("V1 cancel must synthesize, got %v", err)
+			}
+
+			if v1.ID != txID || v1.Status.Code != string(models.TransactionStatusCanceled) {
+				t.Fatalf("V1 cancel = {%q,%q}, want {%q,CANCELED}", v1.ID, v1.Status.Code, txID)
+			}
+
+			v2, err := newTestTransactionsV2Facade(t, srv).Cancel(ctx, txOrgID, txLedgerID, txID)
+			if err != nil {
+				t.Fatalf("V2 cancel must synthesize, got %v", err)
+			}
+
+			if v2.ID != txID || v2.Status.Code != string(models.TransactionStatusCanceled) {
+				t.Fatalf("V2 cancel = {%q,%q}, want {%q,CANCELED}", v2.ID, v2.Status.Code, txID)
+			}
+		})
+	}
+}

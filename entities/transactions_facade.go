@@ -4,7 +4,6 @@
 package entities
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -285,10 +284,15 @@ func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transa
 }
 
 // Cancel aborts a PENDING transaction (PENDING → CANCELED) via
-// POST .../transactions/{id}/cancel. Success is HTTP 201. The cancel endpoint
-// sometimes returns an empty (or "null") body; in that case we synthesize a
-// CANCELED transaction rather than failing the decode, so callers always get a
-// status-bearing value — parity with the legacy CancelTransactionWithResponse.
+// POST .../transactions/{id}/cancel. Success is HTTP 201.
+//
+// The cancel endpoint has been observed returning an empty (or "null") body, and
+// this is the one single-object call on either surface that tolerates it: rather
+// than failing the decode, the facade synthesizes a CANCELED transaction —
+// parity with the legacy CancelTransactionWithResponse. Every other 2xx that
+// carries no resource is refused in decodeOne, Commit and Revert included. See
+// transactionsV2Facade.Cancel for why cancel alone can synthesize and they
+// cannot.
 func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Cancel"
 
@@ -311,13 +315,6 @@ func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transa
 	}
 
 	return decodeOne[models.Transaction](operation, resp.StatusCode, body, resp)
-}
-
-// isEmptyBody reports whether a success body carries no transaction — an empty
-// body or the JSON literal "null" (the cancel endpoint emits either).
-func isEmptyBody(body []byte) bool {
-	trimmed := bytes.TrimSpace(body)
-	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null"))
 }
 
 // actionIdempotencyEditors returns the request editors for a lifecycle action.
@@ -379,10 +376,18 @@ func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerI
 	})
 }
 
-// Get retrieves one transaction by ID under an org+ledger. Like the onboarding
-// reads, it decodes the raw response body into models.Transaction (never the
-// generated genledger.Transaction, whose openapi_types.UUID would eager-validate
-// on 200), so the generated type never enters the public path.
+// Get retrieves one transaction by ID under an org+ledger. It decodes the RAW
+// response body into models.Transaction (never the generated
+// genledger.Transaction, whose openapi_types.UUID would eager-validate on 200),
+// so the generated type never enters the public path.
+//
+// Raw rather than through GetTransactionWithResponse, matching every other
+// method in this money-path facade: the generated parser unmarshals before the
+// facade sees anything, so a 2xx whose body a gateway dropped fails INSIDE it
+// and surfaces as an internal error — "the SDK is broken" — instead of as the
+// response-decode error that tells a caller the server answered and the read
+// could not be trusted. Reading raw puts every 2xx shape in front of the shared
+// decodeOne guard.
 func (f *transactionsFacade) Get(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Get"
 
@@ -390,12 +395,10 @@ func (f *transactionsFacade) Get(ctx context.Context, orgID, ledgerID, transacti
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetTransaction(ctx, orgID, ledgerID, transactionID)
 
-	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Transaction](operation, resp, err)
 }
 
 // List retrieves one cursor page of transactions under an org+ledger. The

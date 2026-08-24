@@ -366,11 +366,30 @@ func (f *transactionsV2Facade) Revert(ctx context.Context, orgID, ledgerID, tran
 // Cancel aborts a PENDING transaction (PENDING → CANCELED), releasing the value
 // the hold reserved.
 //
-// The endpoint can answer with an empty body or the JSON literal "null": the
-// server projects the canonical transaction onto the /v2 shape and that
-// projection is nil-preserving. Rather than failing the decode, the facade
-// synthesizes a CANCELED transaction carrying the id the caller cancelled, so a
-// caller always gets a status-bearing value back — parity with the /v1 cancel.
+// It is the ONE single-object call that tolerates a 2xx carrying no resource.
+// Everything else on both surfaces refuses that shape in decodeOne, because a
+// zero-valued model with a nil error is indistinguishable from a real result.
+//
+// The exemption is NOT "the server's /v2 projection is nil-preserving", which an
+// earlier version of this comment claimed. That projection (newTransactionV2,
+// components/ledger/internal/adapters/http/in/transaction_v2_output.go:232) is
+// shared by the creates, commit, cancel, revert, get and update alike, and its
+// nil branch is not reachable from any of their success paths — so it singles
+// cancel out from nothing, and the same argument would exempt commit and revert
+// too. What actually justifies it is narrower:
+//
+//	Cancel's answer is fully determined by the request. The transaction the
+//	caller named is CANCELED, and the caller supplied its id. Synthesizing
+//	that invents nothing.
+//
+// Commit and Revert are not determined that way. A revert answers with a NEW
+// CHILD transaction whose id the caller cannot know, and a commit answers with
+// the settled state the caller called in order to observe. Synthesizing either
+// would fabricate money data, so both fail loudly through the shared guard.
+//
+// The tolerated shape is a proxy or gateway that dropped the body, not a
+// documented server behaviour — the /v2 cancel declares a populated response —
+// and it is kept for parity with the /v1 cancel, where it was observed.
 func (f *transactionsV2Facade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.Cancel"
 

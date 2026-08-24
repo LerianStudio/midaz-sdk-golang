@@ -4,6 +4,7 @@
 package entities
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"iter"
@@ -58,6 +59,28 @@ func deleteResource(operation string, resp *http.Response, err error) error {
 	}
 
 	return nil
+}
+
+// isEmptyBody reports whether a 2xx body carries no resource: an empty body,
+// the JSON literal "null", or the empty object "{}".
+//
+// All three unmarshal into a ZERO-VALUED T with a nil error — json.Unmarshal on
+// "null" is a documented no-op and "{}" sets nothing — so without this predicate
+// a caller who branches on err != nil reads a settled transfer with id "" and
+// status "" as a success. See decodeOne, which refuses all three centrally.
+//
+// "{}" is refused alongside the bodiless shapes because no single-object
+// response this SDK reads is legitimately empty: every resource carries at least
+// an id, and the one id-less single-object read — a ledger's settings — declares
+// accounting, tracer and overrides all REQUIRED in the ledger contract
+// (components/ledger/api/openapi.huma.yaml, schema LedgerSettings), so "{}" is
+// not a valid body there either.
+func isEmptyBody(body []byte) bool {
+	trimmed := bytes.TrimSpace(body)
+
+	return len(trimmed) == 0 ||
+		bytes.Equal(trimmed, []byte("null")) ||
+		bytes.Equal(trimmed, []byte("{}"))
 }
 
 // readOne maps a single-object response into the public model.

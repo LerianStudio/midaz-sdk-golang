@@ -346,10 +346,31 @@ func writeJSON[T any](_ context.Context, operation string, input any, send func(
 	return decodeOne[T](operation, statusOf(httpResp), body, httpResp)
 }
 
+// errEmptySuccessBody is the cause behind a 2xx that carried no resource. It is
+// wrapped into a response-decode error rather than returned bare, so callers
+// match it with errors.IsResponseDecodeError like any other unreadable reply.
+var errEmptySuccessBody = stderrors.New("2xx response carried no resource (empty body, null, or {})")
+
 // decodeOne maps a single-object response: a non-2xx status decodes the unified
 // RFC 9457 error (threading X-Request-ID), otherwise the body unmarshals into T.
 // Shared by Get and the write path so the public surface is always models.T or
 // *errors.Error — the generated types never leak.
+//
+// A 2xx that carries NO resource is refused here, for every single-object read
+// and write on both surfaces. json.Unmarshal on "null" is a no-op and "{}" sets
+// nothing, so either one would hand back a zero-valued T with a nil error: a
+// caller who branches on err != nil books a settled transfer whose id is "" and
+// whose status is "". The refusal is a response-decode error precisely because
+// on a write the operation MAY have taken effect — errors.IsResponseDecodeError
+// documents that as "outcome unknown", which is the truth here and which a
+// zero-valued success destroys.
+//
+// The delete path never reaches this (deleteResource decides on the status
+// alone) and neither does the HEAD count (readCount), so a legitimately bodiless
+// 2xx is not caught by this guard. The one endpoint that answers a single-object
+// request with no body — the /v1 and /v2 transaction CANCEL — is handled before
+// decodeOne by its facade, which synthesizes the CANCELED transaction. See
+// transactionsV2Facade.Cancel for why cancel alone can do that.
 func decodeOne[T any](operation string, status int, body []byte, httpResp *http.Response) (*T, error) {
 	// isSuccess accepts any 2xx from the raw body rather than the generated
 	// status-exact resp.JSON200: onboarding creates are OAS-declared 200 (client
@@ -358,6 +379,10 @@ func decodeOne[T any](operation string, status int, body []byte, httpResp *http.
 	// money path gets from readRawResponse.
 	if !isSuccess(status) {
 		return nil, errors.DecodeProblemJSON(status, body, requestIDOf(httpResp))
+	}
+
+	if isEmptyBody(body) {
+		return nil, errors.NewResponseDecodeError(operation, status, errEmptySuccessBody)
 	}
 
 	var out T
