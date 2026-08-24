@@ -304,6 +304,27 @@ func TestClientOptionErrorsAndNilReceivers(t *testing.T) {
 	assert.ErrorIs(t, c.Trace("callback-error", func(context.Context) error { return expectedErr }), expectedErr)
 }
 
+// TestNewSurfacesEntitySetupCause pins the operator-facing rendering of a
+// construction failure. The entity layer composes an actionable diagnostic (the
+// rejected "/v1" suffix, the variable to edit); before this test existed, New
+// wrapped it in a configuration error whose Error() printed only "failed to
+// initialize entity API" — so the one line that reaches a log aggregator carried
+// none of the reason. err.Error() must carry the cause, and errors.Unwrap must
+// still reach it.
+func TestNewSurfacesEntitySetupCause(t *testing.T) {
+	_, err := New(WithConfig(createTestConfig(t)), WithBaseURL("http://localhost:3002/v1"))
+	require.Error(t, err)
+	assert.True(t, sdkerrors.IsConfigurationError(err))
+
+	assert.Contains(t, err.Error(), `must not end in "/v1"`,
+		"Error() must carry the cause, not just the generic bootstrap message")
+	assert.Contains(t, err.Error(), "MIDAZ_LEDGER_URL",
+		"Error() must name the setting the operator has to edit")
+
+	require.Error(t, errors.Unwrap(err), "the cause must stay reachable via errors.Unwrap")
+	assert.Contains(t, errors.Unwrap(err).Error(), `must not end in "/v1"`)
+}
+
 func TestClientObservabilityOptionVariants(t *testing.T) {
 	provider, err := observability.New(context.Background(), observability.WithServiceName("coverage-provider"), observability.WithComponentEnabled(false, false, false))
 	require.NoError(t, err)

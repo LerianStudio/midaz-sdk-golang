@@ -374,7 +374,18 @@ func classifyBootstrapSetupError(operation string, err error) *sdkerrors.Error {
 		)
 	}
 
-	return sdkerrors.NewConfigurationError(operation, "failed to initialize entity API", err)
+	// The cause carries the whole diagnostic — which plane URL is malformed, which
+	// environment variable to edit. Error() renders only Message, so wrapping the
+	// cause without folding its text in leaves the operator with a bare "failed to
+	// initialize entity API" and no way to reach the reason short of calling
+	// errors.Unwrap by hand. err stays the wrapped cause, so Unwrap/Is/As are
+	// unchanged.
+	message := "failed to initialize entity API"
+	if err != nil {
+		message += ": " + err.Error()
+	}
+
+	return sdkerrors.NewConfigurationError(operation, message, err)
 }
 
 func newAccessManagerUpstreamBootstrapError(operation string, err error) *sdkerrors.Error {
