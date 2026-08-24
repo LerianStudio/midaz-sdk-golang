@@ -35,6 +35,21 @@ func prepareServiceBaseURLs(baseURLs map[string]string) map[string]string {
 	return prepared
 }
 
+// legacyV1BaseURL returns the named service's base URL with the Ledger plane's
+// "/v1" segment appended.
+//
+// The Ledger base URL is bare: the server's OpenAPI contract declares
+// servers:[{url: "/"}] and carries the version inside every operation path
+// ("/v1/organizations", "/v2/organizations"), so the generated client needs no
+// version on the base. The three hand-rolled services (balances, operations,
+// aliases) build their paths by string concatenation instead, so they must stamp
+// the version themselves — the server routes NOTHING unversioned, so an
+// unversioned path is a guaranteed 404. Retires when Epic 2 migrates those three
+// services onto the generated client.
+func (e *serviceEntity) legacyV1BaseURL(service string) string {
+	return strings.TrimRight(e.baseURLs[service], "/") + ledgerV1VersionPath
+}
+
 func buildLedgerScopedURL(baseURL, organizationID, ledgerID string, parts ...string) string {
 	segments := []string{
 		"organizations",

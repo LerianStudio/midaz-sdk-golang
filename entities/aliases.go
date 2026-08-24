@@ -299,7 +299,7 @@ func (e *aliasesEntity) DeleteRelatedParty(ctx context.Context, organizationID, 
 }
 
 func (e *aliasesEntity) listURL() string {
-	return fmt.Sprintf("%s/aliases", e.baseURLs["crm"])
+	return fmt.Sprintf("%s/aliases", e.legacyV1BaseURL("crm"))
 }
 
 func validatedAliasListQueryParams(operation string, opts models.AliasesListOpts) (map[string]string, error) {
@@ -325,7 +325,7 @@ func validatedAliasListQueryParams(operation string, opts models.AliasesListOpts
 }
 
 func (e *aliasesEntity) aliasURL(holderID, aliasID string) string {
-	baseURL := e.baseURLs["crm"]
+	baseURL := e.legacyV1BaseURL("crm")
 	if aliasID == "" {
 		return fmt.Sprintf("%s/holders/%s/aliases", baseURL, pathSegment(holderID))
 	}

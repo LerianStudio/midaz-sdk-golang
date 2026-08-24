@@ -16,7 +16,7 @@ import (
 func TestAliasesEntity_CreateAlias_RequestConstruction(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, "/holders/"+crmHolderID+"/aliases", r.URL.EscapedPath())
+		assert.Equal(t, "/v1/holders/"+crmHolderID+"/aliases", r.URL.EscapedPath())
 		assert.Equal(t, crmOrgID, r.Header.Get("X-Organization-Id"))
 
 		var body models.CreateAliasInput
@@ -46,7 +46,7 @@ func TestAliasesEntity_CreateAlias_RequestConstruction(t *testing.T) {
 func TestAliasesEntity_UpdateAlias_OmitsNilFields(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPatch, r.Method)
-		assert.Equal(t, "/holders/"+crmHolderID+"/aliases/"+crmAliasID, r.URL.Path)
+		assert.Equal(t, "/v1/holders/"+crmHolderID+"/aliases/"+crmAliasID, r.URL.Path)
 
 		var body map[string]any
 		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
@@ -86,7 +86,7 @@ func TestAliasesEntity_ValidationErrors(t *testing.T) {
 }
 
 func TestAliasesEntity_DeleteRelatedParty_EscapesAllIDs(t *testing.T) {
-	entity := &aliasesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}}
+	entity := &aliasesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"crm": "https://crm.example.com"}}}
 	endpoint := entity.aliasURL("holder/1", "alias/2")
 
 	assert.Equal(t, "https://crm.example.com/v1/holders/holder%2F1/aliases/alias%2F2", endpoint)
@@ -98,20 +98,20 @@ func TestAliasesEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/aliases":
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/aliases":
 			assert.Equal(t, crmHolderID, r.URL.Query().Get("holder_id"))
 
 			_, err := w.Write([]byte(`{"items":[{"ledgerId":"ledger-123","accountId":"account-123"}],"limit":10,"page":1}`))
 			assert.NoError(t, err)
-		case r.Method == http.MethodGet && r.URL.Path == "/holders/"+crmHolderID+"/aliases/"+crmAliasID:
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/holders/"+crmHolderID+"/aliases/"+crmAliasID:
 			assert.Equal(t, "true", r.URL.Query().Get("include_deleted"))
 
 			_, err := w.Write([]byte(`{"ledgerId":"ledger-123","accountId":"account-123"}`))
 			assert.NoError(t, err)
-		case r.Method == http.MethodDelete && r.URL.Path == "/holders/"+crmHolderID+"/aliases/"+crmAliasID:
+		case r.Method == http.MethodDelete && r.URL.Path == "/v1/holders/"+crmHolderID+"/aliases/"+crmAliasID:
 			assert.Equal(t, "true", r.URL.Query().Get("hard_delete"))
 			w.WriteHeader(http.StatusNoContent)
-		case r.Method == http.MethodDelete && r.URL.Path == "/holders/"+crmHolderID+"/aliases/"+crmAliasID+"/related-parties/"+crmRelatedPartyID:
+		case r.Method == http.MethodDelete && r.URL.Path == "/v1/holders/"+crmHolderID+"/aliases/"+crmAliasID+"/related-parties/"+crmRelatedPartyID:
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())

@@ -28,7 +28,7 @@ func TestCRMContractConstructorsCopyTrimAndListNilContext(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch r.URL.Path {
-		case "/aliases":
+		case "/v1/aliases":
 			_, err := w.Write([]byte(`{"items":[],"limit":10,"page":1}`))
 			assert.NoError(t, err)
 		default:

@@ -3,6 +3,7 @@ package entities
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -158,7 +159,7 @@ func TestOperationsEntity_buildURL(t *testing.T) {
 			ledgerID:    "ledger-456",
 			accountID:   "acc-789",
 			operationID: "",
-			expected:    "https://api.example.com/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations",
+			expected:    "https://api.example.com/v1/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations",
 		},
 		{
 			name:        "single operation URL (with operation ID)",
@@ -166,7 +167,7 @@ func TestOperationsEntity_buildURL(t *testing.T) {
 			ledgerID:    "ledger-456",
 			accountID:   "acc-789",
 			operationID: "op-abc",
-			expected:    "https://api.example.com/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations/op-abc",
+			expected:    "https://api.example.com/v1/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations/op-abc",
 		},
 		{
 			name:        "handles trailing slash in base URL",
@@ -174,7 +175,7 @@ func TestOperationsEntity_buildURL(t *testing.T) {
 			ledgerID:    "ledger-456",
 			accountID:   "acc-789",
 			operationID: "op-abc",
-			expected:    "https://api.example.com/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations/op-abc",
+			expected:    "https://api.example.com/v1/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations/op-abc",
 		},
 	}
 
@@ -353,10 +354,9 @@ func TestOperationsEntity_ListOperations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodGet, r.Method)
-				assert.Contains(t, r.URL.Path, "/organizations/")
-				assert.Contains(t, r.URL.Path, "/ledgers/")
-				assert.Contains(t, r.URL.Path, "/accounts/")
-				assert.Contains(t, r.URL.Path, "/operations")
+				// Full path, not substrings: the server routes nothing
+				// unversioned, so a missing "/v1" must fail the test.
+				assert.Equal(t, fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/operations", tt.orgID, tt.ledgerID, tt.accountID), r.URL.Path)
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.mockStatusCode)
@@ -537,8 +537,9 @@ func TestOperationsEntity_GetOperation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodGet, r.Method)
-				assert.Contains(t, r.URL.Path, "/accounts/")
-				assert.Contains(t, r.URL.Path, "/operations/")
+				// Full path, not substrings: the server routes nothing
+				// unversioned, so a missing "/v1" must fail the test.
+				assert.Equal(t, fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/operations/%s", tt.orgID, tt.ledgerID, tt.accountID, tt.operationID), r.URL.Path)
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.mockStatusCode)
@@ -770,7 +771,9 @@ func TestOperationsEntity_UpdateTransactionOperation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodPatch, r.Method)
-				assert.Contains(t, r.URL.Path, "/operations/")
+				// Full path, not substrings: this write is transactions-scoped
+				// AND versioned, and both must be provable from the wire.
+				assert.Equal(t, fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s/operations/%s", tt.orgID, tt.ledgerID, tt.transactionID, tt.operationID), r.URL.Path)
 
 				// Verify request body for non-nil inputs
 				if tt.input != nil {
@@ -1344,17 +1347,17 @@ func TestOperationsEntity_URLPathConstruction(t *testing.T) {
 		{
 			name:         "ListOperations path",
 			method:       "ListOperations",
-			expectedPath: "/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations",
+			expectedPath: "/v1/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations",
 		},
 		{
 			name:         "GetOperation path",
 			method:       "GetOperation",
-			expectedPath: "/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations/op-abc",
+			expectedPath: "/v1/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations/op-abc",
 		},
 		{
 			name:         "UpdateOperation path",
 			method:       "UpdateOperation",
-			expectedPath: "/organizations/org-123/ledgers/ledger-456/transactions/tx-xyz/operations/op-abc",
+			expectedPath: "/v1/organizations/org-123/ledgers/ledger-456/transactions/tx-xyz/operations/op-abc",
 		},
 	}
 
