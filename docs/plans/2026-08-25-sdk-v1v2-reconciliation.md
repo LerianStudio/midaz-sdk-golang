@@ -11,7 +11,7 @@
 - v2 dropped asset-rates (`c781f6a97`) — asset-rates is v1-only.
 - Billing family moved org-scope → **ledger-scope** in v2 (`/v2/organizations/{org}/ledgers/{ledger}/billing-packages|packages|estimates|billing/calculate`).
 - SDK today pins `/v1` on every base URL (`entities/entity.go:normalizeServiceURL`, `config.DefaultLedgerAPIVersionPath`). Consequence: holders, instruments, encryption, billing-packages, packages, estimates, composition, protection/audit **404 against Midaz develop**.
-- SDK bugs found on the way: `entities/operations.go` PATCHes `.../accounts/{id}/operations/{opId}` — that path exists on NO server version (server: `.../transactions/{txId}/operations/{opId}`). `entities/aliases.go` calls `/aliases`, `/holders/{id}/aliases` — routes that no longer exist anywhere (renamed to instruments, v2-only).
+- SDK bugs found on the way: `entities/aliases.go` calls `/aliases`, `/holders/{id}/aliases` — routes that no longer exist anywhere (renamed to instruments, v2-only). **Correction (2026-08-25, review):** the earlier claim that `entities/operations.go` PATCHes a non-existent account-scoped path was WRONG on both halves. The update already targets the transactions-scoped path the server serves (`.../transactions/{txId}/operations/{opId}`), and the account-scoped operation READ (`.../accounts/{id}/operations[/{opId}]`) does exist server-side, deprecated. Epic 2 must migrate that file onto the generated client, NOT "fix" a path that is already correct.
 - Tracer plane: SDK spec == server spec, path-for-path. **Zero tracer work.**
 - Old branch `sync/monorepo-20251219`: evaluated, discarded (Dec 2025, 442 commits behind, content superseded by v4 remodel + PR #236).
 
@@ -55,9 +55,9 @@
 - **Tracer spec HAS drifted** — the diagnosis line "SDK spec == server spec, path-for-path" holds for PATHS only. Schemas diverge: the server renamed `currency` → `asset` in three limit/usage schemas, added an RFC 9457 `upstream` error extension member (+ `Upstream` schema), and returns **201 Created** where the SDK spec still says 200 on three operations. Left untouched in Epic 1 (semantic, not cosmetic, and outside a ledger-scoped epic). Needs its own commit: adopt the server tracer spec, regen, fix the `Currency` field rename (3 refs in `internal/gentracer`) and the 200/201 gates.
 - `WithBaseURL` and the environment defaults fan one base URL out to both planes; each fan-out now has to re-shape the tracer copy (`tracerURLFromSharedOrigin`). Any new fan-out path must do the same or tracer calls land one segment short.
 - `CreateOrganization` lost its OAS `Authorization` param (now a security scheme). It was always passed empty — the auth round tripper sets the header — so this is a wire no-op.
-- Only `CreateOrganization` drifted among the v1 operations; every other v1 signature is byte-identical, so v1 wire behavior is preserved.
+- Among the v1 operations only `CreateOrganization` drifted in its Go SIGNATURE, but the error CONTRACT changed across all 85 v1 `Parse*Resp` functions: the regen made the server's real v1 error shape explicit, swapping `Error` for `LegacyError` and `application/problem+json` for `application/json`. Request/response wire behavior on the success path is preserved; the error path was NOT — the SDK error decoder only read RFC 9457 members, so every v1 error decoded to "API error with status code N" with field detail dropped. Fixed on the decode side (FINDING 6, `fix(errors): decode v1 legacy error bodies`): the decoder now reads `message`/`fields`/`entityType` when the RFC members are absent.
 - The `ledgerId` query filter is gone from `PackagesFilters` / `BillingPackagesFilters` (the ledger is a path segment on v2). Public model change already landed.
-- `entities/aliases.go`, `balances.go`, `operations.go` are untouched and still hand-rolled; they read the `crm`/`transaction` base-URL keys, which are now bare, so they no longer double-version. Their migration/deletion stays Epic 2.
+- **Correction (2026-08-25, review):** the original line here — "they read the `crm`/`transaction` base-URL keys, which are now bare, so they no longer double-version" — recorded a CRITICAL regression as a non-event. Bare bases did not make those three services correct; it made them UNDER-version. Building paths by concatenation off a bare base emitted `/organizations/...` where the server routes only `/v1/organizations/...`, i.e. a guaranteed 404 across 24 methods (18 balances, 5 operations, aliases). Fixed by stamping `/v1` in the hand-built paths (`fix(entities): version the hand-rolled balance, operation and alias paths`) — a stopgap that retires when Epic 2 migrates these three onto the generated client. The old tests could not catch it: they injected a base URL that already carried `/v1`, so they asserted a shape the shipped client never produces. Epic 2 must keep the pipeline-level path test (client built from `WithBaseURL` against a live server) when it removes the stopgap.
 
 ## Risks
 - v2 request/response schema divergences beyond paths (typed fields) surface during Epic 3 — the generated types are ground truth, not the v1 siblings (see plane-clients memory).
@@ -67,6 +67,14 @@
 ## Status
 - [x] Diagnosis + decision
 - [x] Epic 1 — **landed** (`ad3e193`). Server spec adopted; the generated client now carries both surfaces (v1 ids bare, v2 ids `*V2`). Ledger base URL is bare, tracer base keeps `/v1` (verified against the server's Fiber `/v1` group mount). The families Midaz removed from /v1 — holders, instruments, encryption, composition, protection/audit — are rewired onto their V2 operations; the billing family (billing-packages, packages, estimates, billing/calculate) is rescoped to ledger and its facades take a `ledgerID`. Gates green: `go build`, `check-codegen-drift`, `make test`, `make lint` (0 issues).
+- [x] Epic 1 fix round (2026-08-25, post-review). Seven findings closed, one commit each:
+  1. `fix(entities)` — the three hand-rolled services emitted unversioned paths off the now-bare base (guaranteed 404 on 24 methods). `/v1` stamped in; pipeline-level path tests added; the version-blind test injections replaced.
+  2. `fix(entities)` — a `/v1` or `/v2` suffix on the Ledger base is now rejected at construction (it silently double-versioned; old `.env` files still carry it). Tracer stamping untouched.
+  3. `docs(examples)` — the workflow example no longer instructs the rejected `MIDAZ_LEDGER_URL=.../v1`.
+  4. `docs` — base-URL statements corrected in `docs/environment.md`, `docs/comprehensive-architecture.md`, `docs/mapping/internal_apis.md`, `README.md`. Surrounding prose stays Epic 4.
+  5. `fix(entities)` — billing calculation and fee estimation reconcile the ledger in the path with the `ledgerId` in the body (fill when empty, reject when contradicting). Money-adjacent.
+  6. `fix(errors)` — v1 legacy error bodies (`message`/`fields`/`entityType`) now decode instead of degrading to "API error with status code N".
+  7. `refactor(entities)` — the unreachable per-plane base-URL fallbacks at entity construction removed.
 - [ ] Epic 2
 - [ ] Epic 3
 - [ ] Epic 4
