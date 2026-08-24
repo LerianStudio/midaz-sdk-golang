@@ -240,18 +240,29 @@ func scopeV2Legs(operation, side, orgID, ledgerID string, legs []models.Transact
 
 // scopeLegField fills one leg identifier from the addressed scope, or refuses it
 // when the leg names something else.
+//
+// Both the emptiness test and the comparison ignore surrounding whitespace, and
+// the leg keeps the TRIMMED value. Testing one and comparing the other is what
+// made a leg spelling the addressed ledger with a stray space read as a leg
+// naming a DIFFERENT ledger — a refusal whose message pointed at a conflict that
+// did not exist. Storing the trimmed value keeps the accepted spelling and the
+// spelling that reaches the ledger the same: these two fields are ones the
+// facade already owns, since it stamps them whenever a leg leaves them empty.
 func scopeLegField(operation, side string, index int, field, addressed string, leg *string) error {
-	if strings.TrimSpace(*leg) == "" {
+	trimmed := strings.TrimSpace(*leg)
+	if trimmed == "" {
 		*leg = addressed
 
 		return nil
 	}
 
-	if !strings.EqualFold(*leg, addressed) {
+	if !strings.EqualFold(trimmed, strings.TrimSpace(addressed)) {
 		return errors.NewValidationError(operation, fmt.Sprintf(
 			"%s[%d].%s is %q, but the transaction was addressed to %q; every leg of a v2 transaction must name the same organization and ledger",
 			side, index, field, *leg, addressed), nil)
 	}
+
+	*leg = trimmed
 
 	return nil
 }
