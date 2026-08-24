@@ -23,7 +23,7 @@ const (
 )
 
 func billingPkgBase() string {
-	return "/v1/organizations/" + billingPkgOrgID + "/billing-packages"
+	return "/v2/organizations/" + billingPkgOrgID + "/ledgers/" + billingPkgLedgerID + "/billing-packages"
 }
 
 // TestBillingPackagesFacade_ListAndPaginate exercises PAGE-mode pagination: the
@@ -51,7 +51,7 @@ func TestBillingPackagesFacade_ListAndPaginate(t *testing.T) {
 
 	facade := newTestBillingPackagesFacade(t, srv)
 
-	first, err := facade.List(context.Background(), billingPkgOrgID, models.BillingPackagesListOpts{PageListOpts: models.PageListOpts{Limit: 1}})
+	first, err := facade.List(context.Background(), billingPkgOrgID, billingPkgLedgerID, models.BillingPackagesListOpts{PageListOpts: models.PageListOpts{Limit: 1}})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestBillingPackagesFacade_ListAndPaginate(t *testing.T) {
 	}
 
 	seenPages = nil // discard the standalone List call above; assert only the iterator's page walk.
-	all, err := CollectAll(facade.ListAll(context.Background(), billingPkgOrgID, models.BillingPackagesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}))
+	all, err := CollectAll(facade.ListAll(context.Background(), billingPkgOrgID, billingPkgLedgerID, models.BillingPackagesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}))
 	if err != nil {
 		t.Fatalf("CollectAll: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestBillingPackagesFacade_StringAmountRoundTrip(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	bp, err := newTestBillingPackagesFacade(t, srv).Get(context.Background(), billingPkgOrgID, "cccc")
+	bp, err := newTestBillingPackagesFacade(t, srv).Get(context.Background(), billingPkgOrgID, billingPkgLedgerID, "cccc")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestBillingPackagesFacade_CRUD(t *testing.T) {
 			WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).
 			WithEnable(true)
 
-		bp, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, input)
+		bp, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID, input)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
@@ -157,7 +157,7 @@ func TestBillingPackagesFacade_CRUD(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		bp, err := newTestBillingPackagesFacade(t, srv).Get(context.Background(), billingPkgOrgID, id)
+		bp, err := newTestBillingPackagesFacade(t, srv).Get(context.Background(), billingPkgOrgID, billingPkgLedgerID, id)
 		if err != nil {
 			t.Fatalf("Get: %v", err)
 		}
@@ -180,7 +180,7 @@ func TestBillingPackagesFacade_CRUD(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		bp, err := newTestBillingPackagesFacade(t, srv).Update(context.Background(), billingPkgOrgID, id, models.NewUpdateBillingPackageInput().WithLabel("Renamed"))
+		bp, err := newTestBillingPackagesFacade(t, srv).Update(context.Background(), billingPkgOrgID, billingPkgLedgerID, id, models.NewUpdateBillingPackageInput().WithLabel("Renamed"))
 		if err != nil {
 			t.Fatalf("Update: %v", err)
 		}
@@ -206,7 +206,7 @@ func TestBillingPackagesFacade_CRUD(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		if err := newTestBillingPackagesFacade(t, srv).Delete(context.Background(), billingPkgOrgID, id); err != nil {
+		if err := newTestBillingPackagesFacade(t, srv).Delete(context.Background(), billingPkgOrgID, billingPkgLedgerID, id); err != nil {
 			t.Fatalf("Delete: %v", err)
 		}
 		if m != http.MethodDelete || p != billingPkgBase()+"/"+id {
@@ -215,30 +215,42 @@ func TestBillingPackagesFacade_CRUD(t *testing.T) {
 	})
 }
 
-// TestBillingPackagesFacade_Filters proves the native type/ledgerId filter slots
-// reach the wire.
+// TestBillingPackagesFacade_Filters proves the native type filter slot reaches
+// the wire, and that the ledger now travels in the PATH rather than as a
+// ledgerId query filter (the v2 route is ledger-scoped).
 func TestBillingPackagesFacade_Filters(t *testing.T) {
 	var q url.Values
+
+	var gotPath string
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q = r.URL.Query()
+		gotPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"items":[],"limit":3,"total":0}`))
 	}))
 	defer srv.Close()
 
-	_, err := newTestBillingPackagesFacade(t, srv).List(context.Background(), billingPkgOrgID, models.BillingPackagesListOpts{
+	_, err := newTestBillingPackagesFacade(t, srv).List(context.Background(), billingPkgOrgID, billingPkgLedgerID, models.BillingPackagesListOpts{
 		PageListOpts: models.PageListOpts{Limit: 3},
-		Filters:      models.BillingPackagesFilters{Type: "volume", LedgerID: billingPkgLedgerID},
+		Filters:      models.BillingPackagesFilters{Type: "volume"},
 	})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
+
+	if gotPath != billingPkgBase() {
+		t.Fatalf("path = %q, want %q", gotPath, billingPkgBase())
+	}
+
+	if got := q.Get("ledgerId"); got != "" {
+		t.Fatalf("ledgerId query = %q, want empty (ledger is a path segment on v2)", got)
+	}
+
 	if got := q.Get("type"); got != "volume" {
 		t.Fatalf("type = %q, want volume", got)
 	}
-	if got := q.Get("ledgerId"); got != billingPkgLedgerID {
-		t.Fatalf("ledgerId = %q, want %q", got, billingPkgLedgerID)
-	}
+
 	if got := q.Get("limit"); got != "3" {
 		t.Fatalf("limit = %q, want 3", got)
 	}
@@ -254,7 +266,7 @@ func TestBillingPackagesFacade_ErrorDecodes(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestBillingPackagesFacade(t, srv).Get(context.Background(), billingPkgOrgID, "33333333-3333-3333-3333-333333333333")
+	_, err := newTestBillingPackagesFacade(t, srv).Get(context.Background(), billingPkgOrgID, billingPkgLedgerID, "33333333-3333-3333-3333-333333333333")
 	var sdkErr *sdkerrors.Error
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
@@ -291,7 +303,7 @@ func TestBillingPackagesFacade_WriteReplaySafe(t *testing.T) {
 		WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).
 		WithEnable(true)
 
-	_, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, input)
+	_, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID, input)
 	if err != nil {
 		t.Fatalf("Create with one 401 refresh: %v", err)
 	}
@@ -312,10 +324,10 @@ func TestBillingPackagesFacade_Validation(t *testing.T) {
 
 	facade := newTestBillingPackagesFacade(t, srv)
 
-	if _, err := facade.Create(context.Background(), billingPkgOrgID, &models.CreateBillingPackageInput{}); err == nil {
+	if _, err := facade.Create(context.Background(), billingPkgOrgID, billingPkgLedgerID, &models.CreateBillingPackageInput{}); err == nil {
 		t.Fatal("Create with empty input must fail validation")
 	}
-	if _, err := facade.Update(context.Background(), billingPkgOrgID, "id", models.NewUpdateBillingPackageInput()); err == nil {
+	if _, err := facade.Update(context.Background(), billingPkgOrgID, billingPkgLedgerID, "id", models.NewUpdateBillingPackageInput()); err == nil {
 		t.Fatal("Update with empty payload must fail validation")
 	}
 }

@@ -52,7 +52,7 @@ func (f *auditFacade) ListAuditEvents(ctx context.Context, orgID string, opts mo
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAuditEventsWithResponse(ctx, orgID, listAuditEventsParams(opts))
+	resp, err := f.ledger.GetAuditEventsV2WithResponse(ctx, orgID, listAuditEventsParams(opts))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -111,10 +111,10 @@ func (f *auditFacade) ListAuditEventsAll(ctx context.Context, orgID string, opts
 }
 
 // listAuditEventsParams renders the cursor/sort/date fields plus the
-// action/actor/outcome filters into the generated GetAuditEventsParams. Every
+// action/actor/outcome filters into the generated GetAuditEventsV2Params. Every
 // field has a native *string slot, so no request editor is needed.
-func listAuditEventsParams(opts models.AuditEventsListOpts) *genledger.GetAuditEventsParams {
-	params := &genledger.GetAuditEventsParams{}
+func listAuditEventsParams(opts models.AuditEventsListOpts) *genledger.GetAuditEventsV2Params {
+	params := &genledger.GetAuditEventsV2Params{}
 
 	if opts.Limit > 0 {
 		params.Limit = strPtr(strconv.Itoa(opts.Limit))

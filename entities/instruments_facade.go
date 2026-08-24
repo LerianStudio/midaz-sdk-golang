@@ -31,11 +31,11 @@ import (
 // Instruments are treated as CURSOR-paginated: ListPages advances by echoing the
 // response next_cursor back into the request as a query param and stops on an
 // empty cursor — never HasMore(), whose page-based heuristic can loop forever on
-// a full terminal page that carries no cursor. The generated ListInstrumentsParams
+// a full terminal page that carries no cursor. The generated ListInstrumentsV2Params
 // has no cursor slot, so the cursor is injected via a request editor (like the
 // type filter below); the caller's opts are never mutated.
 //
-// The generated ListInstrumentsParams exposes slots for holder_id/limit/
+// The generated ListInstrumentsV2Params exposes slots for holder_id/limit/
 // sort_order/include_deleted/document. The type filter has no slot, so the
 // facade injects it as a query param via a request editor.
 //
@@ -61,7 +61,7 @@ func newInstrumentsFacade(ledger *genledger.ClientWithResponses, enableIdempoten
 // endpoint is org-scoped, so the holder is carried as the holder_id query param.
 // The cursor is seeded from opts.Cursor (empty means the first page); ListPages
 // advances it by echoing the response next_cursor. The generated
-// ListInstrumentsParams has no cursor slot, so the cursor is injected as a query
+// ListInstrumentsV2Params has no cursor slot, so the cursor is injected as a query
 // param via listInstrumentsReqEditors; the caller's opts are never mutated.
 func (f *instrumentsFacade) List(ctx context.Context, orgID, holderID string, opts models.InstrumentsListOpts) (*models.ListResponse[models.Instrument], error) {
 	const operation = "Instruments.List"
@@ -70,7 +70,7 @@ func (f *instrumentsFacade) List(ctx context.Context, orgID, holderID string, op
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListInstrumentsWithResponse(ctx, orgID, listInstrumentsParams(holderID, opts), listInstrumentsReqEditors(opts)...)
+	resp, err := f.ledger.ListInstrumentsV2WithResponse(ctx, orgID, listInstrumentsParams(holderID, opts), listInstrumentsReqEditors(opts)...)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -141,7 +141,7 @@ func (f *instrumentsFacade) Create(ctx context.Context, orgID, holderID string, 
 	}
 
 	return writeJSON[models.Instrument](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateInstrumentWithBody(ctx, orgID, holderID, &genledger.CreateInstrumentParams{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.CreateInstrumentV2WithBody(ctx, orgID, holderID, &genledger.CreateInstrumentV2Params{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -150,12 +150,12 @@ func (f *instrumentsFacade) Create(ctx context.Context, orgID, holderID string, 
 func (f *instrumentsFacade) Get(ctx context.Context, orgID, holderID, id string) (*models.Instrument, error) {
 	const operation = "Instruments.Get"
 
-	params := &genledger.GetInstrumentByIDParams{}
+	params := &genledger.GetInstrumentByIDV2Params{}
 	if sdkctx.IncludeDeletedFromContext(ctx) {
 		params.IncludeDeleted = strPtr("true")
 	}
 
-	resp, err := f.ledger.GetInstrumentByIDWithResponse(ctx, orgID, holderID, id, params)
+	resp, err := f.ledger.GetInstrumentByIDV2WithResponse(ctx, orgID, holderID, id, params)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -173,7 +173,7 @@ func (f *instrumentsFacade) Update(ctx context.Context, orgID, holderID, id stri
 	}
 
 	return writeJSON[models.Instrument](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateInstrumentWithBody(ctx, orgID, holderID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.UpdateInstrumentV2WithBody(ctx, orgID, holderID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -183,12 +183,12 @@ func (f *instrumentsFacade) Update(ctx context.Context, orgID, holderID, id stri
 func (f *instrumentsFacade) Delete(ctx context.Context, orgID, holderID, id string) error {
 	const operation = "Instruments.Delete"
 
-	params := &genledger.DeleteInstrumentParams{}
+	params := &genledger.DeleteInstrumentV2Params{}
 	if sdkctx.HardDeleteFromContext(ctx) {
 		params.HardDelete = strPtr("true")
 	}
 
-	resp, err := f.ledger.DeleteInstrumentWithResponse(ctx, orgID, holderID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
+	resp, err := f.ledger.DeleteInstrumentV2WithResponse(ctx, orgID, holderID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -206,7 +206,7 @@ func (f *instrumentsFacade) Delete(ctx context.Context, orgID, holderID, id stri
 func (f *instrumentsFacade) DeleteRelatedParty(ctx context.Context, orgID, holderID, instrumentID, relatedPartyID string) error {
 	const operation = "Instruments.DeleteRelatedParty"
 
-	resp, err := f.ledger.DeleteRelatedPartyWithResponse(ctx, orgID, holderID, instrumentID, relatedPartyID, idempotencyEditors(ctx, f.enableIdempotency)...)
+	resp, err := f.ledger.DeleteRelatedPartyV2WithResponse(ctx, orgID, holderID, instrumentID, relatedPartyID, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -220,7 +220,7 @@ func (f *instrumentsFacade) DeleteRelatedParty(ctx context.Context, orgID, holde
 
 // ListAccountsByHolder retrieves one cursor page of accounts owned by a holder
 // via GET .../holders/{holderId}/accounts. Cursor injected via editor (the
-// generated ListAccountsByHolderParams has no cursor slot); stops on an empty
+// generated ListAccountsByHolderV2Params has no cursor slot); stops on an empty
 // next_cursor.
 func (f *instrumentsFacade) ListAccountsByHolder(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
 	return f.listAccountsCursor(ctx, orgID, holderID, opts, "")
@@ -241,7 +241,7 @@ func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, holde
 		editors = append(editors, setQueryParam("cursor", cursor))
 	}
 
-	resp, err := f.ledger.ListAccountsByHolderWithResponse(ctx, orgID, holderID, listAccountsByHolderParams(opts), editors...)
+	resp, err := f.ledger.ListAccountsByHolderV2WithResponse(ctx, orgID, holderID, listAccountsByHolderParams(opts), editors...)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -296,11 +296,11 @@ func (f *instrumentsFacade) ListAccountsByHolderAll(ctx context.Context, orgID, 
 }
 
 // listInstrumentsParams renders the fields that have a slot in the generated
-// ListInstrumentsParams. holder_id is always set (the list is org-scoped and
+// ListInstrumentsV2Params. holder_id is always set (the list is org-scoped and
 // scopes to a holder via this query param). The type filter has no slot and is
 // carried by listInstrumentsReqEditors instead.
-func listInstrumentsParams(holderID string, opts models.InstrumentsListOpts) *genledger.ListInstrumentsParams {
-	params := &genledger.ListInstrumentsParams{HolderId: strPtr(holderID)}
+func listInstrumentsParams(holderID string, opts models.InstrumentsListOpts) *genledger.ListInstrumentsV2Params {
+	params := &genledger.ListInstrumentsV2Params{HolderId: strPtr(holderID)}
 
 	if opts.Limit > 0 {
 		params.Limit = strPtr(strconv.Itoa(opts.Limit))
@@ -322,7 +322,7 @@ func listInstrumentsParams(holderID string, opts models.InstrumentsListOpts) *ge
 }
 
 // listInstrumentsReqEditors carries the cursor pagination token and the type
-// filter — neither of which the generated ListInstrumentsParams has a slot for.
+// filter — neither of which the generated ListInstrumentsV2Params has a slot for.
 // The ledger OAS omits cursor and type from the instruments list endpoint, so
 // the SDK injects each as a query param rather than dropping it silently. Dates
 // are intentionally NOT emitted: the endpoint declares no start_date/end_date
@@ -345,10 +345,10 @@ func listInstrumentsReqEditors(opts models.InstrumentsListOpts) []genledger.Requ
 }
 
 // listAccountsByHolderParams renders the fields that have a slot in the generated
-// ListAccountsByHolderParams (limit/sort_order). Cursor pagination is injected
+// ListAccountsByHolderV2Params (limit/sort_order). Cursor pagination is injected
 // separately via a request editor.
-func listAccountsByHolderParams(opts models.AccountsListOpts) *genledger.ListAccountsByHolderParams {
-	params := &genledger.ListAccountsByHolderParams{}
+func listAccountsByHolderParams(opts models.AccountsListOpts) *genledger.ListAccountsByHolderV2Params {
+	params := &genledger.ListAccountsByHolderV2Params{}
 
 	if opts.Limit > 0 {
 		params.Limit = strPtr(strconv.Itoa(opts.Limit))

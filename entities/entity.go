@@ -563,8 +563,14 @@ func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[
 		normalized["crm"] = onboarding
 	}
 
+	// The Tracer fallback must happen BEFORE normalization so the loop below can
+	// stamp the plane's "/v1" onto a URL inherited from the (now bare) Ledger base.
+	if strings.TrimSpace(normalized["tracer"]) == "" {
+		normalized["tracer"] = onboarding
+	}
+
 	for service, serviceURL := range normalized {
-		normalizedURL, err := normalizeServiceURL(serviceURL, allowInsecureHTTP)
+		normalizedURL, err := normalizeServiceURL(serviceURL, planeVersionPath(service), allowInsecureHTTP)
 		if err != nil {
 			return nil, fmt.Errorf("invalid %s URL: %w", service, err)
 		}
@@ -575,7 +581,28 @@ func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[
 	return normalized, nil
 }
 
-func normalizeServiceURL(rawURL string, allowInsecureHTTP bool) (string, error) {
+// planeVersionPath returns the version segment a plane's base URL must carry.
+//
+// The two planes version themselves differently, and the difference is fixed by
+// each plane's OpenAPI contract, not by preference:
+//
+//   - Ledger (onboarding/transaction/crm): its spec declares servers:[{url: "/"}]
+//     and carries the version inside every path ("/v1/organizations",
+//     "/v2/organizations"). A base-URL pin here would produce "/v1/v1/...".
+//   - Tracer: its spec declares servers:[{url: "/v1"}] with unversioned paths
+//     ("/validations", "/limits"); the server mounts Huma on a Fiber "/v1" group.
+//     The version therefore has to live in the base URL.
+func planeVersionPath(service string) string {
+	if service == "tracer" {
+		return tracerAPIVersionPath
+	}
+
+	return ""
+}
+
+// normalizeServiceURL validates a plane base URL and stamps versionPath onto it.
+// An empty versionPath leaves the caller-supplied path untouched.
+func normalizeServiceURL(rawURL, versionPath string, allowInsecureHTTP bool) (string, error) {
 	parsedURL, err := url.Parse(strings.TrimRight(strings.TrimSpace(rawURL), "/"))
 	if err != nil {
 		return "", err
@@ -598,12 +625,16 @@ func normalizeServiceURL(rawURL string, allowInsecureHTTP bool) (string, error) 
 	}
 
 	cleanPath := strings.TrimRight(parsedURL.Path, "/")
-	if cleanPath == "" {
-		parsedURL.Path = "/v1"
-	} else if cleanPath != "/v1" && !strings.HasSuffix(cleanPath, "/v1") {
-		parsedURL.Path = cleanPath + "/v1"
-	} else {
+
+	switch {
+	case versionPath == "":
 		parsedURL.Path = cleanPath
+	case cleanPath == "":
+		parsedURL.Path = versionPath
+	case strings.HasSuffix(cleanPath, versionPath):
+		parsedURL.Path = cleanPath
+	default:
+		parsedURL.Path = cleanPath + versionPath
 	}
 
 	return parsedURL.String(), nil

@@ -18,11 +18,11 @@ import (
 const encryptionOrgID = "11111111-1111-1111-1111-111111111111"
 
 func encryptionProvisionPath() string {
-	return "/v1/organizations/" + encryptionOrgID + "/encryption/provision"
+	return "/v2/organizations/" + encryptionOrgID + "/encryption/provision"
 }
 
 func encryptionStatusPath() string {
-	return "/v1/organizations/" + encryptionOrgID + "/encryption/status"
+	return "/v2/organizations/" + encryptionOrgID + "/encryption/status"
 }
 
 // TestEncryptionFacade_Provision_Accepts201 is the KEY RED assert (case a). The

@@ -68,9 +68,9 @@ func (f *compositionFacade) CreateHolderAccount(ctx context.Context, orgID, ledg
 	// Authorization is nil: the client-level auth editor injects the Bearer
 	// token. No idempotency slot exists on this endpoint, so the key rides via
 	// the request editor (X-Idempotency), gated by enableIdempotency.
-	params := &genledger.CreateHolderAccountParams{}
+	params := &genledger.CreateHolderAccountV2Params{}
 
 	return writeJSON[models.HolderAccountResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateHolderAccountWithBody(ctx, orgID, ledgerID, holderID, params, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.CreateHolderAccountV2WithBody(ctx, orgID, ledgerID, holderID, params, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }

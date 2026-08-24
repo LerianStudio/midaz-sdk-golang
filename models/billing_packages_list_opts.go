@@ -29,9 +29,6 @@ type BillingPackagesListOpts struct {
 type BillingPackagesFilters struct {
 	// Type narrows by billing package type (volume, maintenance).
 	Type string
-
-	// LedgerID narrows by ledger UUID.
-	LedgerID string
 }
 
 // Validate enforces SDK-side preconditions on BillingPackagesListOpts.
@@ -48,10 +45,6 @@ func (o BillingPackagesListOpts) ToQueryParams() map[string]string {
 
 	if o.Filters.Type != "" {
 		params["type"] = o.Filters.Type
-	}
-
-	if o.Filters.LedgerID != "" {
-		params["ledgerId"] = o.Filters.LedgerID
 	}
 
 	return params

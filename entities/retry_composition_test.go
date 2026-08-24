@@ -116,7 +116,7 @@ func newRetryEnabledTxFacade(t *testing.T, srv *httptest.Server, maxRetries int)
 	t.Helper()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-live", nil },

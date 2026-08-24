@@ -24,7 +24,7 @@ const (
 )
 
 func compositionFacadePath() string {
-	return "/v1/organizations/" + compositionFacadeOrgID +
+	return "/v2/organizations/" + compositionFacadeOrgID +
 		"/ledgers/" + compositionFacadeLedgerID +
 		"/holders/" + compositionFacadeHolderID + "/accounts"
 }

@@ -101,8 +101,8 @@ func TestClientNew_WithEnvironmentRecomputesDefaultServiceURLs(t *testing.T) {
 	require.NoError(t, err)
 
 	urls := c.GetConfig().ServiceURLs
-	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceOnboarding])
-	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceTransaction])
+	require.Equal(t, "https://api.midaz.io", urls[config.ServiceOnboarding])
+	require.Equal(t, "https://api.midaz.io", urls[config.ServiceTransaction])
 	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceTracer])
 }
 

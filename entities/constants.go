@@ -9,4 +9,11 @@ package entities
 const (
 	// HeaderTotalCount is the HTTP header name used by count endpoints.
 	HeaderTotalCount = "X-Total-Count"
+
+	// tracerAPIVersionPath is the version segment the Tracer plane base URL must
+	// carry. The Tracer OpenAPI spec declares servers:[{url: "/v1"}] with
+	// unversioned paths, so the version cannot come from the path the way it does
+	// on the Ledger plane. Mirrors
+	// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.DefaultTracerAPIVersionPath].
+	tracerAPIVersionPath = "/v1"
 )

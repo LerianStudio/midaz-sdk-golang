@@ -75,7 +75,7 @@ func TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
 	}, false)
 
 	require.NoError(t, err)
-	require.Equal(t, "https://api.example.com/onboarding/v1", normalized["crm"])
+	require.Equal(t, "https://api.example.com/onboarding", normalized["crm"])
 }
 
 func TestNormalizeBaseURLs_RequiresOnboardingKey(t *testing.T) {

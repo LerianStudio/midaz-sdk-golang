@@ -129,7 +129,7 @@ func (f *organizationsFacade) Create(ctx context.Context, input *models.CreateOr
 	}
 
 	return writeJSON[models.Organization](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateOrganizationWithBodyWithResponse(ctx, &genledger.CreateOrganizationParams{}, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
+		resp, err := f.ledger.CreateOrganizationWithBodyWithResponse(ctx, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}

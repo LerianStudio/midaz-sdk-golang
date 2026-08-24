@@ -18,7 +18,7 @@ import (
 const auditOrgID = "11111111-1111-1111-1111-111111111111"
 
 func auditPath() string {
-	return "/v1/organizations/" + auditOrgID + "/protection/audit"
+	return "/v2/organizations/" + auditOrgID + "/protection/audit"
 }
 
 func newTestAuditFacade(t *testing.T, srv *httptest.Server) *auditFacade {

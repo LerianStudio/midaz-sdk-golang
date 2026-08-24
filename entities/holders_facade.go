@@ -28,11 +28,11 @@ import (
 // Holders are treated as CURSOR-paginated: Pages advances by echoing the
 // response next_cursor back into the request as a query param and stops on an
 // empty cursor — never HasMore(), whose page-based heuristic can loop forever on
-// a full terminal page that carries no cursor. The generated ListHoldersParams
+// a full terminal page that carries no cursor. The generated ListHoldersV2Params
 // has no cursor slot, so the cursor is injected via a request editor (like the
 // name/status filters below); the caller's opts are never mutated.
 //
-// The generated ListHoldersParams exposes slots for limit/sort_order/
+// The generated ListHoldersV2Params exposes slots for limit/sort_order/
 // include_deleted/external_id/document. The name and status filters have no
 // slot, so the facade injects each as a query param via a request editor.
 //
@@ -56,7 +56,7 @@ func newHoldersFacade(ledger *genledger.ClientWithResponses, enableIdempotency b
 
 // List retrieves one cursor page of holders under an organization. The cursor is
 // seeded from opts.Cursor (empty means the first page); Pages advances it by
-// echoing the response next_cursor. The generated ListHoldersParams has no cursor
+// echoing the response next_cursor. The generated ListHoldersV2Params has no cursor
 // slot, so the cursor is injected as a query param via listHoldersReqEditors; the
 // caller's opts are never mutated.
 func (f *holdersFacade) List(ctx context.Context, orgID string, opts models.HoldersListOpts) (*models.ListResponse[models.Holder], error) {
@@ -66,7 +66,7 @@ func (f *holdersFacade) List(ctx context.Context, orgID string, opts models.Hold
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListHoldersWithResponse(ctx, orgID, listHoldersParams(opts), listHoldersReqEditors(opts)...)
+	resp, err := f.ledger.ListHoldersV2WithResponse(ctx, orgID, listHoldersParams(opts), listHoldersReqEditors(opts)...)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -137,7 +137,7 @@ func (f *holdersFacade) Create(ctx context.Context, orgID string, input *models.
 	}
 
 	return writeJSON[models.Holder](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateHolderWithBody(ctx, orgID, &genledger.CreateHolderParams{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.CreateHolderV2WithBody(ctx, orgID, &genledger.CreateHolderV2Params{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -147,12 +147,12 @@ func (f *holdersFacade) Create(ctx context.Context, orgID string, input *models.
 func (f *holdersFacade) Get(ctx context.Context, orgID, id string) (*models.Holder, error) {
 	const operation = "Holders.Get"
 
-	params := &genledger.GetHolderByIDParams{}
+	params := &genledger.GetHolderByIDV2Params{}
 	if sdkctx.IncludeDeletedFromContext(ctx) {
 		params.IncludeDeleted = strPtr("true")
 	}
 
-	resp, err := f.ledger.GetHolderByIDWithResponse(ctx, orgID, id, params)
+	resp, err := f.ledger.GetHolderByIDV2WithResponse(ctx, orgID, id, params)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -170,7 +170,7 @@ func (f *holdersFacade) Update(ctx context.Context, orgID, id string, input *mod
 	}
 
 	return writeJSON[models.Holder](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateHolderWithBody(ctx, orgID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.UpdateHolderV2WithBody(ctx, orgID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -180,12 +180,12 @@ func (f *holdersFacade) Update(ctx context.Context, orgID, id string, input *mod
 func (f *holdersFacade) Delete(ctx context.Context, orgID, id string) error {
 	const operation = "Holders.Delete"
 
-	params := &genledger.DeleteHolderParams{}
+	params := &genledger.DeleteHolderV2Params{}
 	if sdkctx.HardDeleteFromContext(ctx) {
 		params.HardDelete = strPtr("true")
 	}
 
-	resp, err := f.ledger.DeleteHolderWithResponse(ctx, orgID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
+	resp, err := f.ledger.DeleteHolderV2WithResponse(ctx, orgID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -198,10 +198,10 @@ func (f *holdersFacade) Delete(ctx context.Context, orgID, id string) error {
 }
 
 // listHoldersParams renders the fields that have a slot in the generated
-// ListHoldersParams. The name/status filters have no slot and are carried by
+// ListHoldersV2Params. The name/status filters have no slot and are carried by
 // listHoldersReqEditors instead.
-func listHoldersParams(opts models.HoldersListOpts) *genledger.ListHoldersParams {
-	params := &genledger.ListHoldersParams{}
+func listHoldersParams(opts models.HoldersListOpts) *genledger.ListHoldersV2Params {
+	params := &genledger.ListHoldersV2Params{}
 
 	if opts.Limit > 0 {
 		params.Limit = strPtr(strconv.Itoa(opts.Limit))
@@ -227,7 +227,7 @@ func listHoldersParams(opts models.HoldersListOpts) *genledger.ListHoldersParams
 }
 
 // listHoldersReqEditors carries the cursor pagination token and the name/status
-// filters — none of which the generated ListHoldersParams has a slot for. The
+// filters — none of which the generated ListHoldersV2Params has a slot for. The
 // ledger OAS omits cursor, name, and status from the holders list endpoint, so
 // the SDK injects each as a query param rather than dropping it silently. Dates
 // are intentionally NOT emitted: the endpoint declares no start_date/end_date

@@ -25,7 +25,7 @@ const (
 )
 
 func feeEstimateBase() string {
-	return "/v1/organizations/" + feeEstimateOrgID + "/estimates"
+	return "/v2/organizations/" + feeEstimateOrgID + "/ledgers/" + feeEstimateLedgerID + "/estimates"
 }
 
 func feeEstimateInput() *models.FeeEstimateInput {
@@ -78,7 +78,7 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	if err != nil {
 		t.Fatalf("EstimateFee: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestFeeEstimateFacade_GoldenRequestBody(t *testing.T) {
 	defer srv.Close()
 
 	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(
-		context.Background(), feeEstimateOrgID, feeEstimateInput()); err != nil {
+		context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput()); err != nil {
 		t.Fatalf("EstimateFee: %v", err)
 	}
 
@@ -244,7 +244,7 @@ func TestFeeEstimateFacade_GoldenRequestBodyNumericValueAndShareLeg(t *testing.T
 	defer srv.Close()
 
 	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(
-		context.Background(), feeEstimateOrgID, input); err != nil {
+		context.Background(), feeEstimateOrgID, feeEstimateLedgerID, input); err != nil {
 		t.Fatalf("EstimateFee: %v", err)
 	}
 
@@ -274,7 +274,7 @@ func TestFeeEstimateFacade_NoRules(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	if err != nil {
 		t.Fatalf("EstimateFee no-rules must NOT error: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestFeeEstimateFacade_AppliedNilSend(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	if err != nil {
 		t.Fatalf("EstimateFee with null send must NOT error: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestFeeEstimateFacade_ErrorDecodes(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	var sdkErr *sdkerrors.Error
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
@@ -357,7 +357,7 @@ func TestFeeEstimateFacade_WriteReplaySafe(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	if err != nil {
 		t.Fatalf("EstimateFee with one 401 refresh: %v", err)
 	}
@@ -378,7 +378,7 @@ func TestFeeEstimateFacade_Validation(t *testing.T) {
 
 	facade := newTestFeeEstimateFacade(t, srv)
 
-	if _, err := facade.EstimateFee(context.Background(), feeEstimateOrgID, &models.FeeEstimateInput{}); err == nil {
+	if _, err := facade.EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, &models.FeeEstimateInput{}); err == nil {
 		t.Fatal("EstimateFee with empty input must fail validation")
 	}
 }

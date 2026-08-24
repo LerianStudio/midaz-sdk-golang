@@ -41,7 +41,7 @@ func TestNewPlaneClients_PreservesConfiguredTimeout(t *testing.T) {
 	client.Timeout = 100 * time.Millisecond
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
@@ -97,7 +97,7 @@ func TestNewPlaneClients_BlocksMoneyPathCrossHostRedirect(t *testing.T) {
 	defer origin.Close()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: origin.URL + "/v1",
+		ledgerURL: origin.URL,
 		tracerURL: origin.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-secret", nil },
@@ -110,7 +110,7 @@ func TestNewPlaneClients_BlocksMoneyPathCrossHostRedirect(t *testing.T) {
 	}
 
 	_, err = planes.Ledger.CreateOrganizationWithBodyWithResponse(
-		context.Background(), nil, "application/json", strings.NewReader(`{}`),
+		context.Background(), "application/json", strings.NewReader(`{}`),
 	)
 
 	if err == nil {
@@ -176,7 +176,7 @@ func TestNewPlaneClients_BlocksGETCrossHostRedirect(t *testing.T) {
 	defer origin.Close()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: origin.URL + "/v1",
+		ledgerURL: origin.URL,
 		tracerURL: origin.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-secret", nil },
@@ -221,7 +221,7 @@ func TestNewPlaneClients_FollowsSameOriginRedirect(t *testing.T) {
 	defer srv.Close()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },

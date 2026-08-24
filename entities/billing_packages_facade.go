@@ -55,14 +55,14 @@ func newBillingPackagesFacade(ledger *genledger.ClientWithResponses, enableIdemp
 // decoding the raw body into models.ListResponse[models.BillingPackage] reads it
 // directly, so the generated FeePagination (whose Items is interface{}) never
 // enters the public path.
-func (f *billingPackagesFacade) List(ctx context.Context, orgID string, opts models.BillingPackagesListOpts) (*models.ListResponse[models.BillingPackage], error) {
+func (f *billingPackagesFacade) List(ctx context.Context, orgID, ledgerID string, opts models.BillingPackagesListOpts) (*models.ListResponse[models.BillingPackage], error) {
 	const operation = "BillingPackages.List"
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllBillingPackagesWithResponse(ctx, orgID, listBillingPackagesParams(opts))
+	resp, err := f.ledger.GetAllBillingPackagesV2WithResponse(ctx, orgID, ledgerID, listBillingPackagesParams(opts))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -83,7 +83,7 @@ func (f *billingPackagesFacade) List(ctx context.Context, orgID string, opts mod
 // advances Page++, and stops on !HasMore() (which reads the response total). It
 // does NOT stop on an empty cursor — the page-mode envelope carries none, so that
 // would truncate the result set after page 1.
-func (f *billingPackagesFacade) ListPages(ctx context.Context, orgID string, opts models.BillingPackagesListOpts) iter.Seq2[*models.ListResponse[models.BillingPackage], error] {
+func (f *billingPackagesFacade) ListPages(ctx context.Context, orgID, ledgerID string, opts models.BillingPackagesListOpts) iter.Seq2[*models.ListResponse[models.BillingPackage], error] {
 	return func(yield func(*models.ListResponse[models.BillingPackage], error) bool) {
 		current := opts
 		if current.Page == 0 {
@@ -96,7 +96,7 @@ func (f *billingPackagesFacade) ListPages(ctx context.Context, orgID string, opt
 				return
 			}
 
-			page, err := f.List(ctx, orgID, current)
+			page, err := f.List(ctx, orgID, ledgerID, current)
 			if err != nil {
 				yield(nil, err)
 				return
@@ -117,15 +117,15 @@ func (f *billingPackagesFacade) ListPages(ctx context.Context, orgID string, opt
 
 // ListAll yields every billing package across pages, transparently advancing
 // pagination.
-func (f *billingPackagesFacade) ListAll(ctx context.Context, orgID string, opts models.BillingPackagesListOpts) iter.Seq2[models.BillingPackage, error] {
-	return flattenPages(f.ListPages(ctx, orgID, opts))
+func (f *billingPackagesFacade) ListAll(ctx context.Context, orgID, ledgerID string, opts models.BillingPackagesListOpts) iter.Seq2[models.BillingPackage, error] {
+	return flattenPages(f.ListPages(ctx, orgID, ledgerID, opts))
 }
 
 // Create registers a new billing package under an organization via the
 // write-facade pattern (rewindable body so the auth round tripper can replay
 // after a 401). It routes through the RAW WithBody + isSuccess(2xx), so the
 // server's 201 Created is a success even though the OAS spec says 200.
-func (f *billingPackagesFacade) Create(ctx context.Context, orgID string, input *models.CreateBillingPackageInput) (*models.BillingPackage, error) {
+func (f *billingPackagesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateBillingPackageInput) (*models.BillingPackage, error) {
 	const operation = "BillingPackages.Create"
 
 	if err := input.Validate(); err != nil {
@@ -133,15 +133,15 @@ func (f *billingPackagesFacade) Create(ctx context.Context, orgID string, input 
 	}
 
 	return writeJSON[models.BillingPackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateBillingPackageWithBody(ctx, orgID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.CreateBillingPackageV2WithBody(ctx, orgID, ledgerID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
 // Get retrieves one billing package by ID under an organization.
-func (f *billingPackagesFacade) Get(ctx context.Context, orgID, id string) (*models.BillingPackage, error) {
+func (f *billingPackagesFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.BillingPackage, error) {
 	const operation = "BillingPackages.Get"
 
-	resp, err := f.ledger.GetBillingPackageByIDWithResponse(ctx, orgID, id)
+	resp, err := f.ledger.GetBillingPackageByIDV2WithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -151,7 +151,7 @@ func (f *billingPackagesFacade) Get(ctx context.Context, orgID, id string) (*mod
 
 // Update patches a billing package by ID under an organization. Same write-facade
 // pattern as Create; UpdateBillingPackageInput.MarshalJSON omits unset fields.
-func (f *billingPackagesFacade) Update(ctx context.Context, orgID, id string, input *models.UpdateBillingPackageInput) (*models.BillingPackage, error) {
+func (f *billingPackagesFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateBillingPackageInput) (*models.BillingPackage, error) {
 	const operation = "BillingPackages.Update"
 
 	if err := input.Validate(); err != nil {
@@ -159,17 +159,17 @@ func (f *billingPackagesFacade) Update(ctx context.Context, orgID, id string, in
 	}
 
 	return writeJSON[models.BillingPackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateBillingPackageWithBody(ctx, orgID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.UpdateBillingPackageV2WithBody(ctx, orgID, ledgerID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
 // Delete removes a billing package by ID under an organization. The server returns
 // a no-body success, so there is nothing to decode — only a non-2xx maps to the
 // unified error.
-func (f *billingPackagesFacade) Delete(ctx context.Context, orgID, id string) error {
+func (f *billingPackagesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "BillingPackages.Delete"
 
-	resp, err := f.ledger.DeleteBillingPackageWithResponse(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
+	resp, err := f.ledger.DeleteBillingPackageV2WithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -184,8 +184,8 @@ func (f *billingPackagesFacade) Delete(ctx context.Context, orgID, id string) er
 // listBillingPackagesParams renders the typed opts into the generated params.
 // Both filters have a native slot, and the pagination fields serialize to the
 // *string form the generated query layer expects.
-func listBillingPackagesParams(opts models.BillingPackagesListOpts) *genledger.GetAllBillingPackagesParams {
-	params := &genledger.GetAllBillingPackagesParams{}
+func listBillingPackagesParams(opts models.BillingPackagesListOpts) *genledger.GetAllBillingPackagesV2Params {
+	params := &genledger.GetAllBillingPackagesV2Params{}
 
 	if opts.Limit > 0 {
 		params.Limit = strPtr(strconv.Itoa(opts.Limit))
@@ -197,10 +197,6 @@ func listBillingPackagesParams(opts models.BillingPackagesListOpts) *genledger.G
 
 	if opts.Filters.Type != "" {
 		params.Type = strPtr(opts.Filters.Type)
-	}
-
-	if opts.Filters.LedgerID != "" {
-		params.LedgerId = strPtr(opts.Filters.LedgerID)
 	}
 
 	return params

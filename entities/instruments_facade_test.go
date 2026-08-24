@@ -28,12 +28,12 @@ const (
 // ListInstruments hits /organizations/{org}/instruments and scopes to a holder
 // via the holder_id query param, NOT a holder-in-path segment.
 func instrumentsListBase() string {
-	return "/v1/organizations/" + instrumentsFacadeOrgID + "/instruments"
+	return "/v2/organizations/" + instrumentsFacadeOrgID + "/instruments"
 }
 
 // instrumentsHolderBase is the holder-scoped write/read-by-id endpoint.
 func instrumentsHolderBase() string {
-	return "/v1/organizations/" + instrumentsFacadeOrgID + "/holders/" + instrumentsFacadeHolderID + "/instruments"
+	return "/v2/organizations/" + instrumentsFacadeOrgID + "/holders/" + instrumentsFacadeHolderID + "/instruments"
 }
 
 // TestInstrumentsFacade_ListAndPaginate exercises cursor List/ListPages/ListAll
@@ -320,7 +320,7 @@ func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 	if len(all) != 2 || all[0].ID != acctID1 || all[1].ID != acctID2 {
 		t.Fatalf("All = %+v", all)
 	}
-	wantPath := "/v1/organizations/" + instrumentsFacadeOrgID + "/holders/" + instrumentsFacadeHolderID + "/accounts"
+	wantPath := "/v2/organizations/" + instrumentsFacadeOrgID + "/holders/" + instrumentsFacadeHolderID + "/accounts"
 	for i, p := range seenPaths {
 		if p != wantPath {
 			t.Fatalf("request %d path = %q, want %q", i, p, wantPath)

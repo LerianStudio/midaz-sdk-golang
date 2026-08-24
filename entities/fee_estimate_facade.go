@@ -37,12 +37,15 @@ func newFeeEstimateFacade(ledger *genledger.ClientWithResponses) *feeEstimateFac
 	return &feeEstimateFacade{ledger: ledger}
 }
 
-// EstimateFee runs a dry-run fee estimation for a transaction under an
-// organization. A 2xx with feesApplied:null (no rules matched) returns
-// (resp, nil) with FeesApplied == nil — never an error. Same write-facade
-// pattern as the creates: a rewindable body so the auth round tripper can replay
-// after a 401.
-func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID string, input *models.FeeEstimateInput) (*models.FeeEstimateResponse, error) {
+// EstimateFee runs a dry-run fee estimation for a transaction under a LEDGER.
+// A 2xx with feesApplied:null (no rules matched) returns (resp, nil) with
+// FeesApplied == nil — never an error. Same write-facade pattern as the creates:
+// a rewindable body so the auth round tripper can replay after a 401.
+//
+// SCOPE: fee estimation is ledger-scoped on the server
+// (POST /v2/organizations/{org}/ledgers/{ledger}/estimates). The removed /v1
+// route was organization-scoped; ledgerID is not optional.
+func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID, ledgerID string, input *models.FeeEstimateInput) (*models.FeeEstimateResponse, error) {
 	const operation = "FeeEstimate.EstimateFee"
 
 	if err := input.Validate(); err != nil {
@@ -50,6 +53,6 @@ func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID string, input
 	}
 
 	return writeJSON[models.FeeEstimateResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.EstimateFeeCalculationWithBody(ctx, orgID, jsonContentType, body))
+		return readRawResponse(f.ledger.EstimateFeeCalculationV2WithBody(ctx, orgID, ledgerID, jsonContentType, body))
 	})
 }

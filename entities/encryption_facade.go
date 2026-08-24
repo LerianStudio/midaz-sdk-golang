@@ -40,7 +40,7 @@ func newEncryptionFacade(ledger *genledger.ClientWithResponses, enableIdempotenc
 
 // Provision provisions envelope encryption for an organization.
 //
-// This routes through the RAW ProvisionEncryptionWithBody + readRawResponse and
+// This routes through the RAW ProvisionEncryptionV2WithBody + readRawResponse and
 // gates success on isSuccess(2xx) via writeJSON — NEVER through the generated
 // ...WithResponse parser, whose ParseProvisionEncryptionResp gates JSON200 on
 // StatusCode==200 exactly. The server returns 201 Created on success, so the
@@ -58,7 +58,7 @@ func (f *encryptionFacade) Provision(ctx context.Context, orgID string, input *m
 	}
 
 	resp, err := writeJSON[models.ProvisionEncryptionResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.ProvisionEncryptionWithBody(ctx, orgID, &genledger.ProvisionEncryptionParams{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.ProvisionEncryptionV2WithBody(ctx, orgID, &genledger.ProvisionEncryptionV2Params{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 
 	// A 404 here means envelope encryption is disabled (legacy mode); tag it so
@@ -76,7 +76,7 @@ func (f *encryptionFacade) Provision(ctx context.Context, orgID string, input *m
 func (f *encryptionFacade) GetProvisioningStatus(ctx context.Context, orgID string) (*models.ProvisioningStatusResponse, error) {
 	const operation = "Encryption.GetProvisioningStatus"
 
-	resp, err := f.ledger.GetProvisioningStatusWithResponse(ctx, orgID, &genledger.GetProvisioningStatusParams{})
+	resp, err := f.ledger.GetProvisioningStatusV2WithResponse(ctx, orgID, &genledger.GetProvisioningStatusV2Params{})
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}

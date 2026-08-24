@@ -23,7 +23,7 @@ const (
 )
 
 func billingCalcBase() string {
-	return "/v1/organizations/" + billingCalcOrgID + "/billing/calculate"
+	return "/v2/organizations/" + billingCalcOrgID + "/ledgers/" + billingCalcLedgerID + "/billing/calculate"
 }
 
 func billingCalcInput() *models.BillingCalculateInput {
@@ -57,7 +57,7 @@ func TestBillingCalculateFacade_Calculate(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	out, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcInput())
+	out, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, billingCalcInput())
 	if err != nil {
 		t.Fatalf("CalculateBilling: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestBillingCalculateFacade_Empty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	out, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcInput())
+	out, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, billingCalcInput())
 	if err != nil {
 		t.Fatalf("CalculateBilling empty must NOT error: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestBillingCalculateFacade_EmptyTypeOmitted(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID,
+	_, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID,
 		&models.BillingCalculateInput{LedgerID: billingCalcLedgerID, Period: "2026-01"})
 	if err != nil {
 		t.Fatalf("CalculateBilling: %v", err)
@@ -160,7 +160,7 @@ func TestBillingCalculateFacade_ErrorDecodes(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcInput())
+	_, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, billingCalcInput())
 	var sdkErr *sdkerrors.Error
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
@@ -190,7 +190,7 @@ func TestBillingCalculateFacade_WriteReplaySafe(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcInput())
+	_, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, billingCalcInput())
 	if err != nil {
 		t.Fatalf("CalculateBilling with one 401 refresh: %v", err)
 	}
@@ -213,11 +213,11 @@ func TestBillingCalculateFacade_Validation(t *testing.T) {
 	facade := newTestBillingCalculateFacade(t, srv)
 
 	// Missing period.
-	if _, err := facade.CalculateBilling(context.Background(), billingCalcOrgID, &models.BillingCalculateInput{LedgerID: billingCalcLedgerID}); err == nil {
+	if _, err := facade.CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, &models.BillingCalculateInput{LedgerID: billingCalcLedgerID}); err == nil {
 		t.Fatal("CalculateBilling with empty period must fail validation")
 	}
 	// Missing ledgerId.
-	if _, err := facade.CalculateBilling(context.Background(), billingCalcOrgID, &models.BillingCalculateInput{Period: "2026-01"}); err == nil {
+	if _, err := facade.CalculateBilling(context.Background(), billingCalcOrgID, billingCalcLedgerID, &models.BillingCalculateInput{Period: "2026-01"}); err == nil {
 		t.Fatal("CalculateBilling with empty ledgerId must fail validation")
 	}
 }

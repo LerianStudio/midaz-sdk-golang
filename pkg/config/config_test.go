@@ -55,7 +55,7 @@ func TestDefaultConstants(t *testing.T) {
 		{"DefaultLocalLedgerBaseURL", DefaultLocalLedgerBaseURL, "http://localhost:3002"},
 		{"DefaultDevelopmentLedgerBaseURL", DefaultDevelopmentLedgerBaseURL, "https://api.dev.midaz.io"},
 		{"DefaultProductionLedgerBaseURL", DefaultProductionLedgerBaseURL, "https://api.midaz.io"},
-		{"DefaultLedgerAPIVersionPath", DefaultLedgerAPIVersionPath, "/v1"},
+		{"DefaultTracerAPIVersionPath", DefaultTracerAPIVersionPath, "/v1"},
 		{"DefaultMaxRetries", DefaultMaxRetries, 3},
 		{"DefaultMinRetryWait", DefaultMinRetryWait, 1 * time.Second},
 		{"DefaultRetryWaitMax", DefaultRetryWaitMax, 30 * time.Second},
@@ -107,8 +107,8 @@ func TestNewConfig_Defaults(t *testing.T) {
 	assert.False(t, config.ExposeErrorBody)
 	assert.False(t, config.Debug)
 	assert.NotNil(t, config.HTTPClient)
-	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewConfig_WithAllOptions(t *testing.T) {
@@ -117,7 +117,7 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 
 	config, err := NewConfig(
 		WithEnvironment(EnvironmentProduction),
-		WithLedgerURL("https://custom.example.com/v1"),
+		WithLedgerURL("https://custom.example.com"),
 		WithHTTPClient(customClient),
 		WithTimeout(90*time.Second),
 		WithUserAgent("test-agent/1.0"),
@@ -140,8 +140,8 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, EnvironmentProduction, config.Environment)
-	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://custom.example.com", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://custom.example.com", config.ServiceURLs[ServiceTransaction])
 	assert.NotSame(t, customClient, config.HTTPClient)
 	assert.Equal(t, customClient.Timeout, config.HTTPClient.Timeout)
 	assert.NotNil(t, config.HTTPClient.CheckRedirect)
@@ -202,17 +202,17 @@ func TestWithEnvironment_WithBaseURL(t *testing.T) {
 		{
 			name:              "development with base URL",
 			env:               EnvironmentDevelopment,
-			expectedLedgerURL: "https://api.custom.io/v1",
+			expectedLedgerURL: "https://api.custom.io",
 		},
 		{
 			name:              "production with base URL",
 			env:               EnvironmentProduction,
-			expectedLedgerURL: "https://api.custom.io/v1",
+			expectedLedgerURL: "https://api.custom.io",
 		},
 		{
 			name:              "local with base URL",
 			env:               EnvironmentLocal,
-			expectedLedgerURL: "https://api.custom.io/v1",
+			expectedLedgerURL: "https://api.custom.io",
 		},
 	}
 
@@ -287,8 +287,8 @@ func TestWithBaseURL_LocalEnvironment(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://custom.example.com", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://custom.example.com", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
@@ -303,8 +303,8 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			env:     EnvironmentDevelopment,
 			baseURL: "https://custom.example.com",
 			expected: map[ServiceType]string{
-				ServiceOnboarding:  "https://custom.example.com/v1",
-				ServiceTransaction: "https://custom.example.com/v1",
+				ServiceOnboarding:  "https://custom.example.com",
+				ServiceTransaction: "https://custom.example.com",
 			},
 		},
 		{
@@ -312,8 +312,8 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			env:     EnvironmentProduction,
 			baseURL: "https://api.prod.example.com",
 			expected: map[ServiceType]string{
-				ServiceOnboarding:  "https://api.prod.example.com/v1",
-				ServiceTransaction: "https://api.prod.example.com/v1",
+				ServiceOnboarding:  "https://api.prod.example.com",
+				ServiceTransaction: "https://api.prod.example.com",
 			},
 		},
 	}
@@ -339,7 +339,7 @@ func TestWithBaseURL_TrailingSlash(t *testing.T) {
 		WithAnonymous(),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://api.example.com", config.ServiceURLs[ServiceOnboarding])
 }
 
 func TestWithBaseURL_Invalid(t *testing.T) {
@@ -736,16 +736,16 @@ func TestValidateConfig_AuthCheckSkipped(t *testing.T) {
 }
 
 func TestFromEnvironment_TwoPlanes(t *testing.T) {
-	t.Setenv("MIDAZ_LEDGER_URL", "https://ledger.example.com/v1")
+	t.Setenv("MIDAZ_LEDGER_URL", "https://ledger.example.com")
 	t.Setenv("MIDAZ_TRACER_URL", "https://tracer.example.com/v1")
 
 	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
 	// Ledger plane feeds both onboarding and transaction internal routes.
-	assert.Equal(t, "https://ledger.example.com/v1", config.LedgerURL)
-	assert.Equal(t, "https://ledger.example.com/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://ledger.example.com/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://ledger.example.com", config.LedgerURL)
+	assert.Equal(t, "https://ledger.example.com", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://ledger.example.com", config.ServiceURLs[ServiceTransaction])
 
 	// Tracer plane is its own explicit URL.
 	assert.Equal(t, "https://tracer.example.com/v1", config.TracerURL)
@@ -756,7 +756,7 @@ func TestFromEnvironment_TwoPlanes(t *testing.T) {
 }
 
 func TestFromEnvironment_TracerAPIKey(t *testing.T) {
-	t.Setenv("MIDAZ_LEDGER_URL", "https://ledger.example.com/v1")
+	t.Setenv("MIDAZ_LEDGER_URL", "https://ledger.example.com")
 	t.Setenv("MIDAZ_TRACER_URL", "https://tracer.example.com/v1")
 	t.Setenv("MIDAZ_TRACER_API_KEY", "trk-secret")
 
@@ -785,9 +785,12 @@ func TestWithBaseURL_FansOutToBothPlanes(t *testing.T) {
 	cfg, err := NewConfig(WithBaseURL("https://api.example.com"), WithAnonymous())
 	require.NoError(t, err)
 
-	// A single base URL seeds both the ledger and tracer planes under /v1.
-	assert.Equal(t, "https://api.example.com/v1", cfg.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://api.example.com/v1", cfg.ServiceURLs[ServiceTransaction])
+	// A single base URL seeds both planes off one origin, in each plane's own
+	// shape: the Ledger base stays BARE (its spec versions the paths, /v1 and
+	// /v2) while the Tracer base carries "/v1" (its spec declares
+	// servers:[{url: "/v1"}] with unversioned paths).
+	assert.Equal(t, "https://api.example.com", cfg.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://api.example.com", cfg.ServiceURLs[ServiceTransaction])
 	assert.Equal(t, "https://api.example.com/v1", cfg.ServiceURLs[ServiceTracer])
 }
 
@@ -797,7 +800,7 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 	t.Setenv("PLUGIN_AUTH_ADDRESS", "https://auth.example.com")
 	t.Setenv("MIDAZ_CLIENT_ID", "env-client-id")
 	t.Setenv("MIDAZ_CLIENT_SECRET", "env-client-secret")
-	t.Setenv("MIDAZ_LEDGER_URL", "https://env.example.com/v1")
+	t.Setenv("MIDAZ_LEDGER_URL", "https://env.example.com")
 	t.Setenv("MIDAZ_TIMEOUT", "45")
 	t.Setenv("MIDAZ_DEBUG", "true")
 	t.Setenv("MIDAZ_MAX_RETRIES", "7")
@@ -812,8 +815,8 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 	assert.Equal(t, "https://auth.example.com", config.AccessManager.Address)
 	assert.Equal(t, "env-client-id", config.AccessManager.ClientID)
 	assert.Equal(t, "env-client-secret", config.AccessManager.ClientSecret)
-	assert.Equal(t, "https://env.example.com/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://env.example.com/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://env.example.com", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://env.example.com", config.ServiceURLs[ServiceTransaction])
 	assert.Equal(t, 45*time.Second, config.Timeout)
 	assert.True(t, config.Debug)
 	assert.Equal(t, 7, config.MaxRetries)
@@ -899,13 +902,13 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 	// MIDAZ_LEDGER_URL overrides the base-URL-derived ledger plane for both
 	// onboarding and transaction routes.
 	t.Setenv("MIDAZ_BASE_URL", "https://base.example.com")
-	t.Setenv("MIDAZ_LEDGER_URL", "https://specific.example.com/v1")
+	t.Setenv("MIDAZ_LEDGER_URL", "https://specific.example.com")
 
 	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
-	assert.Equal(t, "https://specific.example.com/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://specific.example.com/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://specific.example.com", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://specific.example.com", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
@@ -950,8 +953,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.False(t, config.ExposeErrorBody)
 	assert.NotNil(t, config.HTTPClient)
 	assert.NotNil(t, config.ServiceURLs)
-	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewLocalConfig(t *testing.T) {
@@ -960,8 +963,8 @@ func TestNewLocalConfig(t *testing.T) {
 
 	assert.Equal(t, EnvironmentLocal, config.Environment)
 	assert.False(t, config.AccessManager.Enabled)
-	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "http://localhost:3002", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewLocalConfig_WithEnvVars(t *testing.T) {
@@ -1097,15 +1100,15 @@ func TestOptionOrderMatters(t *testing.T) {
 	config, err := NewConfig(
 		WithEnvironment(EnvironmentLocal),
 		WithBaseURL("https://custom.example.com"),
-		WithLedgerURL("https://specific.example.com/v1"),
+		WithLedgerURL("https://specific.example.com"),
 		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
 	// WithLedgerURL applied after WithBaseURL wins for both onboarding and
 	// transaction routes.
-	assert.Equal(t, "https://specific.example.com/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://specific.example.com/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://specific.example.com", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://specific.example.com", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestIsLocalhost(t *testing.T) {
@@ -1477,15 +1480,15 @@ func TestSetDefaultServiceURLs_AllEnvironments(t *testing.T) {
 	}{
 		{
 			env:               EnvironmentLocal,
-			expectedLedgerURL: "http://localhost:3002/v1",
+			expectedLedgerURL: "http://localhost:3002",
 		},
 		{
 			env:               EnvironmentDevelopment,
-			expectedLedgerURL: "https://api.dev.midaz.io/v1",
+			expectedLedgerURL: "https://api.dev.midaz.io",
 		},
 		{
 			env:               EnvironmentProduction,
-			expectedLedgerURL: "https://api.midaz.io/v1",
+			expectedLedgerURL: "https://api.midaz.io",
 		},
 	}
 

@@ -111,21 +111,21 @@ func TestLedgerWritesStampIdempotency(t *testing.T) {
 		}},
 		{"feePackages.Create", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), feePackagesOrgID,
+			_, _ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID,
 				models.NewCreatePackageInput("Std", feePackagesLedgerID, "100.00", "1000.00", map[string]models.Fee{"admin": validFee()}).WithEnable(true))
 		}},
 		{"feePackages.Update", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Update(context.Background(), feePackagesOrgID, stampID,
+			_, _ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Update(context.Background(), feePackagesOrgID, feePackagesLedgerID, stampID,
 				models.NewUpdatePackageInput().WithMaxAmount("5000.00"))
 		}},
 		{"feePackages.Delete", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Delete(context.Background(), feePackagesOrgID, stampID)
+			_ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Delete(context.Background(), feePackagesOrgID, feePackagesLedgerID, stampID)
 		}},
 		{"billingPackages.Create", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), billingPkgOrgID,
+			_, _ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID,
 				models.NewCreateVolumeBillingPackageInput("Vol", billingPkgLedgerID, "BRL", "@d", "@c").
 					WithEventFilter("route-1", "APPROVED").
 					WithPricingModel("tiered").
@@ -134,12 +134,12 @@ func TestLedgerWritesStampIdempotency(t *testing.T) {
 		}},
 		{"billingPackages.Update", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Update(context.Background(), billingPkgOrgID, stampID,
+			_, _ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Update(context.Background(), billingPkgOrgID, billingPkgLedgerID, stampID,
 				models.NewUpdateBillingPackageInput().WithLabel("Renamed"))
 		}},
 		{"billingPackages.Delete", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Delete(context.Background(), billingPkgOrgID, stampID)
+			_ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Delete(context.Background(), billingPkgOrgID, billingPkgLedgerID, stampID)
 		}},
 	}
 

@@ -44,7 +44,7 @@ func TestNewPlaneClients_ListOrganizationsRoundTrip(t *testing.T) {
 	defer srv.Close()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
@@ -90,7 +90,7 @@ func TestNewPlaneClients_ZeroDelayPreservesMaxRetries(t *testing.T) {
 	defer srv.Close()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
@@ -124,7 +124,7 @@ func TestNewPlaneClients_TracerAPIKey(t *testing.T) {
 	defer srv.Close()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },

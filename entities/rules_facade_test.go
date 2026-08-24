@@ -309,7 +309,7 @@ func newTestTracerClient(t *testing.T, srv *httptest.Server) *gentracer.ClientWi
 	t.Helper()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
