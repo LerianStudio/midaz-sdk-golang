@@ -53,6 +53,10 @@ func newEncryptionFacade(ledger *genledger.ClientWithResponses, enableIdempotenc
 func (f *encryptionFacade) Provision(ctx context.Context, orgID string, input *models.ProvisionEncryptionInput) (*models.ProvisionEncryptionResponse, error) {
 	const operation = "Encryption.Provision"
 
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -75,6 +79,10 @@ func (f *encryptionFacade) Provision(ctx context.Context, orgID string, input *m
 // provisioned:false 200 (see the facade doc).
 func (f *encryptionFacade) GetProvisioningStatus(ctx context.Context, orgID string) (*models.ProvisioningStatusResponse, error) {
 	const operation = "Encryption.GetProvisioningStatus"
+
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
 
 	resp, err := f.ledger.GetProvisioningStatusV2WithResponse(ctx, orgID, &genledger.GetProvisioningStatusV2Params{})
 	if err != nil {

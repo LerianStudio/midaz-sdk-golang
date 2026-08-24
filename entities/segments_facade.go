@@ -44,6 +44,10 @@ func newSegmentsFacade(ledger *genledger.ClientWithResponses, enableIdempotency 
 func (f *segmentsFacade) List(ctx context.Context, orgID, ledgerID string, opts models.SegmentsListOpts) (*models.ListResponse[models.Segment], error) {
 	const operation = "Segments.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -109,6 +113,10 @@ func (f *segmentsFacade) All(ctx context.Context, orgID, ledgerID string, opts m
 func (f *segmentsFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error) {
 	const operation = "Segments.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -127,6 +135,10 @@ func (f *segmentsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 func (f *segmentsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.Segment, error) {
 	const operation = "Segments.Get"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetSegmentByIDWithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -139,6 +151,10 @@ func (f *segmentsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*
 // as Create.
 func (f *segmentsFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateSegmentInput) (*models.Segment, error) {
 	const operation = "Segments.Update"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -159,6 +175,10 @@ func (f *segmentsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 func (f *segmentsFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Segments.Delete"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
+	}
+
 	resp, err := f.ledger.DeleteSegmentWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
@@ -176,6 +196,10 @@ func (f *segmentsFacade) Delete(ctx context.Context, orgID, ledgerID, id string)
 // through the raw CountSegments + readCount so a headers-only error reply (empty
 // body) maps to the real status rather than an internal error.
 func (f *segmentsFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	if err := requirePathIDs("Segments.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountSegments(ctx, orgID, ledgerID))
 }

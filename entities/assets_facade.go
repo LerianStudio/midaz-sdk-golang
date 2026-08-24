@@ -45,6 +45,10 @@ func newAssetsFacade(ledger *genledger.ClientWithResponses, enableIdempotency bo
 func (f *assetsFacade) List(ctx context.Context, orgID, ledgerID string, opts models.AssetsListOpts) (*models.ListResponse[models.Asset], error) {
 	const operation = "Assets.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -112,6 +116,10 @@ func (f *assetsFacade) All(ctx context.Context, orgID, ledgerID string, opts mod
 func (f *assetsFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
 	const operation = "Assets.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -130,6 +138,10 @@ func (f *assetsFacade) Create(ctx context.Context, orgID, ledgerID string, input
 func (f *assetsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.Asset, error) {
 	const operation = "Assets.Get"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetAssetByIDWithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -142,6 +154,10 @@ func (f *assetsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*mo
 // as Create.
 func (f *assetsFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAssetInput) (*models.Asset, error) {
 	const operation = "Assets.Update"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -162,6 +178,10 @@ func (f *assetsFacade) Update(ctx context.Context, orgID, ledgerID, id string, i
 func (f *assetsFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Assets.Delete"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
+	}
+
 	resp, err := f.ledger.DeleteAssetWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
@@ -179,6 +199,10 @@ func (f *assetsFacade) Delete(ctx context.Context, orgID, ledgerID, id string) e
 // through the raw CountAssets + readCount so a headers-only error reply (empty
 // body) maps to the real status rather than an internal error.
 func (f *assetsFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	if err := requirePathIDs("Assets.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountAssets(ctx, orgID, ledgerID))
 }

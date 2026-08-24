@@ -68,6 +68,10 @@ func newAssetRatesFacade(ledger *genledger.ClientWithResponses, enableIdempotenc
 func (f *assetRatesFacade) CreateOrUpdateAssetRate(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetRateInput) (*models.AssetRate, error) {
 	const operation = "AssetRates.CreateOrUpdateAssetRate"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -81,6 +85,10 @@ func (f *assetRatesFacade) CreateOrUpdateAssetRate(ctx context.Context, orgID, l
 func (f *assetRatesFacade) GetAssetRate(ctx context.Context, orgID, ledgerID, externalID string) (*models.AssetRate, error) {
 	const operation = "AssetRates.GetAssetRate"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "externalID", externalID); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetAssetRateByExternalIDWithResponse(ctx, orgID, ledgerID, externalID)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -93,6 +101,10 @@ func (f *assetRatesFacade) GetAssetRate(ctx context.Context, orgID, ledgerID, ex
 // source asset code under an org+ledger.
 func (f *assetRatesFacade) ListAssetRatesByAssetCode(ctx context.Context, orgID, ledgerID, assetCode string, opts models.AssetRatesListOpts) (*models.ListResponse[models.AssetRate], error) {
 	const operation = "AssetRates.ListAssetRatesByAssetCode"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "assetCode", assetCode); err != nil {
+		return nil, err
+	}
 
 	if err := opts.Validate(); err != nil {
 		return nil, err

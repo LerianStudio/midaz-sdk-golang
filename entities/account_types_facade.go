@@ -47,6 +47,10 @@ func newAccountTypesFacade(ledger *genledger.ClientWithResponses, enableIdempote
 func (f *accountTypesFacade) List(ctx context.Context, orgID, ledgerID string, opts models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error) {
 	const operation = "AccountTypes.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -113,6 +117,10 @@ func (f *accountTypesFacade) All(ctx context.Context, orgID, ledgerID string, op
 func (f *accountTypesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountTypeInput) (*models.AccountType, error) {
 	const operation = "AccountTypes.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -131,6 +139,10 @@ func (f *accountTypesFacade) Create(ctx context.Context, orgID, ledgerID string,
 func (f *accountTypesFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.AccountType, error) {
 	const operation = "AccountTypes.Get"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetAccountTypeByIDWithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -143,6 +155,10 @@ func (f *accountTypesFacade) Get(ctx context.Context, orgID, ledgerID, id string
 // pattern as Create.
 func (f *accountTypesFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountTypeInput) (*models.AccountType, error) {
 	const operation = "AccountTypes.Update"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -162,6 +178,10 @@ func (f *accountTypesFacade) Update(ctx context.Context, orgID, ledgerID, id str
 // 204 with no body on success.
 func (f *accountTypesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "AccountTypes.Delete"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
+	}
 
 	resp, err := f.ledger.DeleteAccountTypeWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {

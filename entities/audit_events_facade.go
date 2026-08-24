@@ -118,6 +118,10 @@ func (f *auditEventsFacade) ListAll(ctx context.Context, opts models.AuditEventR
 func (f *auditEventsFacade) Get(ctx context.Context, id string) (*models.AuditEventRecord, error) {
 	const operation = "AuditEvents.Get"
 
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.tracer.GetAuditEventWithResponse(ctx, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -132,6 +136,10 @@ func (f *auditEventsFacade) Get(ctx context.Context, id string) (*models.AuditEv
 // verdict — it performs NO crypto and never re-computes the chain.
 func (f *auditEventsFacade) Verify(ctx context.Context, id string) (*models.HashChainVerificationResult, error) {
 	const operation = "AuditEvents.Verify"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
 
 	resp, err := f.tracer.VerifyAuditEventWithResponse(ctx, id)
 	if err != nil {

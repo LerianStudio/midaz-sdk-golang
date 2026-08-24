@@ -73,6 +73,10 @@ func (f *metadataIndexesFacade) List(ctx context.Context, entityName string) ([]
 func (f *metadataIndexesFacade) Create(ctx context.Context, entityName string, input *models.CreateMetadataIndexInput) (*models.MetadataIndex, error) {
 	const operation = "MetadataIndexes.Create"
 
+	if err := requirePathIDs(operation, "entityName", entityName); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -91,6 +95,10 @@ func (f *metadataIndexesFacade) Create(ctx context.Context, entityName string, i
 // 204 with no body on success, so there is nothing to decode.
 func (f *metadataIndexesFacade) Delete(ctx context.Context, entityName, indexKey string) error {
 	const operation = "MetadataIndexes.Delete"
+
+	if err := requirePathIDs(operation, "entityName", entityName, "indexKey", indexKey); err != nil {
+		return err
+	}
 
 	resp, err := f.ledger.DeleteMetadataIndexWithResponse(ctx, entityName, indexKey, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {

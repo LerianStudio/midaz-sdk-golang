@@ -146,6 +146,10 @@ func (f *organizationsFacade) Create(ctx context.Context, input *models.CreateOr
 func (f *organizationsFacade) Get(ctx context.Context, id string) (*models.Organization, error) {
 	const operation = "Organizations.Get"
 
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetOrganizationByIDWithResponse(ctx, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -157,6 +161,10 @@ func (f *organizationsFacade) Get(ctx context.Context, id string) (*models.Organ
 // Update patches an organization by ID. Same write-facade pattern as Create.
 func (f *organizationsFacade) Update(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error) {
 	const operation = "Organizations.Update"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -177,6 +185,10 @@ func (f *organizationsFacade) Update(ctx context.Context, id string, input *mode
 // unified error.
 func (f *organizationsFacade) Delete(ctx context.Context, id string) error {
 	const operation = "Organizations.Delete"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return err
+	}
 
 	resp, err := f.ledger.DeleteOrganizationWithResponse(ctx, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {

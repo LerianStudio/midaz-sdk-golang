@@ -53,6 +53,10 @@ func newBalancesFacade(ledger *genledger.ClientWithResponses, enableIdempotency 
 func (f *balancesFacade) ListBalances(ctx context.Context, organizationID, ledgerID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	const operation = "Balances.ListBalances"
 
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -82,6 +86,10 @@ func (f *balancesFacade) ListBalancesAll(ctx context.Context, organizationID, le
 // entry per asset and balance key the account holds.
 func (f *balancesFacade) ListAccountBalances(ctx context.Context, organizationID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	const operation = "Balances.ListAccountBalances"
+
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -113,6 +121,10 @@ func (f *balancesFacade) ListAccountBalancesAll(ctx context.Context, organizatio
 func (f *balancesFacade) GetBalance(ctx context.Context, organizationID, ledgerID, balanceID string) (*models.Balance, error) {
 	const operation = "Balances.GetBalance"
 
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "balanceID", balanceID); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetBalanceByIDWithResponse(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -128,6 +140,10 @@ func (f *balancesFacade) GetBalance(ctx context.Context, organizationID, ledgerI
 // here rather than on the wire, because the server rejects it too.
 func (f *balancesFacade) GetBalanceHistory(ctx context.Context, organizationID, ledgerID, balanceID, date string) (*models.BalanceHistory, error) {
 	const operation = "Balances.GetBalanceHistory"
+
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "balanceID", balanceID); err != nil {
+		return nil, err
+	}
 
 	if err := validateBalanceHistoryDate(operation, date); err != nil {
 		return nil, err
@@ -147,6 +163,10 @@ func (f *balancesFacade) GetBalanceHistory(ctx context.Context, organizationID, 
 // date contract as GetBalanceHistory.
 func (f *balancesFacade) GetAccountBalancesHistory(ctx context.Context, organizationID, ledgerID, accountID, date string) ([]models.BalanceHistory, error) {
 	const operation = "Balances.GetAccountBalancesHistory"
+
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
 
 	if err := validateBalanceHistoryDate(operation, date); err != nil {
 		return nil, err
@@ -177,6 +197,10 @@ func (f *balancesFacade) GetAccountBalancesHistory(ctx context.Context, organiza
 func (f *balancesFacade) UpdateBalance(ctx context.Context, organizationID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error) {
 	const operation = "Balances.UpdateBalance"
 
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "balanceID", balanceID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -195,6 +219,10 @@ func (f *balancesFacade) UpdateBalance(ctx context.Context, organizationID, ledg
 func (f *balancesFacade) DeleteBalance(ctx context.Context, organizationID, ledgerID, balanceID string) error {
 	const operation = "Balances.DeleteBalance"
 
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "balanceID", balanceID); err != nil {
+		return err
+	}
+
 	resp, err := f.ledger.DeleteBalanceWithResponse(ctx, organizationID, ledgerID, balanceID, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
@@ -211,6 +239,10 @@ func (f *balancesFacade) DeleteBalance(ctx context.Context, organizationID, ledg
 // balances under different keys.
 func (f *balancesFacade) CreateBalance(ctx context.Context, organizationID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error) {
 	const operation = "Balances.CreateBalance"
+
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -236,6 +268,10 @@ func (f *balancesFacade) CreateBalance(ctx context.Context, organizationID, ledg
 // it is rejected instead.
 func (f *balancesFacade) ListBalancesByAccountAlias(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	const operation = "Balances.ListBalancesByAccountAlias"
+
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "alias", alias); err != nil {
+		return nil, err
+	}
 
 	if err := rejectUnsupportedBalanceListOpts(operation, opts); err != nil {
 		return nil, err
@@ -267,6 +303,10 @@ func (f *balancesFacade) ListBalancesByAccountAliasAll(ctx context.Context, orga
 // ListBalancesByAccountAlias.
 func (f *balancesFacade) ListBalancesByExternalCode(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	const operation = "Balances.ListBalancesByExternalCode"
+
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "code", code); err != nil {
+		return nil, err
+	}
 
 	if err := rejectUnsupportedBalanceListOpts(operation, opts); err != nil {
 		return nil, err

@@ -58,6 +58,10 @@ func newBillingPackagesFacade(ledger *genledger.ClientWithResponses, enableIdemp
 func (f *billingPackagesFacade) List(ctx context.Context, orgID, ledgerID string, opts models.BillingPackagesListOpts) (*models.ListResponse[models.BillingPackage], error) {
 	const operation = "BillingPackages.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -132,6 +136,10 @@ func (f *billingPackagesFacade) ListAll(ctx context.Context, orgID, ledgerID str
 func (f *billingPackagesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateBillingPackageInput) (*models.BillingPackage, error) {
 	const operation = "BillingPackages.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	payload := input
 
 	if input != nil {
@@ -156,6 +164,10 @@ func (f *billingPackagesFacade) Create(ctx context.Context, orgID, ledgerID stri
 func (f *billingPackagesFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.BillingPackage, error) {
 	const operation = "BillingPackages.Get"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetBillingPackageByIDV2WithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -168,6 +180,10 @@ func (f *billingPackagesFacade) Get(ctx context.Context, orgID, ledgerID, id str
 // pattern as Create; UpdateBillingPackageInput.MarshalJSON omits unset fields.
 func (f *billingPackagesFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateBillingPackageInput) (*models.BillingPackage, error) {
 	const operation = "BillingPackages.Update"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -183,6 +199,10 @@ func (f *billingPackagesFacade) Update(ctx context.Context, orgID, ledgerID, id 
 // unified error.
 func (f *billingPackagesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "BillingPackages.Delete"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
+	}
 
 	resp, err := f.ledger.DeleteBillingPackageV2WithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {

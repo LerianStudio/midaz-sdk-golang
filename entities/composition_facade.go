@@ -61,6 +61,10 @@ func newCompositionFacade(ledger *genledger.ClientWithResponses, enableIdempoten
 func (f *compositionFacade) CreateHolderAccount(ctx context.Context, orgID, ledgerID, holderID string, input *models.CreateHolderAccountInput) (*models.HolderAccountResponse, error) {
 	const operation = "Composition.CreateHolderAccount"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "holderID", holderID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}

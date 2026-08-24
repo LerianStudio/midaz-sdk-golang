@@ -53,6 +53,10 @@ func newFeePackagesFacade(ledger *genledger.ClientWithResponses, enableIdempoten
 func (f *feePackagesFacade) List(ctx context.Context, orgID, ledgerID string, opts models.PackagesListOpts) (*models.ListResponse[models.FeePackage], error) {
 	const operation = "FeePackages.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -124,6 +128,10 @@ func (f *feePackagesFacade) All(ctx context.Context, orgID, ledgerID string, opt
 func (f *feePackagesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreatePackageInput) (*models.FeePackage, error) {
 	const operation = "FeePackages.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	payload := input
 
 	if input != nil {
@@ -148,6 +156,10 @@ func (f *feePackagesFacade) Create(ctx context.Context, orgID, ledgerID string, 
 func (f *feePackagesFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.FeePackage, error) {
 	const operation = "FeePackages.Get"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetPackageByIDV2WithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -160,6 +172,10 @@ func (f *feePackagesFacade) Get(ctx context.Context, orgID, ledgerID, id string)
 // pattern as Create; UpdatePackageInput.MarshalJSON omits unset fields.
 func (f *feePackagesFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdatePackageInput) (*models.FeePackage, error) {
 	const operation = "FeePackages.Update"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -175,6 +191,10 @@ func (f *feePackagesFacade) Update(ctx context.Context, orgID, ledgerID, id stri
 // unified error.
 func (f *feePackagesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "FeePackages.Delete"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
+	}
 
 	resp, err := f.ledger.DeletePackageV2WithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {

@@ -59,6 +59,10 @@ func newTransactionRoutesFacade(ledger *genledger.ClientWithResponses, enableIde
 func (f *transactionRoutesFacade) List(ctx context.Context, orgID, ledgerID string, opts models.TransactionRoutesListOpts) (*models.ListResponse[models.TransactionRoute], error) {
 	const operation = "TransactionRoutes.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -128,6 +132,10 @@ func (f *transactionRoutesFacade) All(ctx context.Context, orgID, ledgerID strin
 func (f *transactionRoutesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 	const operation = "TransactionRoutes.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -140,6 +148,10 @@ func (f *transactionRoutesFacade) Create(ctx context.Context, orgID, ledgerID st
 // Get retrieves one transaction route by ID under an org+ledger.
 func (f *transactionRoutesFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.TransactionRoute, error) {
 	const operation = "TransactionRoutes.Get"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
 
 	resp, err := f.ledger.GetTransactionRouteByIDWithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
@@ -154,6 +166,10 @@ func (f *transactionRoutesFacade) Get(ctx context.Context, orgID, ledgerID, id s
 func (f *transactionRoutesFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error) {
 	const operation = "TransactionRoutes.Update"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -167,6 +183,10 @@ func (f *transactionRoutesFacade) Update(ctx context.Context, orgID, ledgerID, i
 // returns 204 with no body on success.
 func (f *transactionRoutesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "TransactionRoutes.Delete"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
+	}
 
 	resp, err := f.ledger.DeleteTransactionRouteWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {

@@ -66,6 +66,10 @@ func newInstrumentsFacade(ledger *genledger.ClientWithResponses, enableIdempoten
 func (f *instrumentsFacade) List(ctx context.Context, orgID, holderID string, opts models.InstrumentsListOpts) (*models.ListResponse[models.Instrument], error) {
 	const operation = "Instruments.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -136,6 +140,10 @@ func (f *instrumentsFacade) ListAll(ctx context.Context, orgID, holderID string,
 func (f *instrumentsFacade) Create(ctx context.Context, orgID, holderID string, input *models.CreateInstrumentInput) (*models.Instrument, error) {
 	const operation = "Instruments.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -149,6 +157,10 @@ func (f *instrumentsFacade) Create(ctx context.Context, orgID, holderID string, 
 // with sdkctx.WithIncludeDeleted, soft-deleted instruments are included.
 func (f *instrumentsFacade) Get(ctx context.Context, orgID, holderID, id string) (*models.Instrument, error) {
 	const operation = "Instruments.Get"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID, "id", id); err != nil {
+		return nil, err
+	}
 
 	params := &genledger.GetInstrumentByIDV2Params{}
 	if sdkctx.IncludeDeletedFromContext(ctx) {
@@ -168,6 +180,10 @@ func (f *instrumentsFacade) Get(ctx context.Context, orgID, holderID, id string)
 func (f *instrumentsFacade) Update(ctx context.Context, orgID, holderID, id string, input *models.UpdateInstrumentInput) (*models.Instrument, error) {
 	const operation = "Instruments.Update"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID, "id", id); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -182,6 +198,10 @@ func (f *instrumentsFacade) Update(ctx context.Context, orgID, holderID, id stri
 // server returns 204 with no body on success.
 func (f *instrumentsFacade) Delete(ctx context.Context, orgID, holderID, id string) error {
 	const operation = "Instruments.Delete"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID, "id", id); err != nil {
+		return err
+	}
 
 	params := &genledger.DeleteInstrumentV2Params{}
 	if sdkctx.HardDeleteFromContext(ctx) {
@@ -205,6 +225,10 @@ func (f *instrumentsFacade) Delete(ctx context.Context, orgID, holderID, id stri
 // server returns 204 with no body on success.
 func (f *instrumentsFacade) DeleteRelatedParty(ctx context.Context, orgID, holderID, instrumentID, relatedPartyID string) error {
 	const operation = "Instruments.DeleteRelatedParty"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID, "instrumentID", instrumentID, "relatedPartyID", relatedPartyID); err != nil {
+		return err
+	}
 
 	resp, err := f.ledger.DeleteRelatedPartyV2WithResponse(ctx, orgID, holderID, instrumentID, relatedPartyID, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
@@ -231,6 +255,10 @@ func (f *instrumentsFacade) ListAccountsByHolder(ctx context.Context, orgID, hol
 // opts is never mutated.
 func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts, cursor string) (*models.ListResponse[models.Account], error) {
 	const operation = "Instruments.ListAccountsByHolder"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID); err != nil {
+		return nil, err
+	}
 
 	if err := opts.Validate(); err != nil {
 		return nil, err

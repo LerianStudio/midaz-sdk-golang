@@ -104,6 +104,10 @@ const jsonContentType = "application/json"
 func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateJSON"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -122,6 +126,10 @@ func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID str
 // json.Marshal(input), which the input's MarshalJSON routes through ToMap().
 func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateInflow"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -142,6 +150,10 @@ func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID s
 func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateOutflow"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -161,6 +173,10 @@ func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID 
 // ToLibTransaction().
 func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateAnnotation"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -183,6 +199,10 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Commit"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
+
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CommitTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
@@ -198,6 +218,10 @@ func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transa
 // Success is HTTP 201; same non-auto-idempotent action semantics as Commit.
 func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Revert"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
 
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.RevertTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
@@ -215,6 +239,10 @@ func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transa
 // status-bearing value — parity with the legacy CancelTransactionWithResponse.
 func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Cancel"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
 
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CancelTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
@@ -265,6 +293,10 @@ func actionIdempotencyEditors(ctx context.Context) []genledger.RequestEditorFn {
 func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error) {
 	const operation = "Transactions.UpdateTransaction"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -282,6 +314,10 @@ func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledge
 func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error) {
 	const operation = "Transactions.UpdateOperation"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID, "operationID", operationID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -297,6 +333,10 @@ func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerI
 // on 200), so the generated type never enters the public path.
 func (f *transactionsFacade) Get(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Get"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
 
 	resp, err := f.ledger.GetTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
 	if err != nil {
@@ -314,6 +354,10 @@ func (f *transactionsFacade) Get(ctx context.Context, orgID, ledgerID, transacti
 // slot, so they ride as query-param request editors rather than being dropped.
 func (f *transactionsFacade) List(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
 	const operation = "Transactions.List"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -394,6 +438,10 @@ func (f *transactionsFacade) All(ctx context.Context, orgID, ledgerID string, op
 // directly (DecodeProblemJSON handles the empty body), so the true status
 // surfaces.
 func (f *transactionsFacade) Count(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (int, error) {
+	if err := requirePathIDs("Transactions.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return 0, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return 0, err
 	}

@@ -58,6 +58,10 @@ func (f *validationsFacade) Evaluate(ctx context.Context, input *models.Validate
 func (f *validationsFacade) Get(ctx context.Context, id string) (*models.TransactionValidation, error) {
 	const operation = "Validations.Get"
 
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.tracer.GetValidationWithResponse(ctx, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)

@@ -62,6 +62,10 @@ func newHoldersFacade(ledger *genledger.ClientWithResponses, enableIdempotency b
 func (f *holdersFacade) List(ctx context.Context, orgID string, opts models.HoldersListOpts) (*models.ListResponse[models.Holder], error) {
 	const operation = "Holders.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -132,6 +136,10 @@ func (f *holdersFacade) All(ctx context.Context, orgID string, opts models.Holde
 func (f *holdersFacade) Create(ctx context.Context, orgID string, input *models.CreateHolderInput) (*models.Holder, error) {
 	const operation = "Holders.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -146,6 +154,10 @@ func (f *holdersFacade) Create(ctx context.Context, orgID string, input *models.
 // (mirrors legacy holders.go).
 func (f *holdersFacade) Get(ctx context.Context, orgID, id string) (*models.Holder, error) {
 	const operation = "Holders.Get"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
+	}
 
 	params := &genledger.GetHolderByIDV2Params{}
 	if sdkctx.IncludeDeletedFromContext(ctx) {
@@ -165,6 +177,10 @@ func (f *holdersFacade) Get(ctx context.Context, orgID, id string) (*models.Hold
 func (f *holdersFacade) Update(ctx context.Context, orgID, id string, input *models.UpdateHolderInput) (*models.Holder, error) {
 	const operation = "Holders.Update"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -179,6 +195,10 @@ func (f *holdersFacade) Update(ctx context.Context, orgID, id string, input *mod
 // permanent. The server returns 204 with no body on success.
 func (f *holdersFacade) Delete(ctx context.Context, orgID, id string) error {
 	const operation = "Holders.Delete"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return err
+	}
 
 	params := &genledger.DeleteHolderV2Params{}
 	if sdkctx.HardDeleteFromContext(ctx) {

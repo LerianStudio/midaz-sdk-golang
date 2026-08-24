@@ -40,6 +40,10 @@ func newPortfoliosFacade(ledger *genledger.ClientWithResponses, enableIdempotenc
 func (f *portfoliosFacade) List(ctx context.Context, orgID, ledgerID string, opts models.PortfoliosListOpts) (*models.ListResponse[models.Portfolio], error) {
 	const operation = "Portfolios.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -105,6 +109,10 @@ func (f *portfoliosFacade) All(ctx context.Context, orgID, ledgerID string, opts
 func (f *portfoliosFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 	const operation = "Portfolios.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -123,6 +131,10 @@ func (f *portfoliosFacade) Create(ctx context.Context, orgID, ledgerID string, i
 func (f *portfoliosFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.Portfolio, error) {
 	const operation = "Portfolios.Get"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetPortfolioByIDWithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -135,6 +147,10 @@ func (f *portfoliosFacade) Get(ctx context.Context, orgID, ledgerID, id string) 
 // pattern as Create.
 func (f *portfoliosFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdatePortfolioInput) (*models.Portfolio, error) {
 	const operation = "Portfolios.Update"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -155,6 +171,10 @@ func (f *portfoliosFacade) Update(ctx context.Context, orgID, ledgerID, id strin
 func (f *portfoliosFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Portfolios.Delete"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
+	}
+
 	resp, err := f.ledger.DeletePortfolioWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
@@ -172,6 +192,10 @@ func (f *portfoliosFacade) Delete(ctx context.Context, orgID, ledgerID, id strin
 // through the raw CountPortfolios + readCount so a headers-only error reply
 // (empty body) maps to the real status rather than an internal error.
 func (f *portfoliosFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	if err := requirePathIDs("Portfolios.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountPortfolios(ctx, orgID, ledgerID))
 }

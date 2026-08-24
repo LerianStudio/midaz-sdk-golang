@@ -52,6 +52,10 @@ func newOperationsFacade(ledger *genledger.ClientWithResponses, enableIdempotenc
 func (f *operationsFacade) ListOperations(ctx context.Context, organizationID, ledgerID, accountID string, opts models.OperationsListOpts) (*models.ListResponse[models.Operation], error) {
 	const operation = "Operations.ListOperations"
 
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -122,6 +126,10 @@ func (f *operationsFacade) ListOperationsAll(ctx context.Context, organizationID
 func (f *operationsFacade) GetOperation(ctx context.Context, organizationID, ledgerID, accountID, operationID string) (*models.Operation, error) {
 	const operation = "Operations.GetOperation"
 
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "accountID", accountID, "operationID", operationID); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetOperationByAccountWithResponse(ctx, organizationID, ledgerID, accountID, operationID)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -135,6 +143,10 @@ func (f *operationsFacade) GetOperation(ctx context.Context, organizationID, led
 // accounts an operation records are immutable by design.
 func (f *operationsFacade) UpdateTransactionOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error) {
 	const operation = "Operations.UpdateTransactionOperation"
+
+	if err := requirePathIDs(operation, "organizationID", organizationID, "ledgerID", ledgerID, "transactionID", transactionID, "operationID", operationID); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err

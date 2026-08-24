@@ -42,6 +42,10 @@ func newLedgersFacade(ledger *genledger.ClientWithResponses, enableIdempotency b
 func (f *ledgersFacade) List(ctx context.Context, orgID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 	const operation = "Ledgers.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -107,6 +111,10 @@ func (f *ledgersFacade) All(ctx context.Context, orgID string, opts models.Ledge
 func (f *ledgersFacade) Create(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 	const operation = "Ledgers.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -126,6 +134,10 @@ func (f *ledgersFacade) Create(ctx context.Context, orgID string, input *models.
 func (f *ledgersFacade) Get(ctx context.Context, orgID, id string) (*models.Ledger, error) {
 	const operation = "Ledgers.Get"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetLedgerByIDWithResponse(ctx, orgID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -138,6 +150,10 @@ func (f *ledgersFacade) Get(ctx context.Context, orgID, id string) (*models.Ledg
 // pattern as Create.
 func (f *ledgersFacade) Update(ctx context.Context, orgID, id string, input *models.UpdateLedgerInput) (*models.Ledger, error) {
 	const operation = "Ledgers.Update"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -158,6 +174,10 @@ func (f *ledgersFacade) Update(ctx context.Context, orgID, id string, input *mod
 func (f *ledgersFacade) Delete(ctx context.Context, orgID, id string) error {
 	const operation = "Ledgers.Delete"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return err
+	}
+
 	resp, err := f.ledger.DeleteLedgerWithResponse(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
@@ -175,6 +195,10 @@ func (f *ledgersFacade) Delete(ctx context.Context, orgID, id string) error {
 func (f *ledgersFacade) GetSettings(ctx context.Context, orgID, id string) (*models.LedgerSettings, error) {
 	const operation = "Ledgers.GetSettings"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetLedgerSettingsWithResponse(ctx, orgID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -189,6 +213,10 @@ func (f *ledgersFacade) GetSettings(ctx context.Context, orgID, id string) (*mod
 // after a 401.
 func (f *ledgersFacade) UpdateSettings(ctx context.Context, orgID, id string, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
 	const operation = "Ledgers.UpdateSettings"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -209,6 +237,10 @@ func (f *ledgersFacade) UpdateSettings(ctx context.Context, orgID, id string, in
 // through the raw CountLedgers + readCount so a headers-only error reply (empty
 // body) maps to the real status rather than an internal error.
 func (f *ledgersFacade) Count(ctx context.Context, orgID string) (int, error) {
+	if err := requirePathIDs("Ledgers.Count", "orgID", orgID); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountLedgers(ctx, orgID))
 }

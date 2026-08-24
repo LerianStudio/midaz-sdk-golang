@@ -48,6 +48,10 @@ func newAuditFacade(ledger *genledger.ClientWithResponses) *auditFacade {
 func (f *auditFacade) ListAuditEvents(ctx context.Context, orgID string, opts models.AuditEventsListOpts) (*models.ListResponse[models.AuditEvent], error) {
 	const operation = "Audit.ListAuditEvents"
 
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}

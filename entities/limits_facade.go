@@ -55,6 +55,10 @@ func (f *limitsFacade) Create(ctx context.Context, input *models.CreateLimitInpu
 func (f *limitsFacade) Get(ctx context.Context, id string) (*models.Limit, error) {
 	const operation = "Limits.Get"
 
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.tracer.GetLimitWithResponse(ctx, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -67,6 +71,10 @@ func (f *limitsFacade) Get(ctx context.Context, id string) (*models.Limit, error
 // and structurally absent from UpdateLimitInput, so the body never carries them.
 func (f *limitsFacade) Update(ctx context.Context, id string, input *models.UpdateLimitInput) (*models.Limit, error) {
 	const operation = "Limits.Update"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -81,6 +89,10 @@ func (f *limitsFacade) Update(ctx context.Context, id string, input *models.Upda
 // nothing to decode — only a non-2xx maps into the unified error.
 func (f *limitsFacade) Delete(ctx context.Context, id string) error {
 	const operation = "Limits.Delete"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return err
+	}
 
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.tracer.DeleteLimit(ctx, id, idempotencyEditorsTracer(ctx, f.enableIdempotency)...))
@@ -115,6 +127,10 @@ func (f *limitsFacade) Draft(ctx context.Context, id string) (*models.Limit, err
 func (f *limitsFacade) GetUsage(ctx context.Context, id string) (*models.UsageSnapshot, error) {
 	const operation = "Limits.GetUsage"
 
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.tracer.GetLimitUsageWithResponse(ctx, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -128,6 +144,10 @@ func (f *limitsFacade) GetUsage(ctx context.Context, id string) (*models.UsageSn
 // decodes into models.Limit. Lifecycle transitions are actions (autoGen=false):
 // no auto-gen key, but a caller-supplied ctx/explicit key still rides.
 func limitTransition(ctx context.Context, operation string, call func(context.Context, string, ...gentracer.RequestEditorFn) (*http.Response, error), id string) (*models.Limit, error) {
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(call(ctx, id, idempotencyEditorsTracer(ctx, false)...))
 	if err != nil {

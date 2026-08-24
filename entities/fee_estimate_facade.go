@@ -52,6 +52,10 @@ func newFeeEstimateFacade(ledger *genledger.ClientWithResponses) *feeEstimateFac
 func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID, ledgerID string, input *models.FeeEstimateInput) (*models.FeeEstimateResponse, error) {
 	const operation = "FeeEstimate.EstimateFee"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	payload := input
 
 	if input != nil {

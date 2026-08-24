@@ -47,6 +47,10 @@ func newAccountsFacade(ledger *genledger.ClientWithResponses, enableIdempotency 
 func (f *accountsFacade) List(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
 	const operation = "Accounts.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -114,6 +118,10 @@ func (f *accountsFacade) All(ctx context.Context, orgID, ledgerID string, opts m
 func (f *accountsFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
 	const operation = "Accounts.Create"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
@@ -132,6 +140,10 @@ func (f *accountsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 func (f *accountsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
 	const operation = "Accounts.Get"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetAccountByIDWithResponse(ctx, orgID, ledgerID, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -146,6 +158,10 @@ func (f *accountsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*
 func (f *accountsFacade) GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
 	const operation = "Accounts.GetByAlias"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "alias", alias); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.ledger.GetAccountByAliasWithResponse(ctx, orgID, ledgerID, alias)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -158,6 +174,10 @@ func (f *accountsFacade) GetByAlias(ctx context.Context, orgID, ledgerID, alias 
 // pattern as Create.
 func (f *accountsFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {
 	const operation = "Accounts.Update"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -179,6 +199,10 @@ func (f *accountsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 func (f *accountsFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Accounts.Delete"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
+	}
+
 	resp, err := f.ledger.DeleteAccountWithResponse(ctx, orgID, ledgerID, id, &genledger.DeleteAccountParams{}, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
@@ -196,6 +220,10 @@ func (f *accountsFacade) Delete(ctx context.Context, orgID, ledgerID, id string)
 // Pages advances by echoing the response next_cursor back into the request.
 func (f *accountsFacade) ListBalances(ctx context.Context, orgID, ledgerID, accountID string, opts models.CursorListOpts) (*models.ListResponse[models.Balance], error) {
 	const operation = "Accounts.ListBalances"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
 
 	if err := models.ValidateCursorListOpts(operation, opts); err != nil {
 		return nil, err
@@ -265,6 +293,10 @@ func (f *accountsFacade) ListBalancesAll(ctx context.Context, orgID, ledgerID, a
 func (f *accountsFacade) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts models.AccountOperationsListOpts) (*models.ListResponse[models.Operation], error) {
 	const operation = "Accounts.ListOperations"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -331,6 +363,10 @@ func (f *accountsFacade) ListOperationsAll(ctx context.Context, orgID, ledgerID,
 func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerID, accountID, timestamp string) ([]models.BalanceHistory, error) {
 	const operation = "Accounts.BalancesAtTimestamp"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
+
 	params := &genledger.GetAccountBalancesAtTimestampParams{}
 	if timestamp != "" {
 		params.Date = strPtr(timestamp)
@@ -358,6 +394,10 @@ func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerI
 // through the raw CountAccounts + readCount so a headers-only error reply (empty
 // body) maps to the real status rather than an internal error.
 func (f *accountsFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	if err := requirePathIDs("Accounts.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountAccounts(ctx, orgID, ledgerID))
 }

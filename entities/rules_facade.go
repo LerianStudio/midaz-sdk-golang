@@ -55,6 +55,10 @@ func (f *rulesFacade) Create(ctx context.Context, input *models.CreateRuleInput)
 func (f *rulesFacade) Get(ctx context.Context, id string) (*models.Rule, error) {
 	const operation = "Rules.Get"
 
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	resp, err := f.tracer.GetRuleWithResponse(ctx, id)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -66,6 +70,10 @@ func (f *rulesFacade) Get(ctx context.Context, id string) (*models.Rule, error) 
 // Update patches a rule by ID (PATCH, 200).
 func (f *rulesFacade) Update(ctx context.Context, id string, input *models.UpdateRuleInput) (*models.Rule, error) {
 	const operation = "Rules.Update"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
 
 	if err := input.Validate(); err != nil {
 		return nil, err
@@ -80,6 +88,10 @@ func (f *rulesFacade) Update(ctx context.Context, id string, input *models.Updat
 // nothing to decode — only a non-2xx maps into the unified error.
 func (f *rulesFacade) Delete(ctx context.Context, id string) error {
 	const operation = "Rules.Delete"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return err
+	}
 
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.tracer.DeleteRule(ctx, id, idempotencyEditorsTracer(ctx, f.enableIdempotency)...))
@@ -114,6 +126,10 @@ func (f *rulesFacade) Draft(ctx context.Context, id string) (*models.Rule, error
 // decodes into models.Rule. Lifecycle transitions are actions (autoGen=false):
 // no auto-gen key, but a caller-supplied ctx/explicit key still rides.
 func ruleTransition(ctx context.Context, operation string, call func(context.Context, string, ...gentracer.RequestEditorFn) (*http.Response, error), id string) (*models.Rule, error) {
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(call(ctx, id, idempotencyEditorsTracer(ctx, false)...))
 	if err != nil {

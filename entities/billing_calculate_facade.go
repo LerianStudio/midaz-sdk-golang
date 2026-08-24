@@ -52,6 +52,10 @@ func newBillingCalculateFacade(ledger *genledger.ClientWithResponses) *billingCa
 func (f *billingCalculateFacade) CalculateBilling(ctx context.Context, orgID, ledgerID string, input *models.BillingCalculateInput) (*models.BillingCalculateResponse, error) {
 	const operation = "BillingCalculate.CalculateBilling"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	payload := input
 
 	if input != nil {
