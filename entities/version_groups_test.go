@@ -143,45 +143,7 @@ func TestVersionGroups_MembershipMatchesServerSurface(t *testing.T) {
 // re-adding an account's balance read to V2.Accounts fails here whatever it is
 // called.
 func TestV2HasOneSpellingPerEndpoint(t *testing.T) {
-	fset := token.NewFileSet()
-
-	// operation -> the V2 facade types that reach it.
-	owners := map[string]map[string]bool{}
-
-	for _, file := range parseGoFiles(t, fset, ".") {
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				continue
-			}
-
-			owner, ok := v2FacadeReceiver(fn)
-			if !ok {
-				continue
-			}
-
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				sel, ok := n.(*ast.SelectorExpr)
-				if !ok {
-					return true
-				}
-
-				op, ok := generatedOperation(sel.Sel.Name)
-				if !ok || !strings.HasSuffix(op, "V2") {
-					return true
-				}
-
-				if owners[op] == nil {
-					owners[op] = map[string]bool{}
-				}
-
-				owners[op][owner] = true
-
-				return true
-			})
-		}
-	}
-
+	owners := v2EndpointOwners(t)
 	require.NotEmpty(t, owners, "found no V2 operations reached by a V2 facade; the scan is broken, not the code")
 
 	var doubled []string
@@ -200,6 +162,53 @@ func TestV2HasOneSpellingPerEndpoint(t *testing.T) {
 		strings.Join(doubled, "\n  "))
 
 	t.Logf("one spelling each across %d V2 operations", len(owners))
+}
+
+// v2EndpointOwners maps each generated V2 operation to the V2 facade types whose
+// methods reach it.
+func v2EndpointOwners(t *testing.T) map[string]map[string]bool {
+	t.Helper()
+
+	owners := map[string]map[string]bool{}
+	fset := token.NewFileSet()
+
+	for _, file := range parseGoFiles(t, fset, ".") {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+
+			if owner, ok := v2FacadeReceiver(fn); ok {
+				recordV2Operations(fn, owner, owners)
+			}
+		}
+	}
+
+	return owners
+}
+
+// recordV2Operations credits one facade method with every V2 operation it names.
+func recordV2Operations(fn *ast.FuncDecl, owner string, owners map[string]map[string]bool) {
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		op, ok := generatedOperation(sel.Sel.Name)
+		if !ok || !strings.HasSuffix(op, "V2") {
+			return true
+		}
+
+		if owners[op] == nil {
+			owners[op] = map[string]bool{}
+		}
+
+		owners[op][owner] = true
+
+		return true
+	})
 }
 
 // v2FacadeReceiver returns the V2 facade type a method hangs off, if it is one.

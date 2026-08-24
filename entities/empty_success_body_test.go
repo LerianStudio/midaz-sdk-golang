@@ -67,14 +67,13 @@ func TestEmptySuccessBodyIsRefused(t *testing.T) {
 	calls := []struct {
 		name   string
 		status int
-		call   func(*testing.T, *httptest.Server) error
+		call   func(v1 *transactionsFacade, v2 *transactionsV2Facade) error
 	}{
 		{
 			name:   "V1.Transactions.CreateJSON",
 			status: http.StatusCreated,
-			call: func(t *testing.T, srv *httptest.Server) error {
-				_, err := newTestTransactionsFacade(t, srv).
-					CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+			call: func(v1 *transactionsFacade, _ *transactionsV2Facade) error {
+				_, err := v1.CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
 
 				return err
 			},
@@ -82,8 +81,8 @@ func TestEmptySuccessBodyIsRefused(t *testing.T) {
 		{
 			name:   "V1.Transactions.Commit",
 			status: http.StatusCreated,
-			call: func(t *testing.T, srv *httptest.Server) error {
-				_, err := newTestTransactionsFacade(t, srv).Commit(ctx, txOrgID, txLedgerID, txID)
+			call: func(v1 *transactionsFacade, _ *transactionsV2Facade) error {
+				_, err := v1.Commit(ctx, txOrgID, txLedgerID, txID)
 
 				return err
 			},
@@ -91,8 +90,8 @@ func TestEmptySuccessBodyIsRefused(t *testing.T) {
 		{
 			name:   "V1.Transactions.Get",
 			status: http.StatusOK,
-			call: func(t *testing.T, srv *httptest.Server) error {
-				_, err := newTestTransactionsFacade(t, srv).Get(ctx, txOrgID, txLedgerID, txID)
+			call: func(v1 *transactionsFacade, _ *transactionsV2Facade) error {
+				_, err := v1.Get(ctx, txOrgID, txLedgerID, txID)
 
 				return err
 			},
@@ -100,9 +99,8 @@ func TestEmptySuccessBodyIsRefused(t *testing.T) {
 		{
 			name:   "V2.Transactions.CreateDirect",
 			status: http.StatusCreated,
-			call: func(t *testing.T, srv *httptest.Server) error {
-				_, err := newTestTransactionsV2Facade(t, srv).
-					CreateDirect(ctx, txOrgID, txLedgerID, sampleV2Input())
+			call: func(_ *transactionsFacade, v2 *transactionsV2Facade) error {
+				_, err := v2.CreateDirect(ctx, txOrgID, txLedgerID, sampleV2Input())
 
 				return err
 			},
@@ -110,8 +108,8 @@ func TestEmptySuccessBodyIsRefused(t *testing.T) {
 		{
 			name:   "V2.Transactions.Revert",
 			status: http.StatusCreated,
-			call: func(t *testing.T, srv *httptest.Server) error {
-				_, err := newTestTransactionsV2Facade(t, srv).Revert(ctx, txOrgID, txLedgerID, txID)
+			call: func(_ *transactionsFacade, v2 *transactionsV2Facade) error {
+				_, err := v2.Revert(ctx, txOrgID, txLedgerID, txID)
 
 				return err
 			},
@@ -119,8 +117,8 @@ func TestEmptySuccessBodyIsRefused(t *testing.T) {
 		{
 			name:   "V2.Transactions.Get",
 			status: http.StatusOK,
-			call: func(t *testing.T, srv *httptest.Server) error {
-				_, err := newTestTransactionsV2Facade(t, srv).Get(ctx, txOrgID, txLedgerID, txID)
+			call: func(_ *transactionsFacade, v2 *transactionsV2Facade) error {
+				_, err := v2.Get(ctx, txOrgID, txLedgerID, txID)
 
 				return err
 			},
@@ -131,7 +129,9 @@ func TestEmptySuccessBodyIsRefused(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			for _, shape := range emptySuccessBodies {
 				t.Run(shape.name, func(t *testing.T) {
-					err := c.call(t, emptyBodyServer(t, c.status, shape.body))
+					srv := emptyBodyServer(t, c.status, shape.body)
+
+					err := c.call(newTestTransactionsFacade(t, srv), newTestTransactionsV2Facade(t, srv))
 					if err == nil {
 						t.Fatalf("a %d carrying %q must not read as a successful %s",
 							c.status, shape.body, c.name)
