@@ -265,18 +265,6 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 		return nil, err
 	}
 
-	if strings.TrimSpace(normalizedBaseURLs["transaction"]) == "" {
-		normalizedBaseURLs["transaction"] = normalizedBaseURLs["onboarding"]
-	}
-
-	if strings.TrimSpace(normalizedBaseURLs["crm"]) == "" {
-		normalizedBaseURLs["crm"] = normalizedBaseURLs["onboarding"]
-	}
-
-	if strings.TrimSpace(normalizedBaseURLs["tracer"]) == "" {
-		normalizedBaseURLs["tracer"] = normalizedBaseURLs["onboarding"]
-	}
-
 	entity := &Entity{
 		httpClient:        httpClient,
 		baseURLs:          normalizedBaseURLs,
