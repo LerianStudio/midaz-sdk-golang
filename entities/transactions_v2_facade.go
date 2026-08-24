@@ -488,6 +488,15 @@ func (f *transactionsV2Facade) Cancel(ctx context.Context, orgID, ledgerID, tran
 // Count returns the number of transactions matching the count-endpoint filters.
 // Only status, route and the date range are honoured there; cursor, limit and
 // sort do not apply to a count.
+//
+// THE DEFAULT WINDOW IS TODAY, NOT THE WHOLE LEDGER. The SDK omits the dates
+// when opts leaves them unset, and the server then fills them in with the
+// current UTC day: buildCountFilter defaults an absent start_date to today at
+// 00:00:00 and an absent end_date to today at 23:59:59.999999999
+// (count_transactions_by_filters.go:63-65 and 75-77). So Count with a zero
+// TransactionsListOpts answers "how many transactions today", which a caller
+// reading it as the ledger total will misread — and the number looks plausible.
+// Set StartDate and EndDate to count any other span.
 func (f *transactionsV2Facade) Count(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (int, error) {
 	if err := requirePathIDs("V2.Transactions.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
 		return 0, err

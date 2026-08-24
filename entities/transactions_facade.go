@@ -498,6 +498,15 @@ func (f *transactionsFacade) All(ctx context.Context, orgID, ledgerID string, op
 // is needed. A missing/blank/non-integer/negative header is an error, never a
 // silent zero.
 //
+// THE DEFAULT WINDOW IS TODAY, NOT THE WHOLE LEDGER. The SDK omits the dates
+// when opts leaves them unset, and the server then fills them in with the
+// current UTC day: buildCountFilter defaults an absent start_date to today at
+// 00:00:00 and an absent end_date to today at 23:59:59.999999999
+// (count_transactions_by_filters.go:63-65 and 75-77). So Count with a zero
+// TransactionsListOpts answers "how many transactions today", which a caller
+// reading it as the ledger total will misread — and the number looks plausible.
+// Set StartDate and EndDate to count any other span.
+//
 // It calls the LOWER-LEVEL raw CountTransactionsByFilters (returning the raw
 // *http.Response) rather than the generated WithResponse variant on purpose: a
 // HEAD count is a headers-only reply, so an error status arrives with a JSON

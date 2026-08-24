@@ -46,7 +46,10 @@ type TransactionsListOpts struct {
 //     transaction_v2_mirror_handler.go:148 both call handler.getAllTransactions.
 //   - Count, BOTH surfaces: Status and Route, plus the date range
 //     (countTransactionsByFilters declares both filters). Count with NO date
-//     range counts TODAY only — see the Count methods.
+//     range counts TODAY only, not the whole ledger: the server defaults an
+//     absent start_date to today 00:00:00 UTC and an absent end_date to today
+//     23:59:59 UTC (count_transactions_by_filters.go:63-65 and 75-77). Set
+//     StartDate and EndDate to count any other span.
 //
 // Narrow client-side, carry the identifier in metadata, or use Count for Status
 // and Route, rather than relying on the refused fields here.
