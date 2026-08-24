@@ -196,16 +196,10 @@ func (f *feePackagesFacade) Delete(ctx context.Context, orgID, ledgerID, id stri
 		return err
 	}
 
-	resp, err := f.ledger.DeletePackageV2WithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeletePackageV2(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // listPackagesParams renders the typed opts into the generated params. Every

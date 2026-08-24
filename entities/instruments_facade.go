@@ -214,16 +214,10 @@ func (f *instrumentsFacade) Delete(ctx context.Context, orgID, holderID, id stri
 		params.HardDelete = strPtr("true")
 	}
 
-	resp, err := f.ledger.DeleteInstrumentV2WithResponse(ctx, orgID, holderID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteInstrumentV2(ctx, orgID, holderID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // DeleteRelatedParty removes one related party from an instrument via
@@ -236,16 +230,10 @@ func (f *instrumentsFacade) DeleteRelatedParty(ctx context.Context, orgID, holde
 		return err
 	}
 
-	resp, err := f.ledger.DeleteRelatedPartyV2WithResponse(ctx, orgID, holderID, instrumentID, relatedPartyID, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteRelatedPartyV2(ctx, orgID, holderID, instrumentID, relatedPartyID, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // ListAccountsByHolder retrieves one cursor page of accounts owned by a holder

@@ -182,16 +182,10 @@ func (f *operationRoutesFacade) Delete(ctx context.Context, orgID, ledgerID, id 
 		return err
 	}
 
-	resp, err := f.ledger.DeleteOperationRouteWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteOperationRoute(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // listOperationRoutesParams renders the cursor/sort/date fields that have a slot

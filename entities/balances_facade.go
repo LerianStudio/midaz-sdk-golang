@@ -223,16 +223,10 @@ func (f *balancesFacade) DeleteBalance(ctx context.Context, organizationID, ledg
 		return err
 	}
 
-	resp, err := f.ledger.DeleteBalanceWithResponse(ctx, organizationID, ledgerID, balanceID, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteBalance(ctx, organizationID, ledgerID, balanceID, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // CreateBalance adds a balance to an account, letting one account hold several

@@ -178,16 +178,10 @@ func (f *ledgersFacade) Delete(ctx context.Context, orgID, id string) error {
 		return err
 	}
 
-	resp, err := f.ledger.DeleteLedgerWithResponse(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteLedger(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // GetSettings retrieves the tri-block settings for a ledger (accounting,

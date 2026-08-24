@@ -205,16 +205,10 @@ func (f *holdersFacade) Delete(ctx context.Context, orgID, id string) error {
 		params.HardDelete = strPtr("true")
 	}
 
-	resp, err := f.ledger.DeleteHolderV2WithResponse(ctx, orgID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteHolderV2(ctx, orgID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // listHoldersParams renders the fields that have a slot in the generated

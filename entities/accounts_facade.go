@@ -203,16 +203,10 @@ func (f *accountsFacade) Delete(ctx context.Context, orgID, ledgerID, id string)
 		return err
 	}
 
-	resp, err := f.ledger.DeleteAccountWithResponse(ctx, orgID, ledgerID, id, &genledger.DeleteAccountParams{}, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteAccount(ctx, orgID, ledgerID, id, &genledger.DeleteAccountParams{}, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // ListBalances retrieves one cursor page of an account's balances. This

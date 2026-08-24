@@ -100,14 +100,8 @@ func (f *metadataIndexesFacade) Delete(ctx context.Context, entityName, indexKey
 		return err
 	}
 
-	resp, err := f.ledger.DeleteMetadataIndexWithResponse(ctx, entityName, indexKey, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteMetadataIndex(ctx, entityName, indexKey, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	return nil
+	return deleteResource(operation, resp, err)
 }
