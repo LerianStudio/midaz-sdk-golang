@@ -201,6 +201,8 @@ var listReads = []struct {
 	{
 		name: "V1.Transactions.List",
 		call: func(t *testing.T, srv *httptest.Server) error {
+			t.Helper()
+
 			_, err := newTestTransactionsFacade(t, srv).
 				List(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{})
 
@@ -210,6 +212,8 @@ var listReads = []struct {
 	{
 		name: "V1.Accounts.List",
 		call: func(t *testing.T, srv *httptest.Server) error {
+			t.Helper()
+
 			_, err := newTestAccountsFacade(t, srv).
 				List(context.Background(), txOrgID, txLedgerID, models.AccountsListOpts{})
 
@@ -219,6 +223,8 @@ var listReads = []struct {
 	{
 		name: "V1.Balances.ListBalances",
 		call: func(t *testing.T, srv *httptest.Server) error {
+			t.Helper()
+
 			_, err := newBalancesFacade(newTestLedgerClient(t, srv), true).
 				ListBalances(context.Background(), txOrgID, txLedgerID, models.BalancesListOpts{})
 
@@ -228,12 +234,28 @@ var listReads = []struct {
 	{
 		name: "V2.Transactions.List",
 		call: func(t *testing.T, srv *httptest.Server) error {
+			t.Helper()
+
 			_, err := newTestTransactionsV2Facade(t, srv).
 				List(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{})
 
 			return err
 		},
 	},
+}
+
+// assertEmptyPageRefused runs one list read against one no-page body shape.
+func assertEmptyPageRefused(t *testing.T, call func(*testing.T, *httptest.Server) error, body string) {
+	t.Helper()
+
+	err := call(t, emptyBodyServer(t, http.StatusOK, body))
+	if err == nil {
+		t.Fatalf("a 200 carrying %q must not read as an empty page", body)
+	}
+
+	if !sdkerrors.IsResponseDecodeError(err) {
+		t.Fatalf("want a response-decode error, got %v", err)
+	}
 }
 
 // TestEmptySuccessBodyIsRefusedOnAList is the same defect one shape over, and on
@@ -250,13 +272,7 @@ func TestEmptySuccessBodyIsRefusedOnAList(t *testing.T) {
 		t.Run(read.name, func(t *testing.T) {
 			for _, shape := range emptySuccessBodies {
 				t.Run(shape.name, func(t *testing.T) {
-					srv := emptyBodyServer(t, http.StatusOK, shape.body)
-
-					if err := read.call(t, srv); err == nil {
-						t.Fatalf("a 200 carrying %q must not read as an empty page", shape.body)
-					} else if !sdkerrors.IsResponseDecodeError(err) {
-						t.Fatalf("want a response-decode error, got %v", err)
-					}
+					assertEmptyPageRefused(t, read.call, shape.body)
 				})
 			}
 

@@ -15,39 +15,121 @@ import (
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
-// listFilterSurfaces are the two transaction list surfaces, which must behave
-// identically here because they are ONE server function: transaction_handler.go
-// :500 and transaction_v2_mirror_handler.go:148 both call
-// handler.getAllTransactions with the raw query values. Anything that holds for
-// one and not the other would be an SDK-invented difference.
-var listFilterSurfaces = []struct {
-	name string
-	list func(t *testing.T, srv *httptest.Server, opts models.TransactionsListOpts) error
-	//nolint:unparam // both surfaces return the count; the v1 row would read as broken without it.
+// listFilterSurface is one of the two transaction list surfaces.
+type listFilterSurface struct {
+	name  string
+	list  func(t *testing.T, srv *httptest.Server, opts models.TransactionsListOpts) error
 	count func(t *testing.T, srv *httptest.Server, opts models.TransactionsListOpts) (int, error)
-}{
+}
+
+// listFilterSurfaces must behave identically here because they are ONE server
+// function: transaction_handler.go:500 and transaction_v2_mirror_handler.go:148
+// both call handler.getAllTransactions with the raw query values. Anything that
+// holds for one and not the other would be an SDK-invented difference.
+var listFilterSurfaces = []listFilterSurface{
 	{
 		name: "V1",
 		list: func(t *testing.T, srv *httptest.Server, opts models.TransactionsListOpts) error {
+			t.Helper()
+
 			_, err := newTestTransactionsFacade(t, srv).List(context.Background(), txOrgID, txLedgerID, opts)
 
 			return err
 		},
 		count: func(t *testing.T, srv *httptest.Server, opts models.TransactionsListOpts) (int, error) {
+			t.Helper()
+
 			return newTestTransactionsFacade(t, srv).Count(context.Background(), txOrgID, txLedgerID, opts)
 		},
 	},
 	{
 		name: "V2",
 		list: func(t *testing.T, srv *httptest.Server, opts models.TransactionsListOpts) error {
+			t.Helper()
+
 			_, err := newTestTransactionsV2Facade(t, srv).List(context.Background(), txOrgID, txLedgerID, opts)
 
 			return err
 		},
 		count: func(t *testing.T, srv *httptest.Server, opts models.TransactionsListOpts) (int, error) {
+			t.Helper()
+
 			return newTestTransactionsV2Facade(t, srv).Count(context.Background(), txOrgID, txLedgerID, opts)
 		},
 	},
+}
+
+// undeclaredFilterCases are the six filters neither list narrows by, plus the
+// whitespace spellings that used to slip the refusal.
+var undeclaredFilterCases = []struct {
+	name string
+	set  func(*models.TransactionsFilters)
+	want string
+}{
+	{"asset code", func(f *models.TransactionsFilters) { f.AssetCode = "USD" }, "AssetCode"},
+	{"status", func(f *models.TransactionsFilters) { f.Status = "APPROVED" }, "Status"},
+	{"reference", func(f *models.TransactionsFilters) { f.Reference = "ref-1" }, "Reference"},
+	{"source account", func(f *models.TransactionsFilters) { f.SourceAccount = "@src" }, "SourceAccount"},
+	{"destination account", func(f *models.TransactionsFilters) { f.DestinationAccount = "@dst" }, "DestinationAccount"},
+	{"route", func(f *models.TransactionsFilters) { f.Route = "route-1" }, "Route"},
+	// A value that is only whitespace is still a value the caller SET. It
+	// slipped both nets: the refusal trimmed before testing, so it was not
+	// named, and no editor emitted it either — leaving the same silent full
+	// result set at a nonsense input.
+	{"whitespace-only status", func(f *models.TransactionsFilters) { f.Status = "   " }, "Status"},
+	{"whitespace-only route", func(f *models.TransactionsFilters) { f.Route = "\t\n" }, "Route"},
+}
+
+// pageServer answers any list request with an empty page and records whether it
+// was reached at all.
+func pageServer(t *testing.T, reached *bool, query *url.Values) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if reached != nil {
+			*reached = true
+		}
+
+		if query != nil {
+			*query = r.URL.Query()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// assertFilterRefused runs one undeclared filter against one surface.
+func assertFilterRefused(t *testing.T, surface listFilterSurface, set func(*models.TransactionsFilters), want string) {
+	t.Helper()
+
+	var reached bool
+
+	srv := pageServer(t, &reached, nil)
+
+	var opts models.TransactionsListOpts
+	set(&opts.Filters)
+
+	err := surface.list(t, srv, opts)
+	if err == nil {
+		t.Fatal("a filter the list cannot express must be refused, not sent and ignored")
+	}
+
+	if !sdkerrors.IsValidationError(err) {
+		t.Fatalf("want a validation error, got %v", err)
+	}
+
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("the refusal must name %s so the caller knows what to remove, got %v", want, err)
+	}
+
+	if reached {
+		t.Fatal("the request must not leave the SDK")
+	}
 }
 
 // TestTransactionListRefusesUndeclaredFilters pins the money-data silence the
@@ -66,58 +148,11 @@ var listFilterSurfaces = []struct {
 // the caller's intent still exists; the server cannot report a filter it never
 // declared.
 func TestTransactionListRefusesUndeclaredFilters(t *testing.T) {
-	tests := []struct {
-		name string
-		set  func(*models.TransactionsFilters)
-		want string
-	}{
-		{"asset code", func(f *models.TransactionsFilters) { f.AssetCode = "USD" }, "AssetCode"},
-		{"status", func(f *models.TransactionsFilters) { f.Status = "APPROVED" }, "Status"},
-		{"reference", func(f *models.TransactionsFilters) { f.Reference = "ref-1" }, "Reference"},
-		{"source account", func(f *models.TransactionsFilters) { f.SourceAccount = "@src" }, "SourceAccount"},
-		{"destination account", func(f *models.TransactionsFilters) { f.DestinationAccount = "@dst" }, "DestinationAccount"},
-		{"route", func(f *models.TransactionsFilters) { f.Route = "route-1" }, "Route"},
-		// A value that is only whitespace is still a value the caller SET. It
-		// slipped both nets: the refusal trimmed before testing, so it was not
-		// named, and no editor emitted it either — leaving the same silent full
-		// result set at a nonsense input.
-		{"whitespace-only status", func(f *models.TransactionsFilters) { f.Status = "   " }, "Status"},
-		{"whitespace-only route", func(f *models.TransactionsFilters) { f.Route = "\t\n" }, "Route"},
-	}
-
 	for _, surface := range listFilterSurfaces {
 		t.Run(surface.name, func(t *testing.T) {
-			for _, tt := range tests {
+			for _, tt := range undeclaredFilterCases {
 				t.Run(tt.name, func(t *testing.T) {
-					var reached bool
-
-					srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						reached = true
-
-						w.Header().Set("Content-Type", "application/json")
-						_, _ = w.Write([]byte(`{"items":[]}`))
-					}))
-					defer srv.Close()
-
-					var opts models.TransactionsListOpts
-					tt.set(&opts.Filters)
-
-					err := surface.list(t, srv, opts)
-					if err == nil {
-						t.Fatal("a filter the list cannot express must be refused, not sent and ignored")
-					}
-
-					if !sdkerrors.IsValidationError(err) {
-						t.Fatalf("want a validation error, got %v", err)
-					}
-
-					if !strings.Contains(err.Error(), tt.want) {
-						t.Fatalf("the refusal must name %s so the caller knows what to remove, got %v", tt.want, err)
-					}
-
-					if reached {
-						t.Fatal("the request must not leave the SDK")
-					}
+					assertFilterRefused(t, surface, tt.set, tt.want)
 				})
 			}
 		})
@@ -129,17 +164,11 @@ func TestTransactionListRefusesUndeclaredFilters(t *testing.T) {
 func TestTransactionListNamesEveryUndeclaredFilter(t *testing.T) {
 	for _, surface := range listFilterSurfaces {
 		t.Run(surface.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"items":[]}`))
-			}))
-			defer srv.Close()
-
 			opts := models.TransactionsListOpts{Filters: models.TransactionsFilters{
 				Status: "APPROVED", Route: "route-1", AssetCode: "USD",
 			}}
 
-			err := surface.list(t, srv, opts)
+			err := surface.list(t, pageServer(t, nil, nil), opts)
 			if err == nil {
 				t.Fatal("expected a refusal")
 			}
@@ -153,6 +182,20 @@ func TestTransactionListNamesEveryUndeclaredFilter(t *testing.T) {
 	}
 }
 
+// expressibleQuery is what a transaction list can still narrow by, and deadQuery
+// is what the refusal must have removed from the wire entirely.
+var (
+	expressibleQuery = map[string]string{
+		"metadata.orderId": "abc-123",
+		"limit":            "25",
+		"cursor":           "CUR",
+		"sort_order":       "desc",
+		"start_date":       "2025-01-01",
+		"end_date":         "2025-02-01",
+	}
+	deadQuery = []string{"asset_code", "status", "reference", "source_account", "destination_account", "route"}
+)
+
 // TestTransactionListSendsWhatItCanExpress is the other half: a guard that
 // refused everything would also pass the tests above. The metadata predicate,
 // the date range and the paging fields must still reach the wire — on both
@@ -163,14 +206,6 @@ func TestTransactionListSendsWhatItCanExpress(t *testing.T) {
 		t.Run(surface.name, func(t *testing.T) {
 			var got url.Values
 
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				got = r.URL.Query()
-
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"items":[]}`))
-			}))
-			defer srv.Close()
-
 			opts := models.TransactionsListOpts{Filters: models.TransactionsFilters{
 				MetadataKey: "orderId", MetadataValue: "abc-123",
 			}}
@@ -180,31 +215,31 @@ func TestTransactionListSendsWhatItCanExpress(t *testing.T) {
 			opts.StartDate = "2025-01-01"
 			opts.EndDate = "2025-02-01"
 
-			if err := surface.list(t, srv, opts); err != nil {
+			if err := surface.list(t, pageServer(t, nil, &got), opts); err != nil {
 				t.Fatalf("an expressible query must not be refused: %v", err)
 			}
 
-			for key, want := range map[string]string{
-				"metadata.orderId": "abc-123",
-				"limit":            "25",
-				"cursor":           "CUR",
-				"sort_order":       "desc",
-				"start_date":       "2025-01-01",
-				"end_date":         "2025-02-01",
-			} {
-				if got.Get(key) != want {
-					t.Errorf("%s = %q, want %q", key, got.Get(key), want)
-				}
-			}
-
-			// The six deleted editors must be gone from the wire, not merely
-			// unnamed in the refusal.
-			for _, dead := range []string{"asset_code", "status", "reference", "source_account", "destination_account", "route"} {
-				if got.Has(dead) {
-					t.Errorf("%s must no longer reach the wire; it never narrowed anything", dead)
-				}
-			}
+			assertQuery(t, got)
 		})
+	}
+}
+
+// assertQuery checks both halves of the wire contract in one place.
+func assertQuery(t *testing.T, got url.Values) {
+	t.Helper()
+
+	for key, want := range expressibleQuery {
+		if got.Get(key) != want {
+			t.Errorf("%s = %q, want %q", key, got.Get(key), want)
+		}
+	}
+
+	// The six deleted editors must be gone from the wire, not merely unnamed in
+	// the refusal.
+	for _, dead := range deadQuery {
+		if got.Has(dead) {
+			t.Errorf("%s must no longer reach the wire; it never narrowed anything", dead)
+		}
 	}
 }
 
