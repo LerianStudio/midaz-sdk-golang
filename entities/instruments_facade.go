@@ -66,6 +66,12 @@ func newInstrumentsFacade(ledger *genledger.ClientWithResponses, enableIdempoten
 func (f *instrumentsFacade) List(ctx context.Context, orgID, holderID string, opts models.InstrumentsListOpts) (*models.ListResponse[models.Instrument], error) {
 	const operation = "Instruments.List"
 
+	// holderID is the one QUERY parameter this helper guards, and that is
+	// deliberate rather than an oversight. It is what scopes the list to a
+	// single holder, so an empty one does not 400 — it drops out of the query
+	// string and widens the request to every instrument in the organization.
+	// The caller asked for one holder's instruments and would page through the
+	// whole tenant instead, so it is refused here alongside the path ids.
 	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID); err != nil {
 		return nil, err
 	}
