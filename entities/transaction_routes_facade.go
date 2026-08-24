@@ -136,7 +136,7 @@ func (f *transactionRoutesFacade) Create(ctx context.Context, orgID, ledgerID st
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -170,7 +170,7 @@ func (f *transactionRoutesFacade) Update(ctx context.Context, orgID, ledgerID, i
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

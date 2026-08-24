@@ -72,7 +72,7 @@ func (f *assetRatesFacade) CreateOrUpdateAssetRate(ctx context.Context, orgID, l
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

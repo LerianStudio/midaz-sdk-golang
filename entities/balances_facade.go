@@ -201,7 +201,7 @@ func (f *balancesFacade) UpdateBalance(ctx context.Context, organizationID, ledg
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -244,7 +244,7 @@ func (f *balancesFacade) CreateBalance(ctx context.Context, organizationID, ledg
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

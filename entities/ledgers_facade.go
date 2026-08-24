@@ -115,7 +115,7 @@ func (f *ledgersFacade) Create(ctx context.Context, orgID string, input *models.
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -155,7 +155,7 @@ func (f *ledgersFacade) Update(ctx context.Context, orgID, id string, input *mod
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -218,7 +218,7 @@ func (f *ledgersFacade) UpdateSettings(ctx context.Context, orgID, id string, in
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

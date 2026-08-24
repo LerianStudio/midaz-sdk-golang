@@ -42,7 +42,7 @@ func newLimitsFacade(tracer *gentracer.ClientWithResponses, enableIdempotency bo
 func (f *limitsFacade) Create(ctx context.Context, input *models.CreateLimitInput) (*models.Limit, error) {
 	const operation = "Limits.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -76,7 +76,7 @@ func (f *limitsFacade) Update(ctx context.Context, id string, input *models.Upda
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

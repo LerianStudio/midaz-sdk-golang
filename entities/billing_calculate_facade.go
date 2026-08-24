@@ -67,7 +67,7 @@ func (f *billingCalculateFacade) CalculateBilling(ctx context.Context, orgID, le
 		payload = &reconciled
 	}
 
-	if err := payload.Validate(); err != nil {
+	if err := validationErr(operation, payload.Validate()); err != nil {
 		return nil, err
 	}
 

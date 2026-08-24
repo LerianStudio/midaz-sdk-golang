@@ -143,7 +143,7 @@ func (f *feePackagesFacade) Create(ctx context.Context, orgID, ledgerID string, 
 		payload = &reconciled
 	}
 
-	if err := payload.Validate(); err != nil {
+	if err := validationErr(operation, payload.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -177,7 +177,7 @@ func (f *feePackagesFacade) Update(ctx context.Context, orgID, ledgerID, id stri
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

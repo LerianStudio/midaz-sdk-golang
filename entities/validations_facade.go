@@ -45,7 +45,7 @@ func newValidationsFacade(tracer *gentracer.ClientWithResponses) *validationsFac
 func (f *validationsFacade) Evaluate(ctx context.Context, input *models.ValidateTransactionInput) (*models.ValidationResponse, error) {
 	const operation = "Validations.Evaluate"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

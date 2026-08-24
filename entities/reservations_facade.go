@@ -41,7 +41,7 @@ func newReservationsFacade(tracer *gentracer.ClientWithResponses) *reservationsF
 func (f *reservationsFacade) Reserve(ctx context.Context, input *models.ReserveInput) (*models.ReserveResponse, error) {
 	const operation = "Reservations.Reserve"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"iter"
@@ -126,7 +127,7 @@ func (f *organizationsFacade) All(ctx context.Context, opts models.Organizations
 func (f *organizationsFacade) Create(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
 	const operation = "Organizations.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -166,7 +167,7 @@ func (f *organizationsFacade) Update(ctx context.Context, id string, input *mode
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -301,6 +302,34 @@ func reconcileBodyLedgerID(operation, pathLedgerID string, bodyLedgerID *string)
 	}
 
 	return nil
+}
+
+// validationErr normalizes a model's own Validate() failure into the SDK's
+// typed validation error. Every facade routes its input check through here, so
+// the classification is decided in one place rather than by whichever model
+// happened to be involved.
+//
+// Callers branch on [errors.IsValidationError] to separate "the payload you
+// sent is wrong" from "the ledger refused it": the first is fixable locally and
+// must not be retried unchanged, the second may be retryable. Models return
+// plain errors (validation.FieldErrors, errors.New(...)), so handing those
+// straight back left part of the write surface classified as neither — and on a
+// write path an unclassified failure is exactly the one a caller retries,
+// against a request that never left.
+//
+// An error that is already an *errors.Error passes through untouched, so a more
+// specific category is never flattened into "validation".
+func validationErr(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var sdkErr *errors.Error
+	if stderrors.As(err, &sdkErr) {
+		return err
+	}
+
+	return errors.NewValidationError(operation, "invalid input", err)
 }
 
 // writeJSON is the shared write path for the facade layer (the money-path

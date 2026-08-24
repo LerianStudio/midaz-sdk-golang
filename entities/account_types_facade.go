@@ -121,7 +121,7 @@ func (f *accountTypesFacade) Create(ctx context.Context, orgID, ledgerID string,
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -160,7 +160,7 @@ func (f *accountTypesFacade) Update(ctx context.Context, orgID, ledgerID, id str
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

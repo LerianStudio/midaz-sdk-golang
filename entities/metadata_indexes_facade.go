@@ -77,7 +77,7 @@ func (f *metadataIndexesFacade) Create(ctx context.Context, entityName string, i
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

@@ -140,7 +140,7 @@ func (f *holdersFacade) Create(ctx context.Context, orgID string, input *models.
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -181,7 +181,7 @@ func (f *holdersFacade) Update(ctx context.Context, orgID, id string, input *mod
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

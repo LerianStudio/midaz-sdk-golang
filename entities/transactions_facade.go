@@ -108,7 +108,7 @@ func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID str
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -131,7 +131,7 @@ func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID s
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -154,7 +154,7 @@ func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID 
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -178,7 +178,7 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -297,7 +297,7 @@ func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledge
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -318,7 +318,7 @@ func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerI
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

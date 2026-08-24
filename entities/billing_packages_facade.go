@@ -151,7 +151,7 @@ func (f *billingPackagesFacade) Create(ctx context.Context, orgID, ledgerID stri
 		payload = &reconciled
 	}
 
-	if err := payload.Validate(); err != nil {
+	if err := validationErr(operation, payload.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -185,7 +185,7 @@ func (f *billingPackagesFacade) Update(ctx context.Context, orgID, ledgerID, id 
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

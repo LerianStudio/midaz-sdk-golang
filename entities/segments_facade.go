@@ -117,7 +117,7 @@ func (f *segmentsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +156,7 @@ func (f *segmentsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

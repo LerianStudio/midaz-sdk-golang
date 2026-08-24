@@ -42,7 +42,7 @@ func newRulesFacade(tracer *gentracer.ClientWithResponses, enableIdempotency boo
 func (f *rulesFacade) Create(ctx context.Context, input *models.CreateRuleInput) (*models.Rule, error) {
 	const operation = "Rules.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -75,7 +75,7 @@ func (f *rulesFacade) Update(ctx context.Context, id string, input *models.Updat
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 

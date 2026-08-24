@@ -144,7 +144,7 @@ func (f *instrumentsFacade) Create(ctx context.Context, orgID, holderID string, 
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -184,7 +184,7 @@ func (f *instrumentsFacade) Update(ctx context.Context, orgID, holderID, id stri
 		return nil, err
 	}
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
