@@ -819,7 +819,7 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 //		return ..., <err>
 //	}
 //
-// The previous version of this function pinned two of that shape's four parts —
+// An earlier version of this function pinned two of that shape's four parts —
 // the initialiser and the presence of a return — and left the CONDITION and the
 // RETURNED VALUE unspecified. Three deformations walked straight through the
 // gap, each keeping the accepted initialiser and an accepted return:
@@ -837,19 +837,33 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 // a nil error for a rejected id, the silent-zero defect wearing a guard's
 // clothes.
 //
-// The lesson, and it is the method note of the round that added it: the
-// complement of a shape is only closed when EVERY part of the shape is pinned.
-// Accepting exactly one form means specifying all of it — initialiser,
-// condition, body, and what flows out through the return.
+// # Naming a part is not constraining it
 //
-// So all four now hold, and a guard is credited only when they do:
+// The round that pinned the condition also NAMED the body — "the Body returns
+// directly" — and then wrote a matcher that looked for A return among the body's
+// statements and let anything precede it. Three more deformations kept the
+// initialiser, the condition and a qualifying return, and put a rejected id
+// either on the wire or past the caller with a nil error; they are set out on
+// returnsOnlyIdent, which is where that part is now actually constrained.
+//
+// So the lesson has two halves. The complement of a shape is only closed when
+// EVERY part of the shape is pinned — and a part is pinned only when a
+// deformation violating THAT PART ALONE is refused. The method that proves it is
+// mechanical: after writing an N-part matcher, write N single-part deformations,
+// one per part, each violating exactly one, and confirm each is flagged. Round 3
+// probed the condition three ways and the return's results once, and never
+// probed the body in isolation, so the body read as closed because the parts
+// around it were.
+//
+// The four parts, and a guard is credited only when all four hold:
 //
 //  1. the Init binds exactly one identifier to a DIRECT call to the guard —
 //     `err := requirePathIDs(...)`, not `err := wrap(requirePathIDs(...))`,
 //     whose result says nothing about the guard's verdict;
 //  2. the Cond is exactly `<that identifier> != nil` — nothing AND-ed or OR-ed
 //     onto it, no other operator, no other operand;
-//  3. the Body returns directly, and
+//  3. the Body is EXACTLY ONE statement and that statement is a return, so
+//     nothing runs between the rejection and the return; and
 //  4. that return carries the guard's own error among its results.
 //
 // Everything else drops out without being named. `_ = requirePathIDs(...)`,
@@ -860,12 +874,12 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 // not a statement of the function body at all, which is where guardedValues
 // looks.
 //
-// The return must be a direct statement of the body, and must carry the bare
+// The return must be the body's ONLY statement, and must carry the bare
 // identifier. Both are stricter than the language requires, and both stay strict
-// on purpose: every one of the 202 live sites is the flat spelling returning the
-// bare err (161 `return nil, err`, 29 `return err`, 12 `return 0, err`, counted
-// against the live tree before this rule landed), so strictness costs nothing
-// today. Loosening "returns the error" to "returns something mentioning the
+// on purpose: every one of the 202 live sites is the flat one-statement spelling
+// returning the bare err (161 `return nil, err`, 29 `return err`, 12
+// `return 0, err`, counted against the live tree before each rule landed), so
+// strictness costs nothing today. Loosening "returns the error" to "returns something mentioning the
 // error" is the same loosening that would accept orgID + "/../" on the argument
 // side. A facade that genuinely needs to wrap the guard's error is the one
 // deliberate false positive this adds; see the accepted-strictness list above.
@@ -876,7 +890,7 @@ func guardCallActedOn(stmt ast.Stmt, name string) (*ast.CallExpr, bool) {
 	}
 
 	errName, call, ok := guardAssignment(ifStmt.Init, name)
-	if !ok || !comparesNotNil(ifStmt.Cond, errName) || !returnsIdent(ifStmt.Body, errName) {
+	if !ok || !comparesNotNil(ifStmt.Cond, errName) || !returnsOnlyIdent(ifStmt.Body, errName) {
 		return nil, false
 	}
 
@@ -920,23 +934,49 @@ func comparesNotNil(cond ast.Expr, errName string) bool {
 		(isIdent(binary.Y, errName) && isIdent(binary.X, "nil"))
 }
 
-// returnsIdent reports whether a block's own statements include a return that
-// carries the identifier errName among its results.
-func returnsIdent(body *ast.BlockStmt, errName string) bool {
-	if body == nil {
+// returnsOnlyIdent reports whether a block is EXACTLY one statement, that
+// statement is a return, and that return carries the identifier errName among
+// its results.
+//
+// # Why the statement COUNT is part of the shape
+//
+// The previous version looked for A return among the body's statements and let
+// anything precede it. That is the difference between naming a part of the shape
+// and constraining it, and three deformations walked through the gap while
+// keeping the initialiser, the condition and a qualifying return intact:
+//
+//	if err := requirePathIDs(op, ...); err != nil { err = nil; return nil, err }
+//	if err := requirePathIDs(op, ...); err != nil { var err error; return nil, err }
+//	if err := requirePathIDs(op, ...); err != nil {
+//		bad, badErr := f.tracer.DeleteRule(ctx, id)  // the REJECTED id, on the wire
+//		_, _ = bad, badErr
+//		return nil, err
+//	}
+//
+// The first two hand the caller (nil, nil) for a REJECTED id — the silent-zero
+// defect wearing a guard's clothes, the same one rule 4 closed for the return's
+// own results, re-entered one statement earlier. The third is worse: the guard
+// returns the honest validation error, and DELETE /v1/rules/{id} has already
+// left with id=".." — the scope escalation two Epic-2 rounds were spent closing,
+// now reachable from INSIDE the guard that exists to prevent it.
+//
+// A guard body is one statement in the live tree — all 202 of them, counted
+// before this rule landed — so refusing everything else costs nothing. Anything
+// a facade genuinely needs to do on a rejected id (log it, count it) belongs
+// after the guard rejects, not between the rejection and the return.
+func returnsOnlyIdent(body *ast.BlockStmt, errName string) bool {
+	if body == nil || len(body.List) != 1 {
 		return false
 	}
 
-	for _, stmt := range body.List {
-		ret, ok := stmt.(*ast.ReturnStmt)
-		if !ok {
-			continue
-		}
+	ret, ok := body.List[0].(*ast.ReturnStmt)
+	if !ok {
+		return false
+	}
 
-		for _, result := range ret.Results {
-			if isIdent(result, errName) {
-				return true
-			}
+	for _, result := range ret.Results {
+		if isIdent(result, errName) {
+			return true
 		}
 	}
 
