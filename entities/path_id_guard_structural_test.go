@@ -63,55 +63,74 @@ var transitionHelpers = map[string]bool{
 // must have named orgID to the guard. Guarding a different variable, or none,
 // fails.
 //
-// # Why PLACEMENT, and not identity alone
+// # Why PLACEMENT and EFFECT, and not identity alone
 //
-// Comparing expressions is still not enough by itself. A review wrote five
+// Comparing expressions is still not enough by itself. Successive reviews wrote
 // compiling facades that sent id=".." to the wire with a nil error and passed
-// the identity check anyway, because the check collected requirePathIDs
-// arguments from the whole function body as source text: no ordering, no
-// reachability. Three of the five are closed here, by requiring the guard to sit
-// at statement depth 1 of the function body, to run unconditionally, and to
-// appear BEFORE the statement carrying the generated call:
+// the identity check anyway, because the check asked where the guard's NAME
+// appeared and never what the guard did. Each of these is closed, and each was
+// re-run against the scan before and after:
 //
 //   - the guard placed AFTER the generated call, which validates a request that
-//     has already left;
-//   - the guard nested inside an if, so the path it guards has a way around it;
+//     has already left — closed by requiring the guard to precede the call;
+//   - the guard nested inside an if, so the path it guards has a way around it —
+//     closed by requiring statement depth 1 and unconditional execution;
 //   - the generated call hoisted into a local first (get := f.ledger.GetX),
 //     which made the call target a plain identifier, dropped the direct-call
-//     count to zero and fell through to the weaker branch below. That is the
-//     same hoist that defeated the sibling delete-seam scan in Epic 3 and was
-//     closed there by matching the operation rather than the call shape;
-//     directPathCalls now follows the binding.
+//     count to zero and fell through to the weakest branch. That is the same
+//     hoist that defeated the sibling delete-seam scan in Epic 3 and was closed
+//     there by matching the operation rather than the call shape; directPathCalls
+//     now follows the binding;
+//   - the vacuous requirePathIDs(operation) naming no pairs, which returns nil on
+//     an empty list — closed by requiring real pairs on every branch that credits;
+//   - the DEFANGED guard, which runs, names every pair, and discards the verdict
+//     (`if err := requirePathIDs(...); err != nil { _ = err }`, `_ = require...`,
+//     `err := require...` never checked, `defer require...`) — closed by
+//     guardCallsActedOn, which accepts one spelling: the guard in an if's
+//     initialiser whose body returns;
+//   - the TOKEN guard at a delegation site, naming a value that never becomes a
+//     path segment while the id that does is forwarded to a helper outside
+//     transitionHelpers — closed by creditForwardedOperation, which applies at
+//     the call site the rule helperGuardsWhatItForwards applies inside a helper.
 //
 // # Known ceiling, and it is deliberate
 //
-// Two of the five escapes are NOT closed, and faking them with heuristics would
-// be worse than saying so:
+// Three things remain out of reach, and faking them with heuristics would be
+// worse than saying so:
 //
 //   - a guarded variable REASSIGNED between the guard and the call —
 //     requirePathIDs(op, "id", id), then id = "..", then f.ledger.GetX(ctx, id);
 //   - an inner scope SHADOWING a guarded name, so the identifier the call
-//     forwards is a different variable wearing the same spelling.
+//     forwards is a different variable wearing the same spelling;
+//   - REFLECTION — a client method resolved by name at runtime, which is
+//     invisible to AST matching. This is the ceiling all three structural scans
+//     in this package share; nothing here does it, and none of the three pretends
+//     to cover it.
 //
-// Both are invisible to a scan that compares source text, and closing either one
-// honestly needs type-checked SSA: resolving every identifier to its definition
-// and proving no assignment reaches the call. That is a different tool, not a
-// stricter match. They are recorded here as out of scope and known, in the same
-// register as the reflection ceiling all three structural scans in this package
-// share — a client method resolved by name at runtime is invisible to AST
-// matching, nothing in this package does that, and none of the three pretends to
-// cover it.
+// The first two are invisible to a scan that compares source text, and closing
+// either one honestly needs type-checked SSA: resolving every identifier to its
+// definition and proving no assignment reaches the call. That is a different
+// tool, not a stricter match.
 //
 // # Accepted strictness, so nobody "fixes" it
 //
-// Because the comparison is on source text, a DERIVED value is refused even when
-// the derivation is harmless: guarding orgID and forwarding
-// strings.ToLower(orgID) is reported as unguarded. That is a false positive and
-// it stays. The only way to accept it is to loosen the match until an expression
-// MENTIONING a guarded name counts, and that same loosening accepts
-// orgID + "/../" — which is precisely the input two fix rounds were spent
-// rejecting. A facade that needs to normalise an id should assign the normalised
-// value to a name, guard that name, and forward that name.
+// Two false positives are deliberate, and both are the price of a match that
+// cannot be talked into accepting a hostile input:
+//
+//   - A DERIVED value is refused even when the derivation is harmless: guarding
+//     orgID and forwarding strings.ToLower(orgID) is reported as unguarded. The
+//     only way to accept it is to loosen the match until an expression MENTIONING
+//     a guarded name counts, and that same loosening accepts orgID + "/../" —
+//     precisely the input two fix rounds were spent rejecting. A facade that
+//     needs to normalise an id should assign the normalised value to a name,
+//     guard that name, and forward that name.
+//   - A guard placed after a generated call that sits inside a DEFERRED CLOSURE
+//     is reported, even though the guard genuinely runs first: the deferred body
+//     executes when the function returns. Accepting it means reasoning about
+//     execution order rather than about source position, which is the same class
+//     of reasoning that let a guard below a call pass in the first place. The
+//     shape carries no innocent meaning in a facade — a generated call belongs in
+//     the body, not in a defer.
 //
 // # This scan depends on its sibling
 //
