@@ -136,7 +136,7 @@ func TestCreateHolderInput_ValidateRejectsInvalidType(t *testing.T) {
 // through their surviving caller.
 
 func TestCreateInstrumentInput_ValidateRelatedParties(t *testing.T) {
-	input := NewCreateInstrumentInput("BANK_ACCOUNT").WithRelatedParties([]*RelatedParty{{
+	input := newTestCreateInstrumentInput().WithRelatedParties([]*RelatedParty{{
 		Document:  "12345678900",
 		Name:      "Jane Doe",
 		Role:      RelatedPartyRolePrimaryHolder,
@@ -148,7 +148,7 @@ func TestCreateInstrumentInput_ValidateRelatedParties(t *testing.T) {
 
 func TestCreateInstrumentInput_ValidateRelatedPartyDates(t *testing.T) {
 	endDate := "2025-12-31"
-	input := NewCreateInstrumentInput("BANK_ACCOUNT").WithRelatedParties([]*RelatedParty{{
+	input := newTestCreateInstrumentInput().WithRelatedParties([]*RelatedParty{{
 		Document:  "12345678900",
 		Name:      "Jane Doe",
 		Role:      RelatedPartyRolePrimaryHolder,
@@ -162,7 +162,7 @@ func TestCreateInstrumentInput_ValidateRelatedPartyDates(t *testing.T) {
 }
 
 func TestCreateInstrumentInput_ValidateInvalidRelatedPartyRole(t *testing.T) {
-	input := NewCreateInstrumentInput("BANK_ACCOUNT").WithRelatedParties([]*RelatedParty{{
+	input := newTestCreateInstrumentInput().WithRelatedParties([]*RelatedParty{{
 		Document:  "12345678900",
 		Name:      "Jane Doe",
 		Role:      "INVALID",

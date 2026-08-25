@@ -41,47 +41,62 @@ type Instrument struct {
 
 // CreateInstrumentInput is the payload for creating a ledger-plane instrument.
 //
-// It carries only the writable subset; the holder is path-sourced and the
-// ledger/account IDs are threaded by the server, so none appear on the body.
-// Optional fields use json:"...,omitempty"; absent ≡ null per RFC 7396.
+// It mirrors the server contract exactly, because the facade marshals this
+// struct straight to the wire: the endpoint declares
+// additionalProperties: false, so an extra field is not ignored — it makes the
+// whole request fail. The contract names six properties and requires four of
+// them (ledgerId, accountId, bankingDetails, metadata).
+//
+// The holder is path-sourced, so it does NOT appear here. The ledger and the
+// account do: an instrument belongs to an account, and the server makes the
+// caller name which one rather than inferring it.
+//
+// An earlier version of this struct carried `type` and `document` — neither of
+// which the endpoint accepts — and carried neither identifier, both of which it
+// requires. No body it produced could be created by any server, which is why
+// removing those two fields breaks no working caller.
 type CreateInstrumentInput struct {
-	Type             *string           `json:"type"`
-	Document         *string           `json:"document,omitempty"`
-	BankingDetails   *BankingDetails   `json:"bankingDetails,omitempty"`
+	LedgerID         string            `json:"ledgerId"`
+	AccountID        string            `json:"accountId"`
+	BankingDetails   *BankingDetails   `json:"bankingDetails"`
+	Metadata         map[string]any    `json:"metadata"`
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
 	RelatedParties   []*RelatedParty   `json:"relatedParties,omitempty"`
-	Metadata         map[string]any    `json:"metadata,omitempty"`
 }
 
 // UpdateInstrumentInput is the PATCH payload for updating an instrument.
+//
+// It mirrors the server contract, which declares additionalProperties: false
+// over exactly {bankingDetails, metadata, regulatoryFields, relatedParties} and
+// marks metadata and bankingDetails REQUIRED. Required-on-PATCH is the server's
+// choice, not this SDK's reading of it: the endpoint refuses a partial update
+// that omits either, so Validate refuses one too rather than letting the caller
+// discover it as a 422.
+//
+// It also used to carry a `document` field the endpoint has no slot for. No
+// request setting it could succeed anywhere, which is why removing it breaks no
+// working caller — the same reason the create payload lost its two phantoms.
 //
 // MarshalJSON emits only set fields plus fields explicitly marked for null
 // removal (UpdateHolderInput/UpdateAliasInput pattern). Empty-payload
 // rejection lives in Validate(), not MarshalJSON.
 type UpdateInstrumentInput struct {
-	Document         *string           `json:"document,omitempty"`
-	BankingDetails   *BankingDetails   `json:"bankingDetails,omitempty"`
+	BankingDetails   *BankingDetails   `json:"bankingDetails"`
+	Metadata         map[string]any    `json:"metadata"`
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
 	RelatedParties   []*RelatedParty   `json:"relatedParties,omitempty"`
-	Metadata         map[string]any    `json:"metadata,omitempty"`
 	NullFields       []string          `json:"-"`
 }
 
-// NewCreateInstrumentInput creates an instrument create payload with the
-// required type set.
-func NewCreateInstrumentInput(instrumentType string) *CreateInstrumentInput {
-	return &CreateInstrumentInput{Type: instrumentStringPtr(instrumentType)}
-}
-
-// WithDocument sets the instrument document.
-func (input *CreateInstrumentInput) WithDocument(document string) *CreateInstrumentInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Document = instrumentStringPtr(document)
-
-	return input
+// NewCreateInstrumentInput creates an instrument create payload with the two
+// required identifiers set: the ledger the instrument belongs to and the
+// account it is an instrument of.
+//
+// Banking details and metadata are required too — the contract lists all four —
+// so a payload straight out of this constructor does not yet Validate. Add them
+// with WithBankingDetails and WithMetadata.
+func NewCreateInstrumentInput(ledgerID, accountID string) *CreateInstrumentInput {
+	return &CreateInstrumentInput{LedgerID: ledgerID, AccountID: accountID}
 }
 
 // WithBankingDetails sets instrument banking details.
@@ -128,7 +143,9 @@ func (input *CreateInstrumentInput) WithMetadata(metadata map[string]any) *Creat
 	return input
 }
 
-// Validate validates the CreateInstrumentInput fields.
+// Validate validates the CreateInstrumentInput fields against the server
+// contract: ledgerId, accountId, bankingDetails and metadata are all required,
+// and the two identifiers are declared format: uuid.
 func (input *CreateInstrumentInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
@@ -136,14 +153,17 @@ func (input *CreateInstrumentInput) Validate() error {
 
 	var errs validation.FieldErrors
 
-	if input.Type == nil || strings.TrimSpace(*input.Type) == "" {
-		errs.Append("type", "is required")
+	validateInstrumentUUID(&errs, "ledgerId", input.LedgerID)
+	validateInstrumentUUID(&errs, "accountId", input.AccountID)
+
+	if input.BankingDetails == nil {
+		errs.Append("bankingDetails", "is required")
 	}
 
-	if len(input.Metadata) > 0 {
-		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			errs.Append("metadata", "invalid: "+err.Error())
-		}
+	if input.Metadata == nil {
+		errs.Append("metadata", "is required")
+	} else if err := core.ValidateMetadata(input.Metadata); err != nil {
+		errs.Append("metadata", "invalid: "+err.Error())
 	}
 
 	if err := validateRelatedParties(input.RelatedParties); err != nil {
@@ -153,20 +173,24 @@ func (input *CreateInstrumentInput) Validate() error {
 	return errs.OrNil()
 }
 
+// validateInstrumentUUID refuses an identifier the endpoint would refuse: the
+// contract declares ledgerId and accountId as format: uuid, so anything else is
+// a round trip that comes back 422 with a field name this can attach locally.
+func validateInstrumentUUID(errs *validation.FieldErrors, field, value string) {
+	if strings.TrimSpace(value) == "" {
+		errs.Append(field, "is required")
+
+		return
+	}
+
+	if _, err := uuid.Parse(value); err != nil {
+		errs.Append(field, "must be a UUID")
+	}
+}
+
 // NewUpdateInstrumentInput creates an empty instrument update payload.
 func NewUpdateInstrumentInput() *UpdateInstrumentInput {
 	return &UpdateInstrumentInput{}
-}
-
-// WithDocument sets the instrument document for update.
-func (input *UpdateInstrumentInput) WithDocument(document string) *UpdateInstrumentInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Document = instrumentStringPtr(document)
-
-	return input
 }
 
 // WithBankingDetails sets instrument banking details for update.
@@ -229,12 +253,22 @@ func (input *UpdateInstrumentInput) WithNullFields(fields ...string) *UpdateInst
 	return input
 }
 
+// validInstrumentNullFields are the update properties that can be cleared with
+// an explicit JSON null. It is the contract's property set MINUS the ones it
+// marks required: nulling a required property produces a body the endpoint
+// refuses, so it is not a supported clear at all rather than a clear that
+// happens to fail.
 var validInstrumentNullFields = map[string]bool{
-	"document":         true,
-	"bankingDetails":   true,
 	"regulatoryFields": true,
 	"relatedParties":   true,
-	"metadata":         true,
+}
+
+// requiredInstrumentUpdateFields are the properties the update contract marks
+// required. They exist as their own set so a caller who tries to clear one gets
+// told WHY rather than the generic "unsupported null field".
+var requiredInstrumentUpdateFields = map[string]bool{
+	"bankingDetails": true,
+	"metadata":       true,
 }
 
 // MarshalJSON emits only set fields plus fields explicitly marked for null removal.
@@ -248,10 +282,6 @@ func (input *UpdateInstrumentInput) MarshalJSON() ([]byte, error) {
 	}
 
 	payload := map[string]any{}
-	if input.Document != nil {
-		payload["document"] = input.Document
-	}
-
 	if input.BankingDetails != nil {
 		payload["bankingDetails"] = input.BankingDetails
 	}
@@ -287,8 +317,7 @@ func (input *UpdateInstrumentInput) hasChanges() bool {
 		return false
 	}
 
-	return input.Document != nil ||
-		input.BankingDetails != nil ||
+	return input.BankingDetails != nil ||
 		input.RegulatoryFields != nil ||
 		input.RelatedParties != nil ||
 		input.Metadata != nil ||
@@ -301,7 +330,6 @@ func (input *UpdateInstrumentInput) validateNullFieldConflicts() error {
 	}
 
 	setFields := map[string]bool{
-		"document":         input.Document != nil,
 		"bankingDetails":   input.BankingDetails != nil,
 		"regulatoryFields": input.RegulatoryFields != nil,
 		"relatedParties":   input.RelatedParties != nil,
@@ -318,7 +346,10 @@ func (input *UpdateInstrumentInput) validateNullFieldConflicts() error {
 	return nil
 }
 
-// Validate validates the UpdateInstrumentInput fields.
+// Validate validates the UpdateInstrumentInput fields against the server
+// contract: bankingDetails and metadata are required on the PATCH body, the two
+// remaining properties are optional, and only those two can be cleared with an
+// explicit null.
 func (input *UpdateInstrumentInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
@@ -330,19 +361,21 @@ func (input *UpdateInstrumentInput) Validate() error {
 
 	var errs validation.FieldErrors
 
-	if len(input.Metadata) > 0 {
-		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			errs.Append("metadata", "invalid: "+err.Error())
-		}
+	if input.BankingDetails == nil {
+		errs.Append("bankingDetails", "is required")
+	}
+
+	if input.Metadata == nil {
+		errs.Append("metadata", "is required")
+	} else if err := core.ValidateMetadata(input.Metadata); err != nil {
+		errs.Append("metadata", "invalid: "+err.Error())
 	}
 
 	if err := validateRelatedParties(input.RelatedParties); err != nil {
 		errs.Append("relatedParties", err.Error())
 	}
 
-	if err := validateCRMNullFields(input.NullFields, validInstrumentNullFields); err != nil {
-		errs.Append("nullFields", err.Error())
-	}
+	input.validateNullFields(&errs)
 
 	if err := input.validateNullFieldConflicts(); err != nil {
 		errs.Append("nullFields", err.Error())
@@ -351,8 +384,27 @@ func (input *UpdateInstrumentInput) Validate() error {
 	return errs.OrNil()
 }
 
-func instrumentStringPtr(value string) *string {
-	return &value
+// validateNullFields refuses a clear the contract cannot express, and says which
+// of the two reasons applies: the property is REQUIRED (so nulling it makes the
+// whole body invalid) or the endpoint has no such property at all.
+//
+// This is the one CRM update surface that does not route through
+// validateCRMNullFields: that helper answers "is this field clearable" with one
+// message, and here the answer has two distinct causes a caller acts on
+// differently — send a value instead, versus stop sending the field.
+func (input *UpdateInstrumentInput) validateNullFields(errs *validation.FieldErrors) {
+	for _, field := range input.NullFields {
+		field = strings.TrimSpace(field)
+
+		switch {
+		case field == "":
+			errs.Append("nullFields", "null field cannot be empty")
+		case requiredInstrumentUpdateFields[field]:
+			errs.Append("nullFields", fmt.Sprintf("%q is required by the update contract and cannot be cleared", field))
+		case !validInstrumentNullFields[field]:
+			errs.Append("nullFields", fmt.Sprintf("unsupported null field %q", field))
+		}
+	}
 }
 
 // InstrumentsListOpts is the typed options struct for listing instruments and

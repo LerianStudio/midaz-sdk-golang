@@ -225,17 +225,25 @@ func (f *instrumentsFacade) DeleteRelatedParty(ctx context.Context, orgID, holde
 // via GET .../holders/{holderId}/accounts. Cursor injected via editor (the
 // generated ListAccountsByHolderV2Params has no cursor slot); stops on an empty
 // next_cursor.
-func (f *instrumentsFacade) ListAccountsByHolder(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
-	return f.listAccountsCursor(ctx, orgID, holderID, opts, "")
+//
+// The ledger is a parameter even though it is not a path segment: the endpoint
+// requires it as a query parameter. See listAccountsCursor for why it is
+// injected by hand.
+func (f *instrumentsFacade) ListAccountsByHolder(ctx context.Context, orgID, ledgerID, holderID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
+	return f.listAccountsCursor(ctx, orgID, ledgerID, holderID, opts, "")
 }
 
 // listAccountsCursor fetches a single accounts page, optionally seeded with a
 // cursor injected as a query param. The caller keeps the cursor as loop state so
 // opts is never mutated.
-func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts, cursor string) (*models.ListResponse[models.Account], error) {
+func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, ledgerID, holderID string, opts models.AccountsListOpts, cursor string) (*models.ListResponse[models.Account], error) {
 	const operation = "Instruments.ListAccountsByHolder"
 
-	if err := requirePathIDs(operation, "orgID", orgID, "holderID", holderID); err != nil {
+	// ledgerID is guarded alongside the two path ids although it travels as a
+	// query parameter, for the same reason List guards holderID: without it the
+	// request is refused by the server, so an empty one is a 400 the caller can
+	// be told about locally.
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "holderID", holderID); err != nil {
 		return nil, err
 	}
 
@@ -243,7 +251,18 @@ func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, holde
 		return nil, err
 	}
 
-	var editors []genledger.RequestEditorFn
+	// ledger_id is injected by hand rather than filled into a generated params
+	// slot, and the reason is SERVER-SIDE CONTRACT DRIFT rather than a codegen
+	// bug: the holder-accounts route REQUIRES ledger_id as a query parameter at
+	// runtime (midaz, components/ledger/internal/bootstrap/holder_wiring.go —
+	// deliberate there), while the published OpenAPI document does not declare
+	// it. oapi-codegen can only generate slots the contract names, so
+	// ListAccountsByHolderV2Params has none, and every call without the param
+	// 400s with a missing-parameter error. Reported upstream; when the contract
+	// catches up this moves into listAccountsByHolderParams and the editor goes
+	// away. The cursor below is injected the same way, for the same structural
+	// reason.
+	editors := []genledger.RequestEditorFn{setQueryParam("ledger_id", ledgerID)}
 	if cursor != "" {
 		editors = append(editors, setQueryParam("cursor", cursor))
 	}
@@ -256,7 +275,7 @@ func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, holde
 
 // ListAccountsByHolderPages yields one cursor page of holder accounts per
 // iteration, advancing by the response next_cursor until it is empty.
-func (f *instrumentsFacade) ListAccountsByHolderPages(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
+func (f *instrumentsFacade) ListAccountsByHolderPages(ctx context.Context, orgID, ledgerID, holderID string, opts models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
 	return func(yield func(*models.ListResponse[models.Account], error) bool) {
 		cursor := ""
 
@@ -266,7 +285,7 @@ func (f *instrumentsFacade) ListAccountsByHolderPages(ctx context.Context, orgID
 				return
 			}
 
-			page, err := f.listAccountsCursor(ctx, orgID, holderID, opts, cursor)
+			page, err := f.listAccountsCursor(ctx, orgID, ledgerID, holderID, opts, cursor)
 			if err != nil {
 				yield(nil, err)
 				return
@@ -287,8 +306,8 @@ func (f *instrumentsFacade) ListAccountsByHolderPages(ctx context.Context, orgID
 
 // ListAccountsByHolderAll yields every account owned by a holder across cursor
 // pages, transparently advancing pagination.
-func (f *instrumentsFacade) ListAccountsByHolderAll(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error] {
-	return flattenPages(f.ListAccountsByHolderPages(ctx, orgID, holderID, opts))
+func (f *instrumentsFacade) ListAccountsByHolderAll(ctx context.Context, orgID, ledgerID, holderID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error] {
+	return flattenPages(f.ListAccountsByHolderPages(ctx, orgID, ledgerID, holderID, opts))
 }
 
 // listInstrumentsParams renders the fields that have a slot in the generated

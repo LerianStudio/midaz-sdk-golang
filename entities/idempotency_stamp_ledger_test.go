@@ -89,12 +89,12 @@ func TestLedgerWritesStampIdempotency(t *testing.T) {
 		{"instruments.Create", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
 			_, _ = newInstrumentsFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID,
-				models.NewCreateInstrumentInput("CHECKING").WithDocument("DOC-1"))
+				validCreateInstrumentInput())
 		}},
 		{"instruments.Update", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
 			_, _ = newInstrumentsFacade(newTestLedgerClient(t, srv), gate).Update(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, stampID,
-				models.NewUpdateInstrumentInput().WithDocument("DOC-9"))
+				validUpdateInstrumentInput())
 		}},
 		{"instruments.Delete", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
@@ -155,7 +155,7 @@ func TestLedgerWritesStampIdempotency(t *testing.T) {
 // still stamps (the gate never touches an explicit/ctx key). On/off auto-gen is
 // covered by the parametrized table above.
 func TestLedgerWriteIdempotencyGate(t *testing.T) {
-	input := models.NewCreateInstrumentInput("CHECKING").WithDocument("DOC-1")
+	input := validCreateInstrumentInput()
 
 	srv, key := idempotencyCaptureServer()
 	defer srv.Close()
