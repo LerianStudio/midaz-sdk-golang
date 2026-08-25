@@ -146,6 +146,26 @@ func idOrEmpty(err error, id func() string) (string, error) {
 	return id(), nil
 }
 
+// TestReadRawResponseRefusesANilResponse pins the one input that would panic
+// rather than return.
+//
+// readRawResponse is the funnel every retrofitted read and every write now goes
+// through, and it dereferenced resp.Body on the strength of err being nil. A
+// caller who discards the transport error — `resp, _ := f.ledger.GetX(...)` —
+// hands it (nil, nil), and a connection failure becomes a nil dereference on the
+// money path. This SDK does not panic in library code.
+func TestReadRawResponseRefusesANilResponse(t *testing.T) {
+	//nolint:bodyclose // there is no response to close; that is the case under test.
+	resp, body, err := readRawResponse(nil, nil)
+	if err == nil {
+		t.Fatal("a nil response with no transport error must return an error, not dereference it")
+	}
+
+	if resp != nil || body != nil {
+		t.Fatalf("want no response and no body alongside the error, got resp=%v body=%q", resp, body)
+	}
+}
+
 // TestRetrofittedReadKeepsTheRealErrorStatus is the expensive half of what the
 // generated parser was destroying.
 //

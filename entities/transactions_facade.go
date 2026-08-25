@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"iter"
@@ -59,6 +60,18 @@ type transactionsFacade struct {
 	enableIdempotency bool
 }
 
+// errNoResponse is the cause behind a (nil, nil) pair from a generated call.
+//
+// The natural spelling of that mistake does not compile — the generated methods
+// return a response and an error, and Go makes you name both — so reaching it
+// takes a deliberate `resp, _ :=` that discards a transport failure. The point
+// is not that it is likely; it is that this SDK does not panic in library code,
+// and every one of the 45 retrofitted read sites plus every write now funnels
+// through this one function, so a nil dereference here would be a panic on the
+// money path rather than an error a caller can act on. Callers wrap it the way
+// they wrap any other cause from here.
+var errNoResponse = stderrors.New("generated call returned no response and no error")
+
 // readRawResponse drains a generated lower-level call's raw response into bytes,
 // closing the body, so the write path can decide success on isSuccess(2xx) and
 // decode into models.* — never through the status-exact generated parser (see
@@ -66,6 +79,10 @@ type transactionsFacade struct {
 func readRawResponse(resp *http.Response, err error) (*http.Response, []byte, error) {
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if resp == nil {
+		return nil, nil, errNoResponse
 	}
 
 	defer func() { _ = resp.Body.Close() }()
