@@ -31,7 +31,7 @@ permissions:
 
 jobs:
   pipeline:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.57.0
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.58.0
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       stable_releases_only: true

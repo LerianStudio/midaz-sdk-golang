@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	obsmetrics "github.com/LerianStudio/lib-observability/metrics"
+	obsmetrics "github.com/LerianStudio/lib-observability/v3/metrics"
 	"go.opentelemetry.io/otel/attribute"
 )
 

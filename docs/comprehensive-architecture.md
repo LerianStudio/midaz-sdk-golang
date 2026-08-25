@@ -713,14 +713,17 @@ c, err := midaz.New(
 )
 ```
 
-`observability.WithCollectorEndpoint(...)` configures OTLP gRPC exporters. Pass the endpoint as `host:port`, such as:
+`observability.WithCollectorEndpoint(...)` configures OTLP gRPC exporters. The scheme you pass decides the transport:
 
 ```text
-localhost:4317
-otel-collector:4317
+https://otel-collector:4317   TLS
+http://otel-collector:4317    plaintext, explicitly
+otel-collector:4317           plaintext (a bare host:port is treated as plaintext)
 ```
 
-Do not include `http://` or `https://` in the OTLP gRPC endpoint value. Collector transport uses TLS by default; set `observability.WithCollectorInsecure(true)` only for local/development plaintext collectors.
+**Prefix the endpoint with `https://` whenever telemetry leaves the host.** The `production` security policy refuses EVERY plaintext exporter — an explicit `http://` endpoint and a bare `host:port` alike — and provider construction returns an error. Only two things satisfy that policy: an `https://` endpoint, or a non-production environment such as `observability.WithEnvironment("development")` for a local collector.
+
+`observability.WithCollectorInsecure(true)` remains available for local and trusted in-cluster deployments, but it cannot request TLS: a scheme-less endpoint is plaintext regardless of that flag. Use the `https://` prefix to get TLS. As a last resort the refusal can be overridden with `ALLOW_INSECURE_OTEL="<reason>"` in the environment, which should be reserved for a plaintext collector reached over an already-trusted network path.
 
 When the corresponding observability components are enabled, outbound entity requests can:
 

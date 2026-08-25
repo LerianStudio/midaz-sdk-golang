@@ -3,8 +3,8 @@ package entities
 import (
 	"go/ast"
 	"go/token"
+	"net/http"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -97,13 +97,14 @@ var (
 // SCAN breaking, not against a missed entry. It is 122 today, which is exactly
 // the 60 POST + 32 PATCH + 29 DELETE + 1 PUT the generated clients issue.
 //
-// The residual is the reading, not the coverage: the method is matched in the
-// builder's SOURCE TEXT as a literal http.NewRequest("POST" and so on, because
-// that is how oapi-codegen writes it. A generated builder that computed its
-// method would not match and its operation would drop out of the universe
-// silently. All 225 http.NewRequest calls across both generated clients spell it
-// as a bare literal today, so the residual is currently empty; it reopens only if
-// oapi-codegen changes how it emits the call.
+// The method is read out of the builder's AST by requestBuilderMethod, which
+// accepts the two spellings that denote a method constant and FAILS on anything
+// else. That is a change of stance: the previous reading matched the method as a
+// string literal in the builder's source text and merely documented that a
+// builder spelling it any other way would drop out of this universe silently.
+// The oapi-codegen v2.7 upgrade made that concrete — every builder moved from
+// "POST" to http.MethodPost and this universe came back EMPTY — so the residual
+// is now closed at the reading instead of restated here.
 //
 // # Credit attaches to the OCCURRENCE, never to the function
 //
@@ -239,7 +240,12 @@ func (s *idempotencyStampScan) offences(file string, fn *ast.FuncDecl) []string 
 
 // writeOperationMethods are the HTTP methods that can change state. HEAD and GET
 // are excluded; a repeated read is free.
-var writeOperationMethods = regexp.MustCompile(`http\.NewRequest\("(POST|PUT|PATCH|DELETE)"`)
+var writeOperationMethods = map[string]bool{
+	http.MethodPost:   true,
+	http.MethodPut:    true,
+	http.MethodPatch:  true,
+	http.MethodDelete: true,
+}
 
 // writeOperations reads the generated clients and returns the operations whose
 // request builder issues a state-changing method.
@@ -249,8 +255,8 @@ func writeOperations(t *testing.T, fset *token.FileSet) map[string]bool {
 	ops := map[string]bool{}
 
 	for _, dir := range []string{"../internal/genledger", "../internal/gentracer"} {
-		for path, file := range parseGoFiles(t, fset, dir) {
-			collectWriteOperations(t, path, file, ops)
+		for _, file := range parseGoFiles(t, fset, dir) {
+			collectWriteOperations(t, file, ops)
 		}
 	}
 
@@ -259,30 +265,24 @@ func writeOperations(t *testing.T, fset *token.FileSet) map[string]bool {
 
 // collectWriteOperations records every request builder in one generated file
 // that issues a write method.
-func collectWriteOperations(t *testing.T, path string, file *ast.File, ops map[string]bool) {
+func collectWriteOperations(t *testing.T, file *ast.File, ops map[string]bool) {
 	t.Helper()
 
-	operationsMatchingMethod(t, path, file, writeOperationMethods, ops)
+	operationsMatchingMethod(t, file, writeOperationMethods, ops)
 }
 
 // operationsMatchingMethod records every request builder in one generated file
-// whose body issues a method matched by pattern. It is the one scan behind both
+// whose body issues one of the given methods. It is the one scan behind both
 // generated-operation universes: the write set here, and the delete set in
 // delete_seam_structural_test.go.
 //
-// The method is read from the SOURCE TEXT of the builder rather than from the
-// AST, because oapi-codegen writes it as a bare string literal argument and
-// matching that through the AST is more code for the same answer.
-//
-// Sharing it is the point. Both universes rest on the same assumption about how
+// Sharing it is the point. Both universes rest on the same reading of how
 // oapi-codegen emits the method, and as two copies of the same loop the day that
 // emission changes is the day one copy gets updated and the other goes silently
 // narrow — a scan finding no operations still passes its own floor, because an
 // empty universe has no offences in it.
-func operationsMatchingMethod(t *testing.T, path string, file *ast.File, pattern *regexp.Regexp, ops map[string]bool) {
+func operationsMatchingMethod(t *testing.T, file *ast.File, methods, ops map[string]bool) {
 	t.Helper()
-
-	src := readFileForScan(t, path)
 
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
@@ -295,11 +295,182 @@ func operationsMatchingMethod(t *testing.T, path string, file *ast.File, pattern
 			continue
 		}
 
-		start := file.FileStart
-		if pattern.MatchString(src[fn.Body.Pos()-start : fn.Body.End()-start]) {
+		if method, ok := requestBuilderMethod(t, fn); ok && methods[method] {
 			ops[op] = true
 		}
 	}
+}
+
+// requestBuilderMethod returns the HTTP method one generated request builder
+// issues, read from the http.NewRequest call in its body.
+//
+// # Old shape → new shape (oapi-codegen v2.4 → v2.7)
+//
+// v2.4 wrote the method as a bare string literal:
+//
+//	http.NewRequest("DELETE", queryURL.String(), nil)
+//
+// v2.7 writes the stdlib constant instead:
+//
+//	http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+//
+// The operation SETS are unchanged across that rewrite — 225 request builders
+// before and after, spelling 29 DELETE, 60 POST, 32 PATCH, 1 PUT, 89 GET and 14
+// HEAD in both — so no floor in either dependent scan moves. Only the reading of
+// the method did.
+//
+// # Why this is read from the AST now
+//
+// The previous reading regex-matched http\.NewRequest\("DELETE" in the builder's
+// SOURCE TEXT, and both dependent scans carried the same caveat in their header:
+// a builder naming its method any other way "would not match and its operation
+// would drop out of the universe silently". v2.7 is precisely that case, and it
+// is precisely what happened — three structural scans came back with empty
+// universes on the upgrade.
+//
+// So the residual is closed rather than restated for a third time. The method
+// argument is read from either constructor (http.NewRequest at position 0,
+// http.NewRequestWithContext at position 1), both spellings that denote a
+// method constant are accepted, and anything else — an unreadable method OR a
+// builder with no recognized constructor call at all — is a hard FAILURE rather
+// than a skip. A future emission change therefore cannot narrow these universes
+// without saying so.
+func requestBuilderMethod(t *testing.T, fn *ast.FuncDecl) (string, bool) {
+	t.Helper()
+
+	var (
+		method string
+		found  bool
+	)
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		methodPos, ok := newRequestMethodArg(call)
+		if !ok || len(call.Args) <= methodPos {
+			return true
+		}
+
+		method, found = httpMethodOf(call.Args[methodPos])
+
+		require.True(t, found,
+			"%s issues an http request with a method this scan cannot read; both generated-operation "+
+				"universes are derived from it, so an unreadable method would silently narrow them "+
+				"instead of failing here", fn.Name.Name)
+
+		return false
+	})
+
+	// The same floor for the call itself: fn is a NAME-MATCHED request builder,
+	// so its body must either construct the request (http.NewRequest /
+	// http.NewRequestWithContext) or DELEGATE to a sibling builder that does —
+	// the JSON-body wrappers marshal and hand off to their *WithBody twin, which
+	// is the one that constructs and gets the operation credited. A builder doing
+	// neither means the generator moved to a spelling this scan does not know,
+	// and it would otherwise drop out of BOTH universes silently.
+	require.True(t, found || delegatesToRequestBuilder(fn),
+		"%s is a generated request builder but neither constructs a request "+
+			"(http.NewRequest / http.NewRequestWithContext) nor delegates to a sibling "+
+			"builder; an unrecognized constructor spelling would silently narrow both "+
+			"generated-operation universes", fn.Name.Name)
+
+	return method, found
+}
+
+// delegatesToRequestBuilder reports whether fn's body calls another generated
+// request builder for the SAME operation (the JSON-body wrapper pattern:
+// NewXRequest marshals and calls NewXRequestWithBody). The operation identity
+// is compared, not mere builder-ness — a wrapper delegating to a DIFFERENT
+// operation's builder would otherwise launder its own operation out of the
+// derived universes.
+func delegatesToRequestBuilder(fn *ast.FuncDecl) bool {
+	op, ok := requestBuilderOperation(fn.Name.Name)
+	if !ok {
+		return false
+	}
+
+	delegates := false
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		callee, ok := call.Fun.(*ast.Ident)
+		if !ok || callee.Name == fn.Name.Name {
+			return true
+		}
+
+		if calleeOp, ok := requestBuilderOperation(callee.Name); ok && calleeOp == op {
+			delegates = true
+			return false
+		}
+
+		return true
+	})
+
+	return delegates
+}
+
+// newRequestMethodArg reports whether a call constructs an *http.Request via
+// net/http and, if so, which argument position carries the method:
+// http.NewRequest(method, …) puts it first, and
+// http.NewRequestWithContext(ctx, method, …) puts it second.
+func newRequestMethodArg(call *ast.CallExpr) (int, bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return 0, false
+	}
+
+	pkg, ok := sel.X.(*ast.Ident)
+	if !ok || pkg.Name != "http" {
+		return 0, false
+	}
+
+	switch sel.Sel.Name {
+	case "NewRequest":
+		return 0, true
+	case "NewRequestWithContext":
+		return 1, true
+	default:
+		return 0, false
+	}
+}
+
+// httpMethodOf resolves the method argument of an http.NewRequest call to an
+// uppercase method name, in the two spellings that denote one: a string literal
+// ("DELETE") and the stdlib constant (http.MethodDelete).
+//
+// Nothing else is accepted. A method reached through a local variable, a
+// generated helper or a computed expression is reported as unreadable by the
+// caller, because a universe derived from it would be narrow rather than wrong —
+// and a narrow universe passes every assertion built on it.
+func httpMethodOf(arg ast.Expr) (string, bool) {
+	switch node := arg.(type) {
+	case *ast.BasicLit:
+		if node.Kind != token.STRING {
+			return "", false
+		}
+
+		method, err := strconv.Unquote(node.Value)
+
+		return method, err == nil && method != ""
+	case *ast.SelectorExpr:
+		pkg, ok := node.X.(*ast.Ident)
+		if !ok || pkg.Name != "http" {
+			return "", false
+		}
+
+		name, ok := strings.CutPrefix(node.Sel.Name, "Method")
+
+		return strings.ToUpper(name), ok && name != ""
+	}
+
+	return "", false
 }
 
 // writeMentions returns the mentions of a generated write operation inside a

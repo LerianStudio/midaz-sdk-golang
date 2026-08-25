@@ -292,11 +292,26 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 	pathOps := operationsWithPathParameters(t, fset)
 	require.NotEmpty(t, pathOps, "found no generated operations with path parameters; the scan is broken, not the code")
 
+	// The other two derived inputs get the same fail-closed check, and they get it
+	// because they did NOT have one. On the oapi-codegen v2.7 upgrade the styled
+	// path reading broke and pathArgs came back empty, which is a BROKEN SCAN; with
+	// no assertion here it surfaced instead as 205 individual facade offences
+	// blaming the *Client signatures. A reader sent to the wrong half of the scan
+	// 205 times over is the cost of deriving a universe and not asserting you found
+	// one.
+	pathArgs := pathArgumentNames(t, fset)
+	require.NotEmpty(t, pathArgs,
+		"found no request builder styling a value into the URL path; the scan is broken, not the code")
+
+	methodParams := clientMethodParameters(t, fset)
+	require.NotEmpty(t, methodParams,
+		"found no generated *Client method signatures; the scan is broken, not the code")
+
 	scan := pathGuardScan{
 		fset:         fset,
 		pathOps:      pathOps,
-		pathArgs:     pathArgumentNames(t, fset),
-		methodParams: clientMethodParameters(t, fset),
+		pathArgs:     pathArgs,
+		methodParams: methodParams,
 	}
 
 	var unguarded []string
@@ -995,9 +1010,7 @@ func (s pathGuardScan) unguardedPathArguments(fn *ast.FuncDecl, calls []pathCall
 
 		names, wanted := s.methodParams[pc.method], s.pathArgs[op]
 		if len(names) == 0 || len(wanted) == 0 {
-			missing = append(missing, "every path argument of "+op+
-				" — reached through "+pc.method+", a spelling with no raw *Client signature, so this "+
-				"scan cannot resolve which arguments become path segments —")
+			missing = append(missing, unresolvableCallOffence(pc, op, len(names) == 0))
 
 			continue
 		}
@@ -1017,6 +1030,27 @@ func (s pathGuardScan) unguardedPathArguments(fn *ast.FuncDecl, calls []pathCall
 	sort.Strings(missing)
 
 	return missing
+}
+
+// unresolvableCallOffence names a call whose path positions cannot be resolved,
+// and says WHICH of the two derivations came back empty for it.
+//
+// Saying which is the whole point of splitting this out. The two causes used to
+// share one message that named only the signature half, and when the styled-path
+// reading went blind on the oapi-codegen v2.7 upgrade that message blamed the
+// *Client signatures — which were byte-identical to the version before — on all
+// 205 operations at once. The emptiness checks in the test body now catch a
+// wholesale break before it reaches here; this keeps a SINGLE unresolvable
+// operation honest about its cause.
+func unresolvableCallOffence(pc pathCall, op string, noSignature bool) string {
+	if noSignature {
+		return "every path argument of " + op + " — reached through " + pc.method +
+			", a spelling with no raw *Client signature, so this scan cannot resolve which " +
+			"arguments become path segments —"
+	}
+
+	return "every path argument of " + op + " — whose request builder styles no value into the URL " +
+		"path, so this scan cannot resolve which of " + pc.method + "'s arguments become path segments —"
 }
 
 // unplaceableCallOffence names a call whose argument list cannot place every
@@ -1524,9 +1558,12 @@ func functionTypedParameter(fn *ast.FuncDecl) string {
 // operation, the names of the builder parameters styled into the URL path.
 //
 // The identifier is taken rather than the wire name beside it: oapi-codegen
-// writes StyleParamWithLocation("simple", false, "organization_id",
-// runtime.ParamLocationPath, organizationId), and it is organizationId — the Go
-// parameter — that lines up with the client method's signature.
+// writes StyleParamWithOptions("simple", false, "organization_id",
+// organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, ...}),
+// and it is organizationId — the Go parameter — that lines up with the client
+// method's signature, while "organization_id" is the wire spelling and lines up
+// with nothing here. See styledPathParameters for the argument positions and how
+// they moved in oapi-codegen v2.7.
 func pathArgumentNames(t *testing.T, fset *token.FileSet) map[string]map[string]bool {
 	t.Helper()
 
@@ -1557,6 +1594,33 @@ func pathArgumentNames(t *testing.T, fset *token.FileSet) map[string]map[string]
 
 // styledPathParameters returns the identifiers one request builder styles into
 // the URL path.
+//
+// # Old shape → new shape (oapi-codegen v2.4 → v2.7)
+//
+// v2.4 passed the parameter location as a POSITIONAL argument, with the value
+// last:
+//
+//	runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+//	                                                     └ Args[3] location     └ Args[4] value
+//
+// v2.7 retired that helper for one taking an options struct, which moves the
+// value one position LEFT and buries the location inside a composite literal:
+//
+//	runtime.StyleParamWithOptions("simple", false, "id", id,
+//	    runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+//	                                                    └ Args[3] value  └ Args[4] options
+//
+// Reading the old positions against the new call finds the OPTIONS STRUCT where
+// the location used to be, so the location check fails on every builder and this
+// map comes back empty for the whole client. It did, on the upgrade: the scan
+// reported all 205 path operations as "a spelling with no raw *Client
+// signature" — the wrong fact, since those signatures were byte-identical and it
+// was this reading that had gone blind. unresolvableCallOffence now separates
+// the two causes so that misreport cannot recur.
+//
+// The location is read from the struct FIELD BY NAME rather than from a position
+// inside the literal, so the next field oapi-codegen adds to StyleParamOptions
+// cannot shift it — Type and Format arrived with the struct itself.
 func styledPathParameters(fn *ast.FuncDecl) map[string]bool {
 	names := map[string]bool{}
 
@@ -1567,16 +1631,15 @@ func styledPathParameters(fn *ast.FuncDecl) map[string]bool {
 		}
 
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "StyleParamWithLocation" {
+		if !ok || sel.Sel.Name != "StyleParamWithOptions" {
 			return true
 		}
 
-		location, ok := call.Args[3].(*ast.SelectorExpr)
-		if !ok || location.Sel.Name != "ParamLocationPath" {
+		if !stylesIntoThePath(call.Args[4]) {
 			return true
 		}
 
-		if ident, ok := call.Args[4].(*ast.Ident); ok {
+		if ident, ok := call.Args[3].(*ast.Ident); ok {
 			names[ident.Name] = true
 		}
 
@@ -1584,6 +1647,36 @@ func styledPathParameters(fn *ast.FuncDecl) map[string]bool {
 	})
 
 	return names
+}
+
+// stylesIntoThePath reports whether a runtime.StyleParamOptions literal sets
+// ParamLocation to runtime.ParamLocationPath.
+//
+// Only a KEYED field named ParamLocation counts. A positional literal is not
+// read, because guessing which position the location occupies is what the
+// v2.4-shaped reading above was doing when it went blind.
+func stylesIntoThePath(arg ast.Expr) bool {
+	lit, ok := arg.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+
+		if key, ok := kv.Key.(*ast.Ident); !ok || key.Name != "ParamLocation" {
+			continue
+		}
+
+		if location, ok := kv.Value.(*ast.SelectorExpr); ok {
+			return location.Sel.Name == "ParamLocationPath"
+		}
+	}
+
+	return false
 }
 
 // clientMethodParameters returns the ordered parameter names of every generated

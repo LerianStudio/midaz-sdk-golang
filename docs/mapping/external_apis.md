@@ -667,7 +667,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability`.
 - `observability.WithServiceName(string)`
 - `observability.WithServiceVersion(string)`
 - `observability.WithEnvironment(string)`
-- `observability.WithCollectorEndpoint(string)` - OTLP gRPC endpoint in `host:port` form.
+- `observability.WithCollectorEndpoint(string)` - OTLP gRPC endpoint. Prefix with `https://` for TLS; both plaintext forms — explicit `http://` and bare `host:port` — are refused in a `production` environment (override only via `ALLOW_INSECURE_OTEL`).
 - `observability.WithSDKVersion(string)`
 - `observability.WithLogLevel(observability.LogLevel)`
 - `observability.WithTraceSampleRate(float64)` - deprecated source-compatible option; sampling is currently owned by lib-observability.

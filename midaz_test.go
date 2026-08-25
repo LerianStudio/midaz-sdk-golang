@@ -346,10 +346,19 @@ func TestClientCollectorEndpointOptionCreatesProvider(t *testing.T) {
 	// This test ensures the canonical path produces a working provider +
 	// metrics collector for the same input shape (collector endpoint +
 	// all components enabled).
+	//
+	// The environment is pinned to development because a scheme-less
+	// endpoint like "localhost:4317" is treated as plaintext by
+	// lib-observability, and plaintext collectors are refused outright in
+	// production (the default environment) unless ALLOW_INSECURE_OTEL
+	// justifies them. That refusal is the SDK's intended posture and is
+	// asserted by TestNewRejectsInsecureCollectorInProduction; this test
+	// covers the option chain, not the security policy.
 	c, err := New(
 		WithConfig(createTestConfig(t)),
 		WithObservabilityOptions(
 			observability.WithServiceName("midaz-go-sdk"),
+			observability.WithEnvironment("development"),
 			observability.WithCollectorEndpoint("localhost:4317"),
 			observability.WithComponentEnabled(true, true, true),
 		),

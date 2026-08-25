@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	obsredaction "github.com/LerianStudio/lib-observability/redaction"
+	obsredaction "github.com/LerianStudio/lib-observability/v3/redaction"
 )
 
 const redactedValue = "[REDACTED]"
