@@ -31,6 +31,7 @@ This map documents the recommended public SDK surface that consumers should use.
 - `midaz.WithObservabilityProvider(observability.Provider)` - Install a pre-built observability provider. Replacement semantics.
 - `midaz.WithAccessManager(midaz.AccessManager)` - Configure Access Manager OAuth authentication. Mutually exclusive with `WithAnonymous`.
 - `midaz.WithAllowInsecureAccessManagerHTTP(bool)` - Explicitly allow non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Default is strict HTTPS-or-loopback only.
+- `midaz.WithAllowInsecureHTTP(bool)` - Explicitly allow non-loopback `http://` **Ledger and Tracer** URLs for trusted in-cluster networks (e.g. `*.svc.cluster.local`). Independent of the Access Manager knob above, and refused with `WithEnvironment(config.EnvironmentProduction)`. Apply it BEFORE the URL setters in the chain — each URL is validated as it is set.
 - `midaz.WithAnonymous()` - Explicitly opt out of authentication for local development and tests. Mutually exclusive with `WithAccessManager`.
 
 ### Client fields and methods
@@ -79,6 +80,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config`.
 - `config.WithTracerURL(string) config.Option`
 - `config.WithAccessManager(auth.AccessManager) config.Option`
 - `config.WithAllowInsecureAccessManagerHTTP(bool) config.Option`
+- `config.WithAllowInsecureHTTP(bool) config.Option` - Ledger/Tracer plane equivalent of the option above. Apply before the URL setters; `Validate` refuses it together with `EnvironmentProduction`.
 - `config.WithHTTPClient(*http.Client) config.Option`
 - `config.WithTimeout(time.Duration) config.Option`
 - `config.WithUserAgent(string) config.Option`
@@ -106,6 +108,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config`.
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
 - `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`
+- `MIDAZ_ALLOW_INSECURE_HTTP` - Ledger/Tracer plane; loaded before the URL variables so the ordering is automatic. Refused with `MIDAZ_ENVIRONMENT=production`
 - `MIDAZ_CLIENT_ID`
 - `MIDAZ_CLIENT_SECRET`
 
@@ -117,7 +120,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth` (no alias needed; pac
 - `config.WithAccessManager(auth.AccessManager)` / `midaz.WithAccessManager(midaz.AccessManager)` - Configure plugin auth. The Enabled field is auto-set to true; callers populate Address/ClientID/ClientSecret only.
 - `midaz.WithAnonymous()` / `config.WithAnonymous()` - Explicit auth-less mode for local development and tests.
 
-v3 contract: `midaz.New()` requires exactly one of `WithAccessManager` or `WithAnonymous`. See [docs/auth.md](../auth.md).
+`midaz.New()` requires exactly one of `WithAccessManager` or `WithAnonymous`. See [docs/auth.md](../auth.md).
 
 ## Entity package
 
@@ -185,6 +188,7 @@ Tracer-plane accessors are **not** version-grouped: the Tracer serves one surfac
 - `Pages(ctx, organizationID, ledgerID, opts)`
 - `Get(ctx, organizationID, ledgerID, id)`
 - `GetByAlias(ctx, organizationID, ledgerID, alias)`
+- `GetByExternalCode(ctx, organizationID, ledgerID, code)` - Reaches the EXTERNAL account of an asset (the counterparty every deposit is drawn from) by asset code rather than by id.
 - `Create(ctx, organizationID, ledgerID, input)`
 - `Update(ctx, organizationID, ledgerID, id, input)`
 - `Delete(ctx, organizationID, ledgerID, id)`
@@ -541,7 +545,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/models`.
 
 ### List and pagination
 
-v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate base structs, so wrong-shape opts do not compile. The v2 `models.ListOptions` mega-struct, `NewListOptions`, all `With*` setters, and the `HasNextPage` / `NextPageOptions` / `CurrentPage` / `TotalPages` methods are deleted. See [docs/pagination.md](../pagination.md) for the full contract.
+The SDK uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate base structs, so wrong-shape opts do not compile. SDK v2's `models.ListOptions` mega-struct, `NewListOptions`, all `With*` setters, and the `HasNextPage` / `NextPageOptions` / `CurrentPage` / `TotalPages` methods are deleted. See [docs/pagination.md](../pagination.md) for the full contract.
 
 #### Base structs
 
@@ -625,8 +629,6 @@ Each per-entity opts struct exposes:
 - `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
-- `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
-- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. Repeated `WithRelatedParties` calls replace the in-builder related-party list; empty alias updates are rejected by the SDK.
 - `models.NewFeeEstimateInput(packageID, ledgerID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
 - `models.NewBillingCalculateInput(ledgerID, period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
 - `models.NewCreateHolderAccountInput(assetCode, accountType)` with account setters (`WithName`, `WithParentAccountID`, `WithEntityID`, `WithPortfolioID`, `WithSegmentID`, `WithStatus`, `WithAlias`, `WithMetadata`) and instrument setters (`WithBankingDetails`, `WithRegulatoryFields`, `WithRelatedParties`). An instrument is written if and only if any instrument setter is used. Feeds `Composition.CreateHolderAccount`.

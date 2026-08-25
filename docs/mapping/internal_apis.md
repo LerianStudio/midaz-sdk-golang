@@ -79,6 +79,8 @@ c, err := midaz.New(
 - `MIDAZ_MAX_RETRIES`
 - `MIDAZ_IDEMPOTENCY`
 - `MIDAZ_ERROR_EXPOSE_BODY`
+- `MIDAZ_ALLOW_INSECURE_HTTP` — Ledger/Tracer planes; loaded BEFORE the three URL variables, which is what makes a cluster-internal `http://…svc.cluster.local` URL parse. Set through `config.WithAllowInsecureHTTP` / `midaz.WithAllowInsecureHTTP` when the URLs come from code instead, where the ordering is the caller's to get right. `Validate` refuses it together with `EnvironmentProduction`.
+- `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` — the auth plane's own knob, independent of the one above.
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
 - `MIDAZ_CLIENT_ID`

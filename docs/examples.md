@@ -119,7 +119,10 @@ and the alias and external-code lookups:
 
 ```go
 bal, err := c.V2.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
-hist, err := c.V2.Balances.GetBalanceHistory(ctx, orgID, ledgerID, balanceID, "2026-06-30")
+
+// The history date names an INSTANT, so it must carry a time component: a
+// date-only "2026-06-30" is refused by the SDK before the request is built.
+hist, err := c.V2.Balances.GetBalanceHistory(ctx, orgID, ledgerID, balanceID, "2026-06-30T23:59:59Z")
 
 // The alias and external-code lookups take no options and are not paginated:
 // the endpoint accepts no query parameters and answers with a fixed page.
@@ -233,7 +236,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/transaction"
 
 settled, err := transaction.WaitForSettlement(
     ctx,
-    c.Balances, // satisfies the balance reader structurally
+    c.V2.Balances, // satisfies the balance reader structurally
     orgID, ledgerID, accountID,
     func(b models.Balance) bool {
         return b.AssetCode == "USD" && b.Version >= 2
@@ -294,7 +297,7 @@ if resp.InstrumentError != nil {
 
 ## Using pagination
 
-The primary entity accessors ship every paginated list method in a trio: `List` (one page), `All` (every item across pages), and `Pages` (every page envelope). `MetadataIndexes.ListMetadataIndexes` is intentionally non-paginated. Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
+The primary entity accessors ship every paginated list method in a trio: `List` (one page), `All` (every item across pages), and `Pages` (every page envelope). `MetadataIndexes.List` is intentionally non-paginated. Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
 
 ```go
 opts := models.AccountsListOpts{
@@ -369,7 +372,7 @@ Runnable examples live in `examples/`:
 
 **Testing & observability**
 
-- `09-testing-with-mocks/` - `go.uber.org/mock` for unit tests.
+- `09-testing-with-mocks/` - a consumer-declared narrow interface and a hand-written stub; no mock-generation library.
 - `10-observability-otel/` - OpenTelemetry tracing + metrics + logs.
 
 **Reference / advanced**
