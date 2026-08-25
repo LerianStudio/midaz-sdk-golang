@@ -107,9 +107,20 @@ const pathIDGuard = "requirePathIDs"
 //     guard and an honest direct read. The report above was written but was
 //     unreachable: any direct call at all sent the function down the direct
 //     branch, which examined the direct calls and credited, dropping every
-//     operation it had not been handed. Closed by reporting the operations no
-//     examined call accounts for, on EVERY function rather than on the branch
-//     that used to fall through to it — see operationsNotReached and offences.
+//     operation it had not been handed. Closed by reporting what no examined
+//     call accounts for, on EVERY function rather than on the branch that used
+//     to fall through to it — see unaccountedMentions and offences;
+//   - the operation mentioned TWICE, once honestly and once not. The report just
+//     described was keyed by operation NAME — a set of the names some call
+//     reached, compared against the names the function mentions — so ONE honest
+//     mention laundered every other mention of the SAME name in the same
+//     function. An operation called and guarded, plus a second handoff of that
+//     same operation to an unknown helper alongside a different, UNGUARDED id,
+//     was invisible; so was the transition-helper spelling of it, and so was a
+//     different operation buried one level inside a transition call's arguments,
+//     which the union credited because it walked the whole CallExpr. Closed by
+//     making "accounted" a property of the mention NODE rather than of the
+//     symbol — see unaccountedMentions.
 //
 // # Known ceiling, and it is deliberate
 //
@@ -145,7 +156,7 @@ const pathIDGuard = "requirePathIDs"
 //
 // # Accepted strictness, so nobody "fixes" it
 //
-// Six false positives are deliberate, and each is the price of a match that
+// Seven false positives are deliberate, and each is the price of a match that
 // cannot be talked into accepting a hostile input. Each one names the one-line
 // change a contributor makes at the site; none of them is a reason to widen the
 // matcher, because every widening that admits one of these admits a shape from
@@ -199,6 +210,20 @@ const pathIDGuard = "requirePathIDs"
 //     already covers the same value. The reasoning, and the alternative rule that
 //     was weighed against it, are on deformedGuardCalls. Fix at the site: hoist
 //     it, or delete it as the duplicate it is.
+//   - A HOISTED OPERATION is reported even when it is honestly called and
+//     honestly guarded: `get := f.ledger.GetAccountByID` followed by
+//     `get(ctx, orgID, ledgerID, id)` is refused, because the mention on the
+//     right-hand side of the binding is neither the target of a direct call nor
+//     an argument of a transition call — the call target is the local. Accepting
+//     it means crediting the mention because some LOCAL derived from it is later
+//     called, which is the name-keyed laundering of unaccountedMentions one
+//     level of indirection along: bind once, call the local honestly, and hand
+//     the SAME local to an unknown helper with an unguarded id, and the second
+//     handoff is an identifier this scan cannot attribute at all. directPathCalls
+//     still follows the binding, so the arguments of the hoisted call are still
+//     compared — that can only ADD findings, never remove one, and it can no
+//     longer change a verdict, since the binding itself is already reported. Fix
+//     at the site: call the operation directly.
 //
 // # This scan depends on its sibling
 //
@@ -320,7 +345,7 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 	ops := pathOperationsNamedBy(fn.Body, s.pathOps)
 	calls := directPathCalls(fn, s.pathOps)
 
-	if problems := s.offences(fn, ops, calls, site); len(problems) > 0 {
+	if problems := s.offences(fn, calls, site); len(problems) > 0 {
 		return strings.Join(problems, "; "), 0
 	}
 
@@ -335,9 +360,11 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 // picking a branch by the shape of what it found.
 //
 // The order is reporting order, not precedence: nothing here returns early, so
-// an operation the function names but never calls is reported even when the
-// calls it DOES make are perfectly guarded.
-func (s pathGuardScan) offences(fn *ast.FuncDecl, ops []string, calls []pathCall, site string) []string {
+// a MENTION of an operation that no examined call accounts for is reported even
+// when the calls the function DOES make are perfectly guarded — which is the
+// point, since the offending mention and the honest one are routinely the same
+// operation.
+func (s pathGuardScan) offences(fn *ast.FuncDecl, calls []pathCall, site string) []string {
 	var problems []string
 
 	// First, because it is the only check that runs on a function naming no
@@ -346,8 +373,8 @@ func (s pathGuardScan) offences(fn *ast.FuncDecl, ops []string, calls []pathCall
 		problems = append(problems, s.deformedGuardOffence(fn, deformed, site))
 	}
 
-	if unreached := operationsNotReached(fn, ops, calls, s.pathOps); len(unreached) > 0 {
-		problems = append(problems, unknownDelegation(fn, unreached, site))
+	if mentions := unaccountedMentions(fn, calls, s.pathOps); len(mentions) > 0 {
+		problems = append(problems, s.unaccountedMentionOffence(fn, mentions, site))
 	}
 
 	if missing := unguardedPathArguments(fn, calls, s.pathArgs, s.methodParams); len(missing) > 0 {
@@ -358,45 +385,141 @@ func (s pathGuardScan) offences(fn *ast.FuncDecl, ops []string, calls []pathCall
 	return problems
 }
 
-// operationsNotReached returns the path-parameter operations fn NAMES that no
-// examined call accounts for.
+// unaccountedMentions returns the mentions of a generated path-parameter
+// operation inside fn that no examined call accounts for — one entry per
+// OCCURRENCE, not one per operation.
 //
-// Two things account for an operation, and nothing else does:
+// Two positions account for a mention, and both are properties of the NODE:
 //
-//   - a DIRECT call, whose arguments unguardedPathArguments then compares
-//     against the guard — including one reached through a hoisted local, which
-//     directPathCalls follows; and
-//   - being handed to a call to a KNOWN transition helper, whose interior
-//     helperGuardsWhatItForwards checks separately.
+//   - the node is the Fun of a DIRECT call, whose arguments
+//     unguardedPathArguments then compares against the guard; or
+//   - the node is ITSELF a direct element of the argument list of a call to a
+//     KNOWN transition helper, whose interior helperGuardsWhatItForwards checks
+//     separately.
 //
-// Anything else — a function value handed to a package-local helper the scan
-// does not know, an operation named and never invoked — leaves a request this
-// scan cannot read, so it is reported. That is the same unknown=flag rule
-// unguardedPathArguments applies to an unrecognised generated spelling.
-func operationsNotReached(fn *ast.FuncDecl, ops []string, calls []pathCall, pathOps map[string]bool) []string {
-	reached := map[string]bool{}
+// Every other mention is reported, same-named or not, nested or top-level: a
+// function value handed to a package-local helper the scan does not know, an
+// operation bound to a local, an operation buried one level inside an argument
+// of a delegating call, an operation named and never invoked. That is the same
+// unknown=flag rule unguardedPathArguments applies to an unrecognised generated
+// spelling.
+//
+// # Accounted is a property of the OCCURRENCE, never of the SYMBOL
+//
+// The previous version keyed accounting by operation NAME. It built a set of the
+// names reached by a direct call, unioned the names appearing ANYWHERE inside a
+// call to a known transition helper, and reported the names of the function's
+// mentions missing from that set. A set keyed by name collapses every distinct
+// mention of one operation into a single entry, so ONE honest mention laundered
+// every other mention of that name in the same function. Three shapes walked
+// through — all compiling, all credited, all putting an unguarded id on the
+// wire:
+//
+//   - DeleteRule called directly and guarded honestly, plus a SECOND handoff of
+//     f.tracer.DeleteRule to a package-local helper alongside an UNGUARDED
+//     cascade id. The direct call had already put the NAME in the set, so the
+//     handoff was invisible and DELETE /v1/rules/{id} left with id="..", the
+//     scope escalation two Epic-2 rounds were spent closing. Its read-only twin
+//     — an honest GetRule read beside a fallback handoff of the same GetRule —
+//     behaves identically, so nothing about it depends on the delegated call
+//     being destructive;
+//   - the same laundering with the honest mention credited by a TRANSITION
+//     helper instead of by a direct call: ruleTransition(ctx, op,
+//     f.tracer.ActivateRule, id) standing beside sneak(f.tracer.ActivateRule,
+//     otherID). The transition call accounted for the name, and POST
+//     /v1/rules/{id}/activate carried otherID unguarded. This function has NO
+//     direct call at all, so it is also the shape that takes the one early exit
+//     in unguardedPathArguments — see the comment at that exit;
+//   - a DIFFERENT operation nested inside the transition call's own arguments.
+//     The union walked the ENTIRE CallExpr with pathOperationsNamedBy, so an
+//     operation buried in a nested call at an argument position was credited to
+//     a helper that never receives it.
+//
+// There is no name match strict enough to close this, because the offending
+// mention and the honest one carry the same name by construction. A mention
+// either sits at one of the two positions above or it does not, and that is
+// decided per node.
+//
+// # Why an unreadable delegation is REPORTED rather than judged in place
+//
+// An earlier version tried to judge it at the call site, by applying the rule
+// helperGuardsWhatItForwards applies inside a KNOWN helper: every value handed
+// over alongside the operation had to be one the guard received. That branch was
+// measured against the live tree and had ZERO users — all 209 credited functions
+// go through the direct-call branch (199) or a known transition helper (10) —
+// while carrying four independent ways to be talked into crediting an unguarded
+// id:
+//
+//   - the operation HOISTED into a local first, so the delegation call carries a
+//     plain identifier and the branch that looked for a selector saw no
+//     delegation at all — the same hoist that defeated the direct-call branch and
+//     the sibling delete-seam scan before it;
+//   - no ORDERING requirement: the guard was collected up to the function's
+//     closing brace, so a guard written AFTER the delegation credited it, which
+//     is the guard-below-the-call shape this scan closed everywhere else;
+//   - the variadic-tail exclusion, sound for a GENERATED method (oapi-codegen
+//     puts request editors there, never a path parameter) and unsound the moment
+//     it was applied to a LOCAL helper whose tail the author writes — `ids...`
+//     carried the id straight through;
+//   - the context exclusion is by NAME, so a value spelled like the context
+//     parameter was dropped without ever being compared.
+//
+// Closing four escapes in a branch nothing uses buys nothing and has to be
+// maintained. Unknown is therefore FLAGGED, which is the rule the sibling seam
+// scan already follows for a spelling it cannot resolve, and which
+// unguardedPathArguments follows for an operation reached through an
+// unrecognised generated spelling. All four escapes close by construction.
+//
+// The cost is the friction transitionHelpers exists to create: a facade
+// delegating to a NEW local helper fails until someone adds that helper to
+// transitionHelpers, where helperGuardsWhatItForwards then checks its interior.
+// The list is literal on purpose — "adding a fourth helper here should be a
+// decision someone makes on purpose" — and this is what makes that decision
+// unavoidable rather than optional.
+func unaccountedMentions(fn *ast.FuncDecl, calls []pathCall, pathOps map[string]bool) []*ast.SelectorExpr {
+	accounted := accountedMentionNodes(fn, calls)
+
+	var unaccounted []*ast.SelectorExpr
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok || accounted[sel] {
+			return true
+		}
+
+		if op, ok := generatedOperation(sel.Sel.Name); ok && pathOps[op] {
+			unaccounted = append(unaccounted, sel)
+		}
+
+		return true
+	})
+
+	return unaccounted
+}
+
+// accountedMentionNodes returns the exact NODES a call accounts for: the target
+// of every direct call, and every direct element of a known transition helper's
+// argument list.
+//
+// Parentheses are read through on the delegating side for the reason isIdent
+// gives — they carry no meaning, and refusing `ruleTransition(ctx, op,
+// (f.tracer.ActivateRule), id)` would be a pure false positive. Nothing else is
+// read through: an operation wrapped in a conversion or in another call is a
+// value the receiving helper computes, not one this scan can attribute to it.
+func accountedMentionNodes(fn *ast.FuncDecl, calls []pathCall) map[ast.Expr]bool {
+	accounted := map[ast.Expr]bool{}
 
 	for _, pc := range calls {
-		if op, ok := generatedOperation(pc.method); ok {
-			reached[op] = true
-		}
+		accounted[pc.call.Fun] = true
 	}
 
 	for _, call := range transitionHelperCalls(fn) {
-		for _, op := range pathOperationsNamedBy(call, pathOps) {
-			reached[op] = true
+		for _, arg := range call.Args {
+			accounted[ast.Unparen(arg)] = true
 		}
 	}
 
-	var unreached []string
-
-	for _, op := range ops {
-		if !reached[op] {
-			unreached = append(unreached, op)
-		}
-	}
-
-	return unreached
+	return accounted
 }
 
 // transitionHelperCalls returns the calls fn makes to a helper in
@@ -444,55 +567,24 @@ func calleeName(fun ast.Expr) (string, bool) {
 	return ident.Name, true
 }
 
-// unknownDelegation reports the shape no check can read: the function NAMES a
-// path-parameter operation and neither calls it nor hands it to a known
-// transition helper — so the operation travels as a function value to some other
-// package-local helper, and there is no helper on record whose interior can be
-// checked.
-//
-// # Why this is REPORTED rather than judged in place
-//
-// An earlier version tried to judge it at the call site, by applying the rule
-// helperGuardsWhatItForwards applies inside a KNOWN helper: every value handed
-// over alongside the operation had to be one the guard received. That branch was
-// measured against the live tree and had ZERO users — all 209 credited functions
-// go through the direct-call branch (199) or a known transition helper (10) —
-// while carrying four independent ways to be talked into crediting an unguarded
-// id:
-//
-//   - the operation HOISTED into a local first, so the delegation call carries a
-//     plain identifier and the branch that looked for a selector saw no
-//     delegation at all — the same hoist that defeated the direct-call branch and
-//     the sibling delete-seam scan before it;
-//   - no ORDERING requirement: the guard was collected up to the function's
-//     closing brace, so a guard written AFTER the delegation credited it, which
-//     is the guard-below-the-call shape this scan closed everywhere else;
-//   - the variadic-tail exclusion, sound for a GENERATED method (oapi-codegen
-//     puts request editors there, never a path parameter) and unsound the moment
-//     it was applied to a LOCAL helper whose tail the author writes — `ids...`
-//     carried the id straight through;
-//   - the context exclusion is by NAME, so a value spelled like the context
-//     parameter was dropped without ever being compared.
-//
-// Closing four escapes in a branch nothing uses buys nothing and has to be
-// maintained. Unknown is therefore FLAGGED, which is the rule the sibling seam
-// scan already follows for a spelling it cannot resolve, and which
-// unguardedPathArguments follows for an operation reached through an
-// unrecognised generated spelling. All four escapes close by construction, and
-// the scan gets smaller.
-//
-// The cost is one deliberate false positive, and it is the friction
-// transitionHelpers exists to create: a facade delegating to a NEW local helper
-// fails until someone adds that helper to transitionHelpers, where
-// helperGuardsWhatItForwards then checks its interior. The list is literal on
-// purpose — "adding a fourth helper here should be a decision someone makes on
-// purpose" — and this is what makes that decision unavoidable rather than
-// optional.
-func unknownDelegation(fn *ast.FuncDecl, ops []string, site string) string {
-	return funcLabel(fn) + " names " + strings.Join(ops, ", ") +
-		" without calling it or handing it to a helper in transitionHelpers, so no guard can be" +
-		" verified — call the operation directly, or add the helper that receives it to that list," +
-		" where its interior is checked" + site
+// unaccountedMentionOffence names each unaccounted mention with the LINE it sits
+// on, because one function can mention the same operation several times and the
+// reader needs the occurrence, not the name. Naming the operation alone is what
+// the name-keyed model did, and it is exactly the distinction that model lost.
+func (s pathGuardScan) unaccountedMentionOffence(
+	fn *ast.FuncDecl,
+	mentions []*ast.SelectorExpr,
+	site string,
+) string {
+	named := make([]string, 0, len(mentions))
+	for _, sel := range mentions {
+		named = append(named, sel.Sel.Name+" on line "+strconv.Itoa(s.fset.Position(sel.Pos()).Line))
+	}
+
+	return funcLabel(fn) + " mentions " + strings.Join(named, ", ") +
+		" without calling it there or handing it to a helper in transitionHelpers, so no guard can" +
+		" be verified for that mention — call the operation directly, or add the helper that" +
+		" receives it to that list, where its interior is checked" + site
 }
 
 // forwardedValues returns the arguments of one call that could carry a caller's
@@ -736,11 +828,19 @@ func calledOperationSpelling(fun ast.Expr, pathOps map[string]bool, hoisted map[
 //	resp, err := get(ctx, orgID, ledgerID, id)
 //
 // leaves the call target a plain identifier, so a scan requiring a selector on
-// call.Fun counts zero calls and falls through to the weaker branch in classify.
-// That is the hoist the sibling delete-seam scan was defeated by in Epic 3 and
-// closed against; this is the same closure, ported. Binding a generated
-// operation to a local carries no innocent meaning in a facade, so the binding
-// is simply followed.
+// call.Fun counts zero calls — which, before the checks stopped being
+// alternatives, dropped the function into the weakest branch. That is the hoist
+// the sibling delete-seam scan was defeated by in Epic 3 and closed against;
+// this is the same closure, ported. Binding a generated operation to a local
+// carries no innocent meaning in a facade, so the binding is simply followed.
+//
+// Since accounting moved to mention NODES, a hoist is REPORTED on its own —
+// the right-hand side of the binding is neither a call target nor a transition
+// argument, so unaccountedMentions names it (accepted-strictness list, entry
+// seven). This function can therefore no longer change a verdict; it survives
+// because following the binding still puts the hoisted call's arguments in front
+// of the identity check, which can only add findings to a function that is
+// already reported.
 func hoistedOperations(fn *ast.FuncDecl, pathOps map[string]bool) map[string]string {
 	bound := map[string]string{}
 
@@ -823,9 +923,16 @@ func unguardedPathArguments(
 	pathArgs map[string]map[string]bool,
 	methodParams map[string][]string,
 ) []string {
-	// No direct call, no argument expressions to compare. What the function
-	// NAMED is not dropped by this: operationsNotReached reports every operation
-	// no examined call accounts for, and it runs on the same function.
+	// No direct call, no argument expressions to compare — this is the one exit
+	// in the file that skips a check, and what it skips is provably empty for the
+	// inputs that reach it. Re-derived when accounting moved from operation NAMES
+	// to mention NODES, because a function with zero direct calls still has
+	// mention nodes and the exit must not swallow them: it does not.
+	// unaccountedMentions walks fn.Body itself, independently of `calls`, and
+	// offences calls it on EVERY function; the delegating shape that takes this
+	// exit — a transition delegation beside a handoff to an unknown helper, no
+	// direct call anywhere — is reported there, per mention. What this return
+	// declines is the loop below, which reads call.Args, of which there are none.
 	if len(calls) == 0 {
 		return nil
 	}
