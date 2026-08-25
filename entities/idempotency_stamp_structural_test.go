@@ -328,10 +328,13 @@ func operationsMatchingMethod(t *testing.T, file *ast.File, methods, ops map[str
 // is precisely what happened — three structural scans came back with empty
 // universes on the upgrade.
 //
-// So the residual is closed rather than restated for a third time. The first
-// argument of the call is read, both spellings that denote a method constant are
-// accepted, and anything else is a hard FAILURE rather than a skip. A future
-// emission change therefore cannot narrow these universes without saying so.
+// So the residual is closed rather than restated for a third time. The method
+// argument is read from either constructor (http.NewRequest at position 0,
+// http.NewRequestWithContext at position 1), both spellings that denote a
+// method constant are accepted, and anything else — an unreadable method OR a
+// builder with no recognized constructor call at all — is a hard FAILURE rather
+// than a skip. A future emission change therefore cannot narrow these universes
+// without saying so.
 func requestBuilderMethod(t *testing.T, fn *ast.FuncDecl) (string, bool) {
 	t.Helper()
 
@@ -342,33 +345,92 @@ func requestBuilderMethod(t *testing.T, fn *ast.FuncDecl) (string, bool) {
 
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || len(call.Args) == 0 || !isNewRequestCall(call) {
+		if !ok {
 			return true
 		}
 
-		method, found = httpMethodOf(call.Args[0])
+		methodPos, ok := newRequestMethodArg(call)
+		if !ok || len(call.Args) <= methodPos {
+			return true
+		}
+
+		method, found = httpMethodOf(call.Args[methodPos])
 
 		require.True(t, found,
-			"%s issues http.NewRequest with a method this scan cannot read; both generated-operation "+
+			"%s issues an http request with a method this scan cannot read; both generated-operation "+
 				"universes are derived from it, so an unreadable method would silently narrow them "+
 				"instead of failing here", fn.Name.Name)
 
 		return false
 	})
 
+	// The same floor for the call itself: fn is a NAME-MATCHED request builder,
+	// so its body must either construct the request (http.NewRequest /
+	// http.NewRequestWithContext) or DELEGATE to a sibling builder that does —
+	// the JSON-body wrappers marshal and hand off to their *WithBody twin, which
+	// is the one that constructs and gets the operation credited. A builder doing
+	// neither means the generator moved to a spelling this scan does not know,
+	// and it would otherwise drop out of BOTH universes silently.
+	require.True(t, found || delegatesToRequestBuilder(fn),
+		"%s is a generated request builder but neither constructs a request "+
+			"(http.NewRequest / http.NewRequestWithContext) nor delegates to a sibling "+
+			"builder; an unrecognized constructor spelling would silently narrow both "+
+			"generated-operation universes", fn.Name.Name)
+
 	return method, found
 }
 
-// isNewRequestCall reports whether a call is net/http's NewRequest.
-func isNewRequestCall(call *ast.CallExpr) bool {
+// delegatesToRequestBuilder reports whether fn's body calls another
+// name-matched generated request builder (the JSON-body wrapper pattern:
+// NewXRequest marshals and calls NewXRequestWithBody).
+func delegatesToRequestBuilder(fn *ast.FuncDecl) bool {
+	delegates := false
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		callee, ok := call.Fun.(*ast.Ident)
+		if !ok || callee.Name == fn.Name.Name {
+			return true
+		}
+
+		if _, ok := requestBuilderOperation(callee.Name); ok {
+			delegates = true
+			return false
+		}
+
+		return true
+	})
+
+	return delegates
+}
+
+// newRequestMethodArg reports whether a call constructs an *http.Request via
+// net/http and, if so, which argument position carries the method:
+// http.NewRequest(method, …) puts it first, and
+// http.NewRequestWithContext(ctx, method, …) puts it second.
+func newRequestMethodArg(call *ast.CallExpr) (int, bool) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != "NewRequest" {
-		return false
+	if !ok {
+		return 0, false
 	}
 
 	pkg, ok := sel.X.(*ast.Ident)
+	if !ok || pkg.Name != "http" {
+		return 0, false
+	}
 
-	return ok && pkg.Name == "http"
+	switch sel.Sel.Name {
+	case "NewRequest":
+		return 0, true
+	case "NewRequestWithContext":
+		return 1, true
+	default:
+		return 0, false
+	}
 }
 
 // httpMethodOf resolves the method argument of an http.NewRequest call to an

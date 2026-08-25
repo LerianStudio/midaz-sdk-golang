@@ -721,7 +721,7 @@ http://otel-collector:4317    plaintext, explicitly
 otel-collector:4317           plaintext (a bare host:port is treated as plaintext)
 ```
 
-**Prefix the endpoint with `https://` whenever telemetry leaves the host.** A bare `host:port` is treated as plaintext, so it is refused outright in a `production` environment and provider construction returns an error. Only two things satisfy that policy: an `https://` endpoint, or a non-production environment such as `observability.WithEnvironment("development")` for a local collector.
+**Prefix the endpoint with `https://` whenever telemetry leaves the host.** The `production` security policy refuses EVERY plaintext exporter — an explicit `http://` endpoint and a bare `host:port` alike — and provider construction returns an error. Only two things satisfy that policy: an `https://` endpoint, or a non-production environment such as `observability.WithEnvironment("development")` for a local collector.
 
 `observability.WithCollectorInsecure(true)` remains available for local and trusted in-cluster deployments, but it cannot request TLS: a scheme-less endpoint is plaintext regardless of that flag. Use the `https://` prefix to get TLS. As a last resort the refusal can be overridden with `ALLOW_INSECURE_OTEL="<reason>"` in the environment, which should be reserved for a plaintext collector reached over an already-trusted network path.
 
