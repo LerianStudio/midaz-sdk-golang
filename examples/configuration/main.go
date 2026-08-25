@@ -61,8 +61,8 @@ func basicConfiguration() error {
 	fmt.Println("-----------------------------")
 
 	// Create a client with minimal configuration. WithAnonymous opts out of
-	// auth so the example builds without credentials; v3 requires exactly
-	// one auth source (Anonymous or AccessManager) at construction.
+	// auth so the example builds without credentials; the SDK requires
+	// exactly one auth source (Anonymous or AccessManager) at construction.
 	c, err := midaz.New(midaz.WithAnonymous())
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -137,7 +137,7 @@ func environmentBasedConfiguration() error {
 
 // setupConfigurationEnv installs the env vars used by configurationFromEnvironment.
 // PLUGIN_AUTH_ENABLED + PLUGIN_AUTH_ADDRESS install the Access Manager auth source,
-// satisfying v3's "exactly one auth source" invariant.
+// satisfying the SDK's "exactly one auth source" invariant.
 func setupConfigurationEnv() {
 	envs := map[string]string{
 		"PLUGIN_AUTH_ENABLED": "true",

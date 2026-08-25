@@ -13,17 +13,17 @@ import (
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
-// ListAccounts lists all accounts in the ledger with v3 idiomatic demonstrations.
+// ListAccounts lists all accounts in the ledger with idiomatic demonstrations.
 //
-// The v3 contract demonstrated here:
+// The contract demonstrated here:
 //   - Typed AccountsListOpts (no pointer, concurrent-safe)
 //   - V2.Accounts.All iter.Seq2 for transparent pagination
 //   - entities.Collect to materialize a bounded slice
 //
-// This file replaces the v2 multi-page-with-NextPageOptionsFrom demo
+// This file replaces the SDK v2 multi-page-with-NextPageOptionsFrom demo
 // that depended on the now-deleted Pagination.NextPageOptions and
 // PrevPageOptions methods (Track 5 Batch 5B). Customers iterating
-// page-by-page in v3 use V2.Accounts.Pages or call V2.Accounts.List
+// page-by-page use V2.Accounts.Pages or call V2.Accounts.List
 // repeatedly with opts.Page++.
 func ListAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n📋 STEP 8: ACCOUNT LISTING")

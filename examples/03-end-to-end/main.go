@@ -40,7 +40,7 @@ func main() {
 	}
 
 	// Setup SDK client with the observability provider using the standardized options pattern.
-	// WithAnonymous opts out of auth — required for v3's "exactly one auth source" invariant
+	// WithAnonymous opts out of auth — required by the SDK's "exactly one auth source" invariant
 	// when running against a local stack with auth disabled.
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),

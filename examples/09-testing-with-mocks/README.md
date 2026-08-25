@@ -2,14 +2,14 @@
 
 Demonstrates **unit-testing your code against the Midaz SDK** using a
 consumer-defined narrow interface and a small hand-written mock — the
-idiomatic v4 pattern ("accept interfaces, return structs").
+idiomatic pattern ("accept interfaces, return structs").
 
 ## What this demonstrates
 
 - Declaring a NARROW interface on the consumer side (`accountSource`, with only
   the `All` and `GetByAlias` methods this code actually calls) instead of
   importing a broad SDK interface
-- `c.Accounts` (the concrete facade) satisfies that interface structurally in
+- `c.V2.Accounts` (the concrete facade) satisfies that interface structurally in
   production; a tiny local mock satisfies it in tests — no generated mocks, no
   SDK test dependency
 - Building synthetic `iter.Seq2[T, error]` streams in mock returns — the
@@ -43,7 +43,7 @@ type accountSource interface {
 }
 ```
 
-In production you pass `c.Accounts`; in tests you pass a hand-written mock with
+In production you pass `c.V2.Accounts`; in tests you pass a hand-written mock with
 func fields (see `reporter_test.go`'s `mockAccountSource`). No code-generation
 step is involved.
 

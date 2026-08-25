@@ -10,7 +10,7 @@ import (
 )
 
 // mockAccountSource is a hand-written test double for the consumer-defined
-// accountSource interface. In v4 the idiomatic pattern is a tiny local mock
+// accountSource interface. The idiomatic pattern is a tiny local mock
 // over your own narrow interface — no generated mocks, no SDK test deps.
 type mockAccountSource struct {
 	allFn        func(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error]

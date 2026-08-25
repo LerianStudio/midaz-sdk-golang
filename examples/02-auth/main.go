@@ -1,4 +1,4 @@
-// Package main demonstrates v3 Access Manager authentication.
+// Package main demonstrates Access Manager authentication.
 //
 // Run with credentials in your .env or shell:
 //
@@ -76,7 +76,7 @@ func buildClient() (*midaz.Client, error) {
 
 	return midaz.New(
 		midaz.WithConfig(cfg),
-		// v3: midaz.WithObservability(t,m,l bool) was deleted. The canonical
+		// midaz.WithObservability(t,m,l bool) was deleted in v3. The canonical
 		// expression chains observability.WithComponentEnabled through
 		// midaz.WithObservabilityOptions, which composes uniformly with
 		// every other observability.Option (service name, collector endpoint,

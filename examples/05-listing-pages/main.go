@@ -1,7 +1,7 @@
-// Package main demonstrates page-based pagination in the v3 SDK using
+// Package main demonstrates page-based pagination using
 // the iter.Seq2 trio: List, ListAll, ListPages.
 //
-// The v3 pagination contract:
+// The pagination contract:
 //
 //	List      — one page, you decide when to advance.
 //	ListAll   — iter.Seq2[T, error] — yields every item, hides paging.

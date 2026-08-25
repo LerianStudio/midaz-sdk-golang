@@ -1,7 +1,7 @@
 // Package main demonstrates unit-testing your code against the Midaz
 // SDK using a consumer-defined interface.
 //
-// The idiomatic v4 pattern: depend on a NARROW interface you declare
+// The idiomatic pattern: depend on a NARROW interface you declare
 // yourself — only the methods you actually call — rather than the
 // concrete *midaz.Client or a broad SDK interface. In production you
 // pass c.V2.Accounts (the facade satisfies your interface structurally);
@@ -25,7 +25,7 @@ import (
 // accountSource is the narrow slice of the Accounts facade this reporter
 // needs. c.V2.Accounts satisfies it in production; a local stub satisfies it
 // in tests. Declaring the interface on the consumer side (not importing a
-// broad SDK interface) is the idiomatic v4 testing pattern.
+// broad SDK interface) is the idiomatic testing pattern.
 type accountSource interface {
 	All(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error]
 	GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)

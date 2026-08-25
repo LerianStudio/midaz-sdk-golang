@@ -1,6 +1,6 @@
 # 05-listing-pages
 
-Demonstrates **page-based pagination** — the v3 idiom for endpoints
+Demonstrates **page-based pagination** — the idiom for endpoints
 where the server returns a fixed-size page identified by a 1-indexed
 page number.
 

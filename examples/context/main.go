@@ -26,8 +26,8 @@ func main() {
 	fmt.Println("===========================")
 
 	// Create a client for the examples. WithAnonymous opts out of auth so
-	// the example builds without credentials; v3 requires exactly one auth
-	// source (Anonymous or AccessManager) at construction.
+	// the example builds without credentials; the SDK requires exactly one
+	// auth source (Anonymous or AccessManager) at construction.
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
 		midaz.WithAnonymous(),

@@ -48,7 +48,7 @@ demonstrate exist only there:
 |---|---|
 | [`06-idempotency/`](06-idempotency/) | Auto / explicit / suppressed idempotency modes |
 | [`07-retries/`](07-retries/) | Default policy, custom policy, disabled retries |
-| [`08-logging-slog/`](08-logging-slog/) | `*slog.Logger` integration (canonical v3 logging) |
+| [`08-logging-slog/`](08-logging-slog/) | `*slog.Logger` integration (the SDK's only logging surface) |
 
 ## Testing & observability
 

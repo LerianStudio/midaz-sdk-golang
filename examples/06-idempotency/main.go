@@ -1,4 +1,4 @@
-// Package main demonstrates the v3 idempotency surface — the three modes
+// Package main demonstrates the idempotency surface — the three modes
 // the SDK supports for the X-Idempotency request header on unsafe (POST,
 // PUT, PATCH, DELETE) requests:
 //

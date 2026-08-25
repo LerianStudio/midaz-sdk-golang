@@ -1,9 +1,10 @@
-// Package main demonstrates v3 cursor pagination idioms across the Midaz SDK.
+// Package main demonstrates cursor pagination idioms across the Midaz SDK.
 //
 // Cursor-based endpoints (Transactions, Operations, OperationRoutes,
 // TransactionRoutes) advance pages by setting opts.Cursor =
 // page.Pagination.NextCursor — they have no Page/Offset field by design.
-// This compile-time guarantee replaces v2's silent-drop footgun (audit
+// This compile-time guarantee replaces the silent-drop footgun of SDK v2
+// — the SDK generation, not the /v2 ledger surface this file calls (audit
 // finding 5.5).
 //
 // This file shows three idioms in increasing convenience:
@@ -50,7 +51,7 @@ func main() {
 	ledgerID := getEnv("MIDAZ_LEDGER_ID", "ledger-456")
 	accountID := getEnv("MIDAZ_ACCOUNT_ID", "account-789")
 
-	// v3 requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset
+	// The SDK requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset
 	// (typical for local dev), FromEnvironment doesn't install one — add the
 	// explicit Anonymous opt-out at the config layer so NewConfig validates.
 	cfgOpts := []config.Option{config.FromEnvironment()}
@@ -156,7 +157,7 @@ func pageIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID string) 
 	return nil
 }
 
-// flatItemIterator demonstrates ListOperationsAll — the most idiomatic v3
+// flatItemIterator demonstrates ListOperationsAll — the most idiomatic
 // pattern. Cursor advance and item flattening are handled internally; the
 // caller writes a normal range loop. This is the form that should be used
 // in 90%+ of cases.

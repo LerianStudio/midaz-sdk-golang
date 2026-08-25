@@ -1,10 +1,10 @@
 # 04-listing-cursor
 
-Demonstrates **cursor-based pagination** — the v3 idiom for endpoints
+Demonstrates **cursor-based pagination** — the idiom for endpoints
 where the server's pagination contract is "give me a cursor, you give
 me back items, you tell me the next cursor."
 
-In v3, the SDK enforces the cursor/page distinction at the type system
+The SDK enforces the cursor/page distinction at the type system
 level: cursor-only endpoints expose `Cursor` in their typed list-opts
 struct and do NOT accept a `Page` field. Wrong-shape opts don't compile.
 
