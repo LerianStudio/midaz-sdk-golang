@@ -110,25 +110,27 @@ func TestNoFacadeCallsAGeneratedParser(t *testing.T) {
 
 	for path, file := range parseGoFiles(t, fset, ".") {
 		ast.Inspect(file, func(n ast.Node) bool {
-			sel, ok := n.(*ast.SelectorExpr)
+			spelling, ok := operationSpelling(n)
 			if !ok {
 				return true
 			}
 
-			op, ok := generatedOperation(sel.Sel.Name)
+			op, ok := generatedOperation(spelling)
 			if !ok || !ops[op] {
 				return true
 			}
 
-			if !isParserSpelling(sel.Sel.Name) {
+			if !isParserSpelling(spelling) {
 				rawOps[op] = true
-				return true
+				// Stop here so a matched selector's own Sel is not revisited as a
+				// bare identifier and counted twice.
+				return false
 			}
 
 			offenders = append(offenders, filepath.Base(path)+":"+
-				strconv.Itoa(fset.Position(sel.Pos()).Line)+" names "+sel.Sel.Name)
+				strconv.Itoa(fset.Position(n.Pos()).Line)+" names "+spelling)
 
-			return true
+			return false
 		})
 	}
 
@@ -155,6 +157,29 @@ func TestNoFacadeCallsAGeneratedParser(t *testing.T) {
 	require.GreaterOrEqual(t, len(rawOps), rawOperationFloor,
 		"expected at least %d generated operations reached through the raw call; found %d, "+
 			"so the scan stopped seeing them", rawOperationFloor, len(rawOps))
+}
+
+// operationSpelling returns the generated spelling a node names, from either
+// shape a name can take: qualified (genledger.ParseGetSegmentByIDResp,
+// f.ledger.GetSegmentByID) or bare.
+//
+// The bare half is not hypothetical tidiness. A DOT IMPORT of the generated
+// package makes ParseGetSegmentByIDResp a plain identifier, and a scan that
+// walks only selectors then sees nothing at all: the probe that established this
+// was a compiling facade doing the raw call followed by the free-function
+// parser, and it reported ZERO offenders. Both spellings of the parser were
+// already banned; only one of the two ways to WRITE either was being read.
+//
+// isParserSpelling takes a bare name, so nothing else had to move.
+func operationSpelling(n ast.Node) (string, bool) {
+	switch node := n.(type) {
+	case *ast.SelectorExpr:
+		return node.Sel.Name, true
+	case *ast.Ident:
+		return node.Name, true
+	}
+
+	return "", false
 }
 
 // rawOperationFloor is the number of distinct generated operations the facade

@@ -755,19 +755,29 @@ func returnsDirectly(body *ast.BlockStmt) bool {
 }
 
 // unconditionalCalls returns the calls to name inside one statement that run
-// whenever the statement is reached: the statement's own initialiser and
-// condition, never anything inside a block it may or may not enter.
+// whenever the statement is reached, in place: the statement's own initialiser
+// and condition, never anything inside a block it may or may not enter, and
+// never anything whose execution is postponed.
 //
 // Pruning at every nested block covers if, for, range, switch, select and
 // function literals in one rule, since each of them keeps its conditional half
 // in a BlockStmt. A nested if is pruned explicitly as well, because an
 // `else if` hangs off the Else field directly rather than inside a block.
+//
+// defer and go are pruned for a different reason than the blocks: their call
+// is walked DIRECTLY, with no block in between, so `defer requirePathIDs(...)`
+// read as a guard that runs — while it actually runs after the function body is
+// done, which is to say after the request has left. A goroutine is worse still:
+// it may not have run at all. The caller's own spelling requirement
+// (guardCallsActedOn) already refuses both, since neither is an if statement;
+// this keeps the hole out of the helper itself, so a second caller does not
+// inherit it.
 func unconditionalCalls(stmt ast.Stmt, name string) []*ast.CallExpr {
 	var calls []*ast.CallExpr
 
 	ast.Inspect(stmt, func(n ast.Node) bool {
 		switch node := n.(type) {
-		case *ast.BlockStmt:
+		case *ast.BlockStmt, *ast.DeferStmt, *ast.GoStmt:
 			return false
 		case *ast.IfStmt:
 			if node != stmt {
