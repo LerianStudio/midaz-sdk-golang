@@ -3,9 +3,8 @@ package entities
 import (
 	"go/ast"
 	"go/token"
-	"os"
+	"net/http"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,14 +40,18 @@ import (
 // update and the seamed floor below is a backstop against the SCAN breaking,
 // not against a missed entry.
 //
-// The residual is the reading, not the coverage: the method is matched in the
-// builder's SOURCE TEXT as the literal http.NewRequest("DELETE", because that is
-// how oapi-codegen writes it. A generated builder that computed its method — from
-// a variable, a constant, a helper — would not match and its operation would drop
-// out of the universe silently. Measured against the tree today, all 225
-// http.NewRequest calls across both generated clients spell the method as a bare
-// literal and none is computed, so the residual is currently empty; it reopens
-// only if oapi-codegen changes how it emits the call.
+// The method is read out of the builder's AST by requestBuilderMethod, shared
+// with the write universe, which accepts the two spellings that denote a method
+// constant — the literal "DELETE" and http.MethodDelete — and FAILS on anything
+// else rather than skipping it.
+//
+// That reading replaces a source-text regex for the literal, whose stated
+// residual was that a builder naming its method any other way "would drop out of
+// the universe silently". The oapi-codegen v2.7 upgrade made that concrete: all
+// 225 builders moved from a bare string literal to the stdlib constant — the 29
+// deletes among them from "DELETE" to http.MethodDelete — and this universe came
+// back EMPTY. The delete SET did not change across that upgrade — 29 on both
+// sides, 27 ledger and 2 tracer — so the floor below is untouched.
 //
 // # What the scan matches, and why it is that loose
 //
@@ -312,25 +315,25 @@ func deleteOperations(t *testing.T, fset *token.FileSet) map[string]bool {
 	ops := map[string]bool{}
 
 	for _, dir := range []string{"../internal/genledger", "../internal/gentracer"} {
-		for path, file := range parseGoFiles(t, fset, dir) {
-			collectDeleteOperations(t, path, file, ops)
+		for _, file := range parseGoFiles(t, fset, dir) {
+			collectDeleteOperations(t, file, ops)
 		}
 	}
 
 	return ops
 }
 
-// deleteMethod matches a request builder that issues DELETE.
-var deleteMethod = regexp.MustCompile(`http\.NewRequest\("DELETE"`)
+// deleteMethod is the one method this seam is about.
+var deleteMethod = map[string]bool{http.MethodDelete: true}
 
 // collectDeleteOperations records every request builder in one generated file
 // that issues DELETE, through the one scan collectWriteOperations also uses —
 // see operationsMatchingMethod for why the two universes must not each keep
-// their own copy of it.
-func collectDeleteOperations(t *testing.T, path string, file *ast.File, ops map[string]bool) {
+// their own copy of it, and requestBuilderMethod for how the method is read.
+func collectDeleteOperations(t *testing.T, file *ast.File, ops map[string]bool) {
 	t.Helper()
 
-	operationsMatchingMethod(t, path, file, deleteMethod, ops)
+	operationsMatchingMethod(t, file, deleteMethod, ops)
 }
 
 // deleteMentions splits the mentions of a generated delete operation inside a
@@ -619,14 +622,4 @@ func sortedKeys(set map[string]bool) []string {
 	sort.Strings(out)
 
 	return out
-}
-
-// readFileForScan reads a source file for the scans that need its raw text.
-func readFileForScan(t *testing.T, path string) string {
-	t.Helper()
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	return string(data)
 }

@@ -37,8 +37,6 @@ jobs:
       go_private_modules: "github.com/LerianStudio/*"
       # Library repository: no Dockerfile to build or score.
       enable_docker_scan: false
-      # Tool-chain-only CVE suppressions (see the statements in the file).
-      ignore_file: .trivyignore.yaml
       enable_custom_checks: true
       custom_checks: |
         verify-sdk
