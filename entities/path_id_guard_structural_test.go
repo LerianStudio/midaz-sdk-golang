@@ -32,6 +32,11 @@ var transitionHelpers = map[string]bool{
 	"reservationTransition": true,
 }
 
+// pathIDGuard is the shared pre-request guard every facade runs on the values it
+// formats into a URL path. It is the only spelling this scan reads; a facade
+// validating its ids some other way is not credited, by design.
+const pathIDGuard = "requirePathIDs"
+
 // TestEveryPathParameterOperationIsGuarded is the structural invariant behind
 // the empty/dot-segment path id guard.
 //
@@ -296,6 +301,12 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 // calls it DOES make are perfectly guarded.
 func (s pathGuardScan) offences(fn *ast.FuncDecl, ops []string, calls []pathCall, site string) []string {
 	var problems []string
+
+	// First, because it is the only check that runs on a function naming no
+	// operation at all — which is exactly what a transition helper is.
+	if deformed := deformedGuardCalls(fn); len(deformed) > 0 {
+		problems = append(problems, s.deformedGuardOffence(fn, deformed, site))
+	}
 
 	if unreached := operationsNotReached(fn, ops, calls, s.pathOps); len(unreached) > 0 {
 		problems = append(problems, unknownDelegation(fn, unreached, site))
@@ -831,6 +842,88 @@ func pathArgumentsOf(call *ast.CallExpr, names []string, wanted map[string]bool)
 	return args
 }
 
+// deformedGuardCalls returns the requirePathIDs calls in fn that are NOT the
+// initialiser of an accepted guard at depth 1 of the function body.
+//
+// # A deformed guard is a FLAG, not an absence
+//
+// guardedValues walks the function's own statements and collects the values
+// behind each guard it accepts. Every earlier version simply SKIPPED a statement
+// whose guard did not match — treating a deformed call as if it were not there —
+// and that made the verdict depend on ORDER:
+//
+//	if err := requirePathIDs(op, "id", id); err != nil { err = nil; return nil, err }
+//	if err := requirePathIDs(op, "id", id); err != nil { return nil, err }
+//	resp, err := f.tracer.GetRule(ctx, id)
+//
+// The first guard is refused (its body is two statements, so it hands the caller
+// a nil error for a rejected id) and skipped; the second is accepted and credits
+// id; the scan passes. At RUNTIME the FIRST one executes, and `id=".."` reaches
+// the wire with err=nil — the silent zero and the scope escalation, reached past
+// a scan that had already refused the very statement doing it. Either order
+// works, because skipping is order-blind in both directions.
+//
+// So refusal now means refusal: a guard call the accepted shape does not cover
+// makes the function an offender on its own, whatever else in it guards. This is
+// the unknown=flag rule the round-4 deletion applied to delegations, applied to
+// guard SPELLINGS — "refuse everything else by construction" is not satisfied by
+// looking away.
+//
+// # What "accepted" means here, and the nesting decision
+//
+// Accepted is guardCallActedOn's four-part shape AND depth 1 of the function
+// body — the two requirements guardedValues already imposed together. So a
+// guard nested inside an if, an else-if, a loop, a switch case or a closure is
+// now REPORTED rather than silently uncredited, even when its own four parts are
+// perfect and another depth-1 guard already covers the same value.
+//
+// That is a deliberate choice between two defensible rules, and it is the
+// stricter one. The alternative — judge the four parts wherever the guard sits,
+// and let depth decide only whether it CREDITS — keeps a redundant nested guard
+// clean, at the cost of a second, weaker acceptance test living beside the first.
+// Two tests for one shape is how the last four rounds went wrong. The strict rule
+// costs nothing live: all 202 guards in the tree are statements of their
+// function's own body, counted mechanically before this landed, and a facade that
+// genuinely wants a conditional check can put it after the unconditional one.
+func deformedGuardCalls(fn *ast.FuncDecl) []*ast.CallExpr {
+	accepted := map[*ast.CallExpr]bool{}
+
+	for _, stmt := range fn.Body.List {
+		if call, ok := guardCallActedOn(stmt, pathIDGuard); ok {
+			accepted[call] = true
+		}
+	}
+
+	var deformed []*ast.CallExpr
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isIdent(call.Fun, pathIDGuard) || accepted[call] {
+			return true
+		}
+
+		deformed = append(deformed, call)
+
+		return true
+	})
+
+	return deformed
+}
+
+// deformedGuardOffence names the lines the refused guard calls sit on, because
+// the function may hold several and the reader needs the one to look at.
+func (s pathGuardScan) deformedGuardOffence(fn *ast.FuncDecl, calls []*ast.CallExpr, site string) string {
+	lines := make([]string, 0, len(calls))
+	for _, call := range calls {
+		lines = append(lines, strconv.Itoa(s.fset.Position(call.Pos()).Line))
+	}
+
+	return funcLabel(fn) + " calls " + pathIDGuard + " on line " + strings.Join(lines, ", ") +
+		" in a shape this scan does not accept — the only credited spelling is" +
+		" `if err := " + pathIDGuard + "(...); err != nil { return ..., err }`," +
+		" written as a statement of the function's own body" + site
+}
+
 // guardedValues returns the VALUE half of every requirePathIDs pair fn hands to
 // the guard before position before, as source text.
 // requirePathIDs(operation, "orgID", orgID, "id", id) contributes orgID and id —
@@ -851,6 +944,12 @@ func pathArgumentsOf(call *ast.CallExpr, names []string, wanted map[string]bool)
 //   - Its ERROR must be acted on — see guardCallActedOn. Running the guard and
 //     dropping its verdict is not a guard, and it was the shape that passed every
 //     other requirement here.
+//
+// A statement this skips is not thereby forgiven. Skipping used to be the whole
+// verdict on a refused guard, which let a deformed one hide behind a well-shaped
+// sibling written after it; deformedGuardCalls now reports every guard call this
+// loop would decline, so this function only has to answer what was CHECKED, not
+// what was attempted.
 func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 	values := map[string]bool{}
 
@@ -859,7 +958,7 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 			break
 		}
 
-		call, ok := guardCallActedOn(stmt, "requirePathIDs")
+		call, ok := guardCallActedOn(stmt, pathIDGuard)
 		if !ok {
 			continue
 		}
