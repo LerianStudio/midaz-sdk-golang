@@ -72,8 +72,12 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 	pathOps := operationsWithPathParameters(t, fset)
 	require.NotEmpty(t, pathOps, "found no generated operations with path parameters; the scan is broken, not the code")
 
-	pathArgs := pathArgumentNames(t, fset)
-	methodParams := clientMethodParameters(t, fset)
+	scan := pathGuardScan{
+		fset:         fset,
+		pathOps:      pathOps,
+		pathArgs:     pathArgumentNames(t, fset),
+		methodParams: clientMethodParameters(t, fset),
+	}
 
 	var unguarded []string
 
@@ -82,51 +86,12 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 
 	for name, file := range parseGoFiles(t, fset, ".") {
 		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				// Not a function body. A package-level var, const or type that
-				// binds a path-parameter operation leaves every caller naming a
-				// bare identifier, which no scan of function bodies can attribute
-				// back to the operation — so the guard requirement evaporates
-				// silently. See packageScopeEscape (delete_seam_structural_test.go)
-				// for the two shapes this was proven against and for the
-				// reflection ceiling both scans share.
-				if ops := pathOperationsNamedBy(decl, pathOps); len(ops) > 0 {
-					unguarded = append(unguarded, "the package-level declaration in "+
-						filepath.Base(name)+":"+strconv.Itoa(fset.Position(decl.Pos()).Line)+
-						" binds "+strings.Join(ops, ", ")+
-						", which no caller can then be checked for a guard")
-				}
-
-				continue
+			problem, credited := scan.classify(name, decl, helperGuards)
+			if problem != "" {
+				unguarded = append(unguarded, problem)
 			}
 
-			if transitionHelpers[fn.Name.Name] {
-				helperGuards[fn.Name.Name] = helperGuardsWhatItForwards(fn)
-			}
-
-			site := " (declared at " + filepath.Base(name) + ":" +
-				strconv.Itoa(fset.Position(fn.Pos()).Line) + ")"
-
-			switch ops := pathOperationsNamedBy(fn.Body, pathOps); {
-			case len(ops) == 0:
-			case len(directPathCalls(fn, pathOps)) > 0:
-				if missing := unguardedPathArguments(fn, pathOps, pathArgs, methodParams); len(missing) > 0 {
-					unguarded = append(unguarded, funcLabel(fn)+" forwards "+strings.Join(missing, ", ")+
-						" into a URL path without handing it to requirePathIDs"+site)
-
-					continue
-				}
-
-				guarded++
-			case guardsPathIDs(fn):
-				// The operation is NAMED but not called: the function hands it to a
-				// transition helper as a function value, so there are no call
-				// arguments here to compare. The helper's own guard is checked below.
-				guarded++
-			default:
-				unguarded = append(unguarded, funcLabel(fn)+" reaches "+strings.Join(ops, ", ")+site)
-			}
+			guarded += credited
 		}
 	}
 
@@ -155,6 +120,82 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 	// A floor, so the scan silently matching nothing cannot read as success.
 	require.Greater(t, guarded, 100,
 		"expected the guard on more than 100 facade functions; found %d, so the scan stopped seeing them", guarded)
+}
+
+// pathGuardScan carries the three derived inputs the per-declaration check
+// needs, so the check is one method with one argument rather than a loop body
+// nested inside the test function. Flattening it that way is also what keeps the
+// test under the cognitive-complexity limit, which the COLD linter has caught in
+// this package once per fix round.
+type pathGuardScan struct {
+	fset         *token.FileSet
+	pathOps      map[string]bool
+	pathArgs     map[string]map[string]bool
+	methodParams map[string][]string
+}
+
+// classify judges one top-level declaration, returning the offence to report (or
+// "") and 1 when the declaration is a facade function whose path ids are
+// verifiably guarded.
+//
+// It also records a transition helper's own verdict into helperGuards, because
+// the helper is the one shape whose guard cannot be judged from the call sites
+// that depend on it.
+func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[string]bool) (string, int) {
+	fn, ok := decl.(*ast.FuncDecl)
+	if !ok || fn.Body == nil {
+		return s.packageScopeBinding(path, decl), 0
+	}
+
+	if transitionHelpers[fn.Name.Name] {
+		helperGuards[fn.Name.Name] = helperGuardsWhatItForwards(fn)
+	}
+
+	ops := pathOperationsNamedBy(fn.Body, s.pathOps)
+	if len(ops) == 0 {
+		return "", 0
+	}
+
+	site := " (declared at " + filepath.Base(path) + ":" +
+		strconv.Itoa(s.fset.Position(fn.Pos()).Line) + ")"
+
+	if len(directPathCalls(fn, s.pathOps)) > 0 {
+		missing := unguardedPathArguments(fn, s.pathOps, s.pathArgs, s.methodParams)
+		if len(missing) > 0 {
+			return funcLabel(fn) + " forwards " + strings.Join(missing, ", ") +
+				" into a URL path without handing it to requirePathIDs" + site, 0
+		}
+
+		return "", 1
+	}
+
+	// The operation is NAMED but not called: the function hands it to a
+	// transition helper as a function value, so there are no call arguments here
+	// to compare. The helper's own guard is checked by the caller.
+	if guardsPathIDs(fn) {
+		return "", 1
+	}
+
+	return funcLabel(fn) + " reaches " + strings.Join(ops, ", ") + site, 0
+}
+
+// packageScopeBinding reports a path-parameter operation bound OUTSIDE any
+// function body.
+//
+// A package-level var, const or type that binds one leaves every caller naming a
+// bare identifier, which no scan of function bodies can attribute back to the
+// operation — so the guard requirement evaporates silently. See
+// packageScopeEscape (delete_seam_structural_test.go) for the two shapes this
+// was proven against and for the reflection ceiling both scans share.
+func (s pathGuardScan) packageScopeBinding(path string, decl ast.Decl) string {
+	ops := pathOperationsNamedBy(decl, s.pathOps)
+	if len(ops) == 0 {
+		return ""
+	}
+
+	return "the package-level declaration in " + filepath.Base(path) + ":" +
+		strconv.Itoa(s.fset.Position(decl.Pos()).Line) + " binds " + strings.Join(ops, ", ") +
+		", which no caller can then be checked for a guard"
 }
 
 // directPathCalls returns the calls in fn that INVOKE a generated
