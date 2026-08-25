@@ -570,3 +570,15 @@ Everything below was read out of `internal/genledger` or `.references/midaz` @ `
 **Review:** one opus review round (money proof CLEAN — poll cannot mask, nothing-on-hold asserted, fatal path proven to os.Exit(1)), 10 findings, all fixed in one round + the Update defect the fix agent itself flagged. `make ci` green cold-cache end to end. HEAD now `1be9a37` (`51e27e3` fix(instruments) + `1be9a37` feat(examples)), tree clean, NOT pushed.
 
 **Still latent, recorded:** instrument identifiers validated as UUIDs at Validate() but typed string (consistent with every body-carried id in the SDK); the proof runs at one asset scale per run (scale 0/6 covered by unit arithmetic only); `V2.Instruments.Update`'s required-on-PATCH contract is the server's choice, mirrored not editorialized.
+
+---
+
+## PR #241 (2026-08-25) — opened, CI green on every required check
+
+Fred authorized the PR WITHOUT a breaking marker (v5 is still in beta; the major is already open). Title: `feat(entities): serve both midaz v1 and v2 surfaces`, base develop, squash title carries no `!` and no breaking footer, so semantic-release cuts a beta increment, not a major.
+
+**CI round 1 findings and their fixes (`9980fc0` + `cb6a726`):** the breaking-change guard reads COMMIT messages (17 `!` titles + 6 footers from the epics) and takes an exact acknowledgement line in the PR body as the pass condition — added. Four runtime-reachable dep CVEs bumped (x/mod, x/text, grpc, fiber); the six kin-openapi/oapi-codegen CVEs are TOOL-chain-only and suppressed with statements in `.trivyignore.yaml` (upgrading the chain regenerates 7k lines in a layout the structural scans must be taught first — attempted, reverted, recorded as follow-up). CI coverage measured examples/ mains in the denominator (35.1% false read); `.ignorecoverunit` mirrors the local Makefile scope, CI now reads 81.7% vs the untouched 80% gate. `enable_docker_scan: false` (library, no Dockerfile).
+
+**CodeRabbit round 1 (ASSERTIVE, 285 files, 37 findings) — triaged with judgment (`9d4647c`..`267a658`):** 27 fixed — the load-bearing ones: `requirePathIDs` refuses padded ids instead of checking the trimmed form while sending the raw one; v2 leg scoping trims the addressed pair once; Transactions Count (both surfaces) and holder-account listing refuse filters their generated params cannot carry (a silently unfiltered COUNT reads as the narrowed total it is not); `cursorSeq` stops on a repeated cursor; one-spelling scan coverage 83→111 v2 operations. 6 declined with mechanism-citing replies (CodeRabbit withdrew #9 after reading one). 1 escalation declined as plan-sanctioned (business-observability skips name v4 Task 5.2.6).
+
+**Standing state:** all 7 required checks GREEN on head `267a658`; `gosec` (code scanning, NOT required) red with 3 G101 false positives on generated OAuth-scope-name constants — dismissal is 3 clicks in the Security UI (my token lacks security_events). CodeRabbit re-review pending. lib-observability v1.0.1→v3.1.0 major is in the lib-version grace window until 2026-09-04 — separate follow-up.
