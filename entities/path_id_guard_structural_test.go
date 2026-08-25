@@ -97,7 +97,14 @@ var transitionHelpers = map[string]bool{
 //     transitionHelpers. The branch that tried to judge this AT THE CALL SITE is
 //     deleted: it had zero live users and four ways to be talked into crediting
 //     an unguarded id. Delegation to a helper the scan does not know is now
-//     REPORTED — see unknownDelegation.
+//     REPORTED — see unknownDelegation;
+//   - the operation NAMED but never directly called, standing beside an honest
+//     guard and an honest direct read. The report above was written but was
+//     unreachable: any direct call at all sent the function down the direct
+//     branch, which examined the direct calls and credited, dropping every
+//     operation it had not been handed. Closed by reporting the operations no
+//     examined call accounts for, on EVERY function rather than on the branch
+//     that used to fall through to it — see operationsNotReached and offences.
 //
 // # Known ceiling, and it is deliberate
 //
@@ -238,6 +245,22 @@ type pathGuardScan struct {
 // It also records a transition helper's own verdict into helperGuards, because
 // the helper is the one shape whose guard cannot be judged from the call sites
 // that depend on it.
+//
+// # No branch decides on its own
+//
+// An earlier version chose ONE check per function: any direct call at all sent
+// it down the direct branch, which examined the direct calls and credited. An
+// operation the function NAMED but did not directly call was dropped on that
+// path, and the unknown-delegation report below was unreachable from it. The
+// deformation that proved it kept an honest guard and an honest direct read, and
+// handed a generated operation plus an UNGUARDED id to a package-local helper
+// beside them: the function was credited, every structural scan stayed green,
+// and the wire carried the unguarded id.
+//
+// So the checks are no longer alternatives. Every function runs every check and
+// the offences are reported together — see offences, which is also why the
+// deformed-guard check reaches a transition helper, a function that names no
+// operation at all.
 func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[string]bool) (string, int) {
 	fn, ok := decl.(*ast.FuncDecl)
 	if !ok || fn.Body == nil {
@@ -248,37 +271,133 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 		helperGuards[fn.Name.Name] = helperGuardsWhatItForwards(fn, s.pathOps)
 	}
 
+	site := " (declared at " + filepath.Base(path) + ":" +
+		strconv.Itoa(s.fset.Position(fn.Pos()).Line) + ")"
+
 	ops := pathOperationsNamedBy(fn.Body, s.pathOps)
+	calls := directPathCalls(fn, s.pathOps)
+
+	if problems := s.offences(fn, ops, calls, site); len(problems) > 0 {
+		return strings.Join(problems, "; "), 0
+	}
+
 	if len(ops) == 0 {
 		return "", 0
 	}
 
-	site := " (declared at " + filepath.Base(path) + ":" +
-		strconv.Itoa(s.fset.Position(fn.Pos()).Line) + ")"
-
-	if calls := directPathCalls(fn, s.pathOps); len(calls) > 0 {
-		missing := unguardedPathArguments(fn, calls, s.pathArgs, s.methodParams)
-		if len(missing) > 0 {
-			return funcLabel(fn) + " forwards " + strings.Join(missing, ", ") +
-				" into a URL path without handing it to requirePathIDs" + site, 0
-		}
-
-		return "", 1
-	}
-
-	// The operation is NAMED but not called: the function hands it to a
-	// transition helper as a function value, so there are no call arguments here
-	// to compare. The helper's own guard is checked by the caller.
-	if delegatesToTransitionHelper(fn) {
-		return "", 1
-	}
-
-	return unknownDelegation(fn, ops, site), 0
+	return "", 1
 }
 
-// unknownDelegation reports the last shape: the function NAMES a path-parameter
-// operation, does not call it, and does not delegate to a known transition
-// helper — so it hands the operation as a function value to some other
+// offences runs every check on one function and returns all of them, rather than
+// picking a branch by the shape of what it found.
+//
+// The order is reporting order, not precedence: nothing here returns early, so
+// an operation the function names but never calls is reported even when the
+// calls it DOES make are perfectly guarded.
+func (s pathGuardScan) offences(fn *ast.FuncDecl, ops []string, calls []pathCall, site string) []string {
+	var problems []string
+
+	if unreached := operationsNotReached(fn, ops, calls, s.pathOps); len(unreached) > 0 {
+		problems = append(problems, unknownDelegation(fn, unreached, site))
+	}
+
+	if missing := unguardedPathArguments(fn, calls, s.pathArgs, s.methodParams); len(missing) > 0 {
+		problems = append(problems, funcLabel(fn)+" forwards "+strings.Join(missing, ", ")+
+			" into a URL path without handing it to requirePathIDs"+site)
+	}
+
+	return problems
+}
+
+// operationsNotReached returns the path-parameter operations fn NAMES that no
+// examined call accounts for.
+//
+// Two things account for an operation, and nothing else does:
+//
+//   - a DIRECT call, whose arguments unguardedPathArguments then compares
+//     against the guard — including one reached through a hoisted local, which
+//     directPathCalls follows; and
+//   - being handed to a call to a KNOWN transition helper, whose interior
+//     helperGuardsWhatItForwards checks separately.
+//
+// Anything else — a function value handed to a package-local helper the scan
+// does not know, an operation named and never invoked — leaves a request this
+// scan cannot read, so it is reported. That is the same unknown=flag rule
+// unguardedPathArguments applies to an unrecognised generated spelling.
+func operationsNotReached(fn *ast.FuncDecl, ops []string, calls []pathCall, pathOps map[string]bool) []string {
+	reached := map[string]bool{}
+
+	for _, pc := range calls {
+		if op, ok := generatedOperation(pc.method); ok {
+			reached[op] = true
+		}
+	}
+
+	for _, call := range transitionHelperCalls(fn) {
+		for _, op := range pathOperationsNamedBy(call, pathOps) {
+			reached[op] = true
+		}
+	}
+
+	var unreached []string
+
+	for _, op := range ops {
+		if !reached[op] {
+			unreached = append(unreached, op)
+		}
+	}
+
+	return unreached
+}
+
+// transitionHelperCalls returns the calls fn makes to a helper in
+// transitionHelpers, so the operations handed over in those calls can be
+// credited to the helper's own guard.
+//
+// The operation must be named IN the delegating call. An earlier version asked
+// only whether the function called a transition helper ANYWHERE, which credited
+// every operation the function named the moment one of them was delegated.
+func transitionHelperCalls(fn *ast.FuncDecl) []*ast.CallExpr {
+	var calls []*ast.CallExpr
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		if name, ok := calleeName(call.Fun); ok && transitionHelpers[name] {
+			calls = append(calls, call)
+		}
+
+		return true
+	})
+
+	return calls
+}
+
+// calleeName returns the plain-identifier name a call targets, reading through
+// the type arguments a generic helper carries (reservationTransition[T], and the
+// multi-parameter spelling go/ast models as an IndexListExpr).
+func calleeName(fun ast.Expr) (string, bool) {
+	switch node := fun.(type) {
+	case *ast.IndexExpr:
+		fun = node.X
+	case *ast.IndexListExpr:
+		fun = node.X
+	}
+
+	ident, ok := fun.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+
+	return ident.Name, true
+}
+
+// unknownDelegation reports the shape no check can read: the function NAMES a
+// path-parameter operation and neither calls it nor hands it to a known
+// transition helper — so the operation travels as a function value to some other
 // package-local helper, and there is no helper on record whose interior can be
 // checked.
 //
@@ -321,9 +440,10 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 // purpose" — and this is what makes that decision unavoidable rather than
 // optional.
 func unknownDelegation(fn *ast.FuncDecl, ops []string, site string) string {
-	return funcLabel(fn) + " hands " + strings.Join(ops, ", ") +
-		" to a local helper that is not in transitionHelpers, so no guard can be verified" +
-		" — add the helper to that list, where its interior is checked" + site
+	return funcLabel(fn) + " names " + strings.Join(ops, ", ") +
+		" without calling it or handing it to a helper in transitionHelpers, so no guard can be" +
+		" verified — call the operation directly, or add the helper that receives it to that list," +
+		" where its interior is checked" + site
 }
 
 // forwardedValues returns the arguments of one call that could carry a caller's
@@ -470,14 +590,6 @@ func contextParameter(fn *ast.FuncDecl) string {
 	}
 
 	return ""
-}
-
-// delegatesToTransitionHelper reports whether fn hands its generated operation to
-// one of the transition helpers, which guard on their caller's behalf. The
-// helpers' own guards are checked separately, in the test body, because a helper
-// is credited by every method that delegates to it.
-func delegatesToTransitionHelper(fn *ast.FuncDecl) bool {
-	return callsAny(fn, func(name string) bool { return transitionHelpers[name] })
 }
 
 // packageScopeBinding reports a path-parameter operation bound OUTSIDE any
@@ -649,6 +761,13 @@ func unguardedPathArguments(
 	pathArgs map[string]map[string]bool,
 	methodParams map[string][]string,
 ) []string {
+	// No direct call, no argument expressions to compare. What the function
+	// NAMED is not dropped by this: operationsNotReached reports every operation
+	// no examined call accounts for, and it runs on the same function.
+	if len(calls) == 0 {
+		return nil
+	}
+
 	checked := guardedValues(fn, earliestCall(calls))
 
 	var missing []string
