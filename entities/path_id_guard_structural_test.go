@@ -94,8 +94,10 @@ var transitionHelpers = map[string]bool{
 //     condition too, and with it the value the body returns;
 //   - the TOKEN guard at a delegation site, naming a value that never becomes a
 //     path segment while the id that does is forwarded to a helper outside
-//     transitionHelpers — closed by creditForwardedOperation, which applies at
-//     the call site the rule helperGuardsWhatItForwards applies inside a helper.
+//     transitionHelpers. The branch that tried to judge this AT THE CALL SITE is
+//     deleted: it had zero live users and four ways to be talked into crediting
+//     an unguarded id. Delegation to a helper the scan does not know is now
+//     REPORTED — see unknownDelegation.
 //
 // # Known ceiling, and it is deliberate
 //
@@ -271,105 +273,69 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 		return "", 1
 	}
 
-	return s.creditForwardedOperation(fn, ops, site)
+	return unknownDelegation(fn, ops, site), 0
 }
 
-// creditForwardedOperation judges the last shape: the function NAMES a
-// path-parameter operation, does not call it, and does not delegate to a known
-// transition helper — so it hands the operation to some other package-local
-// helper as a function value.
+// unknownDelegation reports the last shape: the function NAMES a path-parameter
+// operation, does not call it, and does not delegate to a known transition
+// helper — so it hands the operation as a function value to some other
+// package-local helper, and there is no helper on record whose interior can be
+// checked.
 //
-// Two things have to hold, and for a while only the first did.
+// # Why this is REPORTED rather than judged in place
 //
-// The guard must carry real pairs. requirePathIDs(operation) with no pairs
-// returns nil on an empty list, so accepting the call's PRESENCE re-opens the
-// vacuous guard this scan exists to reject, one hoisted local away.
+// An earlier version tried to judge it at the call site, by applying the rule
+// helperGuardsWhatItForwards applies inside a KNOWN helper: every value handed
+// over alongside the operation had to be one the guard received. That branch was
+// measured against the live tree and had ZERO users — all 209 credited functions
+// go through the direct-call branch (199) or a known transition helper (10) —
+// while carrying four independent ways to be talked into crediting an unguarded
+// id:
 //
-// And the pairs have to be the RIGHT ones. Crediting any non-empty guard let a
-// facade pass with a token:
+//   - the operation HOISTED into a local first, so the delegation call carries a
+//     plain identifier and the branch that looked for a selector saw no
+//     delegation at all — the same hoist that defeated the direct-call branch and
+//     the sibling delete-seam scan before it;
+//   - no ORDERING requirement: the guard was collected up to the function's
+//     closing brace, so a guard written AFTER the delegation credited it, which
+//     is the guard-below-the-call shape this scan closed everywhere else;
+//   - the variadic-tail exclusion, sound for a GENERATED method (oapi-codegen
+//     puts request editors there, never a path parameter) and unsound the moment
+//     it was applied to a LOCAL helper whose tail the author writes — `ids...`
+//     carried the id straight through;
+//   - the context exclusion is by NAME, so a value spelled like the context
+//     parameter was dropped without ever being compared.
 //
-//	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
-//		return nil, err
-//	}
-//	return fourthTransition(ctx, operation, f.tracer.ActivateRule, id)
+// Closing four escapes in a branch nothing uses buys nothing and has to be
+// maintained. Unknown is therefore FLAGGED, which is the rule the sibling seam
+// scan already follows for a spelling it cannot resolve, and which
+// unguardedPathArguments follows for an operation reached through an
+// unrecognised generated spelling. All four escapes close by construction, and
+// the scan gets smaller.
 //
-// orgID is guarded and never becomes a path segment; id becomes one and is
-// guarded by nothing. A fourth transition helper written tomorrow gets that for
-// free, because transitionHelpers is a literal list and the helper is not on it
-// — which is the point of keeping that list literal, but it means the call site
-// cannot be credited on the helper's behalf.
-//
-// So the rule helperGuardsWhatItForwards applies INSIDE a known helper is
-// applied here at the CALL SITE: every value handed to the helper alongside the
-// operation must be one the guard received, compared as source text and whatever
-// its AST shape — see forwardedValues for the four things excluded and why none
-// of them can become a path segment.
-func (s pathGuardScan) creditForwardedOperation(fn *ast.FuncDecl, ops []string, site string) (string, int) {
-	checked := guardedValues(fn, fn.Body.End())
-	if len(checked) == 0 {
-		return funcLabel(fn) + " reaches " + strings.Join(ops, ", ") + site, 0
-	}
-
-	if missing := unguardedForwardedValues(fn, s.pathOps, checked); len(missing) > 0 {
-		return funcLabel(fn) + " forwards " + strings.Join(missing, ", ") + " alongside " +
-			strings.Join(ops, ", ") + " without handing it to requirePathIDs" + site, 0
-	}
-
-	return "", 1
-}
-
-// unguardedForwardedValues returns the values fn hands to a helper in the same
-// call that carries a generated path-parameter operation as a value, and that
-// the guard did not receive.
-func unguardedForwardedValues(fn *ast.FuncDecl, pathOps map[string]bool, checked map[string]bool) []string {
-	var missing []string
-
-	for _, call := range callsCarryingAnOperationValue(fn, pathOps) {
-		for _, value := range forwardedValues(fn, call, pathOps) {
-			if !checked[value] {
-				missing = append(missing, value)
-			}
-		}
-	}
-
-	sort.Strings(missing)
-
-	return missing
-}
-
-// callsCarryingAnOperationValue returns the calls in fn that pass a generated
-// path-parameter operation as an ARGUMENT — the delegation shape, where the
-// operation is named but never invoked here.
-func callsCarryingAnOperationValue(fn *ast.FuncDecl, pathOps map[string]bool) []*ast.CallExpr {
-	var calls []*ast.CallExpr
-
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-
-		for _, arg := range call.Args {
-			sel, ok := arg.(*ast.SelectorExpr)
-			if !ok {
-				continue
-			}
-
-			if op, ok := generatedOperation(sel.Sel.Name); ok && pathOps[op] {
-				calls = append(calls, call)
-				break
-			}
-		}
-
-		return true
-	})
-
-	return calls
+// The cost is one deliberate false positive, and it is the friction
+// transitionHelpers exists to create: a facade delegating to a NEW local helper
+// fails until someone adds that helper to transitionHelpers, where
+// helperGuardsWhatItForwards then checks its interior. The list is literal on
+// purpose — "adding a fourth helper here should be a decision someone makes on
+// purpose" — and this is what makes that decision unavoidable rather than
+// optional.
+func unknownDelegation(fn *ast.FuncDecl, ops []string, site string) string {
+	return funcLabel(fn) + " hands " + strings.Join(ops, ", ") +
+		" to a local helper that is not in transitionHelpers, so no guard can be verified" +
+		" — add the helper to that list, where its interior is checked" + site
 }
 
 // forwardedValues returns the arguments of one call that could carry a caller's
 // value into a URL path, as SOURCE TEXT — the same spelling guardedValues
 // records, so the two are compared as written.
+//
+// Its one caller is helperGuardsWhatItForwards, so the call it reads is always a
+// call to a KNOWN transition helper's function-typed parameter: the generated
+// method itself. That is what makes the exclusions below sound — see
+// unknownDelegation for the branch that applied the same exclusions to an
+// arbitrary local helper, where two of them stopped being true, and for why that
+// branch is gone.
 //
 // # Expression text, not identifiers
 //
@@ -377,39 +343,34 @@ func callsCarryingAnOperationValue(fn *ast.FuncDecl, pathOps map[string]bool) []
 // every other shape, on a justification that was simply false: it claimed the
 // direct-call comparison also accepted identifiers only, when that comparison
 // has always compared types.ExprString of whatever expression sat in a path
-// position. The two branches disagreed, and the delegation branch was the loose
-// one. Both of these forwarded an unguarded id to a helper outside
-// transitionHelpers and were reported by nothing:
-//
-//	if err := requirePathIDs(operation, "orgID", orgID); err != nil { ... }
-//	return fourthTransition(ctx, operation, f.tracer.ActivateRule, ids.ID)
-//	return fourthTransition(ctx, operation, f.tracer.ActivateRule, ids[0])
-//
-// A selector and an index are not exotic; they are what a caller writes the day
-// a facade starts carrying its ids in a struct or a slice. So every argument is
-// compared now, whatever its AST shape, and an unmatched one is REPORTED. The
-// strictness that follows is the same strictness the direct-call branch already
-// carries: guarding `ids.ID` and forwarding `ids.ID` passes, guarding `ids` and
-// forwarding `ids.ID` does not.
+// position. A selector (`ids.ID`) and an index (`ids[0]`) are not exotic; they
+// are what someone writes the day a helper carries its ids in a struct or a
+// slice. So every argument is compared, whatever its AST shape, and an unmatched
+// one is REPORTED. The strictness that follows is the same strictness the
+// direct-call branch already carries: guarding `ids.ID` and forwarding `ids.ID`
+// passes, guarding `ids` and forwarding `ids.ID` does not.
 //
 // # What is excluded, and why each one cannot become a path segment
 //
-//   - fn's CONTEXT parameter, by name rather than by position. Both callers used
-//     to assume the context sits at argument 0 — true of every helper today, and
-//     an assumption that costs nothing to drop.
+//   - fn's CONTEXT parameter, by name rather than by position. The positional
+//     "the context is argument 0" assumption is true of every helper today and
+//     costs nothing to drop. By NAME is a weaker rule than by TYPE, and the
+//     residual is recorded on unknownDelegation; it survives here because the
+//     three helpers this now runs on are a literal list a human curates.
 //   - a LITERAL, and a local `const operation = "Segments.Get"`. Both are fixed
 //     at compile time; the const is the error label every facade declares, and it
 //     cannot carry ".." in from a caller. Requiring it to be guarded would be a
 //     false positive on the correctly-written form of the very shape this check
 //     exists to catch.
-//   - the GENERATED OPERATION being delegated (`f.tracer.ActivateRule`). It is a
-//     function value, and it is the argument that identified this call as a
-//     delegation in the first place. Matched by resolving the selector against
-//     pathOps, which is why `ids.ID` — a selector too — is not excluded with it.
+//   - the GENERATED OPERATION, when a helper forwards one (`f.tracer.ActivateRule`).
+//     It is a function value, matched by resolving the selector against pathOps,
+//     which is why `ids.ID` — a selector too — is not excluded with it.
 //   - the VARIADIC SPREAD at the tail (`idempotencyEditorsTracer(ctx, false)...`,
 //     which all three live helpers forward). oapi-codegen never puts a path
-//     parameter in a generated method's variadic tail; that tail is the request
-//     editors, always.
+//     parameter in a GENERATED method's variadic tail; that tail is the request
+//     editors, always — and a generated method is the only thing the surviving
+//     caller reads, which is exactly what makes this exclusion sound here and
+//     made it unsound in the deleted branch.
 func forwardedValues(fn *ast.FuncDecl, call *ast.CallExpr, pathOps map[string]bool) []string {
 	ctxName := contextParameter(fn)
 	constants := localStringConstants(fn)
@@ -1024,9 +985,9 @@ func helperGuardsWhatItForwards(fn *ast.FuncDecl, pathOps map[string]bool) bool 
 
 	for _, call := range forwards {
 		// forwardedValues drops the context and the variadic editor tail and
-		// compares everything else as source text. It is the same rule
-		// creditForwardedOperation applies at the CALL site, so the helper and its
-		// callers are judged by one implementation rather than two.
+		// compares everything else as source text. Its exclusions are sound here
+		// because `call` is the GENERATED method the helper was handed: the tail is
+		// oapi-codegen's request editors, never a path parameter.
 		for _, value := range forwardedValues(fn, call, pathOps) {
 			if !checked[value] {
 				guarded = false
