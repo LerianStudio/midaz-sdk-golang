@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // The V2 reads in this file are the ones a routing table cannot vouch for: each
@@ -251,7 +252,7 @@ func TestV2MetadataIndexListDecodesEachIndex(t *testing.T) {
 }
 
 // v2Counts is one row per V2 count. Each reaches its own generated HEAD
-// operation, so the six are six behaviours rather than one.
+// operation, so the seven are seven behaviours rather than one.
 var v2Counts = []struct {
 	name  string
 	count func(t *testing.T, srv *httptest.Server) (int, error)
@@ -286,6 +287,17 @@ var v2Counts = []struct {
 
 		return newSegmentsV2Facade(newTestLedgerClient(t, srv), true).Count(context.Background(), v2Org, v2Ledger)
 	}},
+	// The seventh count is the only one that takes opts, which is why it was
+	// the one left out. Its narrowings are pinned next door
+	// (transactions_list_filters_test.go); what it needs HERE is the half the
+	// other six get — that the total is read from the header and that an
+	// unreadable one is refused.
+	{"V2.Transactions.Count", func(t *testing.T, srv *httptest.Server) (int, error) {
+		t.Helper()
+
+		return newTransactionsV2Facade(newTestLedgerClient(t, srv), true).
+			Count(context.Background(), v2Org, v2Ledger, models.TransactionsListOpts{})
+	}},
 }
 
 // TestV2CountReadsTheTotalFromTheHeader pins where a V2 count actually comes
@@ -314,6 +326,11 @@ func TestV2CountReadsTheTotalFromTheHeader(t *testing.T) {
 // migration moved everything. A silent zero from a missing or malformed header
 // reads as "there is nothing here" — the same answer as a genuinely empty
 // ledger, and the reason a caller stops looking.
+//
+// The CATEGORY is asserted, not merely non-nil: the server answered 200, so
+// nothing is wrong with the caller's request or their permissions — the SDK
+// could not read the reply. An unreadable total that surfaced as a validation
+// or not-found error would send the caller to fix an input that is fine.
 func TestV2CountRefusesAnUnreadableTotal(t *testing.T) {
 	headers := []struct {
 		name  string
@@ -332,6 +349,10 @@ func TestV2CountRefusesAnUnreadableTotal(t *testing.T) {
 					got, err := count.count(t, totalCountServer(t, header.value, http.StatusOK))
 					if err == nil {
 						t.Fatalf("an unreadable total must not read as %d", got)
+					}
+
+					if !sdkerrors.IsInternalError(err) {
+						t.Fatalf("err = %v, want an SDK-internal error: the request was fine and the reply was not", err)
 					}
 				})
 			}

@@ -36,8 +36,11 @@ import (
 // property of how they are written, which is exactly the kind of thing that
 // survives until someone rewrites one.
 
-// v2Calls is one row per V2 call site that formats a caller-supplied value into
-// its URL path, across all thirteen facades and every verb.
+// v2Calls is one row per call site on the THIRTEEN dual-served V2 facades that
+// formats a caller-supplied value into its URL path, across every verb. The nine
+// V2-only facades — Holders, Instruments, Encryption, Composition,
+// ProtectionAudit and the four billing/fee accessors — are pinned by their own
+// per-facade tests and are deliberately not repeated here.
 //
 // pathID is substituted into the LAST path parameter of each call, which is the
 // position where an empty value silently reaches the collection endpoint rather

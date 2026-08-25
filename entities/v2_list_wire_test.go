@@ -41,9 +41,36 @@ const (
 // is on the wire, and the page that comes back reaches them decoded. Both halves
 // are asserted per row, because a bridge that dropped a field and a decoder that
 // dropped the page fail in opposite directions and one row proves neither.
+//
+// EXHAUSTIVENESS, AND THE TWELVE LINES THIS TABLE CANNOT REACH. The claim above
+// is mutation-proven, not asserted: deleting any one of the 102 `Field:
+// v1.Field` assignments in v2_params.go reddens this suite — 90 of them do.
+// The remaining twelve copy a field that NO opts type can set, so they always
+// copy nil and no row can distinguish their absence:
+//
+//   - Metadata, on all nine bridge functions that carry it. No V1 mapper in
+//     this package assigns params.Metadata at all; the ledger's JSON-string
+//     metadata predicate has no SDK opts surface. (The transaction list's
+//     metadata.<key> predicate is a different query parameter, injected by
+//     metadataFilterEditors and pinned in transactions_list_filters_test.go.)
+//   - DoingBusinessAs and LegalDocument, on listOrganizationsV2Params.
+//     OrganizationsFilters declares neither and listOrganizationsParams never
+//     sets them; those two identifiers appear nowhere else in the package.
+//   - Cursor, on listAccountTypesV2Params. AccountTypesListOpts embeds
+//     PageListOpts, so there is no cursor to copy.
+//
+// Those twelve stay in the bridge on purpose — the bridge exists so that a
+// filter added to a V1 mapper reaches /v2 without anyone wiring it twice, and a
+// deleted line is that silent drop arriving later. A THIRTEENTH unreddenable
+// line is a finding, not an exemption: re-run the sweep when this table or
+// v2_params.go changes, and either pin the line or add it here with its reason.
 
-// v2ListReads is one row per V2 list decode path, with the query the row's opts
-// must produce and the page body it must decode.
+// v2ListReads is one row per V2 list whose narrowings travel through the
+// listXV2Params bridge, with the query the row's opts must produce and the page
+// body it must decode. Twelve rows, which is every bridged list EXCEPT the
+// transaction list: that one refuses six of its filters and expresses its
+// metadata predicate through a request editor, so it is pinned end to end next
+// door in transactions_list_filters_test.go rather than duplicated here.
 //
 // PAGE-based and CURSOR-based families are both here, and the pagination
 // assertion differs by row for that reason: a page family that echoed a cursor
@@ -53,7 +80,9 @@ var v2ListReads = []struct {
 	name string
 	// wantQuery is every narrowing the row's opts set. A key absent from the
 	// wire fails the row; the map is exhaustive for what the opts can express,
-	// not a sample.
+	// not a sample — every field of the row's filter struct is set above and
+	// asserted here, including the ones carried by a request editor rather
+	// than by the params struct.
 	wantQuery map[string]string
 	// page is a realistic single page for this family.
 	page string
@@ -109,11 +138,18 @@ var v2ListReads = []struct {
 	},
 	{
 		name: "V2.Accounts.List",
+		// Twelve filters, the widest opts on the surface. All twelve are set
+		// and all twelve are asserted, which is where "exhaustive, not a
+		// sample" earns its keep: six of them reach the wire through a
+		// listAccountsV2Params bridge line nothing else in the suite runs.
 		wantQuery: map[string]string{
 			"limit": "5", "page": "2", "sort_order": "asc",
 			"start_date": "2025-01-01", "end_date": "2025-01-31",
 			"type": "deposit", "status": "ACTIVE", "asset_code": "USD",
 			"alias": "@cash", "include_deleted": "true",
+			"portfolio_id": v2UUIDA, "segment_id": v2UUIDB,
+			"parent_account_id": v2Account, "entity_id": "ent-9",
+			"name": "Cash USD", "blocked": "true", "holder_id": "hld-1",
 		},
 		page:           `{"items":[{"id":"acc-a","alias":"@cash","assetCode":"USD"}],"limit":5,"page":2}`,
 		wantIDs:        []string{"acc-a"},
@@ -127,6 +163,9 @@ var v2ListReads = []struct {
 					Filters: models.AccountsFilters{
 						Type: "deposit", Status: "ACTIVE", AssetCode: "USD",
 						Alias: "@cash", IncludeDeleted: true,
+						PortfolioID: v2UUIDA, SegmentID: v2UUIDB,
+						ParentAccountID: v2Account, EntityID: "ent-9",
+						Name: "Cash USD", Blocked: true, HolderID: "hld-1",
 					},
 				})
 
@@ -317,6 +356,7 @@ var v2ListReads = []struct {
 			"limit": "5", "cursor": "cur-in", "sort_order": "asc",
 			"start_date": "2025-01-01", "end_date": "2025-01-31",
 			"type": "DEBIT", "direction": "debit",
+			"route_id": v2UUIDB, "route_code": "CASHOUT",
 		},
 		page:           `{"items":[{"id":"op-a","amount":{"value":"3"}}],"limit":5,"next_cursor":"cur-out"}`,
 		wantIDs:        []string{"op-a"},
@@ -327,7 +367,10 @@ var v2ListReads = []struct {
 			page, err := newOperationsV2Facade(newTestLedgerClient(t, srv), true).
 				ListOperations(context.Background(), v2Org, v2Ledger, v2Account, models.OperationsListOpts{
 					CursorListOpts: cursorOptsFixture(),
-					Filters:        models.AccountOperationsFilters{Type: "DEBIT", Direction: "debit"},
+					Filters: models.AccountOperationsFilters{
+						Type: "DEBIT", Direction: "debit",
+						RouteID: v2UUIDB, RouteCode: "CASHOUT",
+					},
 				})
 
 			return idsOfPage(page, err, func(o models.Operation) string { return o.ID })
@@ -397,7 +440,14 @@ func TestV2ListSendsNoNarrowingWhenTheCallerSetNone(t *testing.T) {
 		t.Fatalf("List: %v", err)
 	}
 
-	for _, key := range []string{"limit", "page", "sort_order", "start_date", "end_date", "status", "type", "alias"} {
+	omitted := []string{
+		"limit", "page", "sort_order", "start_date", "end_date",
+		"status", "type", "alias", "asset_code", "portfolio_id", "segment_id",
+		"parent_account_id", "entity_id", "name", "blocked", "holder_id",
+		"include_deleted",
+	}
+
+	for _, key := range omitted {
 		if got, ok := query[key]; ok {
 			t.Fatalf("%s = %v, want the parameter omitted entirely when unset", key, got)
 		}

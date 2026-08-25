@@ -43,7 +43,9 @@ type v2WriteRow struct {
 	fire       func(t *testing.T, srv *httptest.Server) (map[string]string, error)
 }
 
-// v2Writes is one row per V2 write operation across all thirteen facades.
+// v2Writes is one row per write operation on the THIRTEEN dual-served V2
+// facades. The nine V2-only facades have their own per-facade tests; this table
+// is the dual-served half of the surface, not the whole of it.
 //
 // It is an enumeration, not a sample. Each of these methods reaches the wire
 // through its own generated call and its own params struct, so a row that
