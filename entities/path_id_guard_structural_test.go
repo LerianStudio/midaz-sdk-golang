@@ -243,7 +243,7 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 	}
 
 	if transitionHelpers[fn.Name.Name] {
-		helperGuards[fn.Name.Name] = helperGuardsWhatItForwards(fn)
+		helperGuards[fn.Name.Name] = helperGuardsWhatItForwards(fn, s.pathOps)
 	}
 
 	ops := pathOperationsNamedBy(fn.Body, s.pathOps)
@@ -300,11 +300,10 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 // cannot be credited on the helper's behalf.
 //
 // So the rule helperGuardsWhatItForwards applies INSIDE a known helper is
-// applied here at the CALL SITE: every plain identifier handed to the helper
-// alongside the operation value must be one the guard received. Identifiers are
-// the only arguments checked, for the same reason the direct-call comparison
-// only accepts identifiers — a derived expression cannot be matched against a
-// guarded name without accepting orgID + "/../" along with it.
+// applied here at the CALL SITE: every value handed to the helper alongside the
+// operation must be one the guard received, compared as source text and whatever
+// its AST shape — see forwardedValues for the four things excluded and why none
+// of them can become a path segment.
 func (s pathGuardScan) creditForwardedOperation(fn *ast.FuncDecl, ops []string, site string) (string, int) {
 	checked := guardedValues(fn, fn.Body.End())
 	if len(checked) == 0 {
@@ -319,16 +318,16 @@ func (s pathGuardScan) creditForwardedOperation(fn *ast.FuncDecl, ops []string, 
 	return "", 1
 }
 
-// unguardedForwardedValues returns the identifiers fn hands to a helper in the
-// same call that carries a generated path-parameter operation as a value, and
-// that the guard did not receive.
+// unguardedForwardedValues returns the values fn hands to a helper in the same
+// call that carries a generated path-parameter operation as a value, and that
+// the guard did not receive.
 func unguardedForwardedValues(fn *ast.FuncDecl, pathOps map[string]bool, checked map[string]bool) []string {
 	var missing []string
 
 	for _, call := range callsCarryingAnOperationValue(fn, pathOps) {
-		for _, name := range forwardedIdentifiers(fn, call) {
-			if !checked[name] {
-				missing = append(missing, name)
+		for _, value := range forwardedValues(fn, call, pathOps) {
+			if !checked[value] {
+				missing = append(missing, value)
 			}
 		}
 	}
@@ -368,32 +367,88 @@ func callsCarryingAnOperationValue(fn *ast.FuncDecl, pathOps map[string]bool) []
 	return calls
 }
 
-// forwardedIdentifiers returns the plain identifier arguments of one call that
-// could carry a caller's value: everything except fn's context parameter and its
-// own local string constants.
+// forwardedValues returns the arguments of one call that could carry a caller's
+// value into a URL path, as SOURCE TEXT — the same spelling guardedValues
+// records, so the two are compared as written.
 //
-// The context is excluded by NAME rather than by position. Both callers used to
-// assume the context sits at argument 0 — true of every helper today, and an
-// assumption that costs nothing to drop.
+// # Expression text, not identifiers
 //
-// A local `const operation = "Segments.Get"` is excluded because it is fixed at
-// compile time: it is the error label every facade declares, it cannot carry
-// ".." in from a caller, and it cannot become a path segment. Requiring it to be
-// guarded would be a false positive on the correctly-written form of the very
-// shape this check exists to catch.
-func forwardedIdentifiers(fn *ast.FuncDecl, call *ast.CallExpr) []string {
+// An earlier version collected `*ast.Ident` arguments only and silently dropped
+// every other shape, on a justification that was simply false: it claimed the
+// direct-call comparison also accepted identifiers only, when that comparison
+// has always compared types.ExprString of whatever expression sat in a path
+// position. The two branches disagreed, and the delegation branch was the loose
+// one. Both of these forwarded an unguarded id to a helper outside
+// transitionHelpers and were reported by nothing:
+//
+//	if err := requirePathIDs(operation, "orgID", orgID); err != nil { ... }
+//	return fourthTransition(ctx, operation, f.tracer.ActivateRule, ids.ID)
+//	return fourthTransition(ctx, operation, f.tracer.ActivateRule, ids[0])
+//
+// A selector and an index are not exotic; they are what a caller writes the day
+// a facade starts carrying its ids in a struct or a slice. So every argument is
+// compared now, whatever its AST shape, and an unmatched one is REPORTED. The
+// strictness that follows is the same strictness the direct-call branch already
+// carries: guarding `ids.ID` and forwarding `ids.ID` passes, guarding `ids` and
+// forwarding `ids.ID` does not.
+//
+// # What is excluded, and why each one cannot become a path segment
+//
+//   - fn's CONTEXT parameter, by name rather than by position. Both callers used
+//     to assume the context sits at argument 0 — true of every helper today, and
+//     an assumption that costs nothing to drop.
+//   - a LITERAL, and a local `const operation = "Segments.Get"`. Both are fixed
+//     at compile time; the const is the error label every facade declares, and it
+//     cannot carry ".." in from a caller. Requiring it to be guarded would be a
+//     false positive on the correctly-written form of the very shape this check
+//     exists to catch.
+//   - the GENERATED OPERATION being delegated (`f.tracer.ActivateRule`). It is a
+//     function value, and it is the argument that identified this call as a
+//     delegation in the first place. Matched by resolving the selector against
+//     pathOps, which is why `ids.ID` — a selector too — is not excluded with it.
+//   - the VARIADIC SPREAD at the tail (`idempotencyEditorsTracer(ctx, false)...`,
+//     which all three live helpers forward). oapi-codegen never puts a path
+//     parameter in a generated method's variadic tail; that tail is the request
+//     editors, always.
+func forwardedValues(fn *ast.FuncDecl, call *ast.CallExpr, pathOps map[string]bool) []string {
 	ctxName := contextParameter(fn)
 	constants := localStringConstants(fn)
 
-	var names []string
+	var values []string
 
-	for _, arg := range call.Args {
-		if ident, ok := arg.(*ast.Ident); ok && ident.Name != ctxName && !constants[ident.Name] {
-			names = append(names, ident.Name)
+	for i, arg := range call.Args {
+		if isVariadicSpread(call, i) || isFixedArgument(arg, ctxName, constants, pathOps) {
+			continue
 		}
+
+		values = append(values, types.ExprString(arg))
 	}
 
-	return names
+	return values
+}
+
+// isVariadicSpread reports whether the argument at index i is the `xs...` tail of
+// the call.
+func isVariadicSpread(call *ast.CallExpr, i int) bool {
+	return call.Ellipsis.IsValid() && i == len(call.Args)-1
+}
+
+// isFixedArgument reports whether one argument is fixed at compile time, is the
+// context, or is the generated operation being delegated — none of which a
+// caller can turn into a path segment.
+func isFixedArgument(arg ast.Expr, ctxName string, constants, pathOps map[string]bool) bool {
+	switch node := arg.(type) {
+	case *ast.BasicLit:
+		return true
+	case *ast.Ident:
+		return node.Name == ctxName || constants[node.Name]
+	case *ast.SelectorExpr:
+		op, ok := generatedOperation(node.Sel.Name)
+
+		return ok && pathOps[op]
+	}
+
+	return false
 }
 
 // localStringConstants returns the names fn binds to a string literal in a const
@@ -803,9 +858,7 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 // than the initialiser (`if requirePathIDs(...) != nil`) binds no identifier for
 // the return to carry; a guard inside a nested block, a loop, or a closure is
 // not a statement of the function body at all, which is where guardedValues
-// looks. That last set used to need its own walker, pruning BlockStmt, DeferStmt
-// and GoStmt by hand; pinning the initialiser to one assignment makes every one
-// of them structurally impossible instead, so the walker is gone.
+// looks.
 //
 // The return must be a direct statement of the body, and must carry the bare
 // identifier. Both are stricter than the language requires, and both stay strict
@@ -910,7 +963,7 @@ func isIdent(expr ast.Expr, name string) bool {
 // the vacuous guard this scan exists to reject — and the helpers are the more
 // expensive place to leave it open, because thirty-odd facade methods are
 // credited on their promise rather than on a guard of their own.
-func helperGuardsWhatItForwards(fn *ast.FuncDecl) bool {
+func helperGuardsWhatItForwards(fn *ast.FuncDecl, pathOps map[string]bool) bool {
 	callParam := functionTypedParameter(fn)
 	if callParam == "" {
 		return false
@@ -930,12 +983,12 @@ func helperGuardsWhatItForwards(fn *ast.FuncDecl) bool {
 	guarded := true
 
 	for _, call := range forwards {
-		// forwardedIdentifiers drops the context and everything that is not a
-		// plain identifier, which is what removes a variadic editor call. It is
-		// the same rule creditForwardedOperation applies at the CALL site, so the
-		// helper and its callers are judged by one implementation rather than two.
-		for _, name := range forwardedIdentifiers(fn, call) {
-			if !checked[name] {
+		// forwardedValues drops the context and the variadic editor tail and
+		// compares everything else as source text. It is the same rule
+		// creditForwardedOperation applies at the CALL site, so the helper and its
+		// callers are judged by one implementation rather than two.
+		for _, value := range forwardedValues(fn, call, pathOps) {
+			if !checked[value] {
 				guarded = false
 			}
 		}
