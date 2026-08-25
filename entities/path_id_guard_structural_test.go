@@ -63,6 +63,66 @@ var transitionHelpers = map[string]bool{
 // must have named orgID to the guard. Guarding a different variable, or none,
 // fails.
 //
+// # Why PLACEMENT, and not identity alone
+//
+// Comparing expressions is still not enough by itself. A review wrote five
+// compiling facades that sent id=".." to the wire with a nil error and passed
+// the identity check anyway, because the check collected requirePathIDs
+// arguments from the whole function body as source text: no ordering, no
+// reachability. Three of the five are closed here, by requiring the guard to sit
+// at statement depth 1 of the function body, to run unconditionally, and to
+// appear BEFORE the statement carrying the generated call:
+//
+//   - the guard placed AFTER the generated call, which validates a request that
+//     has already left;
+//   - the guard nested inside an if, so the path it guards has a way around it;
+//   - the generated call hoisted into a local first (get := f.ledger.GetX),
+//     which made the call target a plain identifier, dropped the direct-call
+//     count to zero and fell through to the weaker branch below. That is the
+//     same hoist that defeated the sibling delete-seam scan in Epic 3 and was
+//     closed there by matching the operation rather than the call shape;
+//     directPathCalls now follows the binding.
+//
+// # Known ceiling, and it is deliberate
+//
+// Two of the five escapes are NOT closed, and faking them with heuristics would
+// be worse than saying so:
+//
+//   - a guarded variable REASSIGNED between the guard and the call —
+//     requirePathIDs(op, "id", id), then id = "..", then f.ledger.GetX(ctx, id);
+//   - an inner scope SHADOWING a guarded name, so the identifier the call
+//     forwards is a different variable wearing the same spelling.
+//
+// Both are invisible to a scan that compares source text, and closing either one
+// honestly needs type-checked SSA: resolving every identifier to its definition
+// and proving no assignment reaches the call. That is a different tool, not a
+// stricter match. They are recorded here as out of scope and known, in the same
+// register as the reflection ceiling all three structural scans in this package
+// share — a client method resolved by name at runtime is invisible to AST
+// matching, nothing in this package does that, and none of the three pretends to
+// cover it.
+//
+// # Accepted strictness, so nobody "fixes" it
+//
+// Because the comparison is on source text, a DERIVED value is refused even when
+// the derivation is harmless: guarding orgID and forwarding
+// strings.ToLower(orgID) is reported as unguarded. That is a false positive and
+// it stays. The only way to accept it is to loosen the match until an expression
+// MENTIONING a guarded name counts, and that same loosening accepts
+// orgID + "/../" — which is precisely the input two fix rounds were spent
+// rejecting. A facade that needs to normalise an id should assign the normalised
+// value to a name, guard that name, and forward that name.
+//
+// # This scan depends on its sibling
+//
+// The coverage claimed here is conditional on TestNoFacadeCallsAGeneratedParser
+// holding. Path argument POSITIONS are resolved from the generated raw *Client
+// signatures, so a call reached through any other spelling — a parser method, a
+// Parse*Resp free function — has no resolvable positions. Such a call is now
+// REPORTED rather than credited (see unguardedPathArguments), which is what
+// keeps an unknown spelling from buying a free pass here; but the scan that
+// keeps those spellings out of the package in the first place is the sibling's.
+//
 // Every input is read out of the source at test time rather than from a
 // checked-in list, so a newly generated operation or a newly written facade
 // method is covered the moment it lands, without anyone remembering to add it.
@@ -159,8 +219,8 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 	site := " (declared at " + filepath.Base(path) + ":" +
 		strconv.Itoa(s.fset.Position(fn.Pos()).Line) + ")"
 
-	if len(directPathCalls(fn, s.pathOps)) > 0 {
-		missing := unguardedPathArguments(fn, s.pathOps, s.pathArgs, s.methodParams)
+	if calls := directPathCalls(fn, s.pathOps); len(calls) > 0 {
+		missing := unguardedPathArguments(fn, calls, s.pathArgs, s.methodParams)
 		if len(missing) > 0 {
 			return funcLabel(fn) + " forwards " + strings.Join(missing, ", ") +
 				" into a URL path without handing it to requirePathIDs" + site, 0
@@ -172,11 +232,29 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 	// The operation is NAMED but not called: the function hands it to a
 	// transition helper as a function value, so there are no call arguments here
 	// to compare. The helper's own guard is checked by the caller.
-	if guardsPathIDs(fn) {
+	if delegatesToTransitionHelper(fn) {
+		return "", 1
+	}
+
+	// Nothing was called and nothing was delegated, so the only thing that can
+	// still stand for a guard is a requirePathIDs call carrying real pairs. The
+	// pairs are what makes the difference: requirePathIDs(operation) with no
+	// pairs returns nil on an empty list, so accepting the call's PRESENCE here
+	// re-opens the vacuous guard this scan exists to reject — one hoisted local
+	// away.
+	if len(guardedValues(fn, fn.Body.End())) > 0 {
 		return "", 1
 	}
 
 	return funcLabel(fn) + " reaches " + strings.Join(ops, ", ") + site, 0
+}
+
+// delegatesToTransitionHelper reports whether fn hands its generated operation to
+// one of the transition helpers, which guard on their caller's behalf. The
+// helpers' own guards are checked separately, in the test body, because a helper
+// is credited by every method that delegates to it.
+func delegatesToTransitionHelper(fn *ast.FuncDecl) bool {
+	return callsAny(fn, func(name string) bool { return transitionHelpers[name] })
 }
 
 // packageScopeBinding reports a path-parameter operation bound OUTSIDE any
@@ -198,14 +276,27 @@ func (s pathGuardScan) packageScopeBinding(path string, decl ast.Decl) string {
 		", which no caller can then be checked for a guard"
 }
 
+// pathCall is one INVOCATION of a generated path-parameter operation inside a
+// facade: the call itself, plus the exact generated spelling it reaches.
+//
+// The spelling travels with the call because the argument LIST differs between
+// an operation's spellings, and because a call reached through a hoisted local
+// names the operation somewhere other than at the call site.
+type pathCall struct {
+	call   *ast.CallExpr
+	method string
+}
+
 // directPathCalls returns the calls in fn that INVOKE a generated
 // path-parameter operation, as opposed to merely naming one.
 //
 // The distinction is what decides which check applies: an invoked operation has
 // argument expressions to compare against the guard, while an operation handed
 // to a transition helper as a function value has none.
-func directPathCalls(fn *ast.FuncDecl, pathOps map[string]bool) []*ast.CallExpr {
-	var calls []*ast.CallExpr
+func directPathCalls(fn *ast.FuncDecl, pathOps map[string]bool) []pathCall {
+	hoisted := hoistedOperations(fn, pathOps)
+
+	var calls []pathCall
 
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -213,19 +304,96 @@ func directPathCalls(fn *ast.FuncDecl, pathOps map[string]bool) []*ast.CallExpr 
 			return true
 		}
 
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-
-		if op, ok := generatedOperation(sel.Sel.Name); ok && pathOps[op] {
-			calls = append(calls, call)
+		if method, ok := calledOperationSpelling(call.Fun, pathOps, hoisted); ok {
+			calls = append(calls, pathCall{call: call, method: method})
 		}
 
 		return true
 	})
 
 	return calls
+}
+
+// calledOperationSpelling returns the generated spelling a call target reaches,
+// whether the operation is named at the call site (f.ledger.GetAccountByID(...))
+// or bound to a local first.
+func calledOperationSpelling(fun ast.Expr, pathOps map[string]bool, hoisted map[string]string) (string, bool) {
+	switch target := fun.(type) {
+	case *ast.SelectorExpr:
+		if op, ok := generatedOperation(target.Sel.Name); ok && pathOps[op] {
+			return target.Sel.Name, true
+		}
+	case *ast.Ident:
+		if method, ok := hoisted[target.Name]; ok {
+			return method, true
+		}
+	}
+
+	return "", false
+}
+
+// hoistedOperations returns the local identifiers fn binds to a generated
+// path-parameter operation's method VALUE, mapped to the spelling each carries.
+//
+//	get := f.ledger.GetAccountByID
+//	resp, err := get(ctx, orgID, ledgerID, id)
+//
+// leaves the call target a plain identifier, so a scan requiring a selector on
+// call.Fun counts zero calls and falls through to the weaker branch in classify.
+// That is the hoist the sibling delete-seam scan was defeated by in Epic 3 and
+// closed against; this is the same closure, ported. Binding a generated
+// operation to a local carries no innocent meaning in a facade, so the binding
+// is simply followed.
+func hoistedOperations(fn *ast.FuncDecl, pathOps map[string]bool) map[string]string {
+	bound := map[string]string{}
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.AssignStmt:
+			bindOperations(bound, node.Lhs, node.Rhs, pathOps)
+		case *ast.ValueSpec:
+			bindOperations(bound, identExprs(node.Names), node.Values, pathOps)
+		}
+
+		return true
+	})
+
+	return bound
+}
+
+// bindOperations records every name on the left that is bound to a generated
+// path-parameter operation on the right.
+func bindOperations(bound map[string]string, lhs, rhs []ast.Expr, pathOps map[string]bool) {
+	if len(lhs) != len(rhs) {
+		return
+	}
+
+	for i, value := range rhs {
+		sel, ok := value.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+
+		op, ok := generatedOperation(sel.Sel.Name)
+		if !ok || !pathOps[op] {
+			continue
+		}
+
+		if name, ok := lhs[i].(*ast.Ident); ok {
+			bound[name.Name] = sel.Sel.Name
+		}
+	}
+}
+
+// identExprs widens a var declaration's names to expressions, so one binding
+// walker serves both `x := expr` and `var x = expr`.
+func identExprs(names []*ast.Ident) []ast.Expr {
+	out := make([]ast.Expr, 0, len(names))
+	for _, name := range names {
+		out = append(out, name)
+	}
+
+	return out
 }
 
 // unguardedPathArguments returns the expressions fn forwards into a URL path
@@ -238,23 +406,27 @@ func directPathCalls(fn *ast.FuncDecl, pathOps map[string]bool) []*ast.CallExpr 
 // was checked before the request was built.
 func unguardedPathArguments(
 	fn *ast.FuncDecl,
-	pathOps map[string]bool,
+	calls []pathCall,
 	pathArgs map[string]map[string]bool,
 	methodParams map[string][]string,
 ) []string {
-	checked := guardedValues(fn)
+	checked := guardedValues(fn, earliestCall(calls))
 
 	var missing []string
 
-	for _, call := range directPathCalls(fn, pathOps) {
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
+	for _, pc := range calls {
+		op, _ := generatedOperation(pc.method)
+
+		names, wanted := methodParams[pc.method], pathArgs[op]
+		if len(names) == 0 || len(wanted) == 0 {
+			missing = append(missing, "every path argument of "+op+
+				" — reached through "+pc.method+", a spelling with no raw *Client signature, so this "+
+				"scan cannot resolve which arguments become path segments —")
+
 			continue
 		}
 
-		op, _ := generatedOperation(sel.Sel.Name)
-
-		for _, arg := range pathArgumentsOf(call, sel.Sel.Name, op, pathArgs, methodParams) {
+		for _, arg := range pathArgumentsOf(pc.call, names, wanted) {
 			if !checked[arg] {
 				missing = append(missing, arg+" (into "+op+")")
 			}
@@ -266,24 +438,28 @@ func unguardedPathArguments(
 	return missing
 }
 
+// earliestCall returns the position of the first generated call in source order,
+// which is the cutoff a guard has to beat.
+func earliestCall(calls []pathCall) token.Pos {
+	earliest := calls[0].call.Pos()
+
+	for _, pc := range calls[1:] {
+		if pc.call.Pos() < earliest {
+			earliest = pc.call.Pos()
+		}
+	}
+
+	return earliest
+}
+
 // pathArgumentsOf returns the argument expressions of one call that the
 // generated client styles into the URL path.
 //
-// method is the exact spelling at the call site (GetAssetByID,
-// CreateAssetWithBody, ...) because the argument LIST differs between an
-// operation's spellings, while op is the canonical name the request builder —
-// and therefore the set of path parameter names — belongs to.
-func pathArgumentsOf(
-	call *ast.CallExpr,
-	method, op string,
-	pathArgs map[string]map[string]bool,
-	methodParams map[string][]string,
-) []string {
-	names, wanted := methodParams[method], pathArgs[op]
-	if len(names) == 0 || len(wanted) == 0 {
-		return nil
-	}
-
+// names are the ordered parameter names of the exact spelling at the call site
+// (GetAssetByID, CreateAssetWithBody, ...), because the argument LIST differs
+// between an operation's spellings; wanted are the parameter names its request
+// builder styles into the path.
+func pathArgumentsOf(call *ast.CallExpr, names []string, wanted map[string]bool) []string {
 	var args []string
 
 	for i, name := range names {
@@ -297,32 +473,71 @@ func pathArgumentsOf(
 	return args
 }
 
-// guardedValues returns the VALUE half of every requirePathIDs pair in fn, as
-// source text. requirePathIDs(operation, "orgID", orgID, "id", id) contributes
-// orgID and id — the names are labels for the error message and prove nothing
-// about what was checked.
-func guardedValues(fn *ast.FuncDecl) map[string]bool {
+// guardedValues returns the VALUE half of every requirePathIDs pair fn hands to
+// the guard before position before, as source text.
+// requirePathIDs(operation, "orgID", orgID, "id", id) contributes orgID and id —
+// the names are labels for the error message and prove nothing about what was
+// checked.
+//
+// Two placement requirements separate a guard from something that merely looks
+// like one, and each came from a compiling facade that passed without them:
+//
+//   - The statement carrying the guard must be at depth 1 of the function body
+//     and the call must run UNCONDITIONALLY within it. The idiomatic
+//     `if err := requirePathIDs(...); err != nil { return nil, err }` qualifies,
+//     because the call sits in the if's initialiser, which always executes; a
+//     guard nested inside another if, a loop, a switch case or a closure does
+//     not, because the call it guards has a way around it.
+//   - It must appear BEFORE the generated call. A guard below the call returns a
+//     validation error about a request that has already reached the wire.
+func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 	values := map[string]bool{}
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
+	for _, stmt := range fn.Body.List {
+		if stmt.Pos() >= before {
+			break
 		}
 
-		if ident, ok := call.Fun.(*ast.Ident); !ok || ident.Name != "requirePathIDs" {
-			return true
+		for _, call := range unconditionalCalls(stmt, "requirePathIDs") {
+			// args[0] is the operation label; the pairs start at 1, values at 2.
+			for i := 2; i < len(call.Args); i += 2 {
+				values[types.ExprString(call.Args[i])] = true
+			}
 		}
+	}
 
-		// args[0] is the operation label; the pairs start at 1, values at 2.
-		for i := 2; i < len(call.Args); i += 2 {
-			values[types.ExprString(call.Args[i])] = true
+	return values
+}
+
+// unconditionalCalls returns the calls to name inside one statement that run
+// whenever the statement is reached: the statement's own initialiser and
+// condition, never anything inside a block it may or may not enter.
+//
+// Pruning at every nested block covers if, for, range, switch, select and
+// function literals in one rule, since each of them keeps its conditional half
+// in a BlockStmt. A nested if is pruned explicitly as well, because an
+// `else if` hangs off the Else field directly rather than inside a block.
+func unconditionalCalls(stmt ast.Stmt, name string) []*ast.CallExpr {
+	var calls []*ast.CallExpr
+
+	ast.Inspect(stmt, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.BlockStmt:
+			return false
+		case *ast.IfStmt:
+			if node != stmt {
+				return false
+			}
+		case *ast.CallExpr:
+			if ident, ok := node.Fun.(*ast.Ident); ok && ident.Name == name {
+				calls = append(calls, node)
+			}
 		}
 
 		return true
 	})
 
-	return values
+	return calls
 }
 
 // helperGuardsWhatItForwards reports whether a transition helper hands every id
@@ -344,19 +559,20 @@ func helperGuardsWhatItForwards(fn *ast.FuncDecl) bool {
 		return false
 	}
 
-	checked := guardedValues(fn)
+	forwards := callsToIdent(fn.Body, callParam)
+	if len(forwards) == 0 {
+		// A helper that never invokes the method it was handed guards nothing,
+		// however many pairs it names. Every method delegating to it is credited
+		// on this promise, so an empty promise is a failure, not a pass.
+		return false
+	}
+
+	// Same cutoff as a direct call site: a guard below the forwarding call is a
+	// validation error about a request that already left.
+	checked := guardedValues(fn, forwards[0].Pos())
 	guarded := true
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-
-		if ident, ok := call.Fun.(*ast.Ident); !ok || ident.Name != callParam {
-			return true
-		}
-
+	for _, call := range forwards {
 		// Skip the context at position 0; a variadic editor call is not an
 		// identifier and drops out with everything else that is not one.
 		for _, arg := range call.Args[1:] {
@@ -364,11 +580,30 @@ func helperGuardsWhatItForwards(fn *ast.FuncDecl) bool {
 				guarded = false
 			}
 		}
+	}
+
+	return guarded
+}
+
+// callsToIdent returns the calls in node whose target is the plain identifier
+// name, in source order.
+func callsToIdent(node ast.Node, name string) []*ast.CallExpr {
+	var calls []*ast.CallExpr
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		if ident, ok := call.Fun.(*ast.Ident); ok && ident.Name == name {
+			calls = append(calls, call)
+		}
 
 		return true
 	})
 
-	return guarded
+	return calls
 }
 
 // functionTypedParameter returns the name of fn's function-typed parameter — the
@@ -673,14 +908,6 @@ func generatedOperation(name string) (string, bool) {
 	op = strings.TrimSuffix(op, "WithBody")
 
 	return op, op != ""
-}
-
-// guardsPathIDs reports whether a facade function refuses bad path ids before
-// the request leaves — directly, or by delegating to a transition helper.
-func guardsPathIDs(fn *ast.FuncDecl) bool {
-	return callsAny(fn, func(name string) bool {
-		return name == "requirePathIDs" || transitionHelpers[name]
-	})
 }
 
 // callsAny reports whether the function calls a package-local function whose
