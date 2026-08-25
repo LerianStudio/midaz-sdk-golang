@@ -113,13 +113,24 @@ const pathIDGuard = "requirePathIDs"
 //
 // # Known ceiling, and it is deliberate
 //
-// Three things remain out of reach, and faking them with heuristics would be
+// Four things remain out of reach, and faking them with heuristics would be
 // worse than saying so:
 //
 //   - a guarded variable REASSIGNED between the guard and the call —
 //     requirePathIDs(op, "id", id), then id = "..", then f.ledger.GetX(ctx, id);
 //   - an inner scope SHADOWING a guarded name, so the identifier the call
 //     forwards is a different variable wearing the same spelling;
+//   - a REQUEST EDITOR rewriting the outbound path. Every generated method takes
+//     a `...RequestEditorFn` tail, and an editor is
+//     `func(context.Context, *http.Request) error` — it holds the built request
+//     and can assign to req.URL.Path, on any branch, AFTER the guard has run and
+//     after the request builder styled its parameters. A closure capturing a
+//     caller's value puts that value in the path without it ever sitting at a
+//     path ARGUMENT POSITION, which is the only place pathArgumentsOf looks. This
+//     is not hypothetical scaffolding: `setQueryParam`
+//     (organizations_facade.go:243-252) is a hand-written editor in this very
+//     package. It is harmless — it touches only req.URL.RawQuery, and its single
+//     call site passes literals — but it is the shape, one field away;
 //   - REFLECTION — a client method resolved by name at runtime, which is
 //     invisible to AST matching. This is the ceiling all three structural scans
 //     in this package share; nothing here does it, and none of the three pretends
@@ -127,8 +138,10 @@ const pathIDGuard = "requirePathIDs"
 //
 // The first two are invisible to a scan that compares source text, and closing
 // either one honestly needs type-checked SSA: resolving every identifier to its
-// definition and proving no assignment reaches the call. That is a different
-// tool, not a stricter match.
+// definition and proving no assignment reaches the call. The third needs the
+// same machinery pointed elsewhere: resolving every value in an editor tail to
+// the function it names and proving no assignment in that body reaches req.URL.
+// All three are a different tool, not a stricter match.
 //
 // # Accepted strictness, so nobody "fixes" it
 //
@@ -513,20 +526,33 @@ func unknownDelegation(fn *ast.FuncDecl, ops []string, site string) string {
 //     costs nothing to drop. By NAME is a weaker rule than by TYPE, and the
 //     residual is recorded on unknownDelegation; it survives here because the
 //     three helpers this now runs on are a literal list a human curates.
+//
 //   - a LITERAL, and a local `const operation = "Segments.Get"`. Both are fixed
 //     at compile time; the const is the error label every facade declares, and it
 //     cannot carry ".." in from a caller. Requiring it to be guarded would be a
 //     false positive on the correctly-written form of the very shape this check
 //     exists to catch.
+//
 //   - the GENERATED OPERATION, when a helper forwards one (`f.tracer.ActivateRule`).
 //     It is a function value, matched by resolving the selector against pathOps,
 //     which is why `ids.ID` — a selector too — is not excluded with it.
+//
 //   - the VARIADIC SPREAD at the tail (`idempotencyEditorsTracer(ctx, false)...`,
 //     which all three live helpers forward). oapi-codegen never puts a path
 //     parameter in a GENERATED method's variadic tail; that tail is the request
 //     editors, always — and a generated method is the only thing the surviving
 //     caller reads, which is exactly what makes this exclusion sound here and
 //     made it unsound in the deleted branch.
+//
+//     That argument is about the SIGNATURE, and it is worth being explicit that
+//     it is not the stronger claim it can read as. It says nothing an editor
+//     cannot do: an editor holds the built *http.Request and can write req.URL,
+//     so the tail CAN reach the path even though nothing in it is a path
+//     parameter. Excluding it here is right — comparing an editor's source text
+//     against guarded values would report every live call site and prove nothing
+//     — and what the exclusion costs is recorded honestly as the third entry in
+//     the known ceiling above, where closing it needs the editor's BODY resolved
+//     and read, not a stricter match here.
 func forwardedValues(fn *ast.FuncDecl, call *ast.CallExpr, pathOps map[string]bool) []string {
 	ctxName := contextParameter(fn)
 	constants := localStringConstants(fn)
