@@ -132,8 +132,11 @@ const pathIDGuard = "requirePathIDs"
 //
 // # Accepted strictness, so nobody "fixes" it
 //
-// Three false positives are deliberate, and each is the price of a match that
-// cannot be talked into accepting a hostile input:
+// Six false positives are deliberate, and each is the price of a match that
+// cannot be talked into accepting a hostile input. Each one names the one-line
+// change a contributor makes at the site; none of them is a reason to widen the
+// matcher, because every widening that admits one of these admits a shape from
+// the deformation tables above with it.
 //
 //   - A DERIVED value is refused even when the derivation is harmless: guarding
 //     orgID and forwarding strings.ToLower(orgID) is reported as unguarded. The
@@ -161,6 +164,28 @@ const pathIDGuard = "requirePathIDs"
 //     needs to wrap, widening rule 4 to "the identifier appears WITHIN one of the
 //     results" is the honest change, and it belongs here rather than in a
 //     //nolint at the site.
+//   - A NAKED RETURN under named results is reported:
+//     `func f(...) (rule *models.Rule, err error) { if err = requirePathIDs(...);
+//     err != nil { return } ... }` is ordinary Go propagation, and it refuses
+//     because the return carries NO results, so rule 4 has nothing to match. That
+//     is the point rather than an oversight: rule 4 exists to pin what flows out
+//     of the guard, and a naked return makes what flows out unreadable from the
+//     source — it hands back whatever the named results hold at that instant,
+//     which is the same thing `err = nil; return nil, err` did. Reading it needs
+//     dataflow, not a wider match. No live site uses it; all 202 name their
+//     results. Fix at the site: `return nil, err`.
+//   - A BLOCK-WRAPPED return is reported: `if err := requirePathIDs(...);
+//     err != nil { { return nil, err } }` refuses, because the body's single
+//     statement is a block, not a return. Accepting it means descending through
+//     nested blocks to find A return, which is the "a return somewhere in the
+//     body" rule round 4 deleted — it is what let a rejected id reach the wire
+//     from INSIDE the guard, one statement before the return. Fix at the site:
+//     drop the inner braces.
+//   - A REDUNDANT NESTED guard is reported: a perfectly-shaped guard inside an
+//     if, an else-if, a loop or a closure, standing beside a depth-1 guard that
+//     already covers the same value. The reasoning, and the alternative rule that
+//     was weighed against it, are on deformedGuardCalls. Fix at the site: hoist
+//     it, or delete it as the duplicate it is.
 //
 // # This scan depends on its sibling
 //
