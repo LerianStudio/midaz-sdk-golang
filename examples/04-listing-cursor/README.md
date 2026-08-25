@@ -72,7 +72,7 @@ Run [`03-end-to-end/`](../03-end-to-end/) first to create some.
   found first canceled tx 01H..., stopping
 
 [5] V2.Transactions.Count — where Status and Route do narrow
-  approved between 2026-01-01 and 2026-01-31: 417
+  approved between <start date> and <today>: <count>
 ```
 
 The count window is the last 30 UTC days by default, so the dates above move

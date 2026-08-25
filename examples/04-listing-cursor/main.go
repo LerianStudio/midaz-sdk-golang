@@ -240,8 +240,10 @@ func countByStatus(ctx context.Context, c *midaz.Client, orgID, ledgerID string)
 		days = parsed
 	}
 
+	// Both bounds are inclusive whole days, so a span of N dates subtracts
+	// N-1: today alone is days=1, not days=0.
 	end := time.Now().UTC()
-	start := end.AddDate(0, 0, -days)
+	start := end.AddDate(0, 0, -(days - 1))
 
 	opts := models.TransactionsListOpts{
 		CursorListOpts: models.CursorListOpts{
