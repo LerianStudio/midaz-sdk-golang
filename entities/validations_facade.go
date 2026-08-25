@@ -62,12 +62,10 @@ func (f *validationsFacade) Get(ctx context.Context, id string) (*models.Transac
 		return nil, err
 	}
 
-	resp, err := f.tracer.GetValidationWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetValidation(ctx, id)
 
-	return decodeOne[models.TransactionValidation](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.TransactionValidation](operation, resp, err)
 }
 
 // List retrieves one cursor page of stored validations.

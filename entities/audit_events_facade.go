@@ -122,12 +122,10 @@ func (f *auditEventsFacade) Get(ctx context.Context, id string) (*models.AuditEv
 		return nil, err
 	}
 
-	resp, err := f.tracer.GetAuditEventWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetAuditEvent(ctx, id)
 
-	return decodeOne[models.AuditEventRecord](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.AuditEventRecord](operation, resp, err)
 }
 
 // Verify returns the tracer server's hash-chain integrity verdict for the audit
@@ -141,12 +139,10 @@ func (f *auditEventsFacade) Verify(ctx context.Context, id string) (*models.Hash
 		return nil, err
 	}
 
-	resp, err := f.tracer.VerifyAuditEventWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.VerifyAuditEvent(ctx, id)
 
-	return decodeOne[models.HashChainVerificationResult](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.HashChainVerificationResult](operation, resp, err)
 }
 
 // listAuditEventRecordsParams renders the typed opts into the generated

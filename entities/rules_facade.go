@@ -59,12 +59,10 @@ func (f *rulesFacade) Get(ctx context.Context, id string) (*models.Rule, error) 
 		return nil, err
 	}
 
-	resp, err := f.tracer.GetRuleWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetRule(ctx, id)
 
-	return decodeOne[models.Rule](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Rule](operation, resp, err)
 }
 
 // Update patches a rule by ID (PATCH, 200).

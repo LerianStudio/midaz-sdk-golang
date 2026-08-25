@@ -59,12 +59,10 @@ func (f *limitsFacade) Get(ctx context.Context, id string) (*models.Limit, error
 		return nil, err
 	}
 
-	resp, err := f.tracer.GetLimitWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetLimit(ctx, id)
 
-	return decodeOne[models.Limit](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Limit](operation, resp, err)
 }
 
 // Update patches a limit by ID (PATCH, 200). LimitType and Asset are immutable
@@ -131,12 +129,10 @@ func (f *limitsFacade) GetUsage(ctx context.Context, id string) (*models.UsageSn
 		return nil, err
 	}
 
-	resp, err := f.tracer.GetLimitUsageWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetLimitUsage(ctx, id)
 
-	return decodeOne[models.UsageSnapshot](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.UsageSnapshot](operation, resp, err)
 }
 
 // limitTransition runs a body-less lifecycle POST through the raw call so success
