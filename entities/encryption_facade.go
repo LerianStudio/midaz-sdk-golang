@@ -84,12 +84,10 @@ func (f *encryptionFacade) GetProvisioningStatus(ctx context.Context, orgID stri
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetProvisioningStatusV2WithResponse(ctx, orgID, &genledger.GetProvisioningStatusV2Params{})
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetProvisioningStatusV2(ctx, orgID, &genledger.GetProvisioningStatusV2Params{})
 
-	res, err := decodeOne[models.ProvisioningStatusResponse](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	res, err := readOne[models.ProvisioningStatusResponse](operation, resp, err)
 
 	// A 404 here means envelope encryption is disabled (legacy mode); tag it so
 	// callers can IsFeatureNotAvailable it, distinct from a generic NotFound.

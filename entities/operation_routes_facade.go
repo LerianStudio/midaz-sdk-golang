@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // operationRoutesFacade is the Phase 2 (Task 2.3.1) hand-written facade over the
@@ -135,12 +134,10 @@ func (f *operationRoutesFacade) Get(ctx context.Context, orgID, ledgerID, id str
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetOperationRouteByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetOperationRouteByID(ctx, orgID, ledgerID, id)
 
-	return decodeOne[models.OperationRoute](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.OperationRoute](operation, resp, err)
 }
 
 // Update patches an operation route by ID under an org+ledger. Same write-facade

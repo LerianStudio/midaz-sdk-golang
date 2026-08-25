@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // assetRatesFacade is the Phase 2 (Task 2.3.3) hand-written facade over the
@@ -88,12 +87,10 @@ func (f *assetRatesFacade) GetAssetRate(ctx context.Context, orgID, ledgerID, ex
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAssetRateByExternalIDWithResponse(ctx, orgID, ledgerID, externalID)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAssetRateByExternalID(ctx, orgID, ledgerID, externalID)
 
-	return decodeOne[models.AssetRate](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.AssetRate](operation, resp, err)
 }
 
 // ListAssetRatesByAssetCode retrieves one cursor page of asset rates for a

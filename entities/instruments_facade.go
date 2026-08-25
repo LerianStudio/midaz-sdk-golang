@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
@@ -161,12 +160,10 @@ func (f *instrumentsFacade) Get(ctx context.Context, orgID, holderID, id string)
 		params.IncludeDeleted = strPtr("true")
 	}
 
-	resp, err := f.ledger.GetInstrumentByIDV2WithResponse(ctx, orgID, holderID, id, params)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetInstrumentByIDV2(ctx, orgID, holderID, id, params)
 
-	return decodeOne[models.Instrument](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Instrument](operation, resp, err)
 }
 
 // Update patches an instrument by ID under a holder. Same write-facade pattern as

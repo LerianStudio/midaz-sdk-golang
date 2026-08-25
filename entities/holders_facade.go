@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
@@ -152,12 +151,10 @@ func (f *holdersFacade) Get(ctx context.Context, orgID, id string) (*models.Hold
 		params.IncludeDeleted = strPtr("true")
 	}
 
-	resp, err := f.ledger.GetHolderByIDV2WithResponse(ctx, orgID, id, params)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetHolderByIDV2(ctx, orgID, id, params)
 
-	return decodeOne[models.Holder](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Holder](operation, resp, err)
 }
 
 // Update patches a holder by ID under an organization. Same write-facade pattern

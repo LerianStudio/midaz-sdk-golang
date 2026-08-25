@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // feePackagesFacade is the Epic 3.2 (Task 3.2.1) hand-written facade over the
@@ -148,12 +147,10 @@ func (f *feePackagesFacade) Get(ctx context.Context, orgID, ledgerID, id string)
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetPackageByIDV2WithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetPackageByIDV2(ctx, orgID, ledgerID, id)
 
-	return decodeOne[models.FeePackage](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.FeePackage](operation, resp, err)
 }
 
 // Update patches a fee package by ID under an organization. Same write-facade

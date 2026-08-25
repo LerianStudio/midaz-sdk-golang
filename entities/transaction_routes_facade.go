@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // transactionRoutesFacade is the Phase 2 (Task 2.3.2) hand-written facade over
@@ -141,12 +140,10 @@ func (f *transactionRoutesFacade) Get(ctx context.Context, orgID, ledgerID, id s
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetTransactionRouteByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetTransactionRouteByID(ctx, orgID, ledgerID, id)
 
-	return decodeOne[models.TransactionRoute](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.TransactionRoute](operation, resp, err)
 }
 
 // Update patches a transaction route by ID under an org+ledger. Same

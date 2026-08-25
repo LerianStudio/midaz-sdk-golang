@@ -69,12 +69,8 @@ func (f *metadataIndexesFacade) Create(ctx context.Context, entityName string, i
 	}
 
 	return writeJSON[models.MetadataIndex](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateMetadataIndexWithBodyWithResponse(ctx, entityName, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateMetadataIndexWithBody(ctx, entityName, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
