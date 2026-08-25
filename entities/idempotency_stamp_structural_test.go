@@ -168,8 +168,14 @@ func TestEveryWriteStampsIdempotency(t *testing.T) {
 	// A floor, so a scan that stops matching cannot read as success. It counts
 	// CALL SITES rather than functions, which is the same 109 while every facade
 	// names one write, and the honest number the moment one names two.
-	require.Greater(t, scan.stamped, 70,
-		"expected the idempotency wiring on more than 70 write call sites; found %d", scan.stamped)
+	//
+	// The floor is the LIVE count, not a round number below it. A floor of 70
+	// against 109 live sites let a third of the stamped surface disappear without
+	// failing anything — which is the regression a floor exists to catch, not to
+	// tolerate. Adding a stamped write raises this number; removing one should
+	// fail here and be argued for, not absorbed.
+	require.GreaterOrEqual(t, scan.stamped, 109,
+		"expected the idempotency wiring on at least 109 write call sites; found %d", scan.stamped)
 }
 
 // idempotencyStampScan carries the derived write universe and the credit the
@@ -253,11 +259,27 @@ func writeOperations(t *testing.T, fset *token.FileSet) map[string]bool {
 
 // collectWriteOperations records every request builder in one generated file
 // that issues a write method.
+func collectWriteOperations(t *testing.T, path string, file *ast.File, ops map[string]bool) {
+	t.Helper()
+
+	operationsMatchingMethod(t, path, file, writeOperationMethods, ops)
+}
+
+// operationsMatchingMethod records every request builder in one generated file
+// whose body issues a method matched by pattern. It is the one scan behind both
+// generated-operation universes: the write set here, and the delete set in
+// delete_seam_structural_test.go.
 //
 // The method is read from the SOURCE TEXT of the builder rather than from the
 // AST, because oapi-codegen writes it as a bare string literal argument and
 // matching that through the AST is more code for the same answer.
-func collectWriteOperations(t *testing.T, path string, file *ast.File, ops map[string]bool) {
+//
+// Sharing it is the point. Both universes rest on the same assumption about how
+// oapi-codegen emits the method, and as two copies of the same loop the day that
+// emission changes is the day one copy gets updated and the other goes silently
+// narrow — a scan finding no operations still passes its own floor, because an
+// empty universe has no offences in it.
+func operationsMatchingMethod(t *testing.T, path string, file *ast.File, pattern *regexp.Regexp, ops map[string]bool) {
 	t.Helper()
 
 	src := readFileForScan(t, path)
@@ -274,9 +296,7 @@ func collectWriteOperations(t *testing.T, path string, file *ast.File, ops map[s
 		}
 
 		start := file.FileStart
-		body := src[fn.Body.Pos()-start : fn.Body.End()-start]
-
-		if writeOperationMethods.MatchString(body) {
+		if pattern.MatchString(src[fn.Body.Pos()-start : fn.Body.End()-start]) {
 			ops[op] = true
 		}
 	}

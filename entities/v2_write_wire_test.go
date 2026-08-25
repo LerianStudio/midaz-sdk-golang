@@ -50,6 +50,22 @@ type v2WriteRow struct {
 // It is an enumeration, not a sample. Each of these methods reaches the wire
 // through its own generated call and its own params struct, so a row that
 // exists next door proves nothing about the one that does not.
+//
+// Three transaction writes are enumerated ELSEWHERE rather than missing, each
+// because its own file pins the same request-and-decode pair against behaviour
+// this table's fixed fixtures cannot express:
+//
+//   - V2.Transactions.CreateDirect and V2.Transactions.Revert are rows in
+//     empty_success_body_test.go, which drives them against a 2xx carrying NO
+//     body — the case that decides whether a caller gets a zero-valued
+//     transaction with a nil error.
+//   - V2.Transactions.Cancel is pinned by TestCancelStillSynthesizesOnAnEmptyBody
+//     in the same file. Cancel is the one write allowed to synthesize a result
+//     from the request, so its contract is the empty-body branch, not a decode of
+//     a populated one.
+//
+// Adding a row here for any of the three would assert a plain populated decode
+// that is not where their behaviour differs.
 var v2Writes = []v2WriteRow{
 	{
 		name:       "V2.Organizations.Create",

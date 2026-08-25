@@ -36,11 +36,25 @@ import (
 // property of how they are written, which is exactly the kind of thing that
 // survives until someone rewrites one.
 
-// v2Calls is one row per call site on the THIRTEEN dual-served V2 facades that
-// formats a caller-supplied value into its URL path, across every verb. The nine
-// V2-only facades — Holders, Instruments, Encryption, Composition,
-// ProtectionAudit and the four billing/fee accessors — are pinned by their own
-// per-facade tests and are deliberately not repeated here.
+// v2Calls samples the call sites on the THIRTEEN dual-served V2 facades that
+// format a caller-supplied value into their URL path: every by-id read and
+// delete, the counts, and the transaction lifecycle actions. The nine V2-only
+// facades — Holders, Instruments, Encryption, Composition, ProtectionAudit and
+// the four billing/fee accessors — are pinned by their own per-facade tests and
+// are deliberately not repeated here.
+//
+// It is a SAMPLE, not the enumeration, and it does not need to be one. The
+// enumeration is TestEveryPathParameterOperationIsGuarded
+// (path_id_guard_structural_test.go), which reads every facade function in the
+// package and fails when one forwards a path value it never handed to
+// requirePathIDs — so a guard missing from V2.Ledgers.Update or
+// V2.Transactions.Revert fails there, with no row needed here. What this table
+// adds is the part a structural scan cannot assert: that the refusal happens
+// BEFORE a request exists, proven by a server that counts what reaches it.
+// Rows earn their place by covering a distinct shape of that behaviour, so the
+// writes carrying a body (the Updates, UpdateBalance) are represented by
+// V2.Organizations.Update, V2.Operations.UpdateTransactionOperation and
+// V2.Transactions.Update rather than repeated per family.
 //
 // pathID is substituted into the LAST path parameter of each call, which is the
 // position where an empty value silently reaches the collection endpoint rather

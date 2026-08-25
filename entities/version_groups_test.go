@@ -164,8 +164,9 @@ func TestV2HasOneSpellingPerEndpoint(t *testing.T) {
 	t.Logf("one spelling each across %d V2 operations", len(owners))
 }
 
-// v2EndpointOwners maps each generated V2 operation to the V2 facade types whose
-// methods reach it.
+// v2EndpointOwners maps each generated V2 operation to the facade types whose
+// methods reach it — including the V2-only accessors whose type names carry no
+// version. See v2FacadeReceiver.
 func v2EndpointOwners(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 
@@ -211,7 +212,20 @@ func recordV2Operations(fn *ast.FuncDecl, owner string, owners map[string]map[st
 	})
 }
 
-// v2FacadeReceiver returns the V2 facade type a method hangs off, if it is one.
+// v2FacadeReceiver returns the facade type a method hangs off, if it is one.
+//
+// It accepts ANY facade receiver, not only the ones spelled "...V2Facade". The
+// nine V2-only accessors — Holders, Instruments, Encryption, Composition,
+// ProtectionAudit and the four billing/fee facades — carry no version in their
+// type name because they have no V1 sibling to distinguish from, so a
+// "V2Facade" filter excluded exactly the facades that serve /v2 exclusively: a
+// second spelling of a V2 endpoint reached through one of them was invisible to
+// the ownership check, which is the duplication this test exists to refuse.
+//
+// The V2 filter that matters is the one on the OPERATION, applied by
+// recordV2Operations: generatedOperation strips WithBody/WithResponse and every
+// generated /v2 operation keeps its "V2" suffix, so a V1-only facade contributes
+// nothing here regardless of its receiver name.
 func v2FacadeReceiver(fn *ast.FuncDecl) (string, bool) {
 	if fn.Recv == nil || len(fn.Recv.List) == 0 {
 		return "", false
@@ -223,7 +237,7 @@ func v2FacadeReceiver(fn *ast.FuncDecl) (string, bool) {
 	}
 
 	ident, ok := recv.(*ast.Ident)
-	if !ok || !strings.HasSuffix(ident.Name, "V2Facade") {
+	if !ok || !strings.HasSuffix(ident.Name, "Facade") {
 		return "", false
 	}
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
@@ -159,7 +160,12 @@ func TestV2FacadesDecodeIntoThePublicModel(t *testing.T) {
 
 // idOf collapses the read/err/extract dance every row above repeats, and guards
 // the nil dereference a failed read would otherwise cause inside the extractor.
-func idOf(value any, err error, extract func() string) (string, error) {
+//
+// value is a TYPED POINTER rather than an any, because the guard does not
+// otherwise exist: a nil *models.Organization stored in an interface is not
+// equal to the untyped nil, so `value == nil` was false for every nil a facade
+// could return and the extractor dereferenced it anyway.
+func idOf[T any](value *T, err error, extract func() string) (string, error) {
 	if err != nil {
 		return "", err
 	}
@@ -389,8 +395,12 @@ func TestV2FacadesMapServerRefusals(t *testing.T) {
 		t.Fatalf("err = %v, want a not-found error", err)
 	}
 
-	if !sdkerrors.IsNotFoundError(err) || err.Error() == "" {
-		t.Fatalf("err = %v, want the server detail preserved", err)
+	// The fixture's own detail, not merely a non-empty message. Asserting
+	// err.Error() != "" repeated the category check above and passed on any
+	// message at all, so an SDK that discarded the problem document's detail and
+	// substituted its own text could not fail this test.
+	if !strings.Contains(err.Error(), "ledger not found") {
+		t.Fatalf("err = %v, want the server detail %q preserved", err, "ledger not found")
 	}
 }
 

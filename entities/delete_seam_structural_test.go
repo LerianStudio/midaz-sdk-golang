@@ -324,29 +324,13 @@ func deleteOperations(t *testing.T, fset *token.FileSet) map[string]bool {
 var deleteMethod = regexp.MustCompile(`http\.NewRequest\("DELETE"`)
 
 // collectDeleteOperations records every request builder in one generated file
-// that issues DELETE, by the same source-text reading collectWriteOperations
-// uses: oapi-codegen writes the method as a bare string literal.
+// that issues DELETE, through the one scan collectWriteOperations also uses —
+// see operationsMatchingMethod for why the two universes must not each keep
+// their own copy of it.
 func collectDeleteOperations(t *testing.T, path string, file *ast.File, ops map[string]bool) {
 	t.Helper()
 
-	src := readFileForScan(t, path)
-
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Body == nil || fn.Recv != nil {
-			continue
-		}
-
-		op, ok := requestBuilderOperation(fn.Name.Name)
-		if !ok {
-			continue
-		}
-
-		start := file.FileStart
-		if deleteMethod.MatchString(src[fn.Body.Pos()-start : fn.Body.End()-start]) {
-			ops[op] = true
-		}
-	}
+	operationsMatchingMethod(t, path, file, deleteMethod, ops)
 }
 
 // deleteMentions splits the mentions of a generated delete operation inside a

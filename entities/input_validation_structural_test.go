@@ -37,30 +37,41 @@ func TestEveryInputValidationIsTyped(t *testing.T) {
 	for name, file := range parseGoFiles(t, fset, ".") {
 		typedByValidationErr := wrappedValidateCalls(file)
 
-		ast.Inspect(file, func(n ast.Node) bool {
-			sel, ok := validateCallReceiver(n)
-			if !ok {
+		// The walk is per FUNCTION rather than per file, so the exemption below can
+		// be checked against the enclosing signature instead of against a name.
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+
+			listOpts := listOptsParams(fn)
+
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				sel, ok := validateCallReceiver(n)
+				if !ok {
+					return true
+				}
+
+				switch {
+				case typedByValidationErr[n.Pos()]:
+					wrapped++
+				case isListOptsReceiver(sel, listOpts):
+					// List options are validated by ValidatePageListOpts /
+					// ValidateCursorListOpts, which build the SDK error type
+					// themselves, so wrapping would be a no-op. The exemption is
+					// not taken on trust: TestListOptsValidationIsTyped exercises
+					// it through the public pipeline.
+					exempt++
+				default:
+					unwrapped = append(unwrapped,
+						filepath.Base(name)+":"+strconv.Itoa(fset.Position(n.Pos()).Line)+
+							" — "+exprText(sel)+".Validate() is returned without validationErr")
+				}
+
 				return true
-			}
-
-			switch {
-			case typedByValidationErr[n.Pos()]:
-				wrapped++
-			case isListOptsReceiver(sel):
-				// List options are validated by ValidatePageListOpts /
-				// ValidateCursorListOpts, which build the SDK error type
-				// themselves, so wrapping would be a no-op. The exemption is
-				// not taken on trust: TestListOptsValidationIsTyped exercises
-				// it through the public pipeline.
-				exempt++
-			default:
-				unwrapped = append(unwrapped,
-					filepath.Base(name)+":"+strconv.Itoa(fset.Position(n.Pos()).Line)+
-						" — "+exprText(sel)+".Validate() is returned without validationErr")
-			}
-
-			return true
-		})
+			})
+		}
 	}
 
 	sort.Strings(unwrapped)
@@ -125,13 +136,61 @@ func wrappedValidateCalls(file *ast.File) map[token.Pos]bool {
 	return wrapped
 }
 
-// isListOptsReceiver reports whether a Validate call is on the list-options
-// parameter. Every facade spells that parameter "opts"; a differently named
-// receiver is treated as an input and must be wrapped.
-func isListOptsReceiver(x ast.Expr) bool {
+// isListOptsReceiver reports whether a Validate call is on one of the enclosing
+// function's list-options parameters.
+//
+// The exemption is bound to the DECLARED TYPE, not to the identifier text. An
+// earlier version exempted anything spelled "opts", which read one direction of
+// the hazard and left the other open: a facade naming a request-BODY input
+// "opts" was exempted too, and its model's Validate then escaped the
+// validationErr requirement with this scan still green. That is the same
+// shape-versus-fact hole the sibling scans in this package are written to avoid
+// — a check that asks how something is spelled rather than what it is.
+func isListOptsReceiver(x ast.Expr, listOpts map[string]bool) bool {
 	ident, ok := x.(*ast.Ident)
 
-	return ok && ident.Name == "opts"
+	return ok && listOpts[ident.Name]
+}
+
+// listOptsParams returns the names of a function's parameters whose declared
+// type is a list-options type.
+//
+// The type is matched by its "ListOpts" suffix, which is a naming rule the
+// models package holds without exception (AccountsListOpts, TransactionsListOpts,
+// InstrumentsListOpts, ...) and which the models' own list-opts test pins. A
+// suffix on the TYPE is a different claim from a suffix on the variable: the
+// caller cannot rename a type at the call site.
+func listOptsParams(fn *ast.FuncDecl) map[string]bool {
+	if fn.Type.Params == nil {
+		return nil
+	}
+
+	names := map[string]bool{}
+
+	for _, field := range fn.Type.Params.List {
+		if !isListOptsType(field.Type) {
+			continue
+		}
+
+		for _, name := range field.Names {
+			names[name.Name] = true
+		}
+	}
+
+	return names
+}
+
+// isListOptsType reports whether a parameter type names a list-options type,
+// through a qualified name (models.AccountsListOpts) or a bare one.
+func isListOptsType(x ast.Expr) bool {
+	switch t := x.(type) {
+	case *ast.SelectorExpr:
+		return strings.HasSuffix(t.Sel.Name, "ListOpts")
+	case *ast.Ident:
+		return strings.HasSuffix(t.Name, "ListOpts")
+	default:
+		return false
+	}
 }
 
 // exprText renders the receiver of a Validate call for the failure message.
