@@ -564,16 +564,26 @@ func (f *transactionsFacade) Count(ctx context.Context, orgID, ledgerID string, 
 }
 
 // readCount maps a HEAD count response into the total. A transport error becomes
-// an internal error; a non-2xx decodes the unified RFC 9457 envelope via
+// an internal error; a nil response with no error is refused for the reason
+// errNoResponse gives; a non-2xx decodes the unified RFC 9457 envelope via
 // DecodeProblemJSON (which handles the empty body a HEAD error carries, unlike
 // the generated status-exact parser); a 2xx reads the X-Total-Count header,
 // where a missing/blank/non-integer/negative value is an error, never a silent
 // zero. Shared by the transactions count and the six onboarding counts.
+//
+// It does not route through readRawResponse, and cannot: a HEAD reply is
+// headers-only, so the total lives in X-Total-Count and there is no body to
+// drain. That is why the nil guard is repeated here rather than inherited — the
+// two functions share a hazard, not a code path.
 func readCount(resp *http.Response, err error) (int, error) {
 	const operation = "Count"
 
 	if err != nil {
 		return 0, errors.NewInternalError(operation, err)
+	}
+
+	if resp == nil {
+		return 0, errors.NewInternalError(operation, errNoResponse)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
