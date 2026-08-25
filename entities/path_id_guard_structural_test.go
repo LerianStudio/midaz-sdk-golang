@@ -86,8 +86,12 @@ var transitionHelpers = map[string]bool{
 //   - the DEFANGED guard, which runs, names every pair, and discards the verdict
 //     (`if err := requirePathIDs(...); err != nil { _ = err }`, `_ = require...`,
 //     `err := require...` never checked, `defer require...`) — closed by
-//     guardCallsActedOn, which accepts one spelling: the guard in an if's
-//     initialiser whose body returns;
+//     guardCallActedOn, which accepts one spelling and pins every part of it;
+//   - the DEFORMED CONDITION, which keeps that spelling's initialiser and body
+//     and rewrites the test between them (`err == nil`, `err != nil && f.strict`,
+//     `ctx.Err() != nil`) so the return is unreachable, or reachable only
+//     sometimes, while the guard still reads as one — closed by pinning the
+//     condition too, and with it the value the body returns;
 //   - the TOKEN guard at a delegation site, naming a value that never becomes a
 //     path segment while the id that does is forwarded to a helper outside
 //     transitionHelpers — closed by creditForwardedOperation, which applies at
@@ -114,7 +118,7 @@ var transitionHelpers = map[string]bool{
 //
 // # Accepted strictness, so nobody "fixes" it
 //
-// Two false positives are deliberate, and both are the price of a match that
+// Three false positives are deliberate, and each is the price of a match that
 // cannot be talked into accepting a hostile input:
 //
 //   - A DERIVED value is refused even when the derivation is harmless: guarding
@@ -131,6 +135,18 @@ var transitionHelpers = map[string]bool{
 //     of reasoning that let a guard below a call pass in the first place. The
 //     shape carries no innocent meaning in a facade — a generated call belongs in
 //     the body, not in a defer.
+//   - A guard whose body returns a WRAPPED error is reported, even though it
+//     genuinely propagates: `return nil, fmt.Errorf("%s: %w", operation, err)`
+//     refuses, because the credited spelling requires the guard's own identifier
+//     among the return's results. Accepting an expression that merely MENTIONS
+//     the error means accepting one that discards it, and `_ = err;
+//     return nil, nil` is a live shape someone writes to quiet a test. No live
+//     site wraps — all 202 return the bare identifier — so this costs nothing
+//     today, and requirePathIDs already builds an *errors.Error carrying the
+//     operation label, which is what a wrapper would be adding. If a facade ever
+//     needs to wrap, widening rule 4 to "the identifier appears WITHIN one of the
+//     results" is the honest change, and it belongs here rather than in a
+//     //nolint at the site.
 //
 // # This scan depends on its sibling
 //
@@ -697,7 +713,7 @@ func pathArgumentsOf(call *ast.CallExpr, names []string, wanted map[string]bool)
 //     not, because the call it guards has a way around it.
 //   - It must appear BEFORE the generated call. A guard below the call returns a
 //     validation error about a request that has already reached the wire.
-//   - Its ERROR must be acted on — see guardCallsActedOn. Running the guard and
+//   - Its ERROR must be acted on — see guardCallActedOn. Running the guard and
 //     dropping its verdict is not a guard, and it was the shape that passed every
 //     other requirement here.
 func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
@@ -708,18 +724,21 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 			break
 		}
 
-		for _, call := range guardCallsActedOn(stmt, "requirePathIDs") {
-			// args[0] is the operation label; the pairs start at 1, values at 2.
-			for i := 2; i < len(call.Args); i += 2 {
-				values[types.ExprString(call.Args[i])] = true
-			}
+		call, ok := guardCallActedOn(stmt, "requirePathIDs")
+		if !ok {
+			continue
+		}
+
+		// args[0] is the operation label; the pairs start at 1, values at 2.
+		for i := 2; i < len(call.Args); i += 2 {
+			values[types.ExprString(call.Args[i])] = true
 		}
 	}
 
 	return values
 }
 
-// guardCallsActedOn returns the guard calls in one statement whose error the
+// guardCallActedOn returns the guard call in one statement whose error the
 // statement actually ACTS ON, which is a strictly narrower question than whether
 // the call runs.
 //
@@ -737,81 +756,145 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 // test stop complaining. It reopens the scope escalation two fix rounds closed —
 // ".." pops a path segment, so deleting a ledger deletes the organization.
 //
-// So exactly one spelling counts, the one all 202 live call sites already use:
-// the guard sits in an IF STATEMENT'S INITIALISER, and that if's body returns.
-// Everything else is refused by construction rather than by a list of banned
-// shapes — `_ = requirePathIDs(...)`, `err := requirePathIDs(...)` with no check,
-// and `defer requirePathIDs(...)` are all simply not this spelling.
+// # One spelling, and ALL of it
 //
-// The return must be a direct statement of the body. That is stricter than the
-// language requires — a return nested inside a further condition would also
-// propagate — and it stays strict on purpose: every live site is the flat
-// spelling, and loosening the rule to "a return somewhere in there" reopens the
-// question of whether the guarded path can be reached anyway, which is the exact
-// reasoning the reachability requirement above exists to stop making.
-func guardCallsActedOn(stmt ast.Stmt, name string) []*ast.CallExpr {
+// So exactly one spelling counts, the one all 202 live call sites already use:
+//
+//	if <err> := requirePathIDs(op, ...pairs...); <err> != nil {
+//		return ..., <err>
+//	}
+//
+// The previous version of this function pinned two of that shape's four parts —
+// the initialiser and the presence of a return — and left the CONDITION and the
+// RETURNED VALUE unspecified. Three deformations walked straight through the
+// gap, each keeping the accepted initialiser and an accepted return:
+//
+//	if err := requirePathIDs(op, ...); err == nil { return nil, err }
+//	if err := requirePathIDs(op, ...); err != nil && f.strict { return nil, err }
+//	if err := requirePathIDs(op, ...); ctx.Err() != nil { return nil, err }
+//
+// The first returns only when the ids are FINE, so a bad id falls through to the
+// wire. The second returns only when some other flag agrees. The third tests a
+// value that has nothing to do with the ids. All three send id=".." with a nil
+// error, and all three read, at a glance, exactly like a guard. A fourth kept
+// the condition and threw the verdict away in the return itself —
+// `{ _ = err; return nil, nil }` — which stops the request and hands the caller
+// a nil error for a rejected id, the silent-zero defect wearing a guard's
+// clothes.
+//
+// The lesson, and it is the method note of the round that added it: the
+// complement of a shape is only closed when EVERY part of the shape is pinned.
+// Accepting exactly one form means specifying all of it — initialiser,
+// condition, body, and what flows out through the return.
+//
+// So all four now hold, and a guard is credited only when they do:
+//
+//  1. the Init binds exactly one identifier to a DIRECT call to the guard —
+//     `err := requirePathIDs(...)`, not `err := wrap(requirePathIDs(...))`,
+//     whose result says nothing about the guard's verdict;
+//  2. the Cond is exactly `<that identifier> != nil` — nothing AND-ed or OR-ed
+//     onto it, no other operator, no other operand;
+//  3. the Body returns directly, and
+//  4. that return carries the guard's own error among its results.
+//
+// Everything else drops out without being named. `_ = requirePathIDs(...)`,
+// `err := requirePathIDs(...)` never checked, and `defer requirePathIDs(...)`
+// are not an if statement with this initialiser; a guard in the condition rather
+// than the initialiser (`if requirePathIDs(...) != nil`) binds no identifier for
+// the return to carry; a guard inside a nested block, a loop, or a closure is
+// not a statement of the function body at all, which is where guardedValues
+// looks. That last set used to need its own walker, pruning BlockStmt, DeferStmt
+// and GoStmt by hand; pinning the initialiser to one assignment makes every one
+// of them structurally impossible instead, so the walker is gone.
+//
+// The return must be a direct statement of the body, and must carry the bare
+// identifier. Both are stricter than the language requires, and both stay strict
+// on purpose: every one of the 202 live sites is the flat spelling returning the
+// bare err (161 `return nil, err`, 29 `return err`, 12 `return 0, err`, counted
+// against the live tree before this rule landed), so strictness costs nothing
+// today. Loosening "returns the error" to "returns something mentioning the
+// error" is the same loosening that would accept orgID + "/../" on the argument
+// side. A facade that genuinely needs to wrap the guard's error is the one
+// deliberate false positive this adds; see the accepted-strictness list above.
+func guardCallActedOn(stmt ast.Stmt, name string) (*ast.CallExpr, bool) {
 	ifStmt, ok := stmt.(*ast.IfStmt)
-	if !ok || ifStmt.Init == nil || !returnsDirectly(ifStmt.Body) {
-		return nil
+	if !ok {
+		return nil, false
 	}
 
-	return unconditionalCalls(ifStmt.Init, name)
+	errName, call, ok := guardAssignment(ifStmt.Init, name)
+	if !ok || !comparesNotNil(ifStmt.Cond, errName) || !returnsIdent(ifStmt.Body, errName) {
+		return nil, false
+	}
+
+	return call, true
 }
 
-// returnsDirectly reports whether a block's own statements include a return.
-func returnsDirectly(body *ast.BlockStmt) bool {
+// guardAssignment returns the single identifier a statement binds to a DIRECT
+// call to name, and that call.
+//
+// Direct is the load-bearing word: an interposed call
+// (`err := wrap(requirePathIDs(...))`) yields an error that is no longer the
+// guard's verdict, and wrap is free to return nil for a rejected id.
+func guardAssignment(stmt ast.Stmt, name string) (string, *ast.CallExpr, bool) {
+	assign, ok := stmt.(*ast.AssignStmt)
+	if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+		return "", nil, false
+	}
+
+	call, ok := assign.Rhs[0].(*ast.CallExpr)
+	if !ok || !isIdent(call.Fun, name) {
+		return "", nil, false
+	}
+
+	lhs, ok := assign.Lhs[0].(*ast.Ident)
+	if !ok {
+		return "", nil, false
+	}
+
+	return lhs.Name, call, true
+}
+
+// comparesNotNil reports whether cond is exactly `errName != nil`, in either
+// operand order and with nothing else attached.
+func comparesNotNil(cond ast.Expr, errName string) bool {
+	binary, ok := cond.(*ast.BinaryExpr)
+	if !ok || binary.Op != token.NEQ {
+		return false
+	}
+
+	return (isIdent(binary.X, errName) && isIdent(binary.Y, "nil")) ||
+		(isIdent(binary.Y, errName) && isIdent(binary.X, "nil"))
+}
+
+// returnsIdent reports whether a block's own statements include a return that
+// carries the identifier errName among its results.
+func returnsIdent(body *ast.BlockStmt, errName string) bool {
 	if body == nil {
 		return false
 	}
 
 	for _, stmt := range body.List {
-		if _, ok := stmt.(*ast.ReturnStmt); ok {
-			return true
+		ret, ok := stmt.(*ast.ReturnStmt)
+		if !ok {
+			continue
+		}
+
+		for _, result := range ret.Results {
+			if isIdent(result, errName) {
+				return true
+			}
 		}
 	}
 
 	return false
 }
 
-// unconditionalCalls returns the calls to name inside one statement that run
-// whenever the statement is reached, in place: the statement's own initialiser
-// and condition, never anything inside a block it may or may not enter, and
-// never anything whose execution is postponed.
-//
-// Pruning at every nested block covers if, for, range, switch, select and
-// function literals in one rule, since each of them keeps its conditional half
-// in a BlockStmt. A nested if is pruned explicitly as well, because an
-// `else if` hangs off the Else field directly rather than inside a block.
-//
-// defer and go are pruned for a different reason than the blocks: their call
-// is walked DIRECTLY, with no block in between, so `defer requirePathIDs(...)`
-// read as a guard that runs — while it actually runs after the function body is
-// done, which is to say after the request has left. A goroutine is worse still:
-// it may not have run at all. The caller's own spelling requirement
-// (guardCallsActedOn) already refuses both, since neither is an if statement;
-// this keeps the hole out of the helper itself, so a second caller does not
-// inherit it.
-func unconditionalCalls(stmt ast.Stmt, name string) []*ast.CallExpr {
-	var calls []*ast.CallExpr
+// isIdent reports whether an expression is exactly the identifier name.
+func isIdent(expr ast.Expr, name string) bool {
+	ident, ok := expr.(*ast.Ident)
 
-	ast.Inspect(stmt, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.BlockStmt, *ast.DeferStmt, *ast.GoStmt:
-			return false
-		case *ast.IfStmt:
-			if node != stmt {
-				return false
-			}
-		case *ast.CallExpr:
-			if ident, ok := node.Fun.(*ast.Ident); ok && ident.Name == name {
-				calls = append(calls, node)
-			}
-		}
-
-		return true
-	})
-
-	return calls
+	return ok && ident.Name == name
 }
 
 // helperGuardsWhatItForwards reports whether a transition helper hands every id
