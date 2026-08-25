@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	obslog "github.com/LerianStudio/lib-observability/log"
-	obsruntime "github.com/LerianStudio/lib-observability/runtime"
+	obslog "github.com/LerianStudio/lib-observability/v3/log"
+	obsruntime "github.com/LerianStudio/lib-observability/v3/runtime"
 	"github.com/LerianStudio/midaz-sdk-golang/v5"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"

@@ -306,7 +306,7 @@ The SDK observability package wraps OpenTelemetry and exposes a `Provider` inter
 
 Entity HTTP requests inject propagation headers through `observability.InjectContext`. Server-side code can extract incoming context with `observability.ExtractContext` or use the HTTP middleware helpers.
 
-Collector endpoints are passed to the OTLP gRPC exporter as `host:port` values, for example `localhost:4317`. TLS is the default; local plaintext collectors require `observability.WithCollectorInsecure(true)` in development/local environments.
+Collector endpoints are passed to the OTLP gRPC exporter, and the scheme selects the transport: `https://otel-collector:4317` exports over TLS, while a bare `host:port` such as `localhost:4317` is treated as plaintext. A plaintext endpoint is refused in a `production` environment, so production deployments need the `https://` prefix; local plaintext collectors belong in a development or local environment. `pkg/observability` rewrites that refusal to name both remedies, but the decision itself stays in lib-observability, including its `ALLOW_INSECURE_OTEL` override.
 
 ## Retry internals
 

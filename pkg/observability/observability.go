@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	obsconstants "github.com/LerianStudio/lib-observability/constants"
-	obslog "github.com/LerianStudio/lib-observability/log"
-	obsmetrics "github.com/LerianStudio/lib-observability/metrics"
-	obstracing "github.com/LerianStudio/lib-observability/tracing"
+	obsconstants "github.com/LerianStudio/lib-observability/v3/constants"
+	obslog "github.com/LerianStudio/lib-observability/v3/log"
+	obsmetrics "github.com/LerianStudio/lib-observability/v3/metrics"
+	obstracing "github.com/LerianStudio/lib-observability/v3/tracing"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -546,7 +546,7 @@ func (p *MidazProvider) initTelemetry() error {
 		Redactor:                  obstracing.NewDefaultRedactor(),
 	})
 	if err != nil && (!errors.Is(err, obstracing.ErrEmptyEndpoint) || telemetry == nil) {
-		return err
+		return annotateInsecureCollectorError(err, p.config.CollectorEndpoint)
 	}
 	if !p.config.RegisterGlobally {
 		restoreTelemetryGlobals(globals)
@@ -578,6 +578,50 @@ func (p *MidazProvider) initTelemetry() error {
 	}
 
 	return nil
+}
+
+// collectorEndpointHasScheme reports whether the endpoint carries an explicit
+// transport scheme. It mirrors lib-observability's own prefix test, which is
+// what decides plaintext versus TLS: an endpoint with neither prefix is taken
+// to be a plaintext host:port.
+func collectorEndpointHasScheme(endpoint string) bool {
+	endpoint = strings.TrimSpace(endpoint)
+
+	return strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://")
+}
+
+// annotateInsecureCollectorError names the two concrete remedies for
+// lib-observability's plaintext-collector refusal, which reports the policy
+// but not how to satisfy it from the SDK's option surface.
+//
+// The refusal itself stays lib-observability's decision: this only rewrites a
+// message on an error the library already returned. Nothing here re-evaluates
+// which environments are strict, so the ALLOW_INSECURE_OTEL escape keeps
+// working untouched — when it is set the library returns no error and this
+// function never fires.
+//
+// Only a scheme-less endpoint is annotated. A caller who wrote http:// asked
+// for plaintext explicitly, and the library's own "use https:// endpoint"
+// wording already covers that case. The substring match is the only handle
+// available: unlike ErrEmptyEndpoint, lib-observability exports no sentinel
+// for this refusal.
+func annotateInsecureCollectorError(err error, endpoint string) error {
+	if err == nil || !strings.Contains(err.Error(), "insecure exporter") {
+		return err
+	}
+
+	if collectorEndpointHasScheme(endpoint) {
+		return err
+	}
+
+	trimmed := strings.TrimSpace(endpoint)
+
+	return fmt.Errorf(
+		"%w: collector endpoint %q carries no scheme, so it is exported as plaintext; "+
+			"pass %q to send telemetry over TLS, or select a non-production environment "+
+			"with observability.WithEnvironment(\"development\") to keep a local plaintext collector",
+		err, trimmed, "https://"+trimmed,
+	)
 }
 
 type telemetryGlobals struct {

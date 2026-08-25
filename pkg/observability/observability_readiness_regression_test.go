@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,97 @@ func TestNewRejectsInsecureCollectorInProduction(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, provider)
 	assert.Contains(t, err.Error(), "insecure exporter")
+}
+
+// TestSchemelessCollectorInProductionNamesTheFix covers the message quality
+// layered on top of lib-observability's refusal. A scheme-less endpoint is
+// exported as plaintext, so it is refused in production; the library says so
+// but does not say how to satisfy the policy from the SDK's options. The error
+// must name both remedies: an https:// endpoint, or a non-production
+// environment.
+func TestSchemelessCollectorInProductionNamesTheFix(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_OTEL", "")
+
+	provider, err := New(context.Background(),
+		WithEnvironment("production"),
+		WithCollectorEndpoint("otel-collector:4317"),
+		WithComponentEnabled(true, true, false),
+		WithRegisterGlobally(false),
+	)
+	require.Error(t, err)
+	assert.Nil(t, provider)
+
+	msg := err.Error()
+	assert.Contains(t, msg, "insecure exporter", "must preserve the library's own refusal")
+	assert.Contains(t, msg, "https://otel-collector:4317", "must name the TLS fix with the concrete endpoint")
+	assert.Contains(t, msg, `observability.WithEnvironment("development")`, "must name the local-plaintext fix")
+}
+
+// TestHTTPSCollectorEndpointIsAcceptedInProduction is the other half: an
+// explicit https:// endpoint is the documented way to get TLS, so it must
+// survive the policy untouched even in production.
+func TestHTTPSCollectorEndpointIsAcceptedInProduction(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_OTEL", "")
+
+	provider, err := New(context.Background(),
+		WithEnvironment("production"),
+		WithCollectorEndpoint("https://otel-collector:4317"),
+		WithComponentEnabled(true, true, false),
+		WithRegisterGlobally(false),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+	shutdownQuietly(t, provider)
+}
+
+// TestExplicitHTTPCollectorErrorIsNotAnnotated pins the deliberate carve-out:
+// a caller who wrote http:// asked for plaintext explicitly, so the library's
+// own wording stands and the scheme-less guidance must not be appended.
+func TestExplicitHTTPCollectorErrorIsNotAnnotated(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_OTEL", "")
+
+	_, err := New(context.Background(),
+		WithEnvironment("production"),
+		WithCollectorEndpoint("http://otel-collector:4317"),
+		WithComponentEnabled(true, true, false),
+		WithRegisterGlobally(false),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "insecure exporter")
+	assert.NotContains(t, err.Error(), "carries no scheme")
+}
+
+// TestAllowInsecureOTelEscapeStillWorks proves the annotation did not take
+// over the policy decision: with the library's documented escape hatch set,
+// a scheme-less production endpoint is accepted and nothing is annotated.
+func TestAllowInsecureOTelEscapeStillWorks(t *testing.T) {
+	t.Setenv("ALLOW_INSECURE_OTEL", "local collector behind a trusted mesh")
+
+	provider, err := New(context.Background(),
+		WithEnvironment("production"),
+		WithCollectorEndpoint("otel-collector:4317"),
+		WithComponentEnabled(true, true, false),
+		WithRegisterGlobally(false),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+	shutdownQuietly(t, provider)
+}
+
+// shutdownQuietly releases a provider that was pointed at a collector nobody
+// is listening on. Shutdown flushes pending telemetry, so it blocks for the
+// exporter's full timeout and then reports the upload failure — expected here,
+// and unrelated to what these tests assert. The short deadline keeps that
+// flush from adding ten seconds per test.
+func shutdownQuietly(t *testing.T, provider Provider) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		_ = provider.Shutdown(ctx)
+	})
 }
 
 func TestCreateResourceMergesOTelDefaultsAndCustomAttributes(t *testing.T) {

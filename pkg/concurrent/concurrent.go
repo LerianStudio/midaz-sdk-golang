@@ -80,8 +80,8 @@ import (
 	"sync"
 	"time"
 
-	obslog "github.com/LerianStudio/lib-observability/log"
-	obsruntime "github.com/LerianStudio/lib-observability/runtime"
+	obslog "github.com/LerianStudio/lib-observability/v3/log"
+	obsruntime "github.com/LerianStudio/lib-observability/v3/runtime"
 )
 
 var (

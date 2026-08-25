@@ -425,7 +425,9 @@ import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
 // Build once, share across multiple clients:
 provider, _ := observability.New(ctx,
     observability.WithServiceName("payments-service"),
-    observability.WithCollectorEndpoint("otel-collector:4317"),
+    // https:// is required here: these clients run in the production
+    // environment, where a plaintext collector endpoint is refused.
+    observability.WithCollectorEndpoint("https://otel-collector:4317"),
     observability.WithComponentEnabled(true, true, true),
 )
 

@@ -247,11 +247,16 @@ func WithoutRetries() Option {
 //	client, _ := midaz.New(
 //	    midaz.WithObservabilityOptions(
 //	        observability.WithServiceName("my-service"),
+//	        observability.WithEnvironment("development"),
 //	        observability.WithCollectorEndpoint("localhost:4317"),
 //	        observability.WithComponentEnabled(true, true, true),
 //	        observability.WithFullTracingSampling(),
 //	    ),
 //	)
+//
+// The environment matters here: a scheme-less endpoint like the one above is
+// exported as plaintext, which is refused in the default "production"
+// environment. Production deployments pass "https://host:port" instead.
 //
 // Example — install a known set of dev defaults then tweak one knob:
 //
