@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"sort"
@@ -40,12 +41,29 @@ var transitionHelpers = map[string]bool{
 // green. This test closes that gap by checking the property directly, on every
 // method at once.
 //
-// The rule it enforces: if a facade function names a generated client operation
-// whose request builder formats a value into the URL PATH, that function must
-// refuse bad path ids locally — by calling requirePathIDs itself, or by handing
-// the operation to a transition helper that does.
+// The rule it enforces: if a facade function calls a generated client operation
+// whose request builder formats a value into the URL PATH, then EVERY value it
+// forwards into that path must be one the function handed to requirePathIDs.
 //
-// Both halves are read out of the source at test time rather than from a
+// # Why identity, and not the presence of the call
+//
+// An earlier version asked only whether requirePathIDs appeared somewhere in the
+// function. That accepted a call naming NO pairs at all — requirePathIDs(op)
+// returns nil on an empty list — so a facade could satisfy the scan with a guard
+// that checked nothing, and every by-id read behind it would be back to the
+// silent-zero and scope-escalation defects two fix rounds were spent closing.
+// There were no live instances; it was a hole in the proof rather than a defect
+// in the product, which is exactly the kind of hole that stops being theoretical
+// the first time someone edits a facade to make a test stop complaining.
+//
+// The check now compares expressions. The path ARGUMENT POSITIONS come from the
+// generated code — the request builder says which of its parameters it styles
+// into the path, and the client method's signature says where those parameters
+// sit in the argument list — so a facade forwarding orgID into a path segment
+// must have named orgID to the guard. Guarding a different variable, or none,
+// fails.
+//
+// Every input is read out of the source at test time rather than from a
 // checked-in list, so a newly generated operation or a newly written facade
 // method is covered the moment it lands, without anyone remembering to add it.
 func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
@@ -53,6 +71,9 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 
 	pathOps := operationsWithPathParameters(t, fset)
 	require.NotEmpty(t, pathOps, "found no generated operations with path parameters; the scan is broken, not the code")
+
+	pathArgs := pathArgumentNames(t, fset)
+	methodParams := clientMethodParameters(t, fset)
 
 	var unguarded []string
 
@@ -81,17 +102,30 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 			}
 
 			if transitionHelpers[fn.Name.Name] {
-				helperGuards[fn.Name.Name] = callsRequirePathIDs(fn)
+				helperGuards[fn.Name.Name] = helperGuardsWhatItForwards(fn)
 			}
+
+			site := " (declared at " + filepath.Base(name) + ":" +
+				strconv.Itoa(fset.Position(fn.Pos()).Line) + ")"
 
 			switch ops := pathOperationsNamedBy(fn.Body, pathOps); {
 			case len(ops) == 0:
+			case len(directPathCalls(fn, pathOps)) > 0:
+				if missing := unguardedPathArguments(fn, pathOps, pathArgs, methodParams); len(missing) > 0 {
+					unguarded = append(unguarded, funcLabel(fn)+" forwards "+strings.Join(missing, ", ")+
+						" into a URL path without handing it to requirePathIDs"+site)
+
+					continue
+				}
+
+				guarded++
 			case guardsPathIDs(fn):
+				// The operation is NAMED but not called: the function hands it to a
+				// transition helper as a function value, so there are no call
+				// arguments here to compare. The helper's own guard is checked below.
 				guarded++
 			default:
-				unguarded = append(unguarded, funcLabel(fn)+" reaches "+strings.Join(ops, ", ")+
-					" (declared at "+filepath.Base(name)+":"+
-					strconv.Itoa(fset.Position(fn.Pos()).Line)+")")
+				unguarded = append(unguarded, funcLabel(fn)+" reaches "+strings.Join(ops, ", ")+site)
 			}
 		}
 	}
@@ -103,8 +137,8 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 	// unguards every method that delegates to it.
 	for name := range transitionHelpers {
 		require.True(t, helperGuards[name],
-			"%s is credited as a path-id guard for the facade methods that delegate to it, "+
-				"so it must call requirePathIDs; found=%v, guards=%v",
+			"%s is credited as a path-id guard for the facade methods that delegate to it, so it must "+
+				"hand every id it forwards to the generated call to requirePathIDs; found=%v, guards=%v",
 			name, helperGuards[name], helperGuards)
 	}
 
@@ -121,6 +155,332 @@ func TestEveryPathParameterOperationIsGuarded(t *testing.T) {
 	// A floor, so the scan silently matching nothing cannot read as success.
 	require.Greater(t, guarded, 100,
 		"expected the guard on more than 100 facade functions; found %d, so the scan stopped seeing them", guarded)
+}
+
+// directPathCalls returns the calls in fn that INVOKE a generated
+// path-parameter operation, as opposed to merely naming one.
+//
+// The distinction is what decides which check applies: an invoked operation has
+// argument expressions to compare against the guard, while an operation handed
+// to a transition helper as a function value has none.
+func directPathCalls(fn *ast.FuncDecl, pathOps map[string]bool) []*ast.CallExpr {
+	var calls []*ast.CallExpr
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		if op, ok := generatedOperation(sel.Sel.Name); ok && pathOps[op] {
+			calls = append(calls, call)
+		}
+
+		return true
+	})
+
+	return calls
+}
+
+// unguardedPathArguments returns the expressions fn forwards into a URL path
+// that it did not hand to requirePathIDs.
+//
+// This is the identity check. For each generated operation the function calls,
+// it takes the argument positions the generated client formats into the path and
+// compares those expressions, as source text, against the values the guard
+// received. An empty result means every path segment the caller can influence
+// was checked before the request was built.
+func unguardedPathArguments(
+	fn *ast.FuncDecl,
+	pathOps map[string]bool,
+	pathArgs map[string]map[string]bool,
+	methodParams map[string][]string,
+) []string {
+	checked := guardedValues(fn)
+
+	var missing []string
+
+	for _, call := range directPathCalls(fn, pathOps) {
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+
+		op, _ := generatedOperation(sel.Sel.Name)
+
+		for _, arg := range pathArgumentsOf(call, sel.Sel.Name, op, pathArgs, methodParams) {
+			if !checked[arg] {
+				missing = append(missing, arg+" (into "+op+")")
+			}
+		}
+	}
+
+	sort.Strings(missing)
+
+	return missing
+}
+
+// pathArgumentsOf returns the argument expressions of one call that the
+// generated client styles into the URL path.
+//
+// method is the exact spelling at the call site (GetAssetByID,
+// CreateAssetWithBody, ...) because the argument LIST differs between an
+// operation's spellings, while op is the canonical name the request builder —
+// and therefore the set of path parameter names — belongs to.
+func pathArgumentsOf(
+	call *ast.CallExpr,
+	method, op string,
+	pathArgs map[string]map[string]bool,
+	methodParams map[string][]string,
+) []string {
+	names, wanted := methodParams[method], pathArgs[op]
+	if len(names) == 0 || len(wanted) == 0 {
+		return nil
+	}
+
+	var args []string
+
+	for i, name := range names {
+		if !wanted[name] || i >= len(call.Args) {
+			continue
+		}
+
+		args = append(args, types.ExprString(call.Args[i]))
+	}
+
+	return args
+}
+
+// guardedValues returns the VALUE half of every requirePathIDs pair in fn, as
+// source text. requirePathIDs(operation, "orgID", orgID, "id", id) contributes
+// orgID and id — the names are labels for the error message and prove nothing
+// about what was checked.
+func guardedValues(fn *ast.FuncDecl) map[string]bool {
+	values := map[string]bool{}
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		if ident, ok := call.Fun.(*ast.Ident); !ok || ident.Name != "requirePathIDs" {
+			return true
+		}
+
+		// args[0] is the operation label; the pairs start at 1, values at 2.
+		for i := 2; i < len(call.Args); i += 2 {
+			values[types.ExprString(call.Args[i])] = true
+		}
+
+		return true
+	})
+
+	return values
+}
+
+// helperGuardsWhatItForwards reports whether a transition helper hands every id
+// it forwards to the generated method to requirePathIDs.
+//
+// A transition helper receives the generated method as a function-typed
+// parameter and calls it as a plain identifier, so the path positions cannot be
+// resolved from the generated signatures the way a direct call's can. What can
+// be checked is that nothing reaches that call unguarded: every plain identifier
+// after the context must appear among the guarded values.
+//
+// Checking only that requirePathIDs is CALLED would leave the helpers open to
+// the vacuous guard this scan exists to reject — and the helpers are the more
+// expensive place to leave it open, because thirty-odd facade methods are
+// credited on their promise rather than on a guard of their own.
+func helperGuardsWhatItForwards(fn *ast.FuncDecl) bool {
+	callParam := functionTypedParameter(fn)
+	if callParam == "" {
+		return false
+	}
+
+	checked := guardedValues(fn)
+	guarded := true
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		if ident, ok := call.Fun.(*ast.Ident); !ok || ident.Name != callParam {
+			return true
+		}
+
+		// Skip the context at position 0; a variadic editor call is not an
+		// identifier and drops out with everything else that is not one.
+		for _, arg := range call.Args[1:] {
+			if ident, ok := arg.(*ast.Ident); ok && !checked[ident.Name] {
+				guarded = false
+			}
+		}
+
+		return true
+	})
+
+	return guarded
+}
+
+// functionTypedParameter returns the name of fn's function-typed parameter — the
+// generated method a transition helper is handed — or "" when it has none.
+func functionTypedParameter(fn *ast.FuncDecl) string {
+	if fn.Type.Params == nil {
+		return ""
+	}
+
+	for _, field := range fn.Type.Params.List {
+		if _, ok := field.Type.(*ast.FuncType); !ok || len(field.Names) == 0 {
+			continue
+		}
+
+		return field.Names[0].Name
+	}
+
+	return ""
+}
+
+// pathArgumentNames reads the generated request builders and returns, per
+// operation, the names of the builder parameters styled into the URL path.
+//
+// The identifier is taken rather than the wire name beside it: oapi-codegen
+// writes StyleParamWithLocation("simple", false, "organization_id",
+// runtime.ParamLocationPath, organizationId), and it is organizationId — the Go
+// parameter — that lines up with the client method's signature.
+func pathArgumentNames(t *testing.T, fset *token.FileSet) map[string]map[string]bool {
+	t.Helper()
+
+	args := map[string]map[string]bool{}
+
+	for _, dir := range []string{"../internal/genledger", "../internal/gentracer"} {
+		for _, file := range parseGoFiles(t, fset, dir) {
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Body == nil || fn.Recv != nil {
+					continue
+				}
+
+				op, ok := requestBuilderOperation(fn.Name.Name)
+				if !ok {
+					continue
+				}
+
+				if names := styledPathParameters(fn); len(names) > 0 {
+					args[op] = names
+				}
+			}
+		}
+	}
+
+	return args
+}
+
+// styledPathParameters returns the identifiers one request builder styles into
+// the URL path.
+func styledPathParameters(fn *ast.FuncDecl) map[string]bool {
+	names := map[string]bool{}
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) < 5 {
+			return true
+		}
+
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "StyleParamWithLocation" {
+			return true
+		}
+
+		location, ok := call.Args[3].(*ast.SelectorExpr)
+		if !ok || location.Sel.Name != "ParamLocationPath" {
+			return true
+		}
+
+		if ident, ok := call.Args[4].(*ast.Ident); ok {
+			names[ident.Name] = true
+		}
+
+		return true
+	})
+
+	return names
+}
+
+// clientMethodParameters returns the ordered parameter names of every generated
+// *Client method, keyed by the exact method name.
+//
+// Exact rather than canonical: GetAssetByID and CreateAssetWithBody belong to
+// different operations' argument lists, and a params struct or a content type
+// shifts everything after it, so the positions have to come from the spelling
+// the facade actually called.
+func clientMethodParameters(t *testing.T, fset *token.FileSet) map[string][]string {
+	t.Helper()
+
+	params := map[string][]string{}
+
+	for _, dir := range []string{"../internal/genledger", "../internal/gentracer"} {
+		for _, file := range parseGoFiles(t, fset, dir) {
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Recv == nil || fn.Type.Params == nil {
+					continue
+				}
+
+				if !isGeneratedClientReceiver(fn.Recv) {
+					continue
+				}
+
+				params[fn.Name.Name] = parameterNames(fn.Type.Params)
+			}
+		}
+	}
+
+	return params
+}
+
+// isGeneratedClientReceiver reports whether the method hangs off *Client, the
+// generated raw client. ClientWithResponses methods are the parser spellings and
+// no facade may call them (see TestNoFacadeCallsAGeneratedParser).
+func isGeneratedClientReceiver(recv *ast.FieldList) bool {
+	if len(recv.List) == 0 {
+		return false
+	}
+
+	typ := recv.List[0].Type
+	if star, ok := typ.(*ast.StarExpr); ok {
+		typ = star.X
+	}
+
+	ident, ok := typ.(*ast.Ident)
+
+	return ok && ident.Name == "Client"
+}
+
+// parameterNames flattens a signature into one name per argument position, so a
+// grouped "organizationId, ledgerId string" still yields two positions.
+func parameterNames(params *ast.FieldList) []string {
+	var names []string
+
+	for _, field := range params.List {
+		if len(field.Names) == 0 {
+			names = append(names, "")
+			continue
+		}
+
+		for _, name := range field.Names {
+			names = append(names, name.Name)
+		}
+	}
+
+	return names
 }
 
 // operationsWithPathParameters reads the generated clients and returns the
@@ -280,13 +640,6 @@ func guardsPathIDs(fn *ast.FuncDecl) bool {
 	return callsAny(fn, func(name string) bool {
 		return name == "requirePathIDs" || transitionHelpers[name]
 	})
-}
-
-// callsRequirePathIDs reports the DIRECT guard only. Transition helpers are
-// checked with this rather than with guardsPathIDs, which would let a helper
-// vouch for itself.
-func callsRequirePathIDs(fn *ast.FuncDecl) bool {
-	return callsAny(fn, func(name string) bool { return name == "requirePathIDs" })
 }
 
 // callsAny reports whether the function calls a package-local function whose
