@@ -548,3 +548,25 @@ Everything below was read out of `internal/genledger` or `.references/midaz` @ `
 - `entities/observability.go` still has zero callers (unchanged, Epic 2 finding).
 
 - [ ] Epic 4 — **doc debt inventory (beyond the prose already scoped):** `docs/mapping/external_apis.md` (lines ~236, 279, 532, 534) and `docs/mapping/internal_apis.md` (~20, 95, 96) still document `BalancesService` / `OperationsService` / `AliasesService`, `BalancesFilters` and `AliasesListOpts`; `docs/examples.md:112` too; `docs/godoc/**` is generated and stale. `README.md` was updated in Epic 2 (accessor tree, quickstart, and the mocks claim — `entities/mocks/` no longer exists) because it carried runnable code that no longer compiled; the surrounding prose in `docs/` is still Epic 4's.
+
+---
+
+## Phase C (2026-08-25) — the generator becomes the live-integration proof, and it caught two shipped defects
+
+**Trigger:** Fred asked whether expanding the mass-demo-generator beat writing throwaway smokes. It did: the generator is now the permanent, reproducible live proof of BOTH surfaces (`make demo-data` against a stock `make up` stack), and its first run against midaz develop @ ab01fc935 exposed two V2 Instruments defects that behavioural tests against a permissive stub had let through.
+
+**What the generator does now (gate `DEMO_RUN_V2`, default on, per ledger, after the v1 batch):**
+- CRM: 5 holders, holder-owned accounts via composition, ONE direct `V2.Instruments.Create` against an instrument-free base account (the server enforces one instrument per account — its 409 told us), instruments/holder-accounts reads.
+- **A FATAL money proof:** fund 100 + 50 from `@external`, direct transfer 30, hold 20 + commit, hold 10 + cancel, then exact-balance assertion (source 50 / dest 100, nothing on hold) with a bounded poll that can only retry-then-fail-loudly — expectations are computed once and never adjusted from observations. Proof quantities live in shared constants referenced by both the production assertion and the unit test.
+- One fee package + estimate; one billing package + calculation (ledger-scoped); metadata-index create/list/delete once per run (global resource); encryption/protection-audit read probes that tolerate deployments without envelope encryption mode, with feature-not-available reported distinctly from transport failure.
+- Stock env templates now exercise money paths (`DEMO_TX_PER_ACCOUNT=5`, `DEMO_RUN_BATCH=true`); reports generate when either phase ran; root-level run artifacts are gitignored.
+
+**The two live-exposed SDK defects, both fixed (`51e27e3`), neither ever worked so nothing breaking-in-practice:**
+1. `CreateInstrumentInput` carried two phantom fields (`type` — required by its own Validate —, `document`) that `additionalProperties:false` rejects, and lacked the contract-required `ledgerId`/`accountId`. `UpdateInstrumentInput` had the same `document` phantom; its null-fields now refuse clearing contract-required properties. The wire stubs now mirror `additionalProperties:false` + required sets and assert exact bodies — the permissive-stub hole that let this ship is closed as a class for this family.
+2. `ListAccountsByHolder`/Pages/All 400'd on every live call: the server REQUIRES query param `ledger_id` (midaz `holder_wiring.go:62-70`, deliberate) but the published contract omits it, so codegen never produced the slot. The facade now takes `ledgerID` and injects the param manually, with the drift documented at the injection site. **Upstream item for the ledger team:** org-scope `GET /v2/organizations/{org}/holders/{id}/accounts` enforces an undocumented required query param; the OAS and runtime disagree inside the same binary.
+
+**Live verification (three runs against midaz develop @ ab01fc935, stack stock `make up`, torn down after):** run 1 green with 3 tolerated skips (two expected: encryption/protection routes only exist in envelope encryption mode; one real: the ledger_id 400). Run 3, after fixes: 100% green — direct instrument create 201, holder-accounts listing live, hold-release accounting proven (cancel returned its 10). Plus a **deliberate failure test**: expectation corrupted by one minor unit → run exits non-zero with "expected available=50.01, last read available=50" → reverted (byte-identical, test-cache hit proves it). The proof's failure direction is now live-proven, closing the reviewer's residual risk #2; residual #3 (Cancel) closed by the hold-release leg.
+
+**Review:** one opus review round (money proof CLEAN — poll cannot mask, nothing-on-hold asserted, fatal path proven to os.Exit(1)), 10 findings, all fixed in one round + the Update defect the fix agent itself flagged. `make ci` green cold-cache end to end. HEAD now `1be9a37` (`51e27e3` fix(instruments) + `1be9a37` feat(examples)), tree clean, NOT pushed.
+
+**Still latent, recorded:** instrument identifiers validated as UUIDs at Validate() but typed string (consistent with every body-carried id in the SDK); the proof runs at one asset scale per run (scale 0/6 covered by unit arithmetic only); `V2.Instruments.Update`'s required-on-PATCH contract is the server's choice, mirrored not editorialized.
