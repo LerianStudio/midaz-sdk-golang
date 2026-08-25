@@ -5,7 +5,9 @@ package entities
 
 import (
 	"go/ast"
+	"go/parser"
 	"go/token"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -71,6 +73,14 @@ import (
 // confirmed to pass before the match was widened. Both spellings are now
 // refused, through the shared isParserSpelling, so the delete-seam scan that
 // makes the same distinction moves with it.
+//
+// # Scope, and the tripwire under it
+//
+// This scan reads THIS directory. That is sound only while entities/ is the
+// module's sole importer of the generated clients — a helper elsewhere taking a
+// *genledger.ClientWithResponses would call the parser with this scan green.
+// The premise is asserted rather than assumed, by
+// TestEntitiesIsTheSoleImporterOfTheGeneratedClients below.
 //
 // # The sibling scan depends on this one
 //
@@ -160,6 +170,89 @@ func TestNoFacadeCallsAGeneratedParser(t *testing.T) {
 // exists to catch, because an emptiness assertion passes trivially once the
 // matching breaks.
 const rawOperationFloor = 225
+
+// TestEntitiesIsTheSoleImporterOfTheGeneratedClients pins the premise the three
+// structural scans in this package rest on.
+//
+// Each of them reads "." — this directory — and that scope is sound only while
+// entities/ is the module's ONLY importer of internal/genledger and
+// internal/gentracer. A helper in another package taking a
+// *genledger.ClientWithResponses can call the banned parser, forward an
+// unguarded id into a URL path and re-open the delete seam with all three scans
+// green: not because they are weak, but because they are not looking there. That
+// was written as a compiling helper and confirmed to pass all three.
+//
+// Widening every scan to the whole module would be the thorough fix, and it buys
+// nothing today, because there is one importer. This is the cheaper half and the
+// honest one: the day a second importer appears, this test says so instead of
+// the scans going quietly narrow. Relaxing this assertion is therefore never the
+// fix — widening the scans is.
+func TestEntitiesIsTheSoleImporterOfTheGeneratedClients(t *testing.T) {
+	require.Equal(t, []string{"entities"}, generatedClientImporters(t, ".."),
+		"the structural scans in this package only read entities/; a second importer of the generated "+
+			"clients needs those scans widened to reach it, not this assertion relaxed")
+}
+
+// generatedClientImporters walks the module and returns the directories, relative
+// to root, holding a Go file that imports either generated client.
+//
+// Imports are PARSED rather than grepped. The text "internal/genledger" appears
+// in doc comments, plan records, mapping docs and scripts all over this repo,
+// and none of those is an importer.
+func generatedClientImporters(t *testing.T, root string) []string {
+	t.Helper()
+
+	dirs := map[string]bool{}
+
+	walk := func(path string, entry fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case entry.IsDir():
+			if path != root && (strings.HasPrefix(entry.Name(), ".") || entry.Name() == "vendor") {
+				return filepath.SkipDir
+			}
+
+			return nil
+		case !strings.HasSuffix(path, ".go") || !importsAGeneratedClient(t, path):
+			return nil
+		}
+
+		rel, err := filepath.Rel(root, filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+
+		dirs[rel] = true
+
+		return nil
+	}
+
+	require.NoError(t, filepath.WalkDir(root, walk))
+
+	return sortedKeys(dirs)
+}
+
+// importsAGeneratedClient reports whether one Go file imports either generated
+// client package.
+func importsAGeneratedClient(t *testing.T, path string) bool {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+	require.NoError(t, err)
+
+	for _, spec := range file.Imports {
+		imported, err := strconv.Unquote(spec.Path.Value)
+		require.NoError(t, err)
+
+		if strings.HasSuffix(imported, "/internal/genledger") ||
+			strings.HasSuffix(imported, "/internal/gentracer") {
+			return true
+		}
+	}
+
+	return false
+}
 
 // generatedOperations reads both generated clients and returns every operation
 // they expose, keyed by name.
