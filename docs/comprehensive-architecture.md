@@ -818,12 +818,15 @@ The alias accessor is **gone**. Midaz renamed the resource to *instruments* and 
 
 Instruments are reached through `c.V2.Instruments`, over the Ledger plane, with the organization and holder as path segments rather than an `X-Organization-Id` header. Listing is cursor-based and rejects dates. Tenant scope comes from Access Manager/JWT claims, as before.
 
+An instrument belongs to an account, so the create payload names the ledger and the account alongside the holder in the path. Banking details and metadata are required too — the endpoint rejects a body missing either, and rejects any property it does not declare.
+
 ```go
 instrument, err := c.V2.Instruments.Create(
     ctx,
     orgID,
     holderID,
-    models.NewCreateInstrumentInput("account").
+    models.NewCreateInstrumentInput(ledgerID, accountID).
+        WithBankingDetails(&models.BankingDetails{IBAN: &iban}).
         WithMetadata(map[string]any{"label": "primary settlement instrument"}),
 )
 ```

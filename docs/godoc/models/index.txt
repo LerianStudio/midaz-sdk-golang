@@ -141,7 +141,7 @@ type CreateHolderInput struct{ ... }
 type CreateInflowInput struct{ ... }
     func NewCreateInflowInput(asset string, value any, distribute *DistributeInput) *CreateInflowInput
 type CreateInstrumentInput struct{ ... }
-    func NewCreateInstrumentInput(instrumentType string) *CreateInstrumentInput
+    func NewCreateInstrumentInput(ledgerID, accountID string) *CreateInstrumentInput
 type CreateLedgerInput struct{ ... }
     func NewCreateLedgerInput(name string) *CreateLedgerInput
 type CreateLimitInput struct{ ... }

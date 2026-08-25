@@ -449,7 +449,8 @@ The generator also reads non-interactive defaults from `examples/mass-demo-gener
 - `DEMO_CREATE_HIERARCHY` - Enable account hierarchy generation.
 - `DEMO_RUN_FLOW` - Enable the organization/ledger/account generation flow.
 - `DEMO_RUN_BATCH` - Enable the send-based transfer batch demo.
-- `DEMO_ASSET_CODE` - Asset code used by the batch demo.
+- `DEMO_RUN_V2` - Enable the V2-only phase (default `true`). See below.
+- `DEMO_ASSET_CODE` - Asset code used by the batch demo and the V2 phase.
 - `DEMO_CHART_GROUP` - Chart of accounts group for transaction creation.
 - `DEMO_LOCALE` - Organization locale (`us` or `br`).
 - `DEMO_AUTH_MODE=anonymous-local` - Explicitly allow anonymous auth for an unsecured local Midaz stack when `PLUGIN_AUTH_ENABLED` is not `true`.
@@ -467,6 +468,19 @@ The generator creates:
 - Portfolio and segment hierarchy when enabled.
 - Operation routes and transaction routes.
 - Transactions using the current send-based transaction contract.
+- CRM holders and holder-owned accounts with instruments, fee and billing packages, and V2 transactions when the V2 phase is enabled.
+
+### V2-only phase
+
+`/v1` is deprecated server-side and several families exist only on `/v2`. When `DEMO_RUN_V2` is enabled (the default), the generator runs an additional phase after the `/v1` batch, per ledger, covering `V2.Holders`, `V2.Composition`, `V2.Instruments`, `V2.Accounts`, `V2.Transactions`, `V2.Balances`, `V2.FeePackages`, `V2.FeeEstimates`, `V2.BillingPackages`, `V2.BillingCalculations`, `V2.Encryption`, and `V2.ProtectionAudit`, plus one global `V2.MetadataIndexes` create/list/delete cycle per run.
+
+This phase is the SDK's live-integration proof for those families. One step in it is fatal: the transaction proof opens two dedicated accounts, funds both from `@external/<asset>`, posts a settled transfer, a committed hold and a canceled hold, then asserts the exact resulting balances. The canceled hold has to give its value back for the assertion to hold, which is what makes the release path load-bearing rather than merely exercised. A mismatch fails the run. Every other step logs and continues, matching how the rest of the generator treats a failed step.
+
+Instruments are written both ways: most through the composition endpoint, which links the instrument to the account it opens in the same call, and one directly through `V2.Instruments.Create` so that family's write side is covered too. The one deliberate limit left is encryption, exercised through its status read only — provisioning writes real key material into the deployment's KMS.
+
+The report artifacts are written when either phase ran, so a V2-only run still produces a manifest naming everything it created.
+
+Fee, billing, and CRM are served by the `ledger` binary itself, so a stock local stack needs no extra components for this phase.
 
 ### Reports and output
 
@@ -475,8 +489,12 @@ The generator writes report files in its working directory, including machine-re
 Generated artifacts can be removed with:
 
 ```bash
-rm -f examples/mass-demo-generator/mass-demo-report.* examples/mass-demo-generator/mass-demo-entities.json
+rm -f mass-demo-report.* mass-demo-entities.json \
+      examples/mass-demo-generator/mass-demo-report.* \
+      examples/mass-demo-generator/mass-demo-entities.json
 ```
+
+Both locations are listed because the files land in whichever directory the generator was run from: the repository root for `go run ./examples/mass-demo-generator`, the example directory for `go run .` inside it.
 
 ### Example scenarios
 

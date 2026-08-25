@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"regexp"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
@@ -113,6 +114,32 @@ func TestGenerateEIN_Format(t *testing.T) {
 		ein := generateEIN(r)
 		assert.Regexp(t, `^\d{2}-\d{7}$`, ein)
 	}
+}
+
+// TestGenerateTaxDocumentLocaleIsCaseInsensitive pins the case-insensitive
+// locale match. "BR" used to fall through to the US EIN branch, so a Brazilian
+// organization whose locale was spelled in caps was issued a US federal
+// document. A CNPJ is 14 digits (or 18 formatted); an EIN is NN-NNNNNNN, so the
+// two are told apart by shape alone.
+func TestGenerateTaxDocumentLocaleIsCaseInsensitive(t *testing.T) {
+	cnpj := regexp.MustCompile(`^\d{14}$`)
+	ein := regexp.MustCompile(`^\d{2}-\d{7}$`)
+
+	for _, locale := range []string{"br", "BR", "Br", "bR"} {
+		t.Run("cnpj for "+locale, func(t *testing.T) {
+			assert.Regexp(t, cnpj, GenerateTaxDocument(locale, false))
+		})
+	}
+
+	for _, locale := range []string{"us", "US", "", "de"} {
+		t.Run("ein for "+locale, func(t *testing.T) {
+			assert.Regexp(t, ein, GenerateTaxDocument(locale, false))
+		})
+	}
+
+	// Formatted only changes the CNPJ's punctuation; the EIN has one spelling.
+	assert.Regexp(t, `^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$`, GenerateTaxDocument("BR", true))
+	assert.Regexp(t, ein, GenerateTaxDocument("US", true))
 }
 
 func TestCnpjCheckDigit(t *testing.T) {

@@ -482,14 +482,16 @@ Ledger plane. CRM instruments under a holder, plus the holder's accounts.
 - `List(ctx, organizationID, holderID, opts)`
 - `ListPages(ctx, organizationID, holderID, opts)`
 - `ListAll(ctx, organizationID, holderID, opts)`
-- `Create(ctx, organizationID, holderID, input)`
+- `Create(ctx, organizationID, holderID, input)` - `input` is `models.CreateInstrumentInput`, which requires the ledger, the account the instrument belongs to, banking details and metadata. The endpoint rejects any other property.
 - `Get(ctx, organizationID, holderID, id)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted instruments.
-- `Update(ctx, organizationID, holderID, id, input)`
+- `Update(ctx, organizationID, holderID, id, input)` - `input` is `models.UpdateInstrumentInput`. The PATCH contract requires `bankingDetails` and `metadata` even on a partial update, and declares only `regulatoryFields` and `relatedParties` besides them; those two are also the only ones `WithNullFields` can clear. Neither write payload has a `document` or `type` slot.
 - `Delete(ctx, organizationID, holderID, id)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 - `DeleteRelatedParty(ctx, organizationID, holderID, instrumentID, relatedPartyID)`
-- `ListAccountsByHolder(ctx, organizationID, holderID, opts)`
-- `ListAccountsByHolderPages(ctx, organizationID, holderID, opts)`
-- `ListAccountsByHolderAll(ctx, organizationID, holderID, opts)`
+- `ListAccountsByHolder(ctx, organizationID, ledgerID, holderID, opts)`
+- `ListAccountsByHolderPages(ctx, organizationID, ledgerID, holderID, opts)`
+- `ListAccountsByHolderAll(ctx, organizationID, ledgerID, holderID, opts)`
+
+The three holder-accounts methods take a ledger even though only the holder is a path segment: the endpoint requires the ledger as a query parameter at runtime, while the published contract does not declare it, so the SDK carries it explicitly. Without it every call fails with a missing-parameter error.
 
 #### Composition
 
@@ -722,5 +724,6 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/generator` for demo-data wo
 - `generator.NewTransactionGenerator(entity, provider)`
 - `generator.NewTransactionLifecycle(entity, provider)`
 - `generator.NewAccountHierarchyGenerator(accountGenerator)`
+- `generator.GenerateTaxDocument(locale string, formatted bool) string` - Company tax document for the locale: a Brazilian CNPJ with valid check digits for `br` (case-insensitive), a US EIN otherwise. `formatted` adds the CNPJ punctuation and is ignored for the EIN. Non-cryptographic, for demo and fixture data only.
 
 The mass demo generator is example tooling, not an idempotent migration system. It creates remote resources and writes local report artifacts containing operational identifiers.
