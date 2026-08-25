@@ -59,17 +59,17 @@ orgInput := models.NewCreateOrganizationInput("Example Organization", "123456789
         "size":     "startup",
     })
 
-org, err := c.Organizations.Create(ctx, orgInput)
+org, err := c.V2.Organizations.Create(ctx, orgInput)
 if err != nil {
     return err
 }
 
-org, err = c.Organizations.Get(ctx, org.ID)
+org, err = c.V2.Organizations.Get(ctx, org.ID)
 if err != nil {
     return err
 }
 
-orgs, err := c.Organizations.List(ctx, models.OrganizationsListOpts{
+orgs, err := c.V2.Organizations.List(ctx, models.OrganizationsListOpts{
     PageListOpts: models.PageListOpts{Limit: 20},
     Filters:      models.OrganizationsFilters{Status: "ACTIVE"},
 })
@@ -84,7 +84,7 @@ assetInput := models.NewCreateAssetInputWithType("US Dollar", "USD", "currency")
         "country": "US",
     })
 
-asset, err := c.Assets.Create(ctx, orgID, ledgerID, assetInput)
+asset, err := c.V2.Assets.Create(ctx, orgID, ledgerID, assetInput)
 if err != nil {
     return err
 }
@@ -96,28 +96,94 @@ accountInput := models.NewCreateAccountInput("Customer Checking Account", asset.
         "tier":        "premium",
     })
 
-account, err := c.Accounts.Create(ctx, orgID, ledgerID, accountInput)
+account, err := c.V2.Accounts.Create(ctx, orgID, ledgerID, accountInput)
 if err != nil {
     return err
 }
 
 // Account balances are listed (cursor-paginated); pick the first for a single-asset account.
-balances, err := c.Accounts.ListBalances(ctx, orgID, ledgerID, account.ID, models.CursorListOpts{})
+balances, err := c.V2.Balances.ListAccountBalances(ctx, orgID, ledgerID, account.ID, models.BalancesListOpts{})
 if err != nil {
     return err
 }
 balance := balances.Items[0]
 ```
 
-Use `BalancesService` when you need balance records by balance ID, all balances for an account, history, alias lookup, or external-code lookup:
+The account-scoped balance read lives on `Balances`, not on `Accounts`. On /v1
+it is spelled on both (`c.V1.Accounts.ListBalances` and
+`c.V1.Balances.ListAccountBalances` are the same wire call); /v2 spells each
+endpoint exactly once, on the accessor named after what it returns.
+
+`Balances` also serves balance records by balance ID, point-in-time history,
+and the alias and external-code lookups:
 
 ```go
-balances, err := c.Balances.ListAccountBalances(ctx, orgID, ledgerID, account.ID, models.BalancesListOpts{})
+bal, err := c.V2.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
+hist, err := c.V2.Balances.GetBalanceHistory(ctx, orgID, ledgerID, balanceID, "2026-06-30")
+
+// The alias and external-code lookups take no options and are not paginated:
+// the endpoint accepts no query parameters and answers with a fixed page.
+byAlias, err := c.V2.Balances.ListBalancesByAccountAlias(ctx, orgID, ledgerID, "@customer-1")
 ```
 
 ## Transaction processing
 
-The current transaction contract uses a `send` payload. You can build it explicitly:
+The two surfaces have **different transaction contracts**, not different paths
+to one contract.
+
+On /v2 — the surface to build against — the request is flat: an asset, a total,
+and two leg arrays. The action lives in the URL, so the SDK spells it as a
+method: `CreateDirect` settles immediately, `CreateHold` reserves value for a
+later `Commit`.
+
+```go
+txInput := &models.CreateTransactionV2Input{
+    Asset:       "USD",
+    Amount:      "100.00",
+    Description: "Payment from customer to merchant",
+    Debits:      []models.TransactionV2Leg{{Alias: customerAccountAlias, Amount: "100.00"}},
+    Credits:     []models.TransactionV2Leg{{Alias: merchantAccountAlias, Amount: "100.00"}},
+    Metadata: map[string]any{
+        "payment_id":  "pay-123",
+        "customer_id": "cust-123",
+    },
+}
+txInput.IdempotencyKey = "payment-2026-05-03-0001"
+
+tx, err := c.V2.Transactions.CreateDirect(ctx, orgID, ledgerID, txInput)
+```
+
+Each leg names the organization and ledger its account belongs to; the facade
+stamps them from the pair passed to `CreateDirect`, into a copy, so one input
+can be reused against a second ledger. A leg naming a *different* pair is
+refused rather than posted into the wrong ledger.
+
+A leg carries **exactly one** value expression — an explicit `Amount`, or a
+`Share` of the total. Both, or neither, is refused before the request leaves.
+
+A structured split is simply more `Credits` entries:
+
+```go
+splitInput := &models.CreateTransactionV2Input{
+    Asset:       "USD",
+    Amount:      "100.00",
+    Description: "Split payment transaction",
+    Debits:      []models.TransactionV2Leg{{Alias: customerAccountAlias, Amount: "100.00"}},
+    Credits: []models.TransactionV2Leg{
+        {Alias: merchantAccountAlias, Amount: "85.00"},
+        {Alias: platformFeeAlias, Amount: "10.00"},
+        {Alias: processorFeeAlias, Amount: "5.00"},
+    },
+}
+
+tx, err := c.V2.Transactions.CreateDirect(ctx, orgID, ledgerID, splitInput)
+```
+
+### The /v1 creation styles
+
+/v1 nests a `send` envelope behind four endpoints — `CreateJSON`,
+`CreateInflow`, `CreateOutflow`, `CreateAnnotation`. **These have no /v2 twin**,
+so they stay reachable on `c.V1.Transactions` for as long as Midaz serves /v1:
 
 ```go
 txInput := models.NewCreateTransactionInput("USD", "100.00").
@@ -148,39 +214,15 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
 	})
 txInput.IdempotencyKey = "payment-2026-05-03-0001"
 
-tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, txInput)
+tx, err := c.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, txInput)
 ```
 
-Structured splits (one source funding several destinations) use the same
-send-based payload — add multiple entries to `Distribute.To`. A dedicated DSL
-entry point is not currently exposed on the `Transactions` facade:
-
-```go
-splitInput := models.NewCreateTransactionInput("USD", "100.00").
-    WithDescription("Split payment transaction").
-    WithSend(&models.SendInput{
-        Asset: "USD",
-        Value: "100.00",
-        Source: &models.SourceInput{
-            From: []models.FromToInput{
-                {AccountAlias: customerAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
-            },
-        },
-        Distribute: &models.DistributeInput{
-            To: []models.FromToInput{
-                {AccountAlias: merchantAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "85.00"}},
-                {AccountAlias: platformFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "10.00"}},
-                {AccountAlias: processorFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "5.00"}},
-            },
-        },
-    })
-
-tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, splitInput)
-```
+On /v1 a structured split adds multiple entries to `Distribute.To`, the same
+way /v2 adds `Credits` entries.
 
 ## Waiting for settlement
 
-A `201` from `CreateJSON` means the transaction was recorded, not that the
+A `201` from a create means the transaction was recorded, not that the
 ledger balance reflects it. Wait on the balance effect with
 `transaction.WaitForSettlement`, passing a predicate that decides what
 "settled" means for your case (here, the account's `USD` balance version
@@ -210,15 +252,22 @@ log.Printf("settled: available=%s version=%d", settled.Available, settled.Versio
 
 ## Fee estimation and billing
 
-Fee, billing, and holder-account composition inputs use fluent builders. Feed a
-billing period into `NewBillingCalculateInput` and call the `BillingCalculations`
-accessor; an empty result set (no packages matched) is a success, not an error:
+Fee, billing, and holder-account composition are **/v2 only** — Midaz removed
+the fee and billing families from /v1 — and they are **ledger-scoped** there:
+the family moved from organization scope to ledger scope in /v2, so every
+method takes a ledger ID.
+
+Feed a billing period into `NewBillingCalculateInput` and call the
+`BillingCalculations` accessor; an empty result set (no packages matched) is a
+success, not an error. The ledger in the path and the `ledgerId` in the body
+are reconciled before the request leaves the SDK — filled when empty, refused
+when they contradict:
 
 ```go
 calcInput := models.NewBillingCalculateInput(ledgerID, "2026-06").
     WithType("volume")
 
-result, err := c.BillingCalculations.CalculateBilling(ctx, orgID, calcInput)
+result, err := c.V2.BillingCalculations.CalculateBilling(ctx, orgID, ledgerID, calcInput)
 if err != nil {
     return err
 }
@@ -234,7 +283,7 @@ write did not — a success, not an error:
 acctInput := models.NewCreateHolderAccountInput("USD", "deposit").
     WithName("Primary settlement account")
 
-resp, err := c.Composition.CreateHolderAccount(ctx, orgID, ledgerID, holderID, acctInput)
+resp, err := c.V2.Composition.CreateHolderAccount(ctx, orgID, ledgerID, holderID, acctInput)
 if err != nil {
     return err
 }
@@ -256,7 +305,7 @@ opts := models.AccountsListOpts{
     Filters: models.AccountsFilters{Status: "ACTIVE"},
 }
 
-for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
+for account, err := range c.V2.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list accounts: %w", err)
     }
@@ -267,7 +316,7 @@ for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
 When you need page-level metadata (cursor, total, page number) — for checkpointing, batching, or stopping mid-collection — use the `Pages` variant:
 
 ```go
-for page, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
+for page, err := range c.V2.Accounts.Pages(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return err
     }
@@ -282,7 +331,7 @@ for page, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
 For one-page-at-a-time control (UI pagination, manual replay), call `List` directly and inspect `page.Pagination.HasMore()`:
 
 ```go
-page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
+page, err := c.V2.Accounts.List(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }

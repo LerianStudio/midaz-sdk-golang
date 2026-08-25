@@ -50,8 +50,9 @@ The SDK is designed with a clean, layered architecture to provide different leve
 
 **Interface**:
 
-- Facade accessors like `c.Accounts` and `c.Transactions` — concrete `*xFacade` structs over the generated plane client
-- The legacy Balances/Operations/Aliases services, still interface-backed with entity implementations
+- Ledger accessors grouped by the server version that serves them — `c.V2.Accounts`, `c.V1.Transactions` — since Midaz serves both `/v1` and `/v2` and does not mirror every resource across them. Build against `c.V2`.
+- Tracer accessors flat on the client (`c.Rules`, `c.Limits`, ...), because the Tracer serves one surface and versions itself in its base URL.
+- Every accessor is a concrete unexported `*xFacade` struct over a generated plane client. Nothing is interface-backed: balances and operations were migrated onto the generated client, and the alias service was deleted (no server route at any version).
 
 ### 3. Client Layer
 

@@ -55,7 +55,7 @@ Generated docs currently include:
 ## Package structure
 
 - `github.com/LerianStudio/midaz-sdk-golang/v5` - Root package. Exposes `Client`, `New`, and client functional options.
-- `entities` - Entity service interfaces and HTTP implementations for Ledger and CRM API resources.
+- `entities` - The accessor layer: concrete facades over the two generated plane clients (Ledger and Tracer), grouped by server version for the Ledger plane.
 - `models` - Public SDK request/response types, fluent builders, aliases, pagination helpers, and common constants.
 - `pkg/auth` - Plugin-based authentication using Access Manager credentials.
 - `pkg/config` - Environment-aware configuration and service URL resolution.
@@ -69,24 +69,38 @@ Generated docs currently include:
 
 ## Entity services
 
-The root client initializes entity services when `midaz.New(...)` succeeds. You can access services directly from the client, such as `c.Accounts`, or through the compatibility `c.Entity` field:
+The root client initializes entity services when `midaz.New(...)` succeeds.
 
-- `Accounts`
-- `AccountTypes`
-- `Assets`
+Midaz serves **two** ledger surfaces — `/v1`, deprecated but alive, and `/v2`,
+the current one — and does not mirror every resource across them. Ledger
+accessors are therefore grouped by the version that serves them, reached as
+`c.V1.<Service>` / `c.V2.<Service>` (or through the embedded `c.Entity` field).
+The version travels in the request path, not in the base URL.
+
+**Build against `c.V2`.** It is the wider surface: 22 services against V1's 14.
+
+Served by both (13 families):
+
+- `Organizations`, `Ledgers`, `Accounts`, `AccountTypes`, `Assets`
+- `Balances`, `Operations`, `Transactions`, `MetadataIndexes`
+- `Portfolios`, `Segments`, `OperationRoutes`, `TransactionRoutes`
+
+`c.V2` only, because Midaz removed them from `/v1`:
+
+- `Holders`, `Instruments`, `Encryption`, `Composition`, `ProtectionAudit`
+- `BillingPackages`, `FeePackages`, `FeeEstimates`, `BillingCalculations`
+  (ledger-scoped on `/v2` — the family moved from organization scope)
+
+`c.V1` only, because `/v2` dropped them:
+
 - `AssetRates`
-- `Balances`
-- `Holders`
-- `Aliases`
-- `Ledgers`
-- `MetadataIndexes`
-- `Operations`
-- `OperationRoutes`
-- `Organizations`
-- `Portfolios`
-- `Segments`
-- `Transactions`
-- `TransactionRoutes`
+- the four `Transactions` creation styles (`CreateJSON`, `CreateInflow`,
+  `CreateOutflow`, `CreateAnnotation`) — `/v2` replaced them with the top-level
+  `CreateDirect` / `CreateHold`
+
+Tracer-plane accessors are **not** version-grouped — the Tracer serves one
+surface and versions itself in its base URL — so they stay flat on the client:
+`c.Rules`, `c.Limits`, `c.Validations`, `c.Reservations`, `c.AuditEvents`.
 
 ## Configuration baseline
 

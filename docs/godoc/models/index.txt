@@ -84,9 +84,6 @@ type Actor struct{ ... }
 type Address struct{ ... }
     func NewAddress(line1, zipCode, city, state, country string) Address
 type Addresses struct{ ... }
-type Alias struct{ ... }
-type AliasesFilters struct{ ... }
-type AliasesListOpts struct{ ... }
 type Amount struct{ ... }
 type AmountInput struct{ ... }
 type Asset struct{ ... }
@@ -104,7 +101,6 @@ type Balance struct{ ... }
 type BalanceHistory struct{ ... }
 type BalanceSettings struct{ ... }
     func NewDefaultBalanceSettings() *BalanceSettings
-type BalancesFilters struct{ ... }
 type BalancesListOpts struct{ ... }
 type BankingDetails struct{ ... }
 type BaseResponse struct{ ... }
@@ -126,8 +122,6 @@ type CreateAccountInput struct{ ... }
     func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput
 type CreateAccountTypeInput struct{ ... }
     func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput
-type CreateAliasInput struct{ ... }
-    func NewCreateAliasInput(ledgerID, accountID string) *CreateAliasInput
 type CreateAnnotationInput struct{ ... }
     func NewCreateAnnotationInput(description string, send ...*SendInput) *CreateAnnotationInput
 type CreateAssetInput struct{ ... }
@@ -151,7 +145,7 @@ type CreateInstrumentInput struct{ ... }
 type CreateLedgerInput struct{ ... }
     func NewCreateLedgerInput(name string) *CreateLedgerInput
 type CreateLimitInput struct{ ... }
-    func NewCreateLimitInput(name, limitType string, maxAmount decimal.Decimal, currency string) *CreateLimitInput
+    func NewCreateLimitInput(name, limitType string, maxAmount decimal.Decimal, asset string) *CreateLimitInput
 type CreateMetadataIndexInput struct{ ... }
     func NewCreateMetadataIndexInput(metadataKey string) *CreateMetadataIndexInput
 type CreateOperationRouteInput struct{ ... }
@@ -172,6 +166,7 @@ type CreateTransactionInput struct{ ... }
     func NewCreateTransactionInput(assetCode string, amount any) *CreateTransactionInput
 type CreateTransactionRouteInput struct{ ... }
     func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput
+type CreateTransactionV2Input struct{ ... }
 type CursorListOpts struct{ ... }
 type Destination struct{ ... }
 type DistributeInput struct{ ... }
@@ -228,8 +223,9 @@ type OperationRoutesFilters struct{ ... }
 type OperationRoutesListOpts struct{ ... }
 type OperationType string
     const OperationTypeDebit OperationType = "DEBIT" ...
-type OperationsFilters struct{ ... }
-type OperationsListOpts struct{ ... }
+type OperationV2 struct{ ... }
+type OperationsFilters = AccountOperationsFilters
+type OperationsListOpts = AccountOperationsListOpts
 type Organization struct{ ... }
 type OrganizationsFilters struct{ ... }
 type OrganizationsListOpts struct{ ... }
@@ -281,6 +277,9 @@ type TransactionRoutesFilters struct{ ... }
 type TransactionRoutesListOpts struct{ ... }
 type TransactionStatusCode string
     const TransactionStatusCreated TransactionStatusCode = "CREATED" ...
+type TransactionV2 struct{ ... }
+type TransactionV2Leg struct{ ... }
+type TransactionV2Share struct{ ... }
 type TransactionValidation struct{ ... }
 type TransactionsFilters struct{ ... }
 type TransactionsListOpts struct{ ... }
@@ -288,8 +287,6 @@ type UpdateAccountInput struct{ ... }
     func NewUpdateAccountInput() *UpdateAccountInput
 type UpdateAccountTypeInput struct{ ... }
     func NewUpdateAccountTypeInput() *UpdateAccountTypeInput
-type UpdateAliasInput struct{ ... }
-    func NewUpdateAliasInput() *UpdateAliasInput
 type UpdateAssetInput struct{ ... }
     func NewUpdateAssetInput() *UpdateAssetInput
 type UpdateBalanceInput struct{ ... }
@@ -327,9 +324,10 @@ type UpdateTransactionInput struct{ ... }
     func NewUpdateTransactionInput() *UpdateTransactionInput
 type UpdateTransactionRouteInput struct{ ... }
     func NewUpdateTransactionRouteInput() *UpdateTransactionRouteInput
+type UpdateTransactionV2Input struct{ ... }
 type UsageSnapshot struct{ ... }
 type ValidateTransactionInput struct{ ... }
-    func NewValidateTransactionInput(requestID string, amount decimal.Decimal, ...) *ValidateTransactionInput
+    func NewValidateTransactionInput(requestID string, amount decimal.Decimal, asset, transactionTimestamp string, ...) *ValidateTransactionInput
 type ValidationResponse struct{ ... }
 type ValidationSummary struct{ ... }
 type ValidationsFilters struct{ ... }

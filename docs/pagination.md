@@ -1,6 +1,6 @@
 # Pagination in the Midaz Go SDK
 
-v3 uses typed list-opts per endpoint and ships paginated entity list methods in a trio:
+The SDK uses typed list-opts per endpoint and ships paginated entity list methods in a trio:
 `List` (one page), `All` (every item across pages, as `iter.Seq2`), and
 `Pages` (every page envelope, as `iter.Seq2`). Cursor-based and
 page-based endpoints have separate opts types — wrong-shape opts don't
@@ -17,11 +17,31 @@ as the worked example:
 | `All` | `iter.Seq2[Account, error]` | You want to consume every item linearly; the SDK handles paging. |
 | `Pages` | `iter.Seq2[*ListResponse[Account], error]` | You need page-level metadata (cursor, total, page number) for checkpointing or stopping mid-page. |
 
-The primary entity accessors (`Accounts`, `Ledgers`, `Organizations`, `Assets`,
-`Portfolios`, `Segments`, `Transactions`, `AssetRates`) share this uniform
-`List` / `All` / `Pages` trio. The remaining legacy services (`Balances`,
-`Operations`, `Aliases`) keep the older prefixed form (`ListBalances` /
-`ListBalancesAll` / `ListBalancesPages`, and so on). `MetadataIndexes.ListMetadataIndexes` returns a slice and accepts only an optional entity-name filter, so it has no `All` or `Pages` variant.
+Ledger accessors are reached through the version group that serves them —
+`c.V1.Accounts` / `c.V2.Accounts` — and /v2 is the surface to build against,
+since Midaz deprecated all of /v1.
+
+Accessors whose resource has exactly one list share the bare
+`List` / `All` / `Pages` trio: `Organizations`, `Ledgers`, `Accounts`,
+`AccountTypes`, `Assets`, `Portfolios`, `Segments`, `OperationRoutes`,
+`TransactionRoutes`, `Transactions`, and `Holders` (V2 only).
+
+Accessors serving **more than one** list use a prefixed form instead, because a
+bare `List` would not say which:
+
+| Accessor | Spellings |
+| --- | --- |
+| `Balances` | `ListBalances{,All,Pages}` (ledger-wide), `ListAccountBalances{,All,Pages}` (account-scoped) |
+| `Operations` | `ListOperations{,All,Pages}` |
+| `AssetRates` (V1 only) | `ListAssetRatesByAssetCode{,All,Pages}` |
+| `Instruments` (V2 only) | `List` / `ListAll` / `ListPages` for instruments, `ListAccountsByHolder{,All,Pages}` for the holder's accounts |
+
+Two lists have **no `All` or `Pages` variant at all**, because the endpoints
+are not paginated: `Balances.ListBalancesByAccountAlias` and
+`ListBalancesByExternalCode` accept no query parameters and answer with a fixed
+page, so an iterator over them could not advance. They take no opts either.
+`MetadataIndexes.List` returns a plain slice rather than a `ListResponse`
+envelope, for the same reason.
 
 ## Page-based vs cursor-based endpoints
 
@@ -31,14 +51,24 @@ you:
 
 | Shape | Endpoints | Opts base | Wire parameters |
 | --- | --- | --- | --- |
-| Page-based | Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, Balances, Holders, Aliases | `models.PageListOpts` | `page`, `limit`, filters, `sort_order`, `start_date`, `end_date` |
-| Cursor-based | Transactions, Operations, Operation Routes, Transaction Routes, Asset Rates | `models.CursorListOpts` | `cursor`, `limit`, filters, `sort_order`, `start_date`, `end_date` |
+| Page-based | Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, Billing Packages, Fee Packages | `models.PageListOpts` | `page`, `limit`, filters, `sort_order`, `start_date`, `end_date` |
+| Cursor-based | Transactions, Operations, **Balances**, Operation Routes, Transaction Routes, Asset Rates, **Holders**, **Instruments**, and the whole Tracer plane (Rules, Limits, Validations, Audit Events) | `models.CursorListOpts` | `cursor`, `limit`, filters, `sort_order`, `start_date`, `end_date` |
 
-Paginated entity list methods currently cover:
+Some cursor endpoints reject the date pair (`ValidateCursorListOptsNoDates`) —
+Holders, Instruments and Limits among them — because the server does not accept
+it there.
 
-- Page-based: Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, Balances, Holders, and Aliases.
-- Cursor-based: Transactions, Operations, Operation Routes, Transaction Routes, and Asset Rates.
-- Excluded: Metadata Indexes. `ListMetadataIndexes` is not a paginated endpoint.
+**Balances being cursor-based is load-bearing, not incidental.** The server
+builds each balance page from limit / sort_order / the date range plus a cursor
+and drops `page` on the floor. An opts shape carrying `Page` would compile,
+send a parameter with no wire slot, and leave an iterator that increments it
+re-requesting the first page forever — which is exactly what the SDK did before
+v5, yielding the same balances indefinitely on any multi-page ledger.
+`BalancesListOpts` embeds `CursorListOpts` so that shape cannot be expressed.
+
+Not paginated at all, so excluded from the trio: Metadata Indexes
+(`MetadataIndexes.List` returns a plain slice), and the alias and external-code
+balance lookups.
 
 ## Iterator-based pagination (Go 1.23+ `iter.Seq2`)
 
@@ -58,7 +88,7 @@ opts := models.AccountsListOpts{
     Filters:      models.AccountsFilters{Status: "ACTIVE"},
 }
 
-for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
+for account, err := range c.V2.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list accounts: %w", err)
     }
@@ -81,7 +111,7 @@ opts := models.AccountsListOpts{
     PageListOpts: models.PageListOpts{Limit: 100},
 }
 
-for page, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
+for page, err := range c.V2.Accounts.Pages(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list accounts pages: %w", err)
     }
@@ -108,7 +138,7 @@ opts := models.TransactionsListOpts{
     CursorListOpts: models.CursorListOpts{Limit: 50},
 }
 
-for tx, err := range c.Transactions.All(ctx, orgID, ledgerID, opts) {
+for tx, err := range c.V2.Transactions.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list transactions: %w", err)
     }
@@ -126,7 +156,7 @@ Use `entities.Collect` or `entities.CollectAll` when you need a slice instead of
 
 ```go
 accounts, err := entities.Collect(
-    c.Accounts.All(ctx, orgID, ledgerID, opts),
+    c.V2.Accounts.All(ctx, orgID, ledgerID, opts),
     1000,
 )
 if err != nil {
@@ -147,7 +177,7 @@ opts := models.AccountsListOpts{
     PageListOpts: models.PageListOpts{Limit: 25, Page: 1},
 }
 
-page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
+page, err := c.V2.Accounts.List(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }

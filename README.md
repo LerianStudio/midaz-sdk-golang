@@ -12,15 +12,45 @@
 
 # Midaz Go SDK
 
-The Midaz Go SDK is the idiomatic v4 client for the Midaz financial-ledger
-APIs. v4 is a clean major version: typed list-opts, `iter.Seq2`-based
-pagination, structured errors with retry classification, `*slog.Logger`
-canonical logging, OpenTelemetry observability, and a single canonical
-auth surface (Access Manager OAuth or anonymous local-stack mode).
+The Midaz Go SDK is the idiomatic v5 client for the Midaz financial-ledger
+APIs: typed list-opts, `iter.Seq2`-based pagination, structured errors with
+retry classification, `*slog.Logger` canonical logging, OpenTelemetry
+observability, and a single canonical auth surface (Access Manager OAuth or
+anonymous local-stack mode).
 
-## What's new in v4
+## What's new in v5
 
-v4 is the current major version. Highlights:
+v5 serves **both** Midaz ledger surfaces — `/v1`, deprecated but alive, and
+`/v2`, the current one — with the version in the request path rather than
+pinned into a base URL. Reach them through `c.V1.<Service>` and
+`c.V2.<Service>`; **build against `c.V2`**.
+
+Breaking changes, each one closing a way the SDK could return a wrong answer
+with a nil error:
+
+- **The six dead transaction list filters are refused**, on both surfaces:
+  `Status`, `AssetCode`, `Reference`, `SourceAccount`, `DestinationAccount`,
+  `Route`. The ledger never honored them — it parses two and discards them, and
+  never parses the other four — so setting one returned the whole unfiltered
+  ledger. They are now a local refusal naming every filter you set. `Status` and
+  `Route` still narrow on `Count`.
+- **`Count` takes `YYYY-MM-DD` dates**, the same format `List` takes from the
+  same opts struct; the SDK widens each day to its inclusive instant bounds.
+  Note the **default window is TODAY**, not the ledger.
+- **An empty 2xx list or object body is refused** rather than decoded into a
+  zero value with a nil error. A dropped body used to read as an empty page with
+  no next cursor, so a caller walking a ledger concluded it was empty.
+- **`%` and path-hostile ids are refused locally.** A `..` in an id popped a
+  path segment, so deleting a ledger could issue `DELETE /v1/organizations/{org}`.
+- The dead transaction list query renderer (`TransactionsListOpts.ToQueryParams`)
+  is deleted, as is the alias service — the server serves no alias route at any
+  version (renamed to instruments, `/v2` only).
+
+All reads go through the raw response path rather than a generated parser, so a
+gateway 403 stays a 403 and a 404 stays a 404 even with an empty body, instead
+of failing inside an unmarshal and arriving as an SDK-internal 500.
+
+Carried over and still current:
 
 - **One auth source, enforced**: `WithAccessManager` for production OAuth,
   `WithAnonymous` for local stacks. Calling `New()` with neither returns a
@@ -28,8 +58,7 @@ v4 is the current major version. Highlights:
 - **Typed pagination opts at the type system**: page-based and cursor-based
   endpoints have separate opts types. Wrong-shape opts don't compile.
 - **`iter.Seq2[T, error]`**: every list method ships in a trio —
-  `List` (one page) / `ListAll` (every item) / `ListPages` (every page
-  envelope).
+  `List` (one page) / `All` (every item) / `Pages` (every page envelope).
 - **Structured errors**: every error is a `*pkg/errors.Error` with
   `Category`, `Code`, `Operation`, `Resource`, and a canonical
   `Retryable()` method. Real network/timeout/auth/validation classification.
@@ -84,7 +113,7 @@ func main() {
     }
     defer c.Shutdown(context.Background())
 
-    page, err := c.V1.Organizations.List(context.Background(),
+    page, err := c.V2.Organizations.List(context.Background(),
         models.OrganizationsListOpts{
             PageListOpts: models.PageListOpts{Limit: 5},
         })
@@ -110,28 +139,49 @@ groups the ledger services by the version that actually serves them, so reaching
 for a resource the other version does not have is a compile error instead of a
 404:
 
-```go
-orgs, err := c.V1.Organizations.List(ctx, opts)
-ledger, err := c.V1.Ledgers.Create(ctx, orgID, input)
-account, err := c.V1.Accounts.Get(ctx, orgID, ledgerID, accountID)
-balance, err := c.V1.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
-tx, err := c.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+**Build against `c.V2`.** Midaz deprecated all of `/v1`, and `c.V2` is the
+wider surface — 22 services against V1's 14, not a small add-on.
 
+```go
+orgs, err := c.V2.Organizations.List(ctx, opts)
+ledger, err := c.V2.Ledgers.Create(ctx, orgID, input)
+account, err := c.V2.Accounts.Get(ctx, orgID, ledgerID, accountID)
+balance, err := c.V2.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
+tx, err := c.V2.Transactions.CreateDirect(ctx, orgID, ledgerID, input)
 holder, err := c.V2.Holders.Get(ctx, orgID, holderID)
+
+// /v1 for the two things it alone still serves:
+rate, err := c.V1.AssetRates.GetAssetRate(ctx, orgID, ledgerID, externalID)
+legacy, err := c.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, sendInput)
 ```
 
-`c.V1` — `Organizations`, `Ledgers`, `Accounts`, `AccountTypes`, `Assets`,
-`AssetRates`, `Balances`, `Operations`, `Portfolios`, `Segments`,
-`OperationRoutes`, `TransactionRoutes`, `Transactions`, `MetadataIndexes`.
+**Served by both** (13 families, same method names on each):
+`Organizations`, `Ledgers`, `Accounts`, `AccountTypes`, `Assets`, `Balances`,
+`Operations`, `Portfolios`, `Segments`, `OperationRoutes`, `TransactionRoutes`,
+`Transactions`, `MetadataIndexes`.
 
-`c.V2` — `Holders`, `Instruments`, `Encryption`, `Composition`,
-`ProtectionAudit`, `BillingPackages`, `FeePackages`, `FeeEstimates`,
-`BillingCalculations`. Every one of these was **removed** from `/v1`, and the
-billing family is **ledger-scoped** on `/v2`, so its methods take a ledger ID.
+**`c.V2` only** — Midaz *removed* these from `/v1`: `Holders`, `Instruments`,
+`Encryption`, `Composition`, `ProtectionAudit`, `BillingPackages`,
+`FeePackages`, `FeeEstimates`, `BillingCalculations`. The billing family is also
+**ledger-scoped** on `/v2` (it moved from organization scope), so its methods
+take a ledger ID.
 
-Two asymmetries are worth knowing: `AssetRates` and the `Transactions` creation
-styles (`CreateJSON`, inflow, outflow, annotation) exist on `/v1` only, so there
-is deliberately no `c.V2` twin for them.
+**`c.V1` only** — `/v2` dropped these: `AssetRates`, and the four transaction
+creation styles `CreateJSON` / `CreateInflow` / `CreateOutflow` /
+`CreateAnnotation`.
+
+`Transactions` is the one family whose two surfaces differ in **contract**, not
+just path. `/v1` nests a `send` envelope behind four creation endpoints. `/v2`
+creates at the **top level** (`POST /v2/transactions/direct`) with a flat body —
+an asset, a total, and two leg arrays — and the organization and ledger
+travelling per leg rather than in the URL. `c.V2.Transactions` answers with
+`models.TransactionV2`, which drops four `/v1` fields and carries two `/v1`
+dropped. `c.V2.Accounts` also does not re-expose the account-scoped balance and
+operation reads: `/v1` spells each on two accessors, `/v2` spells each once, on
+`c.V2.Balances` and `c.V2.Operations`.
+
+The version lives in the request **path**, never in the base URL. The Ledger
+base URL is bare, and a `/v1` or `/v2` suffix on it is rejected at construction.
 
 Tracer-plane services are **not** version-grouped — the Tracer serves one
 surface and carries its version in the base URL — so they stay flat on the
@@ -141,7 +191,7 @@ client: `c.Rules`, `c.Limits`, `c.Validations`, `c.Reservations`,
 ### Settlement waits
 
 An accepted transaction (HTTP 201) is not settled. Wait on the balance effect
-with `transaction.WaitForSettlement(ctx, c.V1.Balances, orgID, ledgerID,
+with `transaction.WaitForSettlement(ctx, c.V2.Balances, orgID, ledgerID,
 accountID, settled)`, passing a `func(models.Balance) bool` predicate (pin the
 asset on a multi-asset account). See
 [`pkg/transaction`](pkg/transaction/settlement.go).
@@ -160,16 +210,16 @@ Every list method ships in three flavors:
 
 ```go
 // One page, you decide when to advance.
-page, err := c.V1.Accounts.List(ctx, orgID, ledgerID, opts)
+page, err := c.V2.Accounts.List(ctx, orgID, ledgerID, opts)
 
 // iter.Seq2 over every item across every page (SDK handles paging).
-for acc, err := range c.V1.Accounts.All(ctx, orgID, ledgerID, opts) {
+for acc, err := range c.V2.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil { return err }
     process(acc)
 }
 
 // iter.Seq2 over page envelopes (with metadata for checkpointing).
-for batch, err := range c.V1.Accounts.Pages(ctx, orgID, ledgerID, opts) {
+for batch, err := range c.V2.Accounts.Pages(ctx, orgID, ledgerID, opts) {
     if err != nil { return err }
     log.Printf("page %d: %d items", batch.Pagination.Page, len(batch.Items))
 }
@@ -205,7 +255,7 @@ Every error is a `*pkg/errors.Error`. Use the typed predicates or
 ```go
 import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 
-acc, err := c.V1.Accounts.Get(ctx, orgID, ledgerID, accountID)
+acc, err := c.V2.Accounts.Get(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -322,7 +372,7 @@ See [`docs/multi-tenancy.md`](docs/multi-tenancy.md).
 ### Testing with mocks
 
 Depend on a narrow interface you declare yourself — only the methods you call.
-`c.V1.Accounts` (and the other accessors) satisfy it structurally in production, and
+`c.V2.Accounts` (and the other accessors) satisfy it structurally in production, and
 a tiny local mock satisfies it in tests ("accept interfaces, return structs"):
 
 ```go
@@ -345,7 +395,7 @@ func TestMyHandler(t *testing.T) {
             return &models.Account{ID: "acc-1"}, nil
         },
     }
-    // ... inject svc into your code under test; in production pass c.V1.Accounts.
+    // ... inject svc into your code under test; in production pass c.V2.Accounts.
 }
 ```
 
