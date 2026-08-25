@@ -174,7 +174,7 @@ const pathIDGuard = "requirePathIDs"
 //
 // # Accepted strictness, so nobody "fixes" it
 //
-// Seven false positives are deliberate, and each is the price of a match that
+// Eight false positives are deliberate, and each is the price of a match that
 // cannot be talked into accepting a hostile input. Each one names the one-line
 // change a contributor makes at the site; none of them is a reason to widen the
 // matcher, because every widening that admits one of these admits a shape from
@@ -242,6 +242,17 @@ const pathIDGuard = "requirePathIDs"
 //     compared — that can only ADD findings, never remove one, and it can no
 //     longer change a verdict, since the binding itself is already reported. Fix
 //     at the site: call the operation directly.
+//   - A MULTI-VALUE CALL EXPANSION is reported:
+//     `f.ledger.GetSegmentByID(probeScope(ctx, orgID, ledgerID, id))` — Go's
+//     spelling for forwarding one call's results as another call's whole
+//     argument list — refuses, because the call carries ONE argument expression
+//     while the path positions sit at 1, 2 and 3, so no expression can be placed
+//     at a path position and there is nothing to compare against the guard.
+//     Accepting it means reading through the inner call to the values it
+//     returns, which is dataflow rather than a match. Until fix round 7 this
+//     shape was not a false positive at all — it was CREDITED, silently, and
+//     pathArgumentsOf carries the walkthrough. Nothing in the tree spells a call
+//     this way. Fix at the site: pass the arguments directly.
 //
 // # This scan depends on its sibling
 //
@@ -395,7 +406,7 @@ func (s pathGuardScan) offences(fn *ast.FuncDecl, calls []pathCall, site string)
 		problems = append(problems, s.unaccountedMentionOffence(fn, mentions, site))
 	}
 
-	if missing := unguardedPathArguments(fn, calls, s.pathArgs, s.methodParams); len(missing) > 0 {
+	if missing := s.unguardedPathArguments(fn, calls); len(missing) > 0 {
 		problems = append(problems, funcLabel(fn)+" forwards "+strings.Join(missing, ", ")+
 			" into a URL path without handing it to requirePathIDs"+site)
 	}
@@ -935,12 +946,11 @@ func identExprs(names []*ast.Ident) []ast.Expr {
 // Unknown-but-generated is therefore reported. The two scans still lean on each
 // other by design and each says so, but neither one hands out credit for a call
 // it could not read. Do not "simplify" this branch back into a skip.
-func unguardedPathArguments(
-	fn *ast.FuncDecl,
-	calls []pathCall,
-	pathArgs map[string]map[string]bool,
-	methodParams map[string][]string,
-) []string {
+//
+// A call whose spelling IS resolvable can still be unreadable, for a second
+// reason: its argument list may be too short to place the path positions the
+// signature names. That is reported too, and why is on pathArgumentsOf.
+func (s pathGuardScan) unguardedPathArguments(fn *ast.FuncDecl, calls []pathCall) []string {
 	// No direct call, no argument expressions to compare — this is the one exit
 	// in the file that skips a check, and what it skips is provably empty for the
 	// inputs that reach it. Re-derived when accounting moved from operation NAMES
@@ -962,7 +972,7 @@ func unguardedPathArguments(
 	for _, pc := range calls {
 		op, _ := generatedOperation(pc.method)
 
-		names, wanted := methodParams[pc.method], pathArgs[op]
+		names, wanted := s.methodParams[pc.method], s.pathArgs[op]
 		if len(names) == 0 || len(wanted) == 0 {
 			missing = append(missing, "every path argument of "+op+
 				" — reached through "+pc.method+", a spelling with no raw *Client signature, so this "+
@@ -971,7 +981,12 @@ func unguardedPathArguments(
 			continue
 		}
 
-		for _, arg := range pathArgumentsOf(pc.call, names, wanted) {
+		args, placed := pathArgumentsOf(pc.call, names, wanted)
+		if !placed {
+			missing = append(missing, s.unplaceableCallOffence(pc, op))
+		}
+
+		for _, arg := range args {
 			if !checked[arg] {
 				missing = append(missing, arg+" (into "+op+")")
 			}
@@ -981,6 +996,18 @@ func unguardedPathArguments(
 	sort.Strings(missing)
 
 	return missing
+}
+
+// unplaceableCallOffence names a call whose argument list cannot place every
+// path position, with the LINE it sits on — one function can call the same
+// operation several times and only one of those calls may be the unreadable one,
+// which is the occurrence-not-symbol distinction the mention report already
+// carries.
+func (s pathGuardScan) unplaceableCallOffence(pc pathCall, op string) string {
+	return "every path argument of " + op + " — called on line " +
+		strconv.Itoa(s.fset.Position(pc.call.Pos()).Line) + " with an argument list too short to place " +
+		"the path positions " + pc.method + " declares, which is what a multi-value call expansion " +
+		"looks like, so this scan cannot read which expressions become path segments —"
 }
 
 // earliestCall returns the position of the first generated call in source order,
@@ -998,24 +1025,57 @@ func earliestCall(calls []pathCall) token.Pos {
 }
 
 // pathArgumentsOf returns the argument expressions of one call that the
-// generated client styles into the URL path.
+// generated client styles into the URL path, and whether every WANTED position
+// could be placed in that call's argument list.
 //
 // names are the ordered parameter names of the exact spelling at the call site
 // (GetAssetByID, CreateAssetWithBody, ...), because the argument LIST differs
 // between an operation's spellings; wanted are the parameter names its request
 // builder styles into the path.
-func pathArgumentsOf(call *ast.CallExpr, names []string, wanted map[string]bool) []string {
+//
+// # An UNPLACEABLE position is unreadable, and unreadable is a FLAG
+//
+// The previous version skipped a wanted position sitting past the end of
+// call.Args, on an assumption it never stated: that a short argument list only
+// ever means the caller omitted the variadic request-editor tail. Go's
+// multi-value expansion breaks that assumption outright.
+// `f.ledger.GetSegmentByID(probeScope(ctx, orgID, ledgerID, id))` compiles,
+// forwards four values, and has len(call.Args) == 1 — so EVERY wanted position
+// was past the end, every one was skipped, `missing` came back empty and the
+// function was CREDITED. Wire-proven with orgID = "..", which pops a path
+// segment and turns a scoped read into a cross-organization one. An honest
+// guard written above such a call does not save it: the scan credits either
+// way, so nothing stops a later refactor from deleting a comparison that was
+// never made.
+//
+// The bound is on the highest WANTED index and never on len(names). A call that
+// legitimately omits the editor tail leaves len(call.Args) < len(names) and is
+// perfectly readable, and flagging every write that carries editors would bury
+// the scan in false positives. What is refused is narrower and exact: a call
+// whose argument list cannot place a PATH position is a call whose path
+// segments cannot be identified, so it is reported as unreadable rather than
+// waved through. Same unknown=flag rule unguardedPathArguments applies to an
+// unrecognised generated spelling, one level down.
+func pathArgumentsOf(call *ast.CallExpr, names []string, wanted map[string]bool) ([]string, bool) {
 	var args []string
 
+	placed := true
+
 	for i, name := range names {
-		if !wanted[name] || i >= len(call.Args) {
+		if !wanted[name] {
+			continue
+		}
+
+		if i >= len(call.Args) {
+			placed = false
+
 			continue
 		}
 
 		args = append(args, types.ExprString(call.Args[i]))
 	}
 
-	return args
+	return args, placed
 }
 
 // deformedGuardCalls returns the requirePathIDs calls in fn that are NOT the
