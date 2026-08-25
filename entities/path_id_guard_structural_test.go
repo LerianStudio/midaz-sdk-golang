@@ -124,13 +124,28 @@ const pathIDGuard = "requirePathIDs"
 //
 // # Known ceiling, and it is deliberate
 //
-// Four things remain out of reach, and faking them with heuristics would be
+// Five things remain out of reach, and faking them with heuristics would be
 // worse than saying so:
 //
 //   - a guarded variable REASSIGNED between the guard and the call —
 //     requirePathIDs(op, "id", id), then id = "..", then f.ledger.GetX(ctx, id);
 //   - an inner scope SHADOWING a guarded name, so the identifier the call
-//     forwards is a different variable wearing the same spelling;
+//     forwards is a different variable wearing the same spelling. The same hole
+//     exists one level up, on the guard FUNCTION's own name: a local
+//     `requirePathIDs := func(...) error { return nil }` makes every guard below
+//     it vacuous while every part of the four-part shape stays perfect, so the
+//     scan credits it. Both halves are the same defect — an identifier matched
+//     by SPELLING against a definition the scan never resolves — and both need
+//     the same tool;
+//   - the guard reached through a VALUE rather than by name: `g := requirePathIDs`
+//     and then `g(op, "id", id)`. deformedGuardCalls matches call.Fun against the
+//     literal identifier requirePathIDs, so a hoisted guard is not a guard call
+//     to it at all — neither accepted nor refused, simply unseen. That re-enters
+//     the silent zero the round-5 refusal closed, by the order it closed: a
+//     DEFORMED hoisted guard (`if err := g(...); err != nil { err = nil;
+//     return nil, err }`) written above a well-shaped direct one credits via the
+//     second while the runtime takes the first. Nothing in the tree hoists a
+//     guard function, and doing so carries no innocent meaning in a facade;
 //   - a REQUEST EDITOR rewriting the outbound path. Every generated method takes
 //     a `...RequestEditorFn` tail, and an editor is
 //     `func(context.Context, *http.Request) error` — it holds the built request
@@ -147,12 +162,15 @@ const pathIDGuard = "requirePathIDs"
 //     in this package share; nothing here does it, and none of the three pretends
 //     to cover it.
 //
-// The first two are invisible to a scan that compares source text, and closing
-// either one honestly needs type-checked SSA: resolving every identifier to its
-// definition and proving no assignment reaches the call. The third needs the
-// same machinery pointed elsewhere: resolving every value in an editor tail to
-// the function it names and proving no assignment in that body reaches req.URL.
-// All three are a different tool, not a stricter match.
+// The first three are invisible to a scan that compares source text, and closing
+// any of them honestly needs IDENTIFIER RESOLUTION — a type-checked pass that
+// resolves every name to its definition, and for the first, SSA on top of it to
+// prove no assignment reaches the call. A stricter text match cannot do it: the
+// hostile spelling and the honest one are the same characters, which is the
+// whole shape of all three. The fourth needs the same machinery pointed
+// elsewhere: resolving every value in an editor tail to the function it names
+// and proving no assignment in that body reaches req.URL. All four are a
+// different tool, not a stricter match.
 //
 // # Accepted strictness, so nobody "fixes" it
 //
