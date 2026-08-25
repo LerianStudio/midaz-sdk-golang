@@ -8,16 +8,34 @@ The current SDK is organized around a root client and an entity layer:
 
 1. `midaz.Client` owns configuration, observability, lifecycle, and service initialization.
 2. `pkg/config.Config` resolves service URLs, Access Manager settings, retry/debug options, HTTP client, and observability provider.
-3. `entities.Entity` exposes the accessors used by consumers.
-4. Most resources are concrete `*xFacade` structs over the generated plane client; only `Balances`, `Operations`, and `Aliases` remain interface-backed private entities (`balancesEntity`, `operationsEntity`, `aliasesEntity`) that translate service methods into HTTP requests.
-5. `entities.HTTPClient` handles request construction, authentication headers, idempotency headers, tracing propagation, retry behavior, debug logging, and response/error conversion.
+3. `entities.Entity` exposes the accessors used by consumers, with the ledger-plane ones grouped by server version (`Entity.V1`, `Entity.V2`).
+4. **Every** resource is a concrete `*xFacade` struct over a generated plane client. There are no interface-backed private entities and no hand-rolled HTTP left: `balancesEntity`, `operationsEntity` and `aliasesEntity` are gone, along with `BalancesService`, `OperationsService` and `AliasesService`.
+5. `entities.HTTPClient` no longer serves any resource. It survives only because `(*Entity).GetEntityHTTPClient` hands it to callers for debug / user-agent / retry tuning; no request traffic routes through it.
 6. `models` contains public request/response structures, Midaz model aliases, list options, pagination metadata, and builder helpers.
 
 The SDK does not currently use the older `apiClient`, `httpClient`, or per-resource `organizationClient` style architecture.
 
 ### Facade layer
 
-The 13 primary ledger-plane accessors (`Organizations`, `Ledgers`, `Accounts`, `AccountTypes`, `Assets`, `AssetRates`, `Portfolios`, `Segments`, `OperationRoutes`, `TransactionRoutes`, `MetadataIndexes`, `Transactions`, `Holders`) are concrete facade structs (`*accountsFacade`, `*organizationsFacade`, ...) exposing generic CRUD (`List`/`Get`/`Create`/`Update`/`Delete`/`All`/`Pages`/`Count`) directly over the generated ledger plane client (`internal/genledger.ClientWithResponses`), bypassing the legacy per-service `entities.HTTPClient` path entirely. `Balances`, `Operations`, and `Aliases` have no facade yet and remain interface-backed (`BalancesService`, `OperationsService`, `AliasesService`) with explicit method names, wired over the shared legacy `entities.HTTPClient`.
+Ledger-plane accessors are grouped by the server version that serves them: `V1Services` (14 members) and `V2Services` (22). Both groups are held on `Entity` **by value**, not by pointer — a hand-rolled zero-value `&Entity{}` is legal, and with a value group its members are simply nil there, so the idiomatic `e != nil && e.V1.Accounts != nil` guard holds. A pointer group would panic one level below what that check can see.
+
+Every accessor is a concrete facade struct (`*accountsFacade`, `*accountsV2Facade`, ...) over the generated ledger plane client (`internal/genledger.ClientWithResponses`). Tracer-plane accessors (`Rules`, `Limits`, `Validations`, `Reservations`, `AuditEvents`) stay flat on `Entity` over `internal/gentracer` — the Tracer serves one surface and versions itself in its base URL.
+
+Facades are **unexported concrete types**, and the generated mocks are gone (`entities/mocks/` no longer exists). A consumer that needs to substitute an accessor declares a narrow consumer-side interface naming only the methods it calls — the pattern `pkg/integrity` uses for its `balancesGetter` / `accountsGetter`.
+
+#### No facade reads through a generated `*WithResponse` parser
+
+Every read, write and delete goes through the raw generated call plus a shared decode helper (`readOne` / `readList` / `readSlice` / `deleteResource` / `readRawResponse`). This is load-bearing rather than stylistic: the generated `Parse*Resp` functions unmarshal the body themselves whenever the content type says json, which fails *before* any facade logic runs. Three consequences the raw path avoids:
+
+- A gateway **403 or 404 carrying an empty body** kept its real status instead of failing inside the parser's unmarshal and arriving as an SDK-internal 500. A caller can again tell "you are not allowed" from "it is not there".
+- An unreadable 2xx is a **response-decode** error ("the server answered and the answer is unreadable", so on a write the operation may already have taken effect), not an SDK-internal fault.
+- A non-UUID id in a single-object response no longer reports as an SDK bug.
+
+A 2xx carrying **no resource** (`null`, `{}`, empty, whitespace) is refused rather than decoded into a zero-valued object with a nil error — on lists too, where it previously produced an empty page with no next cursor, so a caller walking a ledger concluded it was empty. Bare-array reads are deliberately exempt from the object guard: Go marshals a nil slice as the literal `null`, so there `null` is what a handler with no results legitimately emits.
+
+Response bodies are capped at 10 MiB (`maxHTTPResponseBodyBytes`).
+
+The invariant is enforced structurally rather than by review: `TestNoFacadeCallsAGeneratedParser` parses every non-test file in `entities/`, matches each selector against the operations read out of both generated clients, and refuses any facade naming a `*WithResponse` spelling. Sibling scans enforce the delete seam, the idempotency stamp, the path-id guard, and one-spelling-per-endpoint on V2.
 
 ## Root client internals
 
@@ -54,7 +72,8 @@ c, err := midaz.New(
 - `MIDAZ_ENVIRONMENT`
 - `MIDAZ_BASE_URL`
 - `MIDAZ_LEDGER_URL`
-- `MIDAZ_CRM_URL`
+- `MIDAZ_TRACER_URL`
+- `MIDAZ_TRACER_API_KEY`
 - `MIDAZ_TIMEOUT`
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
@@ -71,56 +90,49 @@ Access Manager configuration uses `auth.AccessManager` and `config.WithAccessMan
 
 ## Service URL model
 
-The entity layer receives a service URL map. The current service keys are:
+The entity layer receives a service URL map with exactly **two** keys, one per plane:
 
-- `onboarding`
-- `transaction`
-- `crm`
+- `onboarding` (`config.ServiceOnboarding`) — the Ledger plane, resolved from `Config.LedgerURL` (`WithLedgerURL` / `MIDAZ_LEDGER_URL`).
+- `tracer` (`config.ServiceTracer`) — the Tracer plane, resolved from `Config.TracerURL` (`WithTracerURL` / `MIDAZ_TRACER_URL`).
 
-The `onboarding` and `transaction` keys are internal path-dispatch labels for Ledger API resources. Both keys are populated from the single public knob (`WithLedgerURL` / `MIDAZ_LEDGER_URL`) — the dual keys exist for per-service routing inside the entity layer, not as separate user-facing endpoints. CRM resources use the CRM URL and pass organization context via `X-Organization-Id`.
+The `transaction` and `crm` keys are **gone**. `transaction` was a phantom: after the facade migration nothing read it to build a request, yet config validation still required it — a mandatory key with no effect. `crm` went with the alias service, since Midaz folded those resources into the ledger surface. Neither ever existed as an environment variable; both were internal labels only.
+
+`onboarding` is a rename candidate — it is the last place the pre-two-plane service naming survives, and it now labels a whole plane rather than one service.
 
 ## Entity service implementations
 
-Most ledger resources are served by the facade accessors described in
-[external_apis.md](./external_apis.md) — concrete `*xFacade` structs exposing
-generic CRUD (`List`/`Get`/`Create`/...) directly over the generated plane
-client, with no separate public interface or private implementation type. Only
-the legacy trio (Balances, Operations, Aliases) is still interface-backed with a
-private implementation and explicit method names (`ListBalances`, etc.).
+Every ledger resource is served by a facade accessor described in
+[external_apis.md](./external_apis.md) — a concrete unexported `*xFacade` struct
+over the generated plane client, with no public interface and no private
+implementation type. The interface-backed trio is gone: `balancesEntity`,
+`operationsEntity` and `aliasesEntity`, and with them `BalancesService`,
+`OperationsService` and `AliasesService`.
 
-### Ledger API services
-
-Interface-backed (legacy trio members on the ledger/transaction plane):
-
-- `BalancesService` implemented by `balancesEntity`
-- `OperationsService` implemented by `operationsEntity`
-
-All other ledger resources (organizations, ledgers, accounts, account types,
-assets, asset rates, portfolios, segments, operation routes, transaction routes,
-transactions, metadata indexes) are facade-only — see [external_apis.md](./external_apis.md).
-
-### CRM services
-
-- `AliasesService` implemented by `aliasesEntity`
-
-CRM requests set `X-Organization-Id` and use paths under `/aliases` and holder-scoped `/holders/{holderID}/aliases`. Tenant scope comes from Access Manager/JWT claims; the shared HTTP client does not add `X-Tenant-ID`.
+Balances and operations were migrated onto the generated client; aliases was
+deleted outright, because the server serves no alias route at any version — the
+resource was renamed to instruments and is /v2 only.
 
 ## Transport pattern
 
-The shared `entities.HTTPClient` is responsible for the transport cross-cutting concerns:
+Transport cross-cutting concerns live on the generated plane clients' request
+editors and the shared `*http.Client` built for each plane, **not** on
+`entities.HTTPClient`, which no longer carries request traffic:
 
-- Adds authorization after Access Manager resolves a token.
-- Adds idempotency keys from `sdkctx.WithIdempotencyKey(ctx, key)`.
+- Adds authorization after Access Manager resolves a token. The Tracer plane can authenticate with an `X-API-Key` (`MIDAZ_TRACER_API_KEY`) instead of the shared Bearer token.
+- Adds idempotency keys — auto-generated for unsafe methods by default, or caller-supplied via `sdkctx.WithIdempotencyKey(ctx, key)` / an input's `IdempotencyKey` field.
 - Injects OpenTelemetry trace context and baggage into outbound HTTP headers when observability is enabled.
 - Applies retry behavior for retryable responses and transient network failures.
 - Avoids retrying unsafe methods unless `X-Idempotency` is present.
-- Converts HTTP failures into `pkg/errors` structured errors.
+- Converts HTTP failures into `pkg/errors` structured errors, decoding both RFC 9457 problem documents and the /v1 legacy error shape (`message` / `fields` / `entityType`).
 - Attaches raw, unredacted, truncated upstream 4xx/5xx response bodies to structured errors when error body exposure is enabled.
 - Emits debug logs when `MIDAZ_DEBUG=true` or debug options are enabled.
+- Refuses any cross-origin redirect (`ValidatePlaneRedirect`) and caps a response body at 10 MiB.
 
 ## Request path construction
 
-The SDK currently builds endpoint paths inside each entity implementation instead of using a central endpoint registry.
+Paths are **generated**, not hand-built: `scripts/generate-clients.sh` renders `api/ledger.openapi.yaml` (a copy of the server's own OAS) into `internal/genledger`, and each facade calls the generated request builder for its operation. `make check-codegen-drift` fails if the committed clients stop reproducing from the specs. No facade concatenates a path.
+
+The groups below are written **without their version prefix**. On the wire every ledger path carries one: `/v1/organizations` for a `V1.*` accessor, `/v2/organizations` for a `V2.*` one. That prefix is the whole versioning mechanism — the Ledger base URL carries none, which is why a `/v1` suffix on it is rejected at construction. Where a family is served by only one version, it is marked below.
 
 Important path groups:
 
@@ -132,11 +144,14 @@ Important path groups:
 - Account balances: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances/history?date={date}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}/balances`
 - Assets: `/organizations/{organizationID}/ledgers/{ledgerID}/assets`
 - Asset rates: `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates`, `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates/{externalID}`, and `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates/from/{assetCode}` using cursor filters (`to`, `limit`, `start_date`, `end_date`, `sort_order`, `cursor`).
-- Transactions: `/organizations/{organizationID}/ledgers/{ledgerID}/transactions`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/json`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/commit`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/cancel`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/revert`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/inflow`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/outflow`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/annotation`
+- Transactions — the one family whose two surfaces differ in path SHAPE, so both are spelled out with their prefixes:
+  - Reads and transitions, identical shape on both: `/v{1,2}/organizations/{organizationID}/ledgers/{ledgerID}/transactions`, `.../transactions/{transactionID}`, `.../transactions/{transactionID}/commit`, `.../cancel`, `.../revert`, `.../transactions/metrics/count`, and the transaction-scoped operation update `.../transactions/{transactionID}/operations/{operationID}`.
+  - **V1 creates** are ledger-scoped, one endpoint per style: `/v1/organizations/{organizationID}/ledgers/{ledgerID}/transactions/json`, `.../inflow`, `.../outflow`, `.../annotation`, plus `.../block` and `.../unblock`.
+  - **V2 creates are TOP-LEVEL** and carry no organization or ledger in the URL at all: `/v2/transactions/direct`, `/v2/transactions/hold`, `/v2/transactions/block`, `/v2/transactions/unblock`. The scope travels per leg in the body instead, and the server refuses a body whose legs name different pairs.
 - Operations: account-scoped reads use `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations` and `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations/{operationID}`. Updates are transaction-scoped through `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/operations/{operationID}`.
 - Routes: operation route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/operation-routes`; transaction route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/transaction-routes`.
 - Metadata indexes: list uses `/settings/metadata-indexes` with optional `entity_name`; create uses `/settings/metadata-indexes/entities/{entityName}`; delete uses `/settings/metadata-indexes/entities/{entityName}/key/{metadataKey}`. The list endpoint returns a raw `[]MetadataIndex` slice, not a paginated `ListResponse`.
-- CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
+- Instruments (**/v2 only** — the resource /v1 served as "aliases", renamed): `/organizations/{organizationID}/instruments`, `/organizations/{organizationID}/holders/{holderID}/instruments`, `/organizations/{organizationID}/holders/{holderID}/instruments/{instrumentID}`, `/organizations/{organizationID}/holders/{holderID}/instruments/{instrumentID}/related-parties/{relatedPartyID}`. The old `/aliases` paths exist at no version.
 
 Supported count paths use `HEAD` and read `X-Total-Count`:
 
@@ -188,8 +203,7 @@ Common builders:
 - `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
-- `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
-- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. Repeated `WithRelatedParties` calls replace the in-builder related-party list; empty alias updates are rejected by the SDK.
+- `models.NewCreateInstrumentInput` / `NewUpdateInstrumentInput` — the alias builders (`NewCreateAliasInput`, `NewUpdateAliasInput`) are gone with the resource. The shared CRM value types they carried (`BankingDetails`, `RegulatoryFields`, `RelatedParty`) live in `models/crm_shared_types.go`.
 
 ## List options and pagination internals
 
@@ -216,8 +230,9 @@ Pagination behavior differs by API family:
 | --- | --- |
 | Ledger page-based resources | Common serialization sends `page`, `limit`, filters, and `sort_order`. |
 | Ledger cursor-based resources | Transactions, operations, operation routes, transaction routes, and asset rates advance with `Pagination.NextCursor`; typed opts never emit page-style parameters. |
-| CRM aliases | Legacy CRM plane. Page-based list calls: the iterator advances `Page++` and stops on `!HasMore()`. Organization is sent as the `X-Organization-Id` header. |
-| CRM holders | Ledger plane (re-homed in v4). Cursor-based: `HoldersListOpts` embeds `CursorListOpts`, so `Cursor` seeds/resumes pagination and `Pages`/`All` inject the response `next_cursor` as a `cursor` query param, stopping on an empty cursor. Dates are rejected (`ValidateCursorListOptsNoDates`); the facade never emits `page`. Organization is a path segment, not a header. |
+| Balances | Cursor-based, and this is load-bearing: the server drops `page` on the floor for the balance lists, so a page-style iterator re-requested page 1 forever and yielded the same balances indefinitely. `BalancesListOpts` embeds `CursorListOpts` so that shape cannot be expressed. The alias and external-code balance lookups are not paginated at all and have no iterators. |
+| Instruments (ex-aliases) | Ledger plane, /v2 only. Cursor-based; organization and holder are path segments, not headers. |
+| Holders | Ledger plane, /v2 only. Cursor-based: `HoldersListOpts` embeds `CursorListOpts`, so `Cursor` seeds/resumes pagination and `Pages`/`All` inject the response `next_cursor` as a `cursor` query param, stopping on an empty cursor. Dates are rejected (`ValidateCursorListOptsNoDates`); the facade never emits `page`. Organization is a path segment, not a header. |
 
 ## Error model internals
 
