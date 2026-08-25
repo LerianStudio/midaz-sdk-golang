@@ -544,7 +544,7 @@ Each list endpoint exposes a typed opts struct embedding the appropriate base an
 Each per-entity opts struct exposes:
 
 - `Validate() error` - Enforces SDK-side preconditions (delegates to `ValidatePageListOpts` or `ValidateCursorListOpts` then layers in filter-specific checks).
-- `ToQueryParams() map[string]string` - Renders the opts into the wire query map. Internal contract; customers should reach the wire path through `List* / List*All / List*Pages` instead of calling `ToQueryParams` directly.
+- `ToQueryParams() map[string]string` - On most opts structs. Renders the opts into the wire query map. Internal contract; customers should reach the wire path through `List* / List*All / List*Pages` instead of calling `ToQueryParams` directly. `BalancesListOpts`, `OperationsListOpts`, `AccountOperationsListOpts`, and `TransactionsListOpts` do not carry it: their facades map the fields straight onto the generated request params.
 
 #### Pagination metadata
 
