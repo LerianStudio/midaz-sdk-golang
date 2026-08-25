@@ -404,6 +404,22 @@ func identExprs(names []*ast.Ident) []ast.Expr {
 // compares those expressions, as source text, against the values the guard
 // received. An empty result means every path segment the caller can influence
 // was checked before the request was built.
+//
+// # An unresolvable spelling is a FINDING, not a defensive branch
+//
+// Argument positions come from clientMethodParameters, which indexes methods on
+// the raw *Client only. So a call reached through any OTHER spelling — the
+// *ClientWithResponses parser method, the ParseOpResp free function — resolves
+// to no positions at all. Returning early there is what coupled this scan to its
+// sibling: an unknown spelling yielded no path arguments, nothing was missing,
+// and the call was CREDITED as guarded for free. It was measured, not reasoned
+// about — a facade calling GetSegmentByIDWithResponse with three
+// caller-controlled ids and no guard whatsoever passed this scan, and was caught
+// only by TestNoFacadeCallsAGeneratedParser, one test away.
+//
+// Unknown-but-generated is therefore reported. The two scans still lean on each
+// other by design and each says so, but neither one hands out credit for a call
+// it could not read. Do not "simplify" this branch back into a skip.
 func unguardedPathArguments(
 	fn *ast.FuncDecl,
 	calls []pathCall,
