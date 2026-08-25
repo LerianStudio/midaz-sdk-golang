@@ -927,9 +927,11 @@ func fetchAccountBalances(ctx context.Context, c *midaz.Client, state *workflowS
 			alias = account.ID
 		}
 
-		// GetBalance was dropped in the facade swap; list balances and take the
-		// first (an account has one default balance per asset).
-		balances, err := c.V1.Accounts.ListBalances(ctx, orgID, ledgerID, account.ID, models.CursorListOpts{})
+		// There is no by-account balance read; list the account's balances and
+		// take the first (an account has one default balance per asset).
+		// On /v2 the account-scoped balance read lives on Balances, not on
+		// Accounts — /v1 spells it on both, /v2 spells it once.
+		balances, err := c.V2.Balances.ListAccountBalances(ctx, orgID, ledgerID, account.ID, models.BalancesListOpts{})
 		if err != nil || balances == nil || len(balances.Items) == 0 {
 			continue
 		}

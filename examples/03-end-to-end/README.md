@@ -1,24 +1,45 @@
 # 03-end-to-end
 
-Walks the canonical resource hierarchy:
-**organization → ledger → asset → account → transaction**.
+Creates a **transaction on the /v2 surface** — the money movement at the
+end of the organization → ledger → asset → account hierarchy. The
+resources it posts against are assumed to exist; see
+[`workflow-with-entities/`](../workflow-with-entities/) for the flow that
+creates them.
 
-This is the example to read first if you want to understand the v3 API
-shape without auth complexity.
+This is the example to read first if you want to understand the API shape
+without auth complexity.
 
 ## What this demonstrates
 
 - Anonymous client construction (local stack)
-- `c.Organizations`, `c.Ledgers`, `c.Assets`, `c.Accounts`, `c.Transactions`
-- Building a transaction via the SDK's clean DSL input format (no
-  lib-commons types leak into your code)
+- `c.V2.Transactions.CreateDirect` — the /v2 creation path
+- The flat /v2 transaction body: an asset, a total, and two leg arrays
+  (debits and credits), with the action in the URL rather than the body
 - Observability provider wired through `WithObservabilityProvider`
+
+## Which surface, and why
+
+Midaz deprecated all of /v1, so **/v2 is the surface to build against**.
+The /v2 creates are top-level actions — `CreateDirect` settles
+immediately, `CreateHold` reserves value for a later `Commit`.
+
+The four /v1 creation styles (json, inflow, outflow, annotation) with
+their nested `send`/`source`/`distribute` envelope have **no /v2 twin**.
+They stay reachable as `c.V1.Transactions.CreateJSON` and friends for as
+long as the server serves /v1 —
+[`workflow-with-entities/`](../workflow-with-entities/) demonstrates them.
+
+Each leg names the organization and ledger its account belongs to. The
+facade stamps those from the pair you pass to `CreateDirect`, into a copy,
+so one input can be reused against a second ledger without carrying the
+first one's scope into it — and a leg naming a *different* pair is refused
+rather than silently posted into the wrong ledger.
 
 ## When to use this pattern
 
-As a reference for the typical "set up, then make a financial movement"
-shape. Real applications usually skip the org/ledger/asset/account
-creation (those are infrastructure setup) and start at transaction-time.
+As a reference for "make a financial movement". Real applications skip the
+org/ledger/asset/account creation (that is infrastructure setup) and start
+at transaction time, which is where this example starts.
 
 ## How to run
 
@@ -31,7 +52,7 @@ Requires a local Midaz stack with auth disabled.
 ## Expected output
 
 ```
-Created transaction: "tx_01H..."
+Created transaction: "01H..." (status APPROVED)
 ```
 
 ## Related

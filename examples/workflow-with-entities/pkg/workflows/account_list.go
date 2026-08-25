@@ -17,13 +17,13 @@ import (
 //
 // The v3 contract demonstrated here:
 //   - Typed AccountsListOpts (no pointer, concurrent-safe)
-//   - V1.Accounts.All iter.Seq2 for transparent pagination
+//   - V2.Accounts.All iter.Seq2 for transparent pagination
 //   - entities.Collect to materialize a bounded slice
 //
 // This file replaces the v2 multi-page-with-NextPageOptionsFrom demo
 // that depended on the now-deleted Pagination.NextPageOptions and
 // PrevPageOptions methods (Track 5 Batch 5B). Customers iterating
-// page-by-page in v3 use V1.Accounts.Pages or call V1.Accounts.List
+// page-by-page in v3 use V2.Accounts.Pages or call V2.Accounts.List
 // repeatedly with opts.Page++.
 func ListAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n📋 STEP 8: ACCOUNT LISTING")
@@ -52,7 +52,7 @@ func demonstrateBasicListing(ctx context.Context, midazClient *midaz.Client, org
 		Filters: models.AccountsFilters{Status: models.StatusActive},
 	}
 
-	resp, err := midazClient.V1.Accounts.List(ctx, orgID, ledgerID, opts)
+	resp, err := midazClient.V2.Accounts.List(ctx, orgID, ledgerID, opts)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -64,15 +64,15 @@ func demonstrateBasicListing(ctx context.Context, midazClient *midaz.Client, org
 	}
 
 	if resp.Pagination.HasMore() {
-		fmt.Println("   (More accounts available — see V1.Accounts.All demo below)")
+		fmt.Println("   (More accounts available — see V2.Accounts.All demo below)")
 	}
 
 	return nil
 }
 
-// demonstrateAllAccountsIteration shows V1.Accounts.All iter.Seq2.
+// demonstrateAllAccountsIteration shows V2.Accounts.All iter.Seq2.
 func demonstrateAllAccountsIteration(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
-	fmt.Println("\nDemonstrating V1.Accounts.All (iter.Seq2 transparent pagination)...")
+	fmt.Println("\nDemonstrating V2.Accounts.All (iter.Seq2 transparent pagination)...")
 
 	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -82,7 +82,7 @@ func demonstrateAllAccountsIteration(ctx context.Context, midazClient *midaz.Cli
 	}
 
 	all, err := entities.Collect(
-		midazClient.V1.Accounts.All(listCtx, orgID, ledgerID, opts),
+		midazClient.V2.Accounts.All(listCtx, orgID, ledgerID, opts),
 		1000, // hard cap; example workload is bounded
 	)
 	if err != nil {
@@ -106,7 +106,7 @@ func demonstrateContextCancellation(ctx context.Context, midazClient *midaz.Clie
 	cancelCtx, cancel := context.WithCancel(ctx)
 	cancel() // cancel immediately
 
-	_, err := midazClient.V1.Accounts.List(cancelCtx, orgID, ledgerID, models.AccountsListOpts{})
+	_, err := midazClient.V2.Accounts.List(cancelCtx, orgID, ledgerID, models.AccountsListOpts{})
 	if err == nil {
 		return errors.New("expected cancellation error but got nil")
 	}

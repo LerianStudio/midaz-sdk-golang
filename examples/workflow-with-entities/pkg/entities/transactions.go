@@ -1,6 +1,12 @@
 // Package entities contains entity-specific operations for the complete workflow example.
 // It provides higher-level functions that wrap the SDK's core functionality to
 // simplify common operations and demonstrate best practices.
+//
+// The transfer helpers here create through c.V1.Transactions.CreateJSON. That
+// nested send/source/distribute creation style exists only on /v1 — /v2
+// replaced the four /v1 styles with the flat top-level direct/hold actions, so
+// there is no /v2 twin to swap these onto. See examples/03-end-to-end for the
+// /v2 creation path.
 package entities
 
 import (

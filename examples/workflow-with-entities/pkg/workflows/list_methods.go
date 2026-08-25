@@ -65,7 +65,7 @@ func testListOrganizations(ctx context.Context, midazClient *midaz.Client) error
 		},
 	}
 
-	orgsResponse, err := midazClient.V1.Organizations.List(ctx, orgOptions)
+	orgsResponse, err := midazClient.V2.Organizations.List(ctx, orgOptions)
 	if err != nil {
 		return handleOrganizationError(err)
 	}
@@ -139,7 +139,7 @@ func testListLedgers(ctx context.Context, midazClient *midaz.Client, orgID strin
 		Filters: models.LedgersFilters{Status: models.StatusActive},
 	}
 
-	ledgersResponse, err := midazClient.V1.Ledgers.List(ctx, orgID, ledgerOptions)
+	ledgersResponse, err := midazClient.V2.Ledgers.List(ctx, orgID, ledgerOptions)
 	if err != nil {
 		return fmt.Errorf("ledger listing failed: %s", pkgerrors.FormatErrorDetails(err))
 	}
@@ -153,11 +153,11 @@ func testListLedgers(ctx context.Context, midazClient *midaz.Client, orgID strin
 	return nil
 }
 
-// testListAccountsWithPagination tests V1.Accounts.List using v3 typed
+// testListAccountsWithPagination tests V2.Accounts.List using v3 typed
 // AccountsListOpts and demonstrates iter.Seq2 transparent pagination via
-// V1.Accounts.Pages.
+// V2.Accounts.Pages.
 func testListAccountsWithPagination(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
-	fmt.Println("\n🔍 Testing V1.Accounts.List with pagination and filtering...")
+	fmt.Println("\n🔍 Testing V2.Accounts.List with pagination and filtering...")
 
 	accountOptions := models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{
@@ -167,7 +167,7 @@ func testListAccountsWithPagination(ctx context.Context, midazClient *midaz.Clie
 		Filters: models.AccountsFilters{Type: "CUSTOMER"},
 	}
 
-	accountsResponse, err := midazClient.V1.Accounts.List(ctx, orgID, ledgerID, accountOptions)
+	accountsResponse, err := midazClient.V2.Accounts.List(ctx, orgID, ledgerID, accountOptions)
 	if err != nil {
 		return handleAccountError(err)
 	}
@@ -210,12 +210,12 @@ func printAccountsResults(accountsResponse *models.ListResponse[models.Account])
 }
 
 // demonstrateAccountPagination demonstrates multi-page iteration through accounts
-// via v3 V1.Accounts.Pages iter.Seq2. Limits to 3 pages for demo purposes.
+// via v3 V2.Accounts.Pages iter.Seq2. Limits to 3 pages for demo purposes.
 func demonstrateAccountPagination(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, opts models.AccountsListOpts) error {
 	fmt.Println("\n📚 Demonstrating multi-page iteration through accounts...")
 
 	pageCount := 0
-	for currentPage, err := range midazClient.V1.Accounts.Pages(ctx, orgID, ledgerID, opts) {
+	for currentPage, err := range midazClient.V2.Accounts.Pages(ctx, orgID, ledgerID, opts) {
 		if err != nil {
 			return fmt.Errorf("failed to fetch page %d: %w", pageCount+1, err)
 		}
@@ -243,7 +243,7 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *midaz.Client
 func testListPortfolios(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListPortfolios...")
 
-	portfoliosResponse, err := midazClient.V1.Portfolios.List(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
+	portfoliosResponse, err := midazClient.V2.Portfolios.List(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
@@ -268,7 +268,7 @@ func testListSegments(ctx context.Context, midazClient *midaz.Client, orgID, led
 		},
 	}
 
-	segmentsResponse, err := midazClient.V1.Segments.List(ctx, orgID, ledgerID, segmentOptions)
+	segmentsResponse, err := midazClient.V2.Segments.List(ctx, orgID, ledgerID, segmentOptions)
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}

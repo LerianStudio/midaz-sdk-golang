@@ -1,3 +1,14 @@
+// The transaction flows in this file deliberately stay on c.V1.Transactions
+// while the rest of this workflow runs on /v2.
+//
+// They demonstrate CreateJSON — the nested send/source/distribute envelope —
+// and that creation style exists ONLY on /v1. Midaz replaced the four /v1
+// styles (json, inflow, outflow, annotation) with two top-level actions,
+// /v2/transactions/direct and /hold, whose request is flat: an asset, a total,
+// and two leg arrays. There is no /v2 twin to swap these calls onto.
+//
+// For the /v2 creation path — which is the one to build against, since Midaz
+// deprecated all of /v1 — see examples/03-end-to-end.
 package workflows
 
 import (

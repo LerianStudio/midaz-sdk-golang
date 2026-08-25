@@ -54,7 +54,7 @@ func setupAndFetchAccounts() (*midaz.Client, []string, context.Context, context.
 
 	fmt.Println("Fetching accounts...")
 
-	accounts, err := c.V1.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{})
+	accounts, err := c.V2.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{})
 	if err != nil {
 		cancel()
 		return nil, nil, nil, nil, fmt.Errorf("failed to list accounts: %w", err)

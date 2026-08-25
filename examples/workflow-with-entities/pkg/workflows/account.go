@@ -33,7 +33,7 @@ func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Create customer account
 	fmt.Println("Creating customer account...")
 
-	customerAccount, err = midazClient.V1.Accounts.Create(
+	customerAccount, err = midazClient.V2.Accounts.Create(
 		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Customer Account",
 			Type:      "deposit",
@@ -60,7 +60,7 @@ func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Create merchant account
 	fmt.Println("Creating merchant account...")
 
-	merchantAccount, err = midazClient.V1.Accounts.Create(
+	merchantAccount, err = midazClient.V2.Accounts.Create(
 		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Merchant Account",
 			Type:      "marketplace",
@@ -85,7 +85,7 @@ func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Create Dummy 1 account
 	fmt.Println("Creating dummy 1 account...")
 
-	dummyOneAccount, err = midazClient.V1.Accounts.Create(
+	dummyOneAccount, err = midazClient.V2.Accounts.Create(
 		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Dummy 1 Account",
 			Type:      "deposit",
@@ -110,7 +110,7 @@ func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Create Dummy 2 account
 	fmt.Println("Creating dummy 2 account...")
 
-	dummyTwoAccount, err = midazClient.V1.Accounts.Create(
+	dummyTwoAccount, err = midazClient.V2.Accounts.Create(
 		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Dummy 2 Account",
 			Type:      "deposit",
@@ -159,7 +159,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 	// Create customer account with account type
 	fmt.Println("Creating customer account with account type...")
 
-	customerAccount, err = midazClient.V1.Accounts.Create(
+	customerAccount, err = midazClient.V2.Accounts.Create(
 		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Customer Account",
 			Type:      "liability", // Change to liability to match destination operation route
@@ -195,7 +195,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 	// Create merchant account with account type
 	fmt.Println("Creating merchant account with account type...")
 
-	merchantAccount, err = midazClient.V1.Accounts.Create(
+	merchantAccount, err = midazClient.V2.Accounts.Create(
 		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Merchant Account",
 			Type:      "revenue", // Change to revenue to match destination operation route
@@ -229,7 +229,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 	// Create Dummy 1 account with account type
 	fmt.Println("Creating dummy 1 account with account type...")
 
-	dummyOneAccount, err = midazClient.V1.Accounts.Create(
+	dummyOneAccount, err = midazClient.V2.Accounts.Create(
 		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Dummy 1 Account",
 			Type:      "deposit",
@@ -263,7 +263,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 	// Create Dummy 2 account with account type
 	fmt.Println("Creating dummy 2 account with account type...")
 
-	dummyTwoAccount, err = midazClient.V1.Accounts.Create(
+	dummyTwoAccount, err = midazClient.V2.Accounts.Create(
 		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Dummy 2 Account",
 			Type:      "deposit",

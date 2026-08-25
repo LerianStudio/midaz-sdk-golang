@@ -9,6 +9,24 @@ If this is your first time with the SDK, read the numbered examples in
 order. If you already know what you're looking for, jump to the relevant
 section below.
 
+## Which surface these examples use
+
+The SDK serves **both** Midaz ledger surfaces, and the version lives in
+the request path rather than in the base URL: `c.V1.<Service>` (14
+services) and `c.V2.<Service>` (22 services). Tracer accessors are not
+grouped — they stay flat on the client.
+
+Midaz deprecated all of /v1, so **these examples use `c.V2` by default**.
+Two flows deliberately stay on `c.V1`, because the endpoints they
+demonstrate exist only there:
+
+| Stays on V1 | Why |
+|---|---|
+| [`workflow-with-entities/`](workflow-with-entities/) transaction flows | `CreateJSON` and the nested send/source/distribute envelope: /v2 replaced the four /v1 creation styles with the flat top-level `direct`/`hold` actions |
+| asset rates | /v2 dropped the resource entirely |
+
+[`03-end-to-end/`](03-end-to-end/) shows the /v2 creation path.
+
 ## Start here
 
 | Example | Demonstrates | Body size |
@@ -20,7 +38,7 @@ section below.
 
 | Example | Demonstrates |
 |---|---|
-| [`03-end-to-end/`](03-end-to-end/) | Org → ledger → asset → account → transaction |
+| [`03-end-to-end/`](03-end-to-end/) | Creating a transaction on /v2 (`CreateDirect`) |
 | [`04-listing-cursor/`](04-listing-cursor/) | Cursor-based pagination with `iter.Seq2` |
 | [`05-listing-pages/`](05-listing-pages/) | Page-based pagination — `List` / `ListAll` / `ListPages` |
 

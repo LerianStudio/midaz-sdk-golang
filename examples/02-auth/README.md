@@ -8,7 +8,7 @@ production-shape auth path).
 - Loading auth configuration from environment variables via `config.FromEnvironment()`
 - Building a client with `WithAccessManager`
 - Constructing an organization via the typed input builder
-- Calling `c.Organizations.CreateOrganization` under a traced context
+- Calling `c.V2.Organizations.Create` under a traced context
 
 ## When to use this pattern
 

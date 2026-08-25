@@ -12,16 +12,25 @@
 //     cursor by hand. The wire-level shape; useful when you need explicit
 //     control over per-page behavior.
 //
-//  2. V1.Transactions.Pages — an iter.Seq2 over *ListResponse[T] pages.
+//  2. V2.Transactions.Pages — an iter.Seq2 over *ListResponse[T] pages.
 //     Use when you want page-level metadata (Pagination, ItemCount) but
 //     don't want to manage the cursor yourself.
 //
-//  3. V1.Transactions.All — an iter.Seq2 over individual T values.
+//  3. V2.Transactions.All — an iter.Seq2 over individual T values.
 //     The flattened, range-loop-friendly form. Use this 90% of the time.
 //
 // The same three shapes exist on every cursor-paginated surface — operations,
 // operation routes, transaction routes — as List / Pages / All under the
 // matching accessor; substitute the entity name and Filters type.
+//
+// WHAT A TRANSACTION LIST CAN ACTUALLY NARROW BY. The date range, the sort
+// direction and ONE metadata predicate — nothing else. Six fields on
+// models.TransactionsFilters (Status, AssetCode, Reference, SourceAccount,
+// DestinationAccount, Route) are refused before the request is built, on BOTH
+// surfaces, because the ledger never honored them: it parses two of them and
+// drops them on the floor, and never parses the other four. Setting one used
+// to return the whole unfiltered ledger with a nil error. Status and Route are
+// honored by Count — see countByStatus below.
 package main
 
 import (
@@ -80,6 +89,10 @@ func main() {
 	if err := earlyTermination(ctx, c, orgID, ledgerID); err != nil {
 		log.Printf("earlyTermination: %v", err)
 	}
+
+	if err := countByStatus(ctx, c, orgID, ledgerID); err != nil {
+		log.Printf("countByStatus: %v", err)
+	}
 }
 
 // manualCursorLoop demonstrates the wire-level cursor advance pattern.
@@ -88,14 +101,14 @@ func main() {
 func manualCursorLoop(ctx context.Context, c *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n[1] Manual cursor loop — explicit page advance")
 
+	// A date range is one of the three things this endpoint narrows by.
 	opts := models.TransactionsListOpts{
-		CursorListOpts: models.CursorListOpts{Limit: 50},
-		Filters:        models.TransactionsFilters{Status: string(models.TransactionStatusApproved)},
+		CursorListOpts: models.CursorListOpts{Limit: 50, StartDate: "2026-01-01"},
 	}
 
 	pageNum := 0
 	for {
-		page, err := c.V1.Transactions.List(ctx, orgID, ledgerID, opts)
+		page, err := c.V2.Transactions.List(ctx, orgID, ledgerID, opts)
 		if err != nil {
 			return fmt.Errorf("list transactions page %d: %w", pageNum, err)
 		}
@@ -113,19 +126,25 @@ func manualCursorLoop(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 	return nil
 }
 
-// pageIterator demonstrates V1.Transactions.Pages — the iter.Seq2 over
+// pageIterator demonstrates V2.Transactions.Pages — the iter.Seq2 over
 // *ListResponse pages. The cursor advance is fully automated; you keep
 // page-level metadata access.
 func pageIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID string) error {
-	fmt.Println("\n[2] V1.Transactions.Pages — page-level iter.Seq2")
+	fmt.Println("\n[2] V2.Transactions.Pages — page-level iter.Seq2")
 
+	// The metadata pair is the ONLY content filter a transaction list honors,
+	// which is why a correlation identifier belongs in the transaction's
+	// metadata at creation time rather than in a field the list cannot see.
 	opts := models.TransactionsListOpts{
 		CursorListOpts: models.CursorListOpts{Limit: 50},
-		Filters:        models.TransactionsFilters{AssetCode: "USD"},
+		Filters: models.TransactionsFilters{
+			MetadataKey:   "settlementBatch",
+			MetadataValue: "2026-01-15-EU",
+		},
 	}
 
 	pageNum := 0
-	for page, err := range c.V1.Transactions.Pages(ctx, orgID, ledgerID, opts) {
+	for page, err := range c.V2.Transactions.Pages(ctx, orgID, ledgerID, opts) {
 		if err != nil {
 			return fmt.Errorf("page iter: %w", err)
 		}
@@ -150,7 +169,7 @@ func flatItemIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID, acc
 	}
 
 	count := 0
-	for op, err := range c.V1.Operations.ListOperationsAll(ctx, orgID, ledgerID, accountID, opts) {
+	for op, err := range c.V2.Operations.ListOperationsAll(ctx, orgID, ledgerID, accountID, opts) {
 		if err != nil {
 			return fmt.Errorf("operation iter: %w", err)
 		}
@@ -177,7 +196,7 @@ func earlyTermination(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 		CursorListOpts: models.CursorListOpts{Limit: 25},
 	}
 
-	for tx, err := range c.V1.Transactions.All(ctx, orgID, ledgerID, opts) {
+	for tx, err := range c.V2.Transactions.All(ctx, orgID, ledgerID, opts) {
 		if err != nil {
 			return fmt.Errorf("tx iter: %w", err)
 		}
@@ -190,6 +209,39 @@ func earlyTermination(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 			break
 		}
 	}
+
+	return nil
+}
+
+// countByStatus shows where Status and Route narrowing DID survive: the count
+// endpoint honors both, and it is the only place on the transaction surface
+// that does.
+//
+// The trap worth knowing: Count's default window is TODAY, not the ledger.
+// Leave StartDate and EndDate unset and the server fills in the current UTC
+// day, so a zero-options Count answers "how many transactions today" — a
+// plausible-looking number a caller reading it as the ledger total will
+// misread. The dates take the same YYYY-MM-DD spelling List takes, and both
+// bounds name a whole, inclusive day.
+func countByStatus(ctx context.Context, c *midaz.Client, orgID, ledgerID string) error {
+	fmt.Println("\n[5] V2.Transactions.Count — where Status and Route do narrow")
+
+	opts := models.TransactionsListOpts{
+		CursorListOpts: models.CursorListOpts{
+			StartDate: "2026-01-01",
+			EndDate:   "2026-01-31",
+		},
+		Filters: models.TransactionsFilters{
+			Status: string(models.TransactionStatusApproved),
+		},
+	}
+
+	n, err := c.V2.Transactions.Count(ctx, orgID, ledgerID, opts)
+	if err != nil {
+		return fmt.Errorf("count transactions: %w", err)
+	}
+
+	fmt.Printf("  approved in January 2026: %d\n", n)
 
 	return nil
 }
