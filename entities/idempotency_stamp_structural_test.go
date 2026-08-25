@@ -380,10 +380,18 @@ func requestBuilderMethod(t *testing.T, fn *ast.FuncDecl) (string, bool) {
 	return method, found
 }
 
-// delegatesToRequestBuilder reports whether fn's body calls another
-// name-matched generated request builder (the JSON-body wrapper pattern:
-// NewXRequest marshals and calls NewXRequestWithBody).
+// delegatesToRequestBuilder reports whether fn's body calls another generated
+// request builder for the SAME operation (the JSON-body wrapper pattern:
+// NewXRequest marshals and calls NewXRequestWithBody). The operation identity
+// is compared, not mere builder-ness — a wrapper delegating to a DIFFERENT
+// operation's builder would otherwise launder its own operation out of the
+// derived universes.
 func delegatesToRequestBuilder(fn *ast.FuncDecl) bool {
+	op, ok := requestBuilderOperation(fn.Name.Name)
+	if !ok {
+		return false
+	}
+
 	delegates := false
 
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
@@ -397,7 +405,7 @@ func delegatesToRequestBuilder(fn *ast.FuncDecl) bool {
 			return true
 		}
 
-		if _, ok := requestBuilderOperation(callee.Name); ok {
+		if calleeOp, ok := requestBuilderOperation(callee.Name); ok && calleeOp == op {
 			delegates = true
 			return false
 		}
