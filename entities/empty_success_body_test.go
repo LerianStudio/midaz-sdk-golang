@@ -203,9 +203,11 @@ var listReads = []struct {
 	name string
 	// emptyPage is what a REAL empty page looks like on this endpoint. It is
 	// the other half of the guard: one that refused everything would pass the
-	// no-page cases too. The ledger envelope marks items and limit REQUIRED;
-	// each tracer list names its own collection field instead, so the shape is
-	// per-row and a shared body would exercise none of them.
+	// no-page cases too. The bodies are spelled per-row so each stays true to
+	// its envelope, but this half proves only that the guard ACCEPTS a real
+	// empty page — json.Unmarshal ignores unknown fields, so a wrong-shaped
+	// body here would still pass. Envelope decoding is pinned by each facade's
+	// own tests, not by this table.
 	emptyPage string
 	call      func(t *testing.T, srv *httptest.Server) error
 }{
@@ -417,6 +419,17 @@ var bareArrayReads = []struct {
 
 			got, err := newBalancesV2Facade(newTestLedgerClient(t, srv), true).
 				GetAccountBalancesHistory(context.Background(), txOrgID, txLedgerID, txID, balanceInstant)
+
+			return len(got), err
+		},
+	},
+	{
+		name: "V2.MetadataIndexes.List",
+		call: func(t *testing.T, srv *httptest.Server) (int, error) {
+			t.Helper()
+
+			got, err := newMetadataIndexesV2Facade(newTestLedgerClient(t, srv), true).
+				List(context.Background(), "transaction")
 
 			return len(got), err
 		},
