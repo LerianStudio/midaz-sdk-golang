@@ -87,15 +87,46 @@ var (
 // stops keeping up. This asserts the property instead, on every write at once,
 // derived from the generated clients at test time so a write added tomorrow is
 // covered when it lands.
+//
+// # Where the write universe comes from
+//
+// writeOperations DERIVES it by parsing ../internal/genledger and
+// ../internal/gentracer and keeping every request builder whose body issues
+// POST, PUT, PATCH or DELETE. Nothing here is hand-maintained, so there is no
+// list to forget to update and the stamped floor below is a backstop against the
+// SCAN breaking, not against a missed entry. It is 122 today, which is exactly
+// the 60 POST + 32 PATCH + 29 DELETE + 1 PUT the generated clients issue.
+//
+// The residual is the reading, not the coverage: the method is matched in the
+// builder's SOURCE TEXT as a literal http.NewRequest("POST" and so on, because
+// that is how oapi-codegen writes it. A generated builder that computed its
+// method would not match and its operation would drop out of the universe
+// silently. All 225 http.NewRequest calls across both generated clients spell it
+// as a bare literal today, so the residual is currently empty; it reopens only if
+// oapi-codegen changes how it emits the call.
+//
+// # Credit attaches to the OCCURRENCE, never to the function
+//
+// The previous version asked stampsIdempotency(fn): a FUNCTION-LEVEL boolean.
+// One stamped write credited every write the function named, because the boolean
+// had already been satisfied somewhere in the body — so a facade that resolved a
+// key for one create and posted a second write beside it with none passed. Live
+// exposure is zero only because every facade method names one write today, and
+// this is the same shape a review turned into an unguarded destructive request in
+// the sibling path-guard scan.
+//
+// A write OPERATION CALL is now accounted individually, and every unaccounted
+// call is reported, same-named or not.
 func TestEveryWriteStampsIdempotency(t *testing.T) {
 	fset := token.NewFileSet()
 
 	writeOps := writeOperations(t, fset)
 	require.NotEmpty(t, writeOps, "found no generated write operations; the scan is broken, not the code")
 
+	scan := &idempotencyStampScan{fset: fset, writeOps: writeOps}
+
 	var unstamped []string
 
-	stamped := 0
 	preparerResolves := map[string]bool{}
 
 	for name, file := range parseGoFiles(t, fset, ".") {
@@ -109,18 +140,15 @@ func TestEveryWriteStampsIdempotency(t *testing.T) {
 				preparerResolves[fn.Name.Name] = callsAny(fn, func(n string) bool { return idempotencyHelpers[n] })
 			}
 
-			switch complaint, counts := classifyWrite(fn, writeOps, fset, name); {
-			case complaint != "":
-				unstamped = append(unstamped, complaint)
-			case counts:
-				stamped++
-			}
+			unstamped = append(unstamped, scan.offences(name, fn)...)
 		}
 	}
 
 	// A stamp preparer takes no generated operation of its own, so the loop above
 	// cannot see it. Its callers are credited purely on the promise that it
-	// resolves a key, so that promise is checked here.
+	// resolves a key, so that promise is checked here. This one IS a
+	// function-level question — does this helper resolve a key anywhere in its
+	// body — because the helper exists to do nothing else.
 	for name := range stampPreparers {
 		require.True(t, preparerResolves[name],
 			"%s is credited as the idempotency wiring for the facade methods that delegate to it, "+
@@ -134,30 +162,73 @@ func TestEveryWriteStampsIdempotency(t *testing.T) {
 			"posts the write twice:\n  %s",
 		strings.Join(unstamped, "\n  "))
 
-	t.Logf("idempotency resolved on %d facade functions across %d generated write operations",
-		stamped, len(writeOps))
+	t.Logf("idempotency resolved on %d write call sites across %d generated write operations",
+		scan.stamped, len(writeOps))
 
-	// A floor, so a scan that stops matching cannot read as success.
-	require.Greater(t, stamped, 70,
-		"expected the idempotency wiring on more than 70 facade functions; found %d", stamped)
+	// A floor, so a scan that stops matching cannot read as success. It counts
+	// CALL SITES rather than functions, which is the same 109 while every facade
+	// names one write, and the honest number the moment one names two.
+	require.Greater(t, scan.stamped, 70,
+		"expected the idempotency wiring on more than 70 write call sites; found %d", scan.stamped)
 }
 
-// classifyWrite reports what one facade function does about idempotency: a
-// complaint when it writes without resolving a key, otherwise whether it counts
-// towards the stamped floor.
-func classifyWrite(fn *ast.FuncDecl, writeOps map[string]bool, fset *token.FileSet, file string) (complaint string, counts bool) {
-	ops := writeOperationsNamedBy(fn, writeOps)
-	if len(ops) == 0 || allExempt(ops) {
-		return "", false
+// idempotencyStampScan carries the derived write universe and the credit the
+// walk accumulates: one count per accounted write CALL.
+type idempotencyStampScan struct {
+	fset     *token.FileSet
+	writeOps map[string]bool
+
+	stamped int
+}
+
+// offences reports every write call in one facade function that leaves without
+// an idempotency key, and credits the ones that do not.
+//
+// Each mention is judged in this order:
+//
+//  1. an operation on the deliberate no-key list is skipped outright, wherever it
+//     is named. The exemption is a statement about the OPERATION — the tracer
+//     dedups it on the body, or it moves no money — so it holds however the call
+//     is reached, which is what lets the rule and reservation transitions hand
+//     the operation to a helper as a function value;
+//  2. every other mention must be the CALLEE of a call. A mention anywhere else
+//     is a value this scan cannot follow to a request, so it is reported rather
+//     than credited;
+//  3. that call must carry a key — see carriesStamp.
+func (s *idempotencyStampScan) offences(file string, fn *ast.FuncDecl) []string {
+	mentions := writeMentions(fn.Body, s.writeOps)
+	if len(mentions) == 0 {
+		return nil
 	}
 
-	if stampsIdempotency(fn) {
-		return "", true
+	site := " (" + filepath.Base(file) + ":" + strconv.Itoa(s.fset.Position(fn.Pos()).Line) + ")"
+	carriers := stampCarriers(fn, bodyVariables(fn))
+
+	var problems []string
+
+	for _, sel := range mentions {
+		op, _ := generatedOperation(sel.Sel.Name)
+		if _, exempt := unstampedWrites[op]; exempt {
+			continue
+		}
+
+		where := op + " on line " + strconv.Itoa(s.fset.Position(sel.Pos()).Line)
+
+		call, called := calleeCallOf(fn, sel)
+
+		switch {
+		case !called:
+			problems = append(problems, funcLabel(fn)+site+" names "+where+
+				" without calling it there, so no idempotency key can be verified for that mention")
+		case !carriesStamp(call, carriers):
+			problems = append(problems, funcLabel(fn)+site+" writes via "+where+
+				" without an idempotency key")
+		default:
+			s.stamped++
+		}
 	}
 
-	return funcLabel(fn) + " writes via " + strings.Join(ops, ", ") +
-		" without an idempotency key (" + filepath.Base(file) + ":" +
-		strconv.Itoa(fset.Position(fn.Pos()).Line) + ")", false
+	return problems
 }
 
 // writeOperationMethods are the HTTP methods that can change state. HEAD and GET
@@ -211,43 +282,150 @@ func collectWriteOperations(t *testing.T, path string, file *ast.File, ops map[s
 	}
 }
 
-// writeOperationsNamedBy returns the write operations a facade function names.
-func writeOperationsNamedBy(fn *ast.FuncDecl, writeOps map[string]bool) []string {
-	seen := map[string]bool{}
+// writeMentions returns the mentions of a generated write operation inside a
+// node — one entry per OCCURRENCE, not one per operation.
+//
+// Returning NODES rather than names is what lets the caller judge each mention
+// where it sits. A set keyed by operation name collapses every distinct mention
+// of one operation into a single entry, which is how one stamped write used to
+// launder every other mention of that name in the same function.
+func writeMentions(node ast.Node, writeOps map[string]bool) []*ast.SelectorExpr {
+	var mentions []*ast.SelectorExpr
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
+	ast.Inspect(node, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
 
 		if op, ok := generatedOperation(sel.Sel.Name); ok && writeOps[op] {
-			seen[op] = true
+			mentions = append(mentions, sel)
 		}
 
 		return true
 	})
 
-	return sortedKeys(seen)
+	return mentions
 }
 
-// allExempt reports whether every operation the function names is on the
-// deliberate no-key list. A function mixing an exempt write with a real one is
-// NOT exempt.
-func allExempt(ops []string) bool {
-	for _, op := range ops {
-		if _, ok := unstampedWrites[op]; !ok {
-			return false
+// carriesStamp reports whether ONE write call resolves a key.
+//
+// Two positions count, and both are properties of THIS call rather than of the
+// function around it:
+//
+//   - a stamp call is a direct argument of the write call. That is the ledger and
+//     tracer shape, where the resolved editors are the variadic tail:
+//     f.ledger.DeleteAsset(ctx, ..., idempotencyEditors(ctx, gate)...); or
+//   - the write call names a body variable that a stamp call touched — see
+//     stampCarriers. That is the transactions shape, where the key lands on a
+//     params struct (applyIdempotency(&params.XIdempotency, ...)) or comes back
+//     out of prepareCreate, and the struct is then handed to the generated method.
+//
+// # What this matcher can and cannot see
+//
+// It is source-structural. There is no type information and no dataflow: it
+// matches the identifiers a stamp call touches against the identifiers a write
+// call mentions, and it cannot prove that the variable it matched is the one
+// carrying the key. Its two known residuals, both in the loosening direction:
+//
+//   - a stamp call's ARGUMENTS credit every body variable they name, so a
+//     variable passed to a stamp for some other reason would credit a write that
+//     also names it. Live, the only such variables are the params structs the
+//     stamp writes into, which is the intended link;
+//   - an assignment FROM a stamp preparer credits every body variable on its left,
+//     err included, because the carrier and the error come back together
+//     (scoped, params, err := prepareCreate(...)). No generated client method takes
+//     an error, so nothing live can be credited through that name.
+//
+// Parameters, the receiver and body constants are excluded from both sides by
+// bodyVariables, which is what stops ctx — shared by every call in the function
+// by construction — from linking anything to anything.
+func carriesStamp(call *ast.CallExpr, carriers map[string]bool) bool {
+	for _, arg := range call.Args {
+		if inner, ok := ast.Unparen(arg).(*ast.CallExpr); ok && isStampCall(inner) {
+			return true
 		}
 	}
 
-	return true
+	for name := range identifiersIn(call.Args) {
+		if carriers[name] {
+			return true
+		}
+	}
+
+	return false
 }
 
-// stampsIdempotency reports whether the function routes through one of the
-// helpers that put a key on the wire — directly, or via a stamp preparer.
-func stampsIdempotency(fn *ast.FuncDecl) bool {
-	return callsAny(fn, func(name string) bool {
-		return idempotencyHelpers[name] || stampPreparers[name]
+// stampCarriers returns the body variables a stamp call touches: the ones it
+// RECEIVES, and the ones it is ASSIGNED TO.
+//
+// Both directions are needed because the two live shapes point opposite ways.
+// applyIdempotency writes the key THROUGH its argument, so the carrier is on the
+// way in; prepareCreate returns the resolved params, so the carrier is on the way
+// out.
+func stampCarriers(fn *ast.FuncDecl, locals map[string]bool) map[string]bool {
+	carriers := map[string]bool{}
+
+	collectStampArguments(fn, locals, carriers)
+	collectStampResults(fn, locals, carriers)
+
+	return carriers
+}
+
+// collectStampArguments records the body variables a stamp call RECEIVES, which
+// is the direction applyIdempotency writes in.
+func collectStampArguments(fn *ast.FuncDecl, locals, carriers map[string]bool) {
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isStampCall(call) {
+			return true
+		}
+
+		for name := range identifiersIn(call.Args) {
+			if locals[name] {
+				carriers[name] = true
+			}
+		}
+
+		return true
 	})
+}
+
+// collectStampResults records the body variables a stamp call is ASSIGNED TO,
+// which is the direction prepareCreate returns in.
+func collectStampResults(fn *ast.FuncDecl, locals, carriers map[string]bool) {
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok || !assignsStampResult(assign) {
+			return true
+		}
+
+		for _, lhs := range assign.Lhs {
+			if ident, ok := ast.Unparen(lhs).(*ast.Ident); ok && locals[ident.Name] {
+				carriers[ident.Name] = true
+			}
+		}
+
+		return true
+	})
+}
+
+// isStampCall reports whether a call puts a key on the wire or resolves one on a
+// caller's behalf.
+func isStampCall(call *ast.CallExpr) bool {
+	name, ok := calleeName(call.Fun)
+
+	return ok && (idempotencyHelpers[name] || stampPreparers[name])
+}
+
+// assignsStampResult reports whether the assignment binds the results of a stamp
+// call.
+func assignsStampResult(assign *ast.AssignStmt) bool {
+	for _, rhs := range assign.Rhs {
+		if call, ok := ast.Unparen(rhs).(*ast.CallExpr); ok && isStampCall(call) {
+			return true
+		}
+	}
+
+	return false
 }
