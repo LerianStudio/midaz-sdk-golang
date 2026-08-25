@@ -884,9 +884,10 @@ func guardAssignment(stmt ast.Stmt, name string) (string, *ast.CallExpr, bool) {
 }
 
 // comparesNotNil reports whether cond is exactly `errName != nil`, in either
-// operand order and with nothing else attached.
+// operand order, with nothing else attached and through any redundant
+// parentheses.
 func comparesNotNil(cond ast.Expr, errName string) bool {
-	binary, ok := cond.(*ast.BinaryExpr)
+	binary, ok := ast.Unparen(cond).(*ast.BinaryExpr)
 	if !ok || binary.Op != token.NEQ {
 		return false
 	}
@@ -944,9 +945,16 @@ func returnsOnlyIdent(body *ast.BlockStmt, errName string) bool {
 	return false
 }
 
-// isIdent reports whether an expression is exactly the identifier name.
+// isIdent reports whether an expression is exactly the identifier name, reading
+// through any redundant parentheses around it.
+//
+// Parentheses carry no meaning here — `(err) != (nil)` and `return nil, (err)`
+// are the same guard as the live spelling — so refusing them is a pure false
+// positive, and one that reads as a real finding to whoever hits it. Unparen at
+// every position the matcher inspects admits no value it would otherwise refuse:
+// `ast.Unparen` strips grouping and nothing else.
 func isIdent(expr ast.Expr, name string) bool {
-	ident, ok := expr.(*ast.Ident)
+	ident, ok := ast.Unparen(expr).(*ast.Ident)
 
 	return ok && ident.Name == name
 }
