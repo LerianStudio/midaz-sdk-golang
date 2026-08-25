@@ -102,7 +102,8 @@ const pathIDGuard = "requirePathIDs"
 //     transitionHelpers. The branch that tried to judge this AT THE CALL SITE is
 //     deleted: it had zero live users and four ways to be talked into crediting
 //     an unguarded id. Delegation to a helper the scan does not know is now
-//     REPORTED — see unknownDelegation;
+//     REPORTED — see unaccountedMentions, which carries that deleted branch's
+//     four escapes and why closing them in place bought nothing;
 //   - the operation NAMED but never directly called, standing beside an honest
 //     guard and an honest direct read. The report above was written but was
 //     unreachable: any direct call at all sent the function down the direct
@@ -129,14 +130,20 @@ const pathIDGuard = "requirePathIDs"
 //
 //   - a guarded variable REASSIGNED between the guard and the call —
 //     requirePathIDs(op, "id", id), then id = "..", then f.ledger.GetX(ctx, id);
-//   - an inner scope SHADOWING a guarded name, so the identifier the call
-//     forwards is a different variable wearing the same spelling. The same hole
-//     exists one level up, on the guard FUNCTION's own name: a local
+//   - an inner scope SHADOWING a name this scan matches by SPELLING, and there
+//     are three families of such name, not one. The guarded VALUES: the
+//     identifier the call forwards is a different variable wearing the spelling
+//     the guard received. The guard FUNCTION itself: a local
 //     `requirePathIDs := func(...) error { return nil }` makes every guard below
 //     it vacuous while every part of the four-part shape stays perfect, so the
-//     scan credits it. Both halves are the same defect — an identifier matched
-//     by SPELLING against a definition the scan never resolves — and both need
-//     the same tool;
+//     scan credits it. And a TRANSITION HELPER's name: a local
+//     `ruleTransition := func(...) { ... }` is matched against transitionHelpers
+//     by spelling too, so the delegation inherits the real helper's credit —
+//     helperGuardsWhatItForwards checks the package-level declaration while the
+//     call site reaches the closure, and the promise the credit rests on was
+//     made by code that never runs. All three are one defect — an identifier
+//     matched by SPELLING against a definition the scan never resolves — and one
+//     tool (identifier resolution) closes all three;
 //   - the guard reached through a VALUE rather than by name: `g := requirePathIDs`
 //     and then `g(op, "id", id)`. deformedGuardCalls matches call.Fun against the
 //     literal identifier requirePathIDs, so a hoisted guard is not a guard call
@@ -174,7 +181,7 @@ const pathIDGuard = "requirePathIDs"
 //
 // # Accepted strictness, so nobody "fixes" it
 //
-// Eight false positives are deliberate, and each is the price of a match that
+// Nine false positives are deliberate, and each is the price of a match that
 // cannot be talked into accepting a hostile input. Each one names the one-line
 // change a contributor makes at the site; none of them is a reason to widen the
 // matcher, because every widening that admits one of these admits a shape from
@@ -242,6 +249,18 @@ const pathIDGuard = "requirePathIDs"
 //     compared — that can only ADD findings, never remove one, and it can no
 //     longer change a verdict, since the binding itself is already reported. Fix
 //     at the site: call the operation directly.
+//   - A PARENTHESISED transition-helper NAME is reported:
+//     `(ruleTransition)(ctx, op, f.tracer.ActivateRule, id)` refuses, because
+//     calleeName reads through a generic helper's type arguments and nothing
+//     else, so the call is not recognised as a transition call at all and the
+//     operation it hands over becomes an unaccounted mention. That is the same
+//     "nothing else is read through" rule accountedMentionNodes states for the
+//     ARGUMENT side, and it stays strict here for a reason the argument side
+//     does not share: unparenthesising an ARGUMENT credits the one node that
+//     would have been credited anyway, while unparenthesising a CALLEE turns a
+//     call this scan does not know into a transition call, which credits every
+//     element of its argument list at once. Widening credit and widening a
+//     report are not the same risk. Fix at the site: drop the parentheses.
 //   - A MULTI-VALUE CALL EXPANSION is reported:
 //     `f.ledger.GetSegmentByID(probeScope(ctx, orgID, ledgerID, id))` — Go's
 //     spelling for forwarding one call's results as another call's whole
@@ -623,9 +642,9 @@ func (s pathGuardScan) unaccountedMentionOffence(
 // Its one caller is helperGuardsWhatItForwards, so the call it reads is always a
 // call to a KNOWN transition helper's function-typed parameter: the generated
 // method itself. That is what makes the exclusions below sound — see
-// unknownDelegation for the branch that applied the same exclusions to an
-// arbitrary local helper, where two of them stopped being true, and for why that
-// branch is gone.
+// unaccountedMentions for the deleted branch that applied these same exclusions
+// to an arbitrary local helper, where two of them stopped being true, and for
+// why that branch is gone rather than repaired.
 //
 // # Expression text, not identifiers
 //
@@ -644,9 +663,11 @@ func (s pathGuardScan) unaccountedMentionOffence(
 //
 //   - fn's CONTEXT parameter, by name rather than by position. The positional
 //     "the context is argument 0" assumption is true of every helper today and
-//     costs nothing to drop. By NAME is a weaker rule than by TYPE, and the
-//     residual is recorded on unknownDelegation; it survives here because the
-//     three helpers this now runs on are a literal list a human curates.
+//     costs nothing to drop. By NAME is a weaker rule than by TYPE — a value
+//     spelled like the context parameter is dropped without ever being compared
+//     — and that residual is the fourth of the four escapes recorded on
+//     unaccountedMentions. It survives here because the three helpers this now
+//     runs on are a literal list a human curates.
 //
 //   - a LITERAL, and a local `const operation = "Segments.Get"`. Both are fixed
 //     at compile time; the const is the error label every facade declares, and it
