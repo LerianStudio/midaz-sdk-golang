@@ -236,17 +236,189 @@ func (s pathGuardScan) classify(path string, decl ast.Decl, helperGuards map[str
 		return "", 1
 	}
 
-	// Nothing was called and nothing was delegated, so the only thing that can
-	// still stand for a guard is a requirePathIDs call carrying real pairs. The
-	// pairs are what makes the difference: requirePathIDs(operation) with no
-	// pairs returns nil on an empty list, so accepting the call's PRESENCE here
-	// re-opens the vacuous guard this scan exists to reject — one hoisted local
-	// away.
-	if len(guardedValues(fn, fn.Body.End())) > 0 {
-		return "", 1
+	return s.creditForwardedOperation(fn, ops, site)
+}
+
+// creditForwardedOperation judges the last shape: the function NAMES a
+// path-parameter operation, does not call it, and does not delegate to a known
+// transition helper — so it hands the operation to some other package-local
+// helper as a function value.
+//
+// Two things have to hold, and for a while only the first did.
+//
+// The guard must carry real pairs. requirePathIDs(operation) with no pairs
+// returns nil on an empty list, so accepting the call's PRESENCE re-opens the
+// vacuous guard this scan exists to reject, one hoisted local away.
+//
+// And the pairs have to be the RIGHT ones. Crediting any non-empty guard let a
+// facade pass with a token:
+//
+//	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+//		return nil, err
+//	}
+//	return fourthTransition(ctx, operation, f.tracer.ActivateRule, id)
+//
+// orgID is guarded and never becomes a path segment; id becomes one and is
+// guarded by nothing. A fourth transition helper written tomorrow gets that for
+// free, because transitionHelpers is a literal list and the helper is not on it
+// — which is the point of keeping that list literal, but it means the call site
+// cannot be credited on the helper's behalf.
+//
+// So the rule helperGuardsWhatItForwards applies INSIDE a known helper is
+// applied here at the CALL SITE: every plain identifier handed to the helper
+// alongside the operation value must be one the guard received. Identifiers are
+// the only arguments checked, for the same reason the direct-call comparison
+// only accepts identifiers — a derived expression cannot be matched against a
+// guarded name without accepting orgID + "/../" along with it.
+func (s pathGuardScan) creditForwardedOperation(fn *ast.FuncDecl, ops []string, site string) (string, int) {
+	checked := guardedValues(fn, fn.Body.End())
+	if len(checked) == 0 {
+		return funcLabel(fn) + " reaches " + strings.Join(ops, ", ") + site, 0
 	}
 
-	return funcLabel(fn) + " reaches " + strings.Join(ops, ", ") + site, 0
+	if missing := unguardedForwardedValues(fn, s.pathOps, checked); len(missing) > 0 {
+		return funcLabel(fn) + " forwards " + strings.Join(missing, ", ") + " alongside " +
+			strings.Join(ops, ", ") + " without handing it to requirePathIDs" + site, 0
+	}
+
+	return "", 1
+}
+
+// unguardedForwardedValues returns the identifiers fn hands to a helper in the
+// same call that carries a generated path-parameter operation as a value, and
+// that the guard did not receive.
+func unguardedForwardedValues(fn *ast.FuncDecl, pathOps map[string]bool, checked map[string]bool) []string {
+	var missing []string
+
+	for _, call := range callsCarryingAnOperationValue(fn, pathOps) {
+		for _, name := range forwardedIdentifiers(fn, call) {
+			if !checked[name] {
+				missing = append(missing, name)
+			}
+		}
+	}
+
+	sort.Strings(missing)
+
+	return missing
+}
+
+// callsCarryingAnOperationValue returns the calls in fn that pass a generated
+// path-parameter operation as an ARGUMENT — the delegation shape, where the
+// operation is named but never invoked here.
+func callsCarryingAnOperationValue(fn *ast.FuncDecl, pathOps map[string]bool) []*ast.CallExpr {
+	var calls []*ast.CallExpr
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		for _, arg := range call.Args {
+			sel, ok := arg.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+
+			if op, ok := generatedOperation(sel.Sel.Name); ok && pathOps[op] {
+				calls = append(calls, call)
+				break
+			}
+		}
+
+		return true
+	})
+
+	return calls
+}
+
+// forwardedIdentifiers returns the plain identifier arguments of one call that
+// could carry a caller's value: everything except fn's context parameter and its
+// own local string constants.
+//
+// The context is excluded by NAME rather than by position. Both callers used to
+// assume the context sits at argument 0 — true of every helper today, and an
+// assumption that costs nothing to drop.
+//
+// A local `const operation = "Segments.Get"` is excluded because it is fixed at
+// compile time: it is the error label every facade declares, it cannot carry
+// ".." in from a caller, and it cannot become a path segment. Requiring it to be
+// guarded would be a false positive on the correctly-written form of the very
+// shape this check exists to catch.
+func forwardedIdentifiers(fn *ast.FuncDecl, call *ast.CallExpr) []string {
+	ctxName := contextParameter(fn)
+	constants := localStringConstants(fn)
+
+	var names []string
+
+	for _, arg := range call.Args {
+		if ident, ok := arg.(*ast.Ident); ok && ident.Name != ctxName && !constants[ident.Name] {
+			names = append(names, ident.Name)
+		}
+	}
+
+	return names
+}
+
+// localStringConstants returns the names fn binds to a string literal in a const
+// declaration of its own.
+func localStringConstants(fn *ast.FuncDecl) map[string]bool {
+	names := map[string]bool{}
+
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		decl, ok := n.(*ast.GenDecl)
+		if !ok || decl.Tok != token.CONST {
+			return true
+		}
+
+		for _, spec := range decl.Specs {
+			collectStringConstantNames(spec, names)
+		}
+
+		return true
+	})
+
+	return names
+}
+
+// collectStringConstantNames records the names in one const spec bound to a
+// string literal.
+func collectStringConstantNames(spec ast.Spec, names map[string]bool) {
+	value, ok := spec.(*ast.ValueSpec)
+	if !ok {
+		return
+	}
+
+	for i, name := range value.Names {
+		if i >= len(value.Values) {
+			continue
+		}
+
+		if lit, ok := value.Values[i].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			names[name.Name] = true
+		}
+	}
+}
+
+// contextParameter returns the name of fn's context.Context parameter, or "".
+func contextParameter(fn *ast.FuncDecl) string {
+	if fn.Type.Params == nil {
+		return ""
+	}
+
+	for _, field := range fn.Type.Params.List {
+		sel, ok := field.Type.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Context" || len(field.Names) == 0 {
+			continue
+		}
+
+		if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "context" {
+			return field.Names[0].Name
+		}
+	}
+
+	return ""
 }
 
 // delegatesToTransitionHelper reports whether fn hands its generated operation to
@@ -646,10 +818,12 @@ func helperGuardsWhatItForwards(fn *ast.FuncDecl) bool {
 	guarded := true
 
 	for _, call := range forwards {
-		// Skip the context at position 0; a variadic editor call is not an
-		// identifier and drops out with everything else that is not one.
-		for _, arg := range call.Args[1:] {
-			if ident, ok := arg.(*ast.Ident); ok && !checked[ident.Name] {
+		// forwardedIdentifiers drops the context and everything that is not a
+		// plain identifier, which is what removes a variadic editor call. It is
+		// the same rule creditForwardedOperation applies at the CALL site, so the
+		// helper and its callers are judged by one implementation rather than two.
+		for _, name := range forwardedIdentifiers(fn, call) {
+			if !checked[name] {
 				guarded = false
 			}
 		}
