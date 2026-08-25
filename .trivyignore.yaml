@@ -1,0 +1,24 @@
+# Suppressions for the CI filesystem scan (pr-validation.yml passes this file
+# to the shared security workflow).
+#
+# Every entry below lives in the oapi-codegen TOOL dependency chain: it is a
+# `tool` directive dependency used only at development time to regenerate
+# internal/genledger and internal/gentracer (make generate / the codegen-drift
+# check). None of this code is imported by the shipped library, so none of it
+# ever runs in a consumer's binary. Upgrading the chain (oapi-codegen v2.7.x +
+# kin-openapi v0.144.x) changes the generated-code layout and is tracked as a
+# follow-up: the structural scans in entities/ parse the generated files and
+# must be taught the new layout before the regeneration can land.
+vulnerabilities:
+  - id: GHSA-r277-6w6q-xmqw
+    statement: kin-openapi is a dev-time codegen-tool dependency; the SDK never loads OpenAPI documents at runtime.
+  - id: CVE-2025-30153
+    statement: kin-openapi is a dev-time codegen-tool dependency; the SDK never loads OpenAPI documents at runtime.
+  - id: CVE-2026-76905
+    statement: kin-openapi is a dev-time codegen-tool dependency; the SDK never loads OpenAPI documents at runtime.
+  - id: CVE-2026-77354
+    statement: kin-openapi is a dev-time codegen-tool dependency; the SDK never loads OpenAPI documents at runtime.
+  - id: CVE-2026-73502
+    statement: kin-openapi is a dev-time codegen-tool dependency; the SDK never loads OpenAPI documents at runtime.
+  - id: GHSA-rjwr-m7qx-3fjr
+    statement: oapi-codegen is the dev-time codegen tool itself; its generated-server escaping flaw cannot reach the shipped library.
