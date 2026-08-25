@@ -122,12 +122,8 @@ func (f *organizationsFacade) Create(ctx context.Context, input *models.CreateOr
 	}
 
 	return writeJSON[models.Organization](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateOrganizationWithBodyWithResponse(ctx, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateOrganizationWithBody(ctx, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -141,12 +137,10 @@ func (f *organizationsFacade) Get(ctx context.Context, id string) (*models.Organ
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetOrganizationByIDWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetOrganizationByID(ctx, id)
 
-	return decodeOne[models.Organization](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Organization](operation, resp, err)
 }
 
 // Update patches an organization by ID. Same write-facade pattern as Create.
@@ -162,12 +156,8 @@ func (f *organizationsFacade) Update(ctx context.Context, id string, input *mode
 	}
 
 	return writeJSON[models.Organization](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateOrganizationWithBodyWithResponse(ctx, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateOrganizationWithBody(ctx, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 

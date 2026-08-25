@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // accountTypesFacade is the Phase 2 (Task 2.1.b) hand-written facade over the
@@ -114,12 +113,8 @@ func (f *accountTypesFacade) Create(ctx context.Context, orgID, ledgerID string,
 	}
 
 	return writeJSON[models.AccountType](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateAccountTypeWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateAccountTypeWithBody(ctx, orgID, ledgerID, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -131,12 +126,10 @@ func (f *accountTypesFacade) Get(ctx context.Context, orgID, ledgerID, id string
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAccountTypeByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountTypeByID(ctx, orgID, ledgerID, id)
 
-	return decodeOne[models.AccountType](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.AccountType](operation, resp, err)
 }
 
 // Update patches an account type by ID under an org+ledger. Same write-facade
@@ -153,12 +146,8 @@ func (f *accountTypesFacade) Update(ctx context.Context, orgID, ledgerID, id str
 	}
 
 	return writeJSON[models.AccountType](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateAccountTypeWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateAccountTypeWithBody(ctx, orgID, ledgerID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 

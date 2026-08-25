@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // segmentsFacade is the Phase 2 (Task 2.1.a) hand-written facade over the
@@ -110,12 +109,8 @@ func (f *segmentsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 	}
 
 	return writeJSON[models.Segment](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateSegmentWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateSegmentWithBody(ctx, orgID, ledgerID, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -127,12 +122,10 @@ func (f *segmentsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetSegmentByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetSegmentByID(ctx, orgID, ledgerID, id)
 
-	return decodeOne[models.Segment](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Segment](operation, resp, err)
 }
 
 // Update patches a segment by ID under an org+ledger. Same write-facade pattern
@@ -149,12 +142,8 @@ func (f *segmentsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 	}
 
 	return writeJSON[models.Segment](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateSegmentWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateSegmentWithBody(ctx, orgID, ledgerID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 

@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // portfoliosFacade is the Phase 2 (Task 2.1.a) hand-written facade over the
@@ -106,12 +105,8 @@ func (f *portfoliosFacade) Create(ctx context.Context, orgID, ledgerID string, i
 	}
 
 	return writeJSON[models.Portfolio](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreatePortfolioWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreatePortfolioWithBody(ctx, orgID, ledgerID, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -123,12 +118,10 @@ func (f *portfoliosFacade) Get(ctx context.Context, orgID, ledgerID, id string) 
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetPortfolioByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetPortfolioByID(ctx, orgID, ledgerID, id)
 
-	return decodeOne[models.Portfolio](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Portfolio](operation, resp, err)
 }
 
 // Update patches a portfolio by ID under an org+ledger. Same write-facade
@@ -145,12 +138,8 @@ func (f *portfoliosFacade) Update(ctx context.Context, orgID, ledgerID, id strin
 	}
 
 	return writeJSON[models.Portfolio](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdatePortfolioWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdatePortfolioWithBody(ctx, orgID, ledgerID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 

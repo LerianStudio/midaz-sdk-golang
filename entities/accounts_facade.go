@@ -12,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // accountsFacade is the Phase 2 (Task 2.1.c) hand-written facade over the
@@ -115,12 +114,8 @@ func (f *accountsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 	}
 
 	return writeJSON[models.Account](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateAccountWithBodyWithResponse(ctx, orgID, ledgerID, &genledger.CreateAccountParams{}, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateAccountWithBody(ctx, orgID, ledgerID, &genledger.CreateAccountParams{},
+			jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -132,12 +127,10 @@ func (f *accountsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAccountByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountByID(ctx, orgID, ledgerID, id)
 
-	return decodeOne[models.Account](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Account](operation, resp, err)
 }
 
 // GetByAlias retrieves one account by its alias. The alias is a path segment
@@ -150,12 +143,10 @@ func (f *accountsFacade) GetByAlias(ctx context.Context, orgID, ledgerID, alias 
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAccountByAliasWithResponse(ctx, orgID, ledgerID, alias)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountByAlias(ctx, orgID, ledgerID, alias)
 
-	return decodeOne[models.Account](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Account](operation, resp, err)
 }
 
 // GetByExternalCode retrieves the ledger's EXTERNAL account for an asset code —
@@ -194,12 +185,8 @@ func (f *accountsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 	}
 
 	return writeJSON[models.Account](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateAccountWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateAccountWithBody(ctx, orgID, ledgerID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
