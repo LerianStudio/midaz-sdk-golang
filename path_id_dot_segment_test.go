@@ -106,21 +106,32 @@ func TestDotSegmentPathID_EscalatesDestructiveScope(t *testing.T) {
 // TestUnsafePathID_RejectedShapes enumerates the id shapes that must never
 // become a URL.
 func TestUnsafePathID_RejectedShapes(t *testing.T) {
+	const (
+		unsafeShape = "path id must not be a dot segment or contain a path separator"
+		padded      = "path id must not have leading or trailing whitespace"
+	)
+
 	rejected := []struct {
 		name string
 		id   string
+		// wantMsg is the refusal each shape earns. A padded id is refused for the
+		// padding, BEFORE its shape is judged, because the guard reads the value
+		// that will actually be sent rather than a trimmed copy of it — the two
+		// have to be the same value or the guard is checking something else.
+		wantMsg string
 	}{
-		{"a current-directory dot segment", "."},
-		{"a parent-directory dot segment", ".."},
-		{"a bare separator", "/"},
-		{"a relative traversal", "./."},
-		{"an embedded separator", "bal-1/../../org-1"},
-		{"a backslash separator", `bal-1\..\..`},
-		{"a padded dot segment", "  ..  "},
-		{"a percent-encoded dot", "%2e"},
-		{"a percent-encoded parent segment", "%2e%2e"},
-		{"a percent-encoded separator", "..%2f"},
-		{"a bare percent sign", "bal-1%"},
+		{"a current-directory dot segment", ".", unsafeShape},
+		{"a parent-directory dot segment", "..", unsafeShape},
+		{"a bare separator", "/", unsafeShape},
+		{"a relative traversal", "./.", unsafeShape},
+		{"an embedded separator", "bal-1/../../org-1", unsafeShape},
+		{"a backslash separator", `bal-1\..\..`, unsafeShape},
+		{"a padded dot segment", "  ..  ", padded},
+		{"a padded legitimate id", " bal-1 ", padded},
+		{"a percent-encoded dot", "%2e", unsafeShape},
+		{"a percent-encoded parent segment", "%2e%2e", unsafeShape},
+		{"a percent-encoded separator", "..%2f", unsafeShape},
+		{"a bare percent sign", "bal-1%", unsafeShape},
 	}
 
 	for _, tt := range rejected {
@@ -142,7 +153,7 @@ func TestUnsafePathID_RejectedShapes(t *testing.T) {
 			require.Error(t, err, "id %q must be refused locally; it issued %v", tt.id, requests)
 			require.True(t, sdkerrors.IsValidationError(err),
 				"an unsafe path id must classify as a validation failure, got %v", err)
-			require.Contains(t, err.Error(), "path id must not be a dot segment or contain a path separator")
+			require.Contains(t, err.Error(), tt.wantMsg)
 			require.Empty(t, requests, "the request must never leave the SDK")
 		})
 	}

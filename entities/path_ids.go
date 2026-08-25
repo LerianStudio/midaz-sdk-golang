@@ -25,6 +25,10 @@ import (
 // it is guarded all the same: a local, typed error naming the parameter beats a
 // server 404 that names nothing, and it costs one comparison.
 //
+// Surrounding whitespace is refused for the same reason, and to keep the guard
+// honest: the caller forwards the ORIGINAL string to the generated client, so a
+// guard reading only the trimmed form checks a value that is not the one sent.
+//
 // A dot segment is the same defect wearing a different hat, and a worse one.
 // The generated client formats an id with the "simple" style, which does not
 // escape ".", ".." or "/", and only then resolves the operation path against
@@ -81,15 +85,27 @@ func requirePathIDs(operation string, pairs ...string) error {
 	}
 
 	for i := 0; i+1 < len(pairs); i += 2 {
-		value := strings.TrimSpace(pairs[i+1])
-		if value == "" {
+		value := pairs[i+1]
+		if strings.TrimSpace(value) == "" {
 			return errors.NewMissingParameterError(operation, pairs[i])
+		}
+
+		// Padding is refused rather than tolerated, so the value CHECKED here and
+		// the value SENT are the same value. The caller forwards the original
+		// string to the generated client, which percent-encodes it into the path,
+		// so an id like "acc-1 " used to pass every guard below on its trimmed
+		// form and then leave as "acc-1%20" — a server 404 naming nothing, in
+		// place of the local typed error this helper exists to give.
+		if value != strings.TrimSpace(value) {
+			return errors.NewValidationError(operation,
+				"path id must not have leading or trailing whitespace",
+				fmt.Errorf("%s = %q", pairs[i], value))
 		}
 
 		if value == "." || value == ".." || strings.ContainsAny(value, `/\%`) {
 			return errors.NewValidationError(operation,
 				"path id must not be a dot segment or contain a path separator or percent sign",
-				fmt.Errorf("%s = %q", pairs[i], pairs[i+1]))
+				fmt.Errorf("%s = %q", pairs[i], value))
 		}
 	}
 

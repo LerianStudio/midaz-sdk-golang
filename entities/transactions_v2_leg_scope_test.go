@@ -64,6 +64,68 @@ func TestV2LegScopeIgnoresWhitespace(t *testing.T) {
 	}
 }
 
+// TestV2LegScopeNormalizesAPaddedAddressedScope pins the other direction: the
+// padding on the ADDRESSED pair, not on a leg.
+//
+// Whitespace around the orgID or ledgerID argument used to reach the body
+// unevenly. A leg the facade filled got the raw " uuid ", while a leg that
+// already named the scope got the trimmed "uuid", so one create carried two
+// spellings of one ledger and the server refused the whole body for a conflict
+// the caller could not see in their input. The scope is trimmed once now, so
+// every leg carries one spelling.
+func TestV2LegScopeNormalizesAPaddedAddressedScope(t *testing.T) {
+	var body []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"` + txID + `","status":{"code":"APPROVED"}}`))
+	}))
+	defer srv.Close()
+
+	// One leg names the scope already; the other leaves it empty for the facade to
+	// fill. They must come out identical.
+	input := sampleV2Input()
+	input.Debits[0].OrganizationID = txOrgID
+	input.Debits[0].LedgerID = txLedgerID
+	input.Credits[0].OrganizationID = ""
+	input.Credits[0].LedgerID = ""
+
+	if _, err := newTestTransactionsV2Facade(t, srv).
+		CreateDirect(context.Background(), "  "+txOrgID+"  ", "\t"+txLedgerID+"\n", input); err != nil {
+		t.Fatalf("a padded addressed scope is not a conflict: %v", err)
+	}
+
+	var sent struct {
+		Debits []struct {
+			OrganizationID string `json:"organizationId"`
+			LedgerID       string `json:"ledgerId"`
+		} `json:"debits"`
+		Credits []struct {
+			OrganizationID string `json:"organizationId"`
+			LedgerID       string `json:"ledgerId"`
+		} `json:"credits"`
+	}
+
+	if err := json.Unmarshal(body, &sent); err != nil {
+		t.Fatalf("unreadable request body: %v", err)
+	}
+
+	if sent.Credits[0].LedgerID != txLedgerID || sent.Credits[0].OrganizationID != txOrgID {
+		t.Errorf("filled credit leg = %q/%q, want the trimmed %q/%q",
+			sent.Credits[0].OrganizationID, sent.Credits[0].LedgerID, txOrgID, txLedgerID)
+	}
+
+	if sent.Debits[0].LedgerID != sent.Credits[0].LedgerID ||
+		sent.Debits[0].OrganizationID != sent.Credits[0].OrganizationID {
+		t.Errorf("legs disagree: debit %q/%q vs credit %q/%q — the server refuses a body whose legs name different ledgers",
+			sent.Debits[0].OrganizationID, sent.Debits[0].LedgerID,
+			sent.Credits[0].OrganizationID, sent.Credits[0].LedgerID)
+	}
+}
+
 // TestV2LegScopeStillRefusesARealConflict guards the boundary: trimming must not
 // have turned the conflict refusal into a no-op. A leg naming a different ledger
 // is the mistake the reconciliation exists to catch.

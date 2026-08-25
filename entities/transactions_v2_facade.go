@@ -189,11 +189,19 @@ func scopeTransactionV2(operation, orgID, ledgerID string, input *models.CreateT
 		return nil, errors.NewValidationError(operation, "input cannot be nil", nil)
 	}
 
-	if strings.TrimSpace(orgID) == "" {
+	// The addressed pair is trimmed ONCE, here, so every leg below is filled from
+	// and compared against one spelling. Testing the trimmed form while stamping
+	// the raw one is what let a padded orgID produce a body whose legs disagree:
+	// the leg the facade filled carried " uuid ", the leg that already named the
+	// scope carried "uuid", and the server refuses a body whose legs name
+	// different ledgers — pointing at nothing the caller can see in their input.
+	orgID, ledgerID = strings.TrimSpace(orgID), strings.TrimSpace(ledgerID)
+
+	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "orgID")
 	}
 
-	if strings.TrimSpace(ledgerID) == "" {
+	if ledgerID == "" {
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
@@ -248,6 +256,9 @@ func scopeV2Legs(operation, side, orgID, ledgerID string, legs []models.Transact
 // did not exist. Storing the trimmed value keeps the accepted spelling and the
 // spelling that reaches the ledger the same: these two fields are ones the
 // facade already owns, since it stamps them whenever a leg leaves them empty.
+//
+// addressed arrives already trimmed from scopeTransactionV2, which is what makes
+// the filled leg and the kept leg carry one spelling rather than two.
 func scopeLegField(operation, side string, index int, field, addressed string, leg *string) error {
 	trimmed := strings.TrimSpace(*leg)
 	if trimmed == "" {
@@ -256,7 +267,7 @@ func scopeLegField(operation, side string, index int, field, addressed string, l
 		return nil
 	}
 
-	if !strings.EqualFold(trimmed, strings.TrimSpace(addressed)) {
+	if !strings.EqualFold(trimmed, addressed) {
 		return errors.NewValidationError(operation, fmt.Sprintf(
 			"%s[%d].%s is %q, but the transaction was addressed to %q; every leg of a v2 transaction must name the same organization and ledger",
 			side, index, field, *leg, addressed), nil)
@@ -364,6 +375,55 @@ func refuseUndeclaredListFilters(operation string, filters models.TransactionsFi
 			"transaction in the ledger unfiltered. Narrow client-side, carry the identifier in "+
 			"metadata, or use Count for Status and Route — noting that Count with no date range "+
 			"counts TODAY only, not the whole ledger",
+		strings.Join(named, ", ")), nil)
+}
+
+// refuseUndeclaredCountFilters is refuseUndeclaredListFilters for the COUNT
+// endpoint, whose honoured set is the complement of the list's: count declares
+// status and route, and declares neither the metadata predicate nor the four
+// account/asset/reference filters. Both Count methods call it.
+//
+// It exists for the same reason its list sibling does, and the failure it
+// prevents is worse here. A dropped list filter returns more rows than the
+// caller narrowed for, which a caller reading item ids may still notice. A
+// dropped count filter returns a NUMBER — one that is plausible, unattributable,
+// and read as the narrowed total it is not. countTransactionsV2Params and
+// countTransactionsParams have no slot for any of these, and the count route
+// carries no metadata editor, so every one of them was previously sent nowhere
+// and reported as honoured.
+func refuseUndeclaredCountFilters(operation string, filters models.TransactionsFilters) error {
+	undeclared := []struct {
+		field string
+		value string
+	}{
+		{"AssetCode", filters.AssetCode},
+		{"Reference", filters.Reference},
+		{"SourceAccount", filters.SourceAccount},
+		{"DestinationAccount", filters.DestinationAccount},
+		// The predicate is named by its key alone: Validate has already refused a
+		// half-set pair, so a set key means a caller asking for metadata narrowing.
+		{"MetadataKey", filters.MetadataKey},
+	}
+
+	var named []string
+
+	for _, f := range undeclared {
+		// Deliberately NOT TrimSpace, for the reason refuseUndeclaredListFilters
+		// gives: a whitespace-only value is still a value the caller SET.
+		if f.value != "" {
+			named = append(named, f.field)
+		}
+	}
+
+	if len(named) == 0 {
+		return nil
+	}
+
+	return errors.NewValidationError(operation, fmt.Sprintf(
+		"the transaction count does not narrow by %s on either surface; it honours only Status, "+
+			"Route and the date range, so sending these would return a count of every transaction "+
+			"in the window rather than the narrowed one. Count the narrowed set client-side from "+
+			"List, or drop the filter",
 		strings.Join(named, ", ")), nil)
 }
 
@@ -524,6 +584,10 @@ func (f *transactionsV2Facade) Count(ctx context.Context, orgID, ledgerID string
 	}
 
 	if err := opts.Validate(); err != nil {
+		return 0, err
+	}
+
+	if err := refuseUndeclaredCountFilters("V2.Transactions.Count", opts.Filters); err != nil {
 		return 0, err
 	}
 

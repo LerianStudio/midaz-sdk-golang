@@ -45,23 +45,32 @@ type TransactionsListOpts struct {
 //     function: transaction_handler.go:500 and
 //     transaction_v2_mirror_handler.go:148 both call handler.getAllTransactions.
 //   - Count, BOTH surfaces: Status and Route, plus the date range
-//     (countTransactionsByFilters declares both filters). Count with NO date
-//     range counts TODAY only, not the whole ledger: the server defaults an
-//     absent start_date to today 00:00:00 UTC and an absent end_date to today
-//     23:59:59 UTC (count_transactions_by_filters.go:63-65 and 75-77). To count
-//     any other span set StartDate and EndDate below in YYYY-MM-DD, the same
-//     format List takes; each names a WHOLE day and both ends are inclusive, so
-//     2026-01-01 through 2026-01-31 covers all of January.
+//     (countTransactionsByFilters declares both filters). Every OTHER field —
+//     AssetCode, Reference, SourceAccount, DestinationAccount, and the metadata
+//     predicate — is REFUSED here too, for the same reason it is on List: the
+//     count endpoint declares no parameter for any of them, so they would be
+//     dropped and the caller would read an unnarrowed count as a narrowed one.
+//     Count with NO date range counts TODAY only, not the whole ledger: the
+//     server defaults an absent start_date to today 00:00:00 UTC and an absent
+//     end_date to today 23:59:59 UTC (count_transactions_by_filters.go:63-65 and
+//     75-77). To count any other span set StartDate and EndDate below in
+//     YYYY-MM-DD, the same format List takes; each names a WHOLE day and both
+//     ends are inclusive, so 2026-01-01 through 2026-01-31 covers all of January.
+//
+// Read together: Status and Route are honoured on Count and refused on List; the
+// metadata predicate is honoured on List and refused on Count; AssetCode,
+// Reference, SourceAccount and DestinationAccount are refused everywhere.
 //
 // Narrow client-side, carry the identifier in metadata, or use Count for Status
 // and Route, rather than relying on the refused fields here.
 type TransactionsFilters struct {
-	// AssetCode narrows by asset code (e.g. "USD").
+	// AssetCode is REFUSED by every transaction surface — List and Count, on both
+	// server versions. It narrows nothing.
 	//
-	// REFUSED on List (both surfaces); not honored by any endpoint. The server
-	// parses asset_code and then drops it: ToCursorPagination
+	// The server parses asset_code and then drops it: ToCursorPagination
 	// (pkg/net/http/httputils.go:533-539) returns only limit, cursor, sort_order
-	// and the date range, and that is the only value the repository receives.
+	// and the date range, and that is the only value the repository receives. The
+	// count endpoint declares no asset_code parameter at all.
 	AssetCode string
 
 	// Status narrows by transaction status (e.g. "APPROVED").
@@ -72,23 +81,22 @@ type TransactionsFilters struct {
 	// and dropped by ToCursorPagination, same as AssetCode.
 	Status string
 
-	// Reference narrows by external transaction reference.
+	// Reference is REFUSED by every transaction surface — List and Count, on both
+	// server versions. It narrows nothing.
 	//
-	// REFUSED on List (both surfaces); not honored by any endpoint. The server's
-	// query switch (httputils.go:150-252) has no case for it, so it is never
-	// even parsed.
+	// The server's query switch (httputils.go:150-252) has no case for it, so it
+	// is never even parsed. Carry an external reference in metadata instead; the
+	// metadata predicate is the one content filter List honours.
 	Reference string
 
-	// DestinationAccount narrows to transactions targeting a specific account.
-	//
-	// REFUSED on List (both surfaces); never parsed by the server, same as
-	// Reference.
+	// DestinationAccount is REFUSED by every transaction surface — List and
+	// Count, on both server versions. It narrows nothing: never parsed by the
+	// server, same as Reference.
 	DestinationAccount string
 
-	// SourceAccount narrows to transactions originating from a specific account.
-	//
-	// REFUSED on List (both surfaces); never parsed by the server, same as
-	// Reference.
+	// SourceAccount is REFUSED by every transaction surface — List and Count, on
+	// both server versions. It narrows nothing: never parsed by the server, same
+	// as Reference.
 	SourceAccount string
 
 	// Route narrows by transaction route name (e.g. "cashin", "cashout").

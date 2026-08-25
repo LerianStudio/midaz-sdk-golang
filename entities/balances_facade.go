@@ -69,9 +69,11 @@ func (f *balancesFacade) ListBalances(ctx context.Context, organizationID, ledge
 // ListBalancesPages yields one cursor page per iteration, advancing by the
 // response next_cursor until it is empty.
 func (f *balancesFacade) ListBalancesPages(ctx context.Context, organizationID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return cursorPages(ctx, opts, func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
-		return f.ListBalances(ctx, organizationID, ledgerID, current)
-	})
+	return cursorSeq(ctx, opts,
+		func(o *models.BalancesListOpts) *string { return &o.Cursor },
+		func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+			return f.ListBalances(ctx, organizationID, ledgerID, current)
+		})
 }
 
 // ListBalancesAll yields every balance on the ledger across cursor pages.
@@ -101,9 +103,11 @@ func (f *balancesFacade) ListAccountBalances(ctx context.Context, organizationID
 // ListAccountBalancesPages yields one cursor page of the account's balances per
 // iteration.
 func (f *balancesFacade) ListAccountBalancesPages(ctx context.Context, organizationID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return cursorPages(ctx, opts, func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
-		return f.ListAccountBalances(ctx, organizationID, ledgerID, accountID, current)
-	})
+	return cursorSeq(ctx, opts,
+		func(o *models.BalancesListOpts) *string { return &o.Cursor },
+		func(current models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+			return f.ListAccountBalances(ctx, organizationID, ledgerID, accountID, current)
+		})
 }
 
 // ListAccountBalancesAll yields every balance the account holds across cursor
@@ -258,42 +262,6 @@ func (f *balancesFacade) ListBalancesByExternalCode(ctx context.Context, organiz
 	resp, err := f.ledger.GetBalancesExternalByCode(ctx, organizationID, ledgerID, code)
 
 	return readList[models.Balance](operation, resp, err)
-}
-
-// cursorPages drives a cursor-paginated balance list, echoing each response's
-// next_cursor into the following request.
-//
-// The stop condition is an EMPTY next_cursor, deliberately not
-// Pagination.HasMore(): HasMore()'s page-based branch can report true on a full
-// terminal page that carries a page field but no cursor, which would reset the
-// cursor to "" and re-request the first page forever.
-func cursorPages(ctx context.Context, opts models.BalancesListOpts, fetch func(models.BalancesListOpts) (*models.ListResponse[models.Balance], error)) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
-		current := opts
-
-		for {
-			if ctx.Err() != nil {
-				yield(nil, ctx.Err())
-				return
-			}
-
-			page, err := fetch(current)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			if !yield(page, nil) {
-				return
-			}
-
-			if page.Pagination.NextCursor == "" {
-				return
-			}
-
-			current.Cursor = page.Pagination.NextCursor
-		}
-	}
 }
 
 // balancesListParams renders the cursor/sort/date fields the ledger-wide

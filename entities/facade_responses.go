@@ -240,6 +240,15 @@ func pageSeq[O, T any](
 // cursor to "" and re-request the first page forever. That is not hypothetical —
 // it is the unbounded balance-iterator loop Epic 2 found and fixed.
 //
+// A cursor that comes back EQUAL to the one just sent also stops the loop. An
+// empty next_cursor is the only stop condition a well-behaved server needs, but
+// a cursor echoed back unchanged — by a gateway cache, or by a handler that
+// copies the request cursor into the response envelope — asks for the same page
+// again, forever. The only other bound is ctx.Err(), so a caller with no
+// deadline would issue unbounded identical requests and never finish iterating.
+// Stopping costs one comparison and cannot end a real advance: a next_cursor
+// identical to the one sent describes no forward movement.
+//
 // cursor returns a pointer to the opts' cursor field, for the same reason
 // pageSeq takes a pointer to the page field.
 func cursorSeq[O, T any](
@@ -257,6 +266,8 @@ func cursorSeq[O, T any](
 				return
 			}
 
+			sent := *cursor(&current)
+
 			result, err := fetch(current)
 			if err != nil {
 				yield(nil, err)
@@ -267,7 +278,7 @@ func cursorSeq[O, T any](
 				return
 			}
 
-			if result.Pagination.NextCursor == "" {
+			if result.Pagination.NextCursor == "" || result.Pagination.NextCursor == sent {
 				return
 			}
 

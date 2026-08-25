@@ -25,10 +25,15 @@ import (
 // Real UUIDs: the /json and /inflow etc. responses decode into
 // models.Transaction, but the org/ledger path segments and the response id are
 // exercised end-to-end, so keep them valid.
+//
+// Each one carries HEX LETTERS as well as digits, deliberately. An all-digit
+// fixture is unchanged by strings.ToUpper, so every test that upper-cases one to
+// exercise the case-insensitive UUID comparison the v2 leg scope performs was
+// comparing a value against itself and proving nothing.
 const (
-	txOrgID    = "11111111-1111-1111-1111-111111111111"
-	txLedgerID = "22222222-2222-2222-2222-222222222222"
-	txID       = "33333333-3333-3333-3333-333333333333"
+	txOrgID    = "1a2b3c4d-1111-4111-8111-1a2b3c4d5e6f"
+	txLedgerID = "2b3c4d5e-2222-4222-8222-2b3c4d5e6f70"
+	txID       = "3c4d5e6f-3333-4333-8333-3c4d5e6f7081"
 )
 
 func txBase() string {

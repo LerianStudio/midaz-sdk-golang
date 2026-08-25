@@ -376,3 +376,108 @@ func TestTransactionsV2Facade_ListAdvancesByCursor(t *testing.T) {
 		t.Fatalf("cursors = %v, want the iterator to advance by next_cursor", seenCursors)
 	}
 }
+
+// TestTransactionsCountRefusesUndeclaredFilters is the count-side twin of the
+// list refusal, on BOTH surfaces.
+//
+// The count endpoint declares status, route and the date range and nothing else,
+// so AssetCode, Reference, SourceAccount, DestinationAccount and the metadata
+// predicate had no wire slot and were dropped in silence. That is worse than the
+// same drop on List: a count answers with a NUMBER, so an unnarrowed total is
+// plausible, unattributable, and read as the narrowed one. The assertion is that
+// nothing was sent.
+func TestTransactionsCountRefusesUndeclaredFilters(t *testing.T) {
+	refused := []struct {
+		name    string
+		filters models.TransactionsFilters
+		named   string
+	}{
+		{"an asset code", models.TransactionsFilters{AssetCode: "USD"}, "AssetCode"},
+		{"a reference", models.TransactionsFilters{Reference: "ref-1"}, "Reference"},
+		{"a source account", models.TransactionsFilters{SourceAccount: "@src"}, "SourceAccount"},
+		{"a destination account", models.TransactionsFilters{DestinationAccount: "@dst"}, "DestinationAccount"},
+		{"a metadata predicate", models.TransactionsFilters{MetadataKey: "transferId", MetadataValue: "t-1"}, "MetadataKey"},
+	}
+
+	for _, tt := range refused {
+		t.Run(tt.name, func(t *testing.T) {
+			var requests int
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests++
+
+				w.Header().Set("X-Total-Count", "42")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			opts := models.TransactionsListOpts{Filters: tt.filters}
+
+			assertCountRefuses(t, "Transactions.Count", tt.named, func() (int, error) {
+				return newTestTransactionsFacade(t, srv).Count(context.Background(), txOrgID, txLedgerID, opts)
+			})
+			assertCountRefuses(t, "V2.Transactions.Count", tt.named, func() (int, error) {
+				return newTestTransactionsV2Facade(t, srv).Count(context.Background(), txOrgID, txLedgerID, opts)
+			})
+
+			if requests != 0 {
+				t.Fatalf("issued %d requests; a filter the count cannot express must be refused before the wire", requests)
+			}
+		})
+	}
+}
+
+// assertCountRefuses checks one Count surface refuses one undeclared filter, as
+// a validation error naming the field.
+func assertCountRefuses(t *testing.T, surface, field string, count func() (int, error)) {
+	t.Helper()
+
+	got, err := count()
+	if err == nil {
+		t.Fatalf("%s returned %d; %s has no wire slot and must be refused, not dropped", surface, got, field)
+	}
+
+	if !sdkerrors.IsValidationError(err) {
+		t.Fatalf("%s err = %v, want a validation error the caller can act on", surface, err)
+	}
+
+	if !strings.Contains(err.Error(), field) {
+		t.Fatalf("%s err = %v, want the refusal to name %s", surface, err, field)
+	}
+}
+
+// TestTransactionsCountStillSendsItsDeclaredFilters is the boundary on the
+// refusal above: Status, Route and the date range ARE declared on the count
+// endpoint, so the new guard must not have swallowed the two filters Count
+// exists to honour.
+func TestTransactionsCountStillSendsItsDeclaredFilters(t *testing.T) {
+	var query string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+
+		w.Header().Set("X-Total-Count", "7")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	honoured := models.TransactionsListOpts{
+		CursorListOpts: models.CursorListOpts{StartDate: "2026-01-01", EndDate: "2026-01-31"},
+		Filters:        models.TransactionsFilters{Status: "APPROVED", Route: "cashin"},
+	}
+
+	got, err := newTestTransactionsV2Facade(t, srv).Count(context.Background(), txOrgID, txLedgerID, honoured)
+	if err != nil {
+		t.Fatalf("Count with only declared filters: %v", err)
+	}
+
+	if got != 7 {
+		t.Fatalf("count = %d, want 7", got)
+	}
+
+	for _, want := range []string{"status=APPROVED", "route=cashin", "start_date=", "end_date="} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query = %q, want it to carry %q", query, want)
+		}
+	}
+}

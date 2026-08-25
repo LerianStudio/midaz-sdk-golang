@@ -5,13 +5,16 @@ package entities
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"iter"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
@@ -251,6 +254,10 @@ func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, ledge
 		return nil, err
 	}
 
+	if err := refuseUndeclaredHolderAccountFilters(operation, opts); err != nil {
+		return nil, err
+	}
+
 	// ledger_id is injected by hand rather than filled into a generated params
 	// slot, and the reason is SERVER-SIDE CONTRACT DRIFT rather than a codegen
 	// bug: the holder-accounts route REQUIRES ledger_id as a query parameter at
@@ -357,6 +364,64 @@ func listInstrumentsReqEditors(opts models.InstrumentsListOpts) []genledger.Requ
 	}
 
 	return editors
+}
+
+// refuseUndeclaredHolderAccountFilters rejects the AccountsListOpts fields the
+// holder-accounts endpoint cannot express, rather than accepting and dropping
+// them.
+//
+// This endpoint reuses AccountsListOpts because it answers with
+// models.Account, but it honours almost none of it: only limit and sort_order
+// reach the wire, and the cursor is injected by hand. Page cannot work at all —
+// the route is driven by next_cursor, so a caller setting Page=3 got page one
+// with a nil error. The date range has no declared parameter, and none of the
+// twelve AccountsFilters fields does either.
+//
+// Refusing is the position the instruments list already takes for its own dates
+// (ValidateCursorListOptsNoDates): a filter with no wire slot is worse than an
+// absent one, because the caller reads an unnarrowed result set as a narrowed
+// one. The refusal is FACADE-LOCAL rather than in AccountsListOpts.Validate,
+// because the regular accounts list does honour every one of these fields.
+func refuseUndeclaredHolderAccountFilters(operation string, opts models.AccountsListOpts) error {
+	undeclared := []struct {
+		field string
+		set   bool
+	}{
+		{"Page", opts.Page > 0},
+		{"StartDate", opts.StartDate != ""},
+		{"EndDate", opts.EndDate != ""},
+		{"Filters.Type", opts.Filters.Type != ""},
+		{"Filters.Status", opts.Filters.Status != ""},
+		{"Filters.AssetCode", opts.Filters.AssetCode != ""},
+		{"Filters.HolderID", opts.Filters.HolderID != ""},
+		{"Filters.PortfolioID", opts.Filters.PortfolioID != ""},
+		{"Filters.SegmentID", opts.Filters.SegmentID != ""},
+		{"Filters.Alias", opts.Filters.Alias != ""},
+		{"Filters.ParentAccountID", opts.Filters.ParentAccountID != ""},
+		{"Filters.Name", opts.Filters.Name != ""},
+		{"Filters.EntityID", opts.Filters.EntityID != ""},
+		{"Filters.IncludeDeleted", opts.Filters.IncludeDeleted},
+		{"Filters.Blocked", opts.Filters.Blocked},
+	}
+
+	var named []string
+
+	for _, f := range undeclared {
+		if f.set {
+			named = append(named, f.field)
+		}
+	}
+
+	if len(named) == 0 {
+		return nil
+	}
+
+	return errors.NewValidationError(operation, fmt.Sprintf(
+		"the holder-accounts listing does not narrow by %s; it honours only Limit and "+
+			"SortDirection, and advances by cursor rather than by Page, so sending these would "+
+			"return every account the holder owns as if it had been narrowed. Narrow client-side, "+
+			"or use V2.Accounts.List with Filters.HolderID",
+		strings.Join(named, ", ")), nil)
 }
 
 // listAccountsByHolderParams renders the fields that have a slot in the generated

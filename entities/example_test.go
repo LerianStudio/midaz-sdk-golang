@@ -71,9 +71,17 @@ func Example_transactionsListAll() {
 	}
 
 	ctx := context.Background()
+
+	// The metadata predicate is the ONE content filter the transaction list
+	// honours. Status and AssetCode are refused before the request is built, on
+	// both surfaces, so setting them here would fail the call rather than narrow
+	// it — see models.TransactionsFilters.
 	opts := models.TransactionsListOpts{
 		CursorListOpts: models.CursorListOpts{Limit: 50},
-		Filters:        models.TransactionsFilters{Status: "APPROVED", AssetCode: "USD"},
+		Filters: models.TransactionsFilters{
+			MetadataKey:   "transferId",
+			MetadataValue: "transfer-42",
+		},
 	}
 
 	count := 0

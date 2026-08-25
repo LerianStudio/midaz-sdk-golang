@@ -559,6 +559,10 @@ func (f *transactionsFacade) Count(ctx context.Context, orgID, ledgerID string, 
 		return 0, err
 	}
 
+	if err := refuseUndeclaredCountFilters("Transactions.Count", opts.Filters); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountTransactionsByFilters(ctx, orgID, ledgerID, countTransactionsParams(opts)))
 }

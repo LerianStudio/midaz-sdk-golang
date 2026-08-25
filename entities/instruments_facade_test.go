@@ -438,6 +438,77 @@ func TestInstrumentsFacade_DeleteRelatedParty(t *testing.T) {
 // server does — the parameter is enforced at runtime and absent from the
 // published contract, so nothing but a test that refuses the request keeps the
 // hand-injected param from being deleted as unexplained.
+// TestInstrumentsFacade_ListAccountsByHolderRefusesUnsendableOpts pins the
+// refusal on the opts fields the holder-accounts route cannot express.
+//
+// The method takes AccountsListOpts because it answers with models.Account, but
+// only Limit and SortDirection have a wire slot and the route advances by cursor
+// rather than by Page. Every other field used to be accepted and dropped, so a
+// caller setting Page=3 or Filters.Status="ACTIVE" got the unnarrowed first page
+// with a nil error and read it as the narrowed one. The assertion is that
+// NOTHING WAS SENT: an error alone would also come back from a server that
+// rejected the request.
+func TestInstrumentsFacade_ListAccountsByHolderRefusesUnsendableOpts(t *testing.T) {
+	refused := []struct {
+		name  string
+		opts  models.AccountsListOpts
+		named string
+	}{
+		{"a page number", models.AccountsListOpts{PageListOpts: models.PageListOpts{Page: 3}}, "Page"},
+		{"a start date", models.AccountsListOpts{PageListOpts: models.PageListOpts{StartDate: "2026-01-01"}}, "StartDate"},
+		{"an end date", models.AccountsListOpts{PageListOpts: models.PageListOpts{EndDate: "2026-01-31"}}, "EndDate"},
+		{"a status filter", models.AccountsListOpts{Filters: models.AccountsFilters{Status: "ACTIVE"}}, "Filters.Status"},
+		{"an alias filter", models.AccountsListOpts{Filters: models.AccountsFilters{Alias: "@checking"}}, "Filters.Alias"},
+		{"a boolean filter", models.AccountsListOpts{Filters: models.AccountsFilters{Blocked: true}}, "Filters.Blocked"},
+	}
+
+	for _, tt := range refused {
+		t.Run(tt.name, func(t *testing.T) {
+			var requests int
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests++
+
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"items":[],"limit":10}`))
+			}))
+			defer srv.Close()
+
+			_, err := newTestInstrumentsFacade(t, srv).ListAccountsByHolder(context.Background(),
+				instrumentsFacadeOrgID, instrumentsFacadeLedgerID, instrumentsFacadeHolderID, tt.opts)
+			if err == nil {
+				t.Fatalf("%s must be refused rather than dropped", tt.named)
+			}
+
+			if !sdkerrors.IsValidationError(err) {
+				t.Fatalf("err = %v, want a validation error the caller can act on", err)
+			}
+
+			if !strings.Contains(err.Error(), tt.named) {
+				t.Fatalf("err = %v, want the refusal to name %s", err, tt.named)
+			}
+
+			if requests != 0 {
+				t.Fatalf("issued %d requests; an unsendable filter must be refused before the wire", requests)
+			}
+		})
+	}
+
+	// The fields that DO reach the wire are still accepted, so the refusal did not
+	// become a blanket rejection of opts.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[],"limit":5}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestInstrumentsFacade(t, srv).ListAccountsByHolder(context.Background(),
+		instrumentsFacadeOrgID, instrumentsFacadeLedgerID, instrumentsFacadeHolderID,
+		models.AccountsListOpts{PageListOpts: models.PageListOpts{Limit: 5, SortDirection: models.SortDescending}}); err != nil {
+		t.Fatalf("Limit and SortDirection have wire slots and must be accepted: %v", err)
+	}
+}
+
 func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 	acctID1 := "77777777-7777-7777-7777-777777777777"
 	acctID2 := "88888888-8888-8888-8888-888888888888"
