@@ -23,8 +23,8 @@ type operationRouteGenerator struct {
 // NewOperationRouteGenerator creates a new generator for operation routes.
 func NewOperationRouteGenerator(e *entities.Entity, obs observability.Provider) OperationRouteGenerator {
 	g := &operationRouteGenerator{obs: obs}
-	if e != nil && e.OperationRoutes != nil {
-		g.operationRoutes = e.OperationRoutes
+	if e != nil && e.V1.OperationRoutes != nil {
+		g.operationRoutes = e.V1.OperationRoutes
 	}
 
 	return g

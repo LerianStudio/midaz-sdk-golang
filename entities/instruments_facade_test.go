@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -20,20 +21,144 @@ import (
 )
 
 const (
-	instrumentsFacadeOrgID    = "11111111-1111-1111-1111-111111111111"
-	instrumentsFacadeHolderID = "22222222-2222-2222-2222-222222222222"
+	instrumentsFacadeOrgID     = "11111111-1111-1111-1111-111111111111"
+	instrumentsFacadeHolderID  = "22222222-2222-2222-2222-222222222222"
+	instrumentsFacadeLedgerID  = "99999999-9999-9999-9999-999999999999"
+	instrumentsFacadeAccountID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 )
+
+// validCreateInstrumentInput builds the minimum body the server contract
+// accepts: all four required properties, nothing else. Every write test in the
+// package builds its instrument payload here, so a model that stops satisfying
+// the contract fails them all at once instead of one at a time.
+func validCreateInstrumentInput() *models.CreateInstrumentInput {
+	branch := "0001"
+
+	return models.NewCreateInstrumentInput(instrumentsFacadeLedgerID, instrumentsFacadeAccountID).
+		WithBankingDetails(&models.BankingDetails{Branch: &branch}).
+		WithMetadata(map[string]any{"k": "v"})
+}
+
+// validUpdateInstrumentInput builds the minimum PATCH body the contract
+// accepts. Both properties are required on the update too — that is the
+// server's choice, mirrored rather than editorialised.
+func validUpdateInstrumentInput() *models.UpdateInstrumentInput {
+	return models.NewUpdateInstrumentInput().
+		WithBankingDetails(&models.BankingDetails{}).
+		WithMetadata(map[string]any{"k": "v"})
+}
+
+// rejectUnknownInstrumentFields mirrors the create endpoint's
+// additionalProperties: false. The create stub used to accept any body, which is
+// what let a model carrying two properties the server has no slot for pass this
+// suite and fail on the first live call.
+func rejectUnknownInstrumentFields(body []byte) (string, bool) {
+	return checkInstrumentBody(body,
+		[]string{"ledgerId", "accountId", "bankingDetails", "metadata", "regulatoryFields", "relatedParties"},
+		[]string{"ledgerId", "accountId", "bankingDetails", "metadata"})
+}
+
+// rejectUnknownInstrumentUpdateFields is the same mirror for the UPDATE
+// endpoint, whose contract is a different set: no identifiers (they are not
+// writable), and metadata plus bankingDetails required on a PATCH.
+func rejectUnknownInstrumentUpdateFields(body []byte) (string, bool) {
+	return checkInstrumentBody(body,
+		[]string{"bankingDetails", "metadata", "regulatoryFields", "relatedParties"},
+		[]string{"bankingDetails", "metadata"})
+}
+
+// checkInstrumentBody answers what the server answers: is every property one the
+// endpoint declares, and is every required property present. A null counts as
+// present — clearing an optional property is a legitimate PATCH.
+func checkInstrumentBody(body []byte, allowed, required []string) (string, bool) {
+	declared := map[string]bool{}
+	for _, field := range allowed {
+		declared[field] = true
+	}
+
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return "malformed JSON body", false
+	}
+
+	for field := range decoded {
+		if !declared[field] {
+			return "unknown field " + field, false
+		}
+	}
+
+	for _, field := range required {
+		if _, ok := decoded[field]; !ok {
+			return "missing required field " + field, false
+		}
+	}
+
+	return "", true
+}
+
+// TestRejectUnknownInstrumentFields proves the create stub's gate actually
+// refuses. Once the model can no longer produce a rejected body, nothing in the
+// public surface can exercise the rejection branch — and a gate whose refusal
+// path is never taken is indistinguishable from the permissive stub that let the
+// two phantom properties ship. So it is exercised directly, on the two bodies
+// the old model produced and on the one it never could.
+func TestRejectUnknownInstrumentFields(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"contract-shaped", `{"ledgerId":"l","accountId":"a","bankingDetails":{},"metadata":{}}`, true},
+		{"phantom type", `{"ledgerId":"l","accountId":"a","bankingDetails":{},"metadata":{},"type":"CHECKING"}`, false},
+		{"phantom document", `{"ledgerId":"l","accountId":"a","bankingDetails":{},"metadata":{},"document":"DOC-1"}`, false},
+		{"missing identifiers", `{"type":"CHECKING","document":"DOC-1"}`, false},
+		{"missing bankingDetails", `{"ledgerId":"l","accountId":"a","metadata":{}}`, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reason, ok := rejectUnknownInstrumentFields([]byte(tc.body))
+			if ok != tc.want {
+				t.Fatalf("accepted = %t, want %t (reason %q)", ok, tc.want, reason)
+			}
+		})
+	}
+
+	// The update contract is a DIFFERENT set: no identifiers, two required
+	// properties, and clearing an optional one is legitimate.
+	updateCases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"contract-shaped", `{"bankingDetails":{},"metadata":{}}`, true},
+		{"clears an optional property", `{"bankingDetails":{},"metadata":{},"regulatoryFields":null}`, true},
+		{"phantom document", `{"bankingDetails":{},"metadata":{},"document":"DOC-9"}`, false},
+		{"identifiers are not writable", `{"bankingDetails":{},"metadata":{},"ledgerId":"l"}`, false},
+		{"missing metadata", `{"bankingDetails":{}}`, false},
+		{"missing bankingDetails", `{"metadata":{}}`, false},
+	}
+
+	for _, tc := range updateCases {
+		t.Run("update/"+tc.name, func(t *testing.T) {
+			reason, ok := rejectUnknownInstrumentUpdateFields([]byte(tc.body))
+			if ok != tc.want {
+				t.Fatalf("accepted = %t, want %t (reason %q)", ok, tc.want, reason)
+			}
+		})
+	}
+}
 
 // instrumentsListBase is the org-scoped list endpoint. The generated
 // ListInstruments hits /organizations/{org}/instruments and scopes to a holder
 // via the holder_id query param, NOT a holder-in-path segment.
 func instrumentsListBase() string {
-	return "/v1/organizations/" + instrumentsFacadeOrgID + "/instruments"
+	return "/v2/organizations/" + instrumentsFacadeOrgID + "/instruments"
 }
 
 // instrumentsHolderBase is the holder-scoped write/read-by-id endpoint.
 func instrumentsHolderBase() string {
-	return "/v1/organizations/" + instrumentsFacadeOrgID + "/holders/" + instrumentsFacadeHolderID + "/instruments"
+	return "/v2/organizations/" + instrumentsFacadeOrgID + "/holders/" + instrumentsFacadeHolderID + "/instruments"
 }
 
 // TestInstrumentsFacade_ListAndPaginate exercises cursor List/ListPages/ListAll
@@ -138,12 +263,24 @@ func TestInstrumentsFacade_ListSeedsCursorRejectsDates(t *testing.T) {
 func TestInstrumentsFacade_CRUD(t *testing.T) {
 	const id = "55555555-5555-5555-5555-555555555555"
 
+	// The create stub REJECTS a body the real endpoint would reject —
+	// additionalProperties: false plus the four required properties — so the
+	// exact marshalled body is what this asserts, not a substring of it.
 	t.Run("create", func(t *testing.T) {
 		var m, p, body string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			m, p = r.Method, r.URL.Path
 			b, _ := io.ReadAll(r.Body)
 			body = string(b)
+
+			if reason, ok := rejectUnknownInstrumentFields(b); !ok {
+				w.Header().Set("Content-Type", "application/problem+json")
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"code":"LEDGER-0009","title":"` + reason + `","status":422}`))
+
+				return
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"id":"` + id + `","holderId":"` + instrumentsFacadeHolderID + `","type":"CHECKING"}`))
@@ -151,15 +288,17 @@ func TestInstrumentsFacade_CRUD(t *testing.T) {
 		defer srv.Close()
 
 		inst, err := newTestInstrumentsFacade(t, srv).Create(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID,
-			models.NewCreateInstrumentInput("CHECKING").WithDocument("DOC-1"))
+			validCreateInstrumentInput())
 		if err != nil {
-			t.Fatalf("Create: %v", err)
+			t.Fatalf("Create: %v (body = %q)", err, body)
 		}
 		if m != http.MethodPost || p != instrumentsHolderBase() {
 			t.Fatalf("create req = %s %s, want POST %s", m, p, instrumentsHolderBase())
 		}
-		if !strings.Contains(body, `"type":"CHECKING"`) || !strings.Contains(body, `"document":"DOC-1"`) {
-			t.Fatalf("body = %q, want marshaled CreateInstrumentInput", body)
+		wantBody := `{"ledgerId":"` + instrumentsFacadeLedgerID + `","accountId":"` + instrumentsFacadeAccountID +
+			`","bankingDetails":{"branch":"0001"},"metadata":{"k":"v"}}`
+		if body != wantBody {
+			t.Fatalf("body = %q, want exactly %q", body, wantBody)
 		}
 		if inst.ID == nil || inst.ID.String() != id || inst.Type == nil || *inst.Type != "CHECKING" {
 			t.Fatalf("Create returned %+v", inst)
@@ -187,28 +326,43 @@ func TestInstrumentsFacade_CRUD(t *testing.T) {
 		}
 	})
 
+	// The update stub is strict for the same reason the create stub is: its
+	// contract is additionalProperties: false over four properties, two of them
+	// required even on a PATCH. The old permissive stub is what let the phantom
+	// `document` property survive on the update surface as well.
 	t.Run("update", func(t *testing.T) {
 		var m, p, body string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			m, p = r.Method, r.URL.Path
 			b, _ := io.ReadAll(r.Body)
 			body = string(b)
+
+			if reason, ok := rejectUnknownInstrumentUpdateFields(b); !ok {
+				w.Header().Set("Content-Type", "application/problem+json")
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"code":"LEDGER-0009","title":"` + reason + `","status":422}`))
+
+				return
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"id":"` + id + `","holderId":"` + instrumentsFacadeHolderID + `","type":"CHECKING","document":"DOC-9"}`))
 		}))
 		defer srv.Close()
 
 		inst, err := newTestInstrumentsFacade(t, srv).Update(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, id,
-			models.NewUpdateInstrumentInput().WithDocument("DOC-9"))
+			validUpdateInstrumentInput())
 		if err != nil {
-			t.Fatalf("Update: %v", err)
+			t.Fatalf("Update: %v (body = %q)", err, body)
 		}
 		if m != http.MethodPatch || p != instrumentsHolderBase()+"/"+id {
 			t.Fatalf("update req = %s %s", m, p)
 		}
-		if !strings.Contains(body, `"document":"DOC-9"`) {
-			t.Fatalf("body = %q, want marshaled UpdateInstrumentInput", body)
+		if body != `{"bankingDetails":{},"metadata":{"k":"v"}}` {
+			t.Fatalf("body = %q, want exactly the two required properties", body)
 		}
+		// The response still carries document — the RESPONSE schema declares it.
+		// Only the two write payloads never had a slot for it.
 		if inst.Document == nil || *inst.Document != "DOC-9" {
 			t.Fatalf("Update returned %+v", inst)
 		}
@@ -279,16 +433,102 @@ func TestInstrumentsFacade_DeleteRelatedParty(t *testing.T) {
 // TestInstrumentsFacade_ListAccountsByHolder exercises cursor pagination over the
 // holder-in-path accounts endpoint, chaining next_cursor and stopping on the
 // terminal empty cursor, returning models.Account.
+//
+// The stub REQUIRES ledger_id and answers 400 without it, which is what the real
+// server does — the parameter is enforced at runtime and absent from the
+// published contract, so nothing but a test that refuses the request keeps the
+// hand-injected param from being deleted as unexplained.
+// TestInstrumentsFacade_ListAccountsByHolderRefusesUnsendableOpts pins the
+// refusal on the opts fields the holder-accounts route cannot express.
+//
+// The method takes AccountsListOpts because it answers with models.Account, but
+// only Limit and SortDirection have a wire slot and the route advances by cursor
+// rather than by Page. Every other field used to be accepted and dropped, so a
+// caller setting Page=3 or Filters.Status="ACTIVE" got the unnarrowed first page
+// with a nil error and read it as the narrowed one. The assertion is that
+// NOTHING WAS SENT: an error alone would also come back from a server that
+// rejected the request.
+func TestInstrumentsFacade_ListAccountsByHolderRefusesUnsendableOpts(t *testing.T) {
+	refused := []struct {
+		name  string
+		opts  models.AccountsListOpts
+		named string
+	}{
+		{"a page number", models.AccountsListOpts{PageListOpts: models.PageListOpts{Page: 3}}, "Page"},
+		{"a start date", models.AccountsListOpts{PageListOpts: models.PageListOpts{StartDate: "2026-01-01"}}, "StartDate"},
+		{"an end date", models.AccountsListOpts{PageListOpts: models.PageListOpts{EndDate: "2026-01-31"}}, "EndDate"},
+		{"a status filter", models.AccountsListOpts{Filters: models.AccountsFilters{Status: "ACTIVE"}}, "Filters.Status"},
+		{"an alias filter", models.AccountsListOpts{Filters: models.AccountsFilters{Alias: "@checking"}}, "Filters.Alias"},
+		{"a boolean filter", models.AccountsListOpts{Filters: models.AccountsFilters{Blocked: true}}, "Filters.Blocked"},
+	}
+
+	for _, tt := range refused {
+		t.Run(tt.name, func(t *testing.T) {
+			var requests int
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests++
+
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"items":[],"limit":10}`))
+			}))
+			defer srv.Close()
+
+			_, err := newTestInstrumentsFacade(t, srv).ListAccountsByHolder(context.Background(),
+				instrumentsFacadeOrgID, instrumentsFacadeLedgerID, instrumentsFacadeHolderID, tt.opts)
+			if err == nil {
+				t.Fatalf("%s must be refused rather than dropped", tt.named)
+			}
+
+			if !sdkerrors.IsValidationError(err) {
+				t.Fatalf("err = %v, want a validation error the caller can act on", err)
+			}
+
+			if !strings.Contains(err.Error(), tt.named) {
+				t.Fatalf("err = %v, want the refusal to name %s", err, tt.named)
+			}
+
+			if requests != 0 {
+				t.Fatalf("issued %d requests; an unsendable filter must be refused before the wire", requests)
+			}
+		})
+	}
+
+	// The fields that DO reach the wire are still accepted, so the refusal did not
+	// become a blanket rejection of opts.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[],"limit":5}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestInstrumentsFacade(t, srv).ListAccountsByHolder(context.Background(),
+		instrumentsFacadeOrgID, instrumentsFacadeLedgerID, instrumentsFacadeHolderID,
+		models.AccountsListOpts{PageListOpts: models.PageListOpts{Limit: 5, SortDirection: models.SortDescending}}); err != nil {
+		t.Fatalf("Limit and SortDirection have wire slots and must be accepted: %v", err)
+	}
+}
+
 func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 	acctID1 := "77777777-7777-7777-7777-777777777777"
 	acctID2 := "88888888-8888-8888-8888-888888888888"
 	page1 := `{"items":[{"id":"` + acctID1 + `","name":"Checking","assetCode":"USD"}],"limit":1,"next_cursor":"a2"}`
 	page2 := `{"items":[{"id":"` + acctID2 + `","name":"Savings","assetCode":"USD"}],"limit":1}`
 
-	var seenCursors, seenPaths []string
+	var seenCursors, seenPaths, seenLedgerIDs []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenCursors = append(seenCursors, r.URL.Query().Get("cursor"))
 		seenPaths = append(seenPaths, r.URL.Path)
+		seenLedgerIDs = append(seenLedgerIDs, r.URL.Query().Get("ledger_id"))
+
+		if r.URL.Query().Get("ledger_id") == "" {
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"code":"LEDGER-0003","title":"missing query parameter ledger_id","status":400}`))
+
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Query().Get("cursor") == "a2" {
 			_, _ = w.Write([]byte(page2))
@@ -301,7 +541,7 @@ func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 	facade := newTestInstrumentsFacade(t, srv)
 
 	// First page directly.
-	first, err := facade.ListAccountsByHolder(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.AccountsListOpts{
+	first, err := facade.ListAccountsByHolder(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeLedgerID, instrumentsFacadeHolderID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	})
 	if err != nil {
@@ -311,7 +551,7 @@ func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 		t.Fatalf("first page = %+v", first.Items)
 	}
 
-	all, err := CollectAll(facade.ListAccountsByHolderAll(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.AccountsListOpts{
+	all, err := CollectAll(facade.ListAccountsByHolderAll(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeLedgerID, instrumentsFacadeHolderID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	}))
 	if err != nil {
@@ -320,15 +560,27 @@ func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 	if len(all) != 2 || all[0].ID != acctID1 || all[1].ID != acctID2 {
 		t.Fatalf("All = %+v", all)
 	}
-	wantPath := "/v1/organizations/" + instrumentsFacadeOrgID + "/holders/" + instrumentsFacadeHolderID + "/accounts"
+	wantPath := "/v2/organizations/" + instrumentsFacadeOrgID + "/holders/" + instrumentsFacadeHolderID + "/accounts"
 	for i, p := range seenPaths {
 		if p != wantPath {
 			t.Fatalf("request %d path = %q, want %q", i, p, wantPath)
 		}
 	}
+	// EVERY request carries it, including the ones the cursor loop issues — the
+	// server refuses each one on its own, not just the first.
+	for i, lid := range seenLedgerIDs {
+		if lid != instrumentsFacadeLedgerID {
+			t.Fatalf("request %d ledger_id = %q, want %q (the server requires it on every page)", i, lid, instrumentsFacadeLedgerID)
+		}
+	}
 	// seenCursors: [""] from the direct first call, then ["", "a2"] from ListAll.
 	if seenCursors[len(seenCursors)-2] != "" || seenCursors[len(seenCursors)-1] != "a2" {
 		t.Fatalf("ListAll cursor chain tail = %v, want ['' 'a2']", seenCursors)
+	}
+
+	// An empty ledger is refused locally, before a request the server would 400.
+	if _, err := facade.ListAccountsByHolder(context.Background(), instrumentsFacadeOrgID, "", instrumentsFacadeHolderID, models.AccountsListOpts{}); err == nil {
+		t.Fatal("ListAccountsByHolder with an empty ledger: want a validation error, got nil")
 	}
 }
 
@@ -387,7 +639,7 @@ func TestInstrumentsFacade_ErrorDecodes(t *testing.T) {
 	defer srv.Close()
 
 	_, err := newTestInstrumentsFacade(t, srv).Create(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID,
-		models.NewCreateInstrumentInput("CHECKING"))
+		validCreateInstrumentInput())
 	var sdkErr *sdkerrors.Error
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
@@ -420,14 +672,14 @@ func TestInstrumentsFacade_WriteReplaySafe(t *testing.T) {
 	defer srv.Close()
 
 	_, err := newTestInstrumentsFacade(t, srv).Create(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID,
-		models.NewCreateInstrumentInput("CHECKING"))
+		validCreateInstrumentInput())
 	if err != nil {
 		t.Fatalf("Create with one 401 refresh: %v", err)
 	}
 	if attempts < 2 {
 		t.Fatalf("attempts = %d, want >= 2", attempts)
 	}
-	if !strings.Contains(replayed, `"type":"CHECKING"`) {
+	if !strings.Contains(replayed, `"accountId":"`+instrumentsFacadeAccountID+`"`) {
 		t.Fatalf("replayed body = %q, want full JSON", replayed)
 	}
 }
@@ -483,7 +735,7 @@ func TestInstrumentsFacade_ListAccountsByHolderPagesConsumerStops(t *testing.T) 
 	defer srv.Close()
 
 	var pages int
-	for page, err := range newTestInstrumentsFacade(t, srv).ListAccountsByHolderPages(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.AccountsListOpts{
+	for page, err := range newTestInstrumentsFacade(t, srv).ListAccountsByHolderPages(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeLedgerID, instrumentsFacadeHolderID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	}) {
 		if err != nil {
@@ -505,28 +757,43 @@ func TestInstrumentsFacade_ListAccountsByHolderPagesConsumerStops(t *testing.T) 
 }
 
 // TestInstrumentsFacade_UpdateNullFieldThroughWire locks the end-to-end
-// PATCH-null contract: WithNullField("document") must marshal through
-// UpdateInstrumentInput.MarshalJSON and writeJSON as an explicit "document":null
-// on the wire — the RFC 7396 field-clear signal. A regression dropping the field
-// (omitempty) instead of emitting null would be caught here.
+// PATCH-null contract: WithNullField("regulatoryFields") must marshal through
+// UpdateInstrumentInput.MarshalJSON and writeJSON as an explicit
+// "regulatoryFields":null on the wire — the RFC 7396 field-clear signal. A
+// regression dropping the field (omitempty) instead of emitting null would be
+// caught here.
+//
+// The field under test used to be `document`, which the endpoint has no slot
+// for: the clear could never have worked. Only the two OPTIONAL properties are
+// clearable now — nulling a required one is refused by the model, which the
+// strict stub below would otherwise 422.
 func TestInstrumentsFacade_UpdateNullFieldThroughWire(t *testing.T) {
 	const id = "55555555-5555-5555-5555-555555555555"
 	var body string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		body = string(b)
+
+		if reason, ok := rejectUnknownInstrumentUpdateFields(b); !ok {
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"code":"LEDGER-0009","title":"` + reason + `","status":422}`))
+
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"` + id + `","holderId":"` + instrumentsFacadeHolderID + `","type":"CHECKING"}`))
 	}))
 	defer srv.Close()
 
 	_, err := newTestInstrumentsFacade(t, srv).Update(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, id,
-		models.NewUpdateInstrumentInput().WithNullField("document"))
+		validUpdateInstrumentInput().WithNullField("regulatoryFields"))
 	if err != nil {
-		t.Fatalf("Update with null field: %v", err)
+		t.Fatalf("Update with null field: %v (body = %q)", err, body)
 	}
-	if !strings.Contains(body, `"document":null`) {
-		t.Fatalf("body = %q, want explicit \"document\":null on the wire", body)
+	if !strings.Contains(body, `"regulatoryFields":null`) {
+		t.Fatalf("body = %q, want explicit \"regulatoryFields\":null on the wire", body)
 	}
 }
 

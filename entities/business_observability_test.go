@@ -80,12 +80,12 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL}, provider)
 	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-flow")
 
-	account, err := entity.Accounts.Create(ctx, "org-1", "ledger-1", models.NewCreateAccountInput("Customer Name", "USD", "deposit").WithMetadata(map[string]any{"secret": "metadata"}))
+	account, err := entity.V1.Accounts.Create(ctx, "org-1", "ledger-1", models.NewCreateAccountInput("Customer Name", "USD", "deposit").WithMetadata(map[string]any{"secret": "metadata"}))
 	require.NoError(t, err)
 	assert.Equal(t, "11111111-1111-1111-1111-111111111111", account.ID)
 
@@ -97,15 +97,15 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 	})
 	txInput.IdempotencyKey = "must-not-log"
 
-	tx, err := entity.Transactions.CreateJSON(ctx, "org-1", "ledger-1", txInput)
+	tx, err := entity.V1.Transactions.CreateJSON(ctx, "org-1", "ledger-1", txInput)
 	require.NoError(t, err)
 	assert.Equal(t, "tx-1", tx.ID)
 
-	committed, err := entity.Transactions.Commit(ctx, "org-1", "ledger-1", "tx-1")
+	committed, err := entity.V1.Transactions.Commit(ctx, "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)
 	assert.Equal(t, "APPROVED", committed.Status.Code)
 
-	cancelled, err := entity.Transactions.Cancel(ctx, "org-1", "ledger-1", "tx-1")
+	cancelled, err := entity.V1.Transactions.Cancel(ctx, "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)
 	assert.Equal(t, "CANCELED", cancelled.Status.Code)
 
@@ -155,12 +155,12 @@ func TestBusinessObservability_ReadMethodsDoNotEmitMutationEvents(t *testing.T) 
 	}))
 	defer server.Close()
 
-	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL}, provider)
 	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-read")
 
-	account, err := entity.Accounts.Get(ctx, "org-1", "ledger-1", "11111111-1111-1111-1111-111111111111")
+	account, err := entity.V1.Accounts.Get(ctx, "org-1", "ledger-1", "11111111-1111-1111-1111-111111111111")
 	require.NoError(t, err)
 	assert.Equal(t, "11111111-1111-1111-1111-111111111111", account.ID)
 
@@ -191,12 +191,12 @@ func TestBusinessObservability_UpdateTransactionUsesUpdatedEvent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL}, provider)
 	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-update")
 
-	tx, err := entity.Transactions.UpdateTransaction(ctx, "org-1", "ledger-1", "tx-1", models.NewUpdateTransactionInput().WithDescription("Sensitive description"))
+	tx, err := entity.V1.Transactions.UpdateTransaction(ctx, "org-1", "ledger-1", "tx-1", models.NewUpdateTransactionInput().WithDescription("Sensitive description"))
 	require.NoError(t, err)
 	assert.Equal(t, "tx-1", tx.ID)
 

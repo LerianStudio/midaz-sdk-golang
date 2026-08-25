@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"iter"
-	"net/http"
 	"strconv"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/gentracer"
@@ -51,21 +50,22 @@ func (f *auditEventsFacade) List(ctx context.Context, opts models.AuditEventReco
 		return nil, err
 	}
 
-	resp, err := f.tracer.ListAuditEventsWithResponse(ctx, listAuditEventRecordsParams(opts))
+	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
+	httpResp, body, err := readRawResponse(f.tracer.ListAuditEvents(ctx, listAuditEventRecordsParams(opts)))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
+		return nil, err
 	}
 
 	var env struct {
 		AuditEvents []models.AuditEventRecord `json:"auditEvents"`
 		NextCursor  string                    `json:"nextCursor"`
 	}
-	if err := json.Unmarshal(resp.Body, &env); err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, err)
 	}
 
 	return &models.ListResponse[models.AuditEventRecord]{
@@ -118,12 +118,14 @@ func (f *auditEventsFacade) ListAll(ctx context.Context, opts models.AuditEventR
 func (f *auditEventsFacade) Get(ctx context.Context, id string) (*models.AuditEventRecord, error) {
 	const operation = "AuditEvents.Get"
 
-	resp, err := f.tracer.GetAuditEventWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.AuditEventRecord](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetAuditEvent(ctx, id)
+
+	return readOne[models.AuditEventRecord](operation, resp, err)
 }
 
 // Verify returns the tracer server's hash-chain integrity verdict for the audit
@@ -133,12 +135,14 @@ func (f *auditEventsFacade) Get(ctx context.Context, id string) (*models.AuditEv
 func (f *auditEventsFacade) Verify(ctx context.Context, id string) (*models.HashChainVerificationResult, error) {
 	const operation = "AuditEvents.Verify"
 
-	resp, err := f.tracer.VerifyAuditEventWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.HashChainVerificationResult](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.VerifyAuditEvent(ctx, id)
+
+	return readOne[models.HashChainVerificationResult](operation, resp, err)
 }
 
 // listAuditEventRecordsParams renders the typed opts into the generated

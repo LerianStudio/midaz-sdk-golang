@@ -43,7 +43,6 @@ import (
 type (
 	Account          = models.Account
 	AccountType      = models.AccountType
-	Alias            = models.Alias
 	Asset            = models.Asset
 	AssetRate        = models.AssetRate
 	Balance          = models.Balance
@@ -66,7 +65,6 @@ type (
 type (
 	CreateAccountInput          = models.CreateAccountInput
 	CreateAccountTypeInput      = models.CreateAccountTypeInput
-	CreateAliasInput            = models.CreateAliasInput
 	CreateAssetInput            = models.CreateAssetInput
 	CreateAssetRateInput        = models.CreateAssetRateInput
 	CreateBalanceInput          = models.CreateBalanceInput
@@ -88,7 +86,6 @@ type (
 type (
 	UpdateAccountInput          = models.UpdateAccountInput
 	UpdateAccountTypeInput      = models.UpdateAccountTypeInput
-	UpdateAliasInput            = models.UpdateAliasInput
 	UpdateAssetInput            = models.UpdateAssetInput
 	UpdateBalanceInput          = models.UpdateBalanceInput
 	UpdateHolderInput           = models.UpdateHolderInput

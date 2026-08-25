@@ -13,11 +13,28 @@
 //	if err != nil { return err }
 //	defer c.Shutdown(ctx)
 //
-//	org, err := c.Organizations.Get(ctx, "org-id")
+//	org, err := c.V2.Organizations.Get(ctx, "org-id")
+//
+// # Ledger surfaces
+//
+// Midaz serves two ledger surfaces at once — /v1, deprecated but alive, and
+// /v2, the current one — and does not mirror every resource across them, so
+// the accessors are grouped by the version that serves each: c.V1.<Service>
+// and c.V2.<Service>. The version travels in the request path, never in the
+// base URL.
+//
+// Build against c.V2: it is the wider surface (22 services against V1's 14).
+// /v1 alone still serves asset rates and the four legacy transaction creation
+// styles; /v2 alone serves holders, instruments, encryption, composition,
+// protection audit and the whole billing family.
+//
+// Tracer accessors are not version-grouped — the Tracer serves one surface and
+// versions itself in its base URL — so they stay flat: c.Rules, c.Limits,
+// c.Validations, c.Reservations, c.AuditEvents.
 //
 // # Authentication
 //
-// v4 requires exactly one auth source at construction time:
+// The SDK requires exactly one auth source at construction time:
 //   - [WithAccessManager] — production-shape OAuth via the Lerian
 //     Access Manager. Recommended for any non-local stack.
 //   - [WithAnonymous] — opt out of authentication. Suitable only for
@@ -42,9 +59,12 @@
 //
 // # Pagination
 //
-// Every paginated entity List* method returns one page. ListAll yields
-// iter.Seq2[T, error] for full-collection iteration; ListPages yields page
-// envelopes with metadata. MetadataIndexes is intentionally non-paginated.
+// Paginated list methods ship in a trio: List returns one page, All yields
+// iter.Seq2[T, error] for full-collection iteration, and Pages yields page
+// envelopes with metadata. Accessors serving more than one list prefix the
+// trio instead (Balances.ListAccountBalances / ...All / ...Pages).
+// MetadataIndexes is intentionally non-paginated, as are the alias and
+// external-code balance lookups.
 // Page-based and cursor-based endpoints are distinguished at the type system:
 // wrong-shape opts don't compile. See docs/pagination.md.
 //
@@ -73,8 +93,9 @@
 // # Examples
 //
 // See examples/ for runnable demos. Start with examples/01-hello-world
-// for the minimum-viable shape; examples/03-end-to-end walks the full
-// resource hierarchy.
+// for the minimum-viable shape; examples/03-end-to-end creates a transaction
+// on the /v2 surface; examples/workflow-with-entities walks the full resource
+// hierarchy.
 package midaz
 
 import (
@@ -104,11 +125,13 @@ const Version = version.Version
 // It provides access to all API services, connection management,
 // authentication, rate limiting, and retry handling.
 //
-// All services are exposed as promoted fields via the embedded *entities.Entity.
-// In v4, prefer c.Accounts.X over c.Entity.Accounts.X — they refer to the same
-// instance, but the shorter form is the canonical idiom. The embedded Entity
-// pointer remains accessible as c.Entity for back-compat during the v2 → v4
-// migration window.
+// Every service is reached through the embedded *entities.Entity, grouped by
+// the server version that serves it: c.V2.Accounts, c.V1.AssetRates. The grouping
+// is a fact about Midaz, which keeps both ledger surfaces alive and does not
+// mirror every resource across them — see [entities.V1Services] and
+// [entities.V2Services]. The Tracer serves a single surface and stays flat:
+// c.Rules, c.Limits, c.Validations, c.Reservations, c.AuditEvents. The embedded
+// pointer is also reachable as c.Entity.
 //
 // Client wraps a small subset of Entity methods (SetObservability,
 // GetObservabilityProvider) so the Client view of state never drifts from the
@@ -123,9 +146,12 @@ type Client struct {
 	// mutated c.config — see WithConfig godoc for the rationale.
 	configMutated bool
 
-	// Embedded Entity. Promoted fields expose every service directly on Client:
-	//   c.Accounts, c.Transactions, c.Ledgers, c.Organizations, etc.
-	// The embedded pointer is also accessible as c.Entity for back-compat.
+	// Embedded Entity. Promoted fields expose the Ledger accessors through the
+	// version group that serves them and the Tracer accessors flat:
+	//   c.V2.Accounts, c.V2.Transactions, c.V1.AssetRates, c.Rules, etc.
+	// There are no top-level per-resource fields — a Ledger accessor is always
+	// reached through c.V1 or c.V2. The embedded pointer is also accessible as
+	// c.Entity.
 	*entities.Entity
 
 	// pendingObservability is the observability provider accumulated by
@@ -191,8 +217,9 @@ type Option func(*Client) error
 //
 // Returns:
 //
-//   - *Client: A fully-initialized client. All service fields (c.Accounts,
-//     c.Transactions, etc.) are non-nil and ready for API calls.
+//   - *Client: A fully-initialized client. Every service accessor
+//     (c.V2.Accounts, c.V2.Transactions, c.V1.AssetRates, c.Rules, ...) is
+//     non-nil and ready for API calls.
 //
 //   - error: A *errors.Error with a category appropriate to the failure
 //     class. The classification space is:
@@ -374,7 +401,18 @@ func classifyBootstrapSetupError(operation string, err error) *sdkerrors.Error {
 		)
 	}
 
-	return sdkerrors.NewConfigurationError(operation, "failed to initialize entity API", err)
+	// The cause carries the whole diagnostic — which plane URL is malformed, which
+	// environment variable to edit. Error() renders only Message, so wrapping the
+	// cause without folding its text in leaves the operator with a bare "failed to
+	// initialize entity API" and no way to reach the reason short of calling
+	// errors.Unwrap by hand. err stays the wrapped cause, so Unwrap/Is/As are
+	// unchanged.
+	message := "failed to initialize entity API"
+	if err != nil {
+		message += ": " + err.Error()
+	}
+
+	return sdkerrors.NewConfigurationError(operation, message, err)
 }
 
 func newAccessManagerUpstreamBootstrapError(operation string, err error) *sdkerrors.Error {
@@ -437,10 +475,6 @@ func (c *Client) setupEntity() error {
 	// Verify we have the required service URLs
 	if _, ok := serviceURLs["onboarding"]; !ok {
 		return errors.New("missing onboarding URL in config")
-	}
-
-	if _, ok := serviceURLs["transaction"]; !ok {
-		return errors.New("missing transaction URL in config")
 	}
 
 	if err := config.WithObservabilityProvider(c.pendingObservability)(c.config); err != nil {

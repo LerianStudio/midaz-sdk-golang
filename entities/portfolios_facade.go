@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // portfoliosFacade is the Phase 2 (Task 2.1.a) hand-written facade over the
@@ -40,25 +38,18 @@ func newPortfoliosFacade(ledger *genledger.ClientWithResponses, enableIdempotenc
 func (f *portfoliosFacade) List(ctx context.Context, orgID, ledgerID string, opts models.PortfoliosListOpts) (*models.ListResponse[models.Portfolio], error) {
 	const operation = "Portfolios.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListPortfoliosWithResponse(ctx, orgID, ledgerID, listPortfoliosParams(opts), listPortfoliosReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListPortfolios(ctx, orgID, ledgerID, listPortfoliosParams(opts), listPortfoliosReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Portfolio]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Portfolio](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing while the response reports
@@ -105,17 +96,17 @@ func (f *portfoliosFacade) All(ctx context.Context, orgID, ledgerID string, opts
 func (f *portfoliosFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 	const operation = "Portfolios.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.Portfolio](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreatePortfolioWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreatePortfolioWithBody(ctx, orgID, ledgerID, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -123,12 +114,14 @@ func (f *portfoliosFacade) Create(ctx context.Context, orgID, ledgerID string, i
 func (f *portfoliosFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.Portfolio, error) {
 	const operation = "Portfolios.Get"
 
-	resp, err := f.ledger.GetPortfolioByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.Portfolio](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetPortfolioByID(ctx, orgID, ledgerID, id)
+
+	return readOne[models.Portfolio](operation, resp, err)
 }
 
 // Update patches a portfolio by ID under an org+ledger. Same write-facade
@@ -136,17 +129,17 @@ func (f *portfoliosFacade) Get(ctx context.Context, orgID, ledgerID, id string) 
 func (f *portfoliosFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdatePortfolioInput) (*models.Portfolio, error) {
 	const operation = "Portfolios.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.Portfolio](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdatePortfolioWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdatePortfolioWithBody(ctx, orgID, ledgerID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -155,16 +148,14 @@ func (f *portfoliosFacade) Update(ctx context.Context, orgID, ledgerID, id strin
 func (f *portfoliosFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Portfolios.Delete"
 
-	resp, err := f.ledger.DeletePortfolioWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeletePortfolio(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // Count returns the total number of portfolios under an org+ledger via
@@ -172,6 +163,10 @@ func (f *portfoliosFacade) Delete(ctx context.Context, orgID, ledgerID, id strin
 // through the raw CountPortfolios + readCount so a headers-only error reply
 // (empty body) maps to the real status rather than an internal error.
 func (f *portfoliosFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	if err := requirePathIDs("Portfolios.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountPortfolios(ctx, orgID, ledgerID))
 }

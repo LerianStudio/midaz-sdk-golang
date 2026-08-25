@@ -3,8 +3,8 @@
 
 package models
 
-// HoldersListOpts is the typed options struct for ListHolders and
-// the ListHoldersAll / ListHoldersPages iterators.
+// HoldersListOpts is the typed options struct for the holder list surface:
+// V2.Holders.List and the All / Pages iterators.
 //
 // Embeds CursorListOpts for the shared cursor/sort fields; attaches a
 // HoldersFilters sub-struct carrying only the filter fields the holders

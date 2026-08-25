@@ -12,8 +12,9 @@ import (
 )
 
 // balanceReader is the narrow slice of the Balances accessor WaitForSettlement
-// needs. client.Balances satisfies it structurally, so callers pass c.Balances
-// with no adapter.
+// needs. Both balance facades satisfy it structurally, so callers pass
+// c.V2.Balances — or c.V1.Balances against a ledger still on /v1 — with no
+// adapter either way.
 type balanceReader interface {
 	ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
 }

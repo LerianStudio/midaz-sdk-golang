@@ -405,8 +405,39 @@ func runGenerationWorkflow(ctx context.Context, c *midaz.Client, obsProvider obs
 				reportLedger = lc.ledger
 			}
 		}
+	}
 
-		if len(allResults) > 0 && reportOrg != nil && reportLedger != nil {
+	// The V2-only phase runs AFTER the /v1 batch and BEFORE the report, so the
+	// entities it creates reach the artifacts. It never touches
+	// state.accountTxnCounts: that map is what the /v1 volume assertion below
+	// counts, and a /v2 transaction is not part of that target.
+	if state.demoConfig.runV2Val {
+		for _, lc := range ledgerContexts {
+			if err := runV2Phases(ctx, c, state, lc); err != nil {
+				return err
+			}
+		}
+
+		// Metadata indexes are a GLOBAL resource (/v2/settings/...), so the
+		// cycle runs once for the whole run rather than once per ledger.
+		runV2MetadataIndexPhase(ctx, c, state)
+	}
+
+	// The report is written when EITHER phase ran. It used to be written only
+	// after the /v1 batch, so a DEMO_RUN_BATCH=false + DEMO_RUN_V2=true run
+	// created holders, accounts, instruments, fee and billing packages and V2
+	// transactions on a live stack and then produced no artifact naming any of
+	// them. The batch-specific parts stay gated on the batch: no results means no
+	// batch summary to print.
+	if state.demoConfig.runBatchVal || state.demoConfig.runV2Val {
+		// On a V2-only run nothing above picked the org/ledger the report is
+		// headed with, because that used to happen inside the batch loop.
+		if reportOrg == nil && len(ledgerContexts) > 0 {
+			reportOrg = ledgerContexts[0].org
+			reportLedger = ledgerContexts[0].ledger
+		}
+
+		if reportOrg != nil && reportLedger != nil {
 			generateFinalReport(ctx, c, state, reportOrg, reportLedger, allResults, allAccounts)
 		}
 	}
@@ -868,6 +899,11 @@ func shortID(id string) string {
 	return id[:8]
 }
 
+// generateFinalReport writes the JSON/HTML artifacts and the entity manifest.
+//
+// results is empty on a V2-only run, which is a supported shape rather than a
+// degenerate one: everything here works off state.reportEntities, and the
+// batch-specific summary is skipped rather than printed as a row of zeros.
 func generateFinalReport(ctx context.Context, c *midaz.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, results []txpkg.BatchResult, accounts []*models.Account) {
 	summary := txpkg.GetBatchSummary(results)
 	state.reportEntities.Counts.Transactions = summary.SuccessCount
@@ -877,7 +913,10 @@ func generateFinalReport(ctx context.Context, c *midaz.Client, state *workflowSt
 
 	report := createGenerationReport(ctx, c, results, state, org.ID, ledger.ID, reportDataSummary)
 	saveReportFiles(report, state.reportEntities.IDs)
-	printBatchSummary(summary)
+
+	if len(results) > 0 {
+		printBatchSummary(summary)
+	}
 }
 
 func buildReportDataSummary(state *workflowState, accounts []*models.Account, successCount int) *txpkg.ReportDataSummary {
@@ -927,9 +966,11 @@ func fetchAccountBalances(ctx context.Context, c *midaz.Client, state *workflowS
 			alias = account.ID
 		}
 
-		// GetBalance was dropped in the facade swap; list balances and take the
-		// first (an account has one default balance per asset).
-		balances, err := c.Accounts.ListBalances(ctx, orgID, ledgerID, account.ID, models.CursorListOpts{})
+		// There is no by-account balance read; list the account's balances and
+		// take the first (an account has one default balance per asset).
+		// On /v2 the account-scoped balance read lives on Balances, not on
+		// Accounts — /v1 spells it on both, /v2 spells it once.
+		balances, err := c.V2.Balances.ListAccountBalances(ctx, orgID, ledgerID, account.ID, models.BalancesListOpts{})
 		if err != nil || balances == nil || len(balances.Items) == 0 {
 			continue
 		}
@@ -952,6 +993,23 @@ func createGenerationReport(ctx context.Context, c *midaz.Client, results []txpk
 		"ledger": ledgerID,
 	})
 
+	// This stays BEST-EFFORT, and the reason is the metric, not the risk of a
+	// false positive.
+	//
+	// The checker's InternalNetTotal deliberately EXCLUDES every account whose
+	// alias starts with "@external/" (integrity.updateInternalNetTotal), so it
+	// measures net value injected into the ledger from outside it — not whether
+	// the ledger balances. Across ALL accounts a double-entry ledger nets to
+	// zero by construction; once the external account is removed from the sum,
+	// any funded ledger nets to a positive number.
+	//
+	// This generator funds every account from @external/<asset>. So a
+	// SUCCESSFUL run always reports doubleEntryBalanced=false, and promoting
+	// that to a fatal error would fail every run that worked. The name is what
+	// misleads: the field is an injected-value total wearing a balance label.
+	//
+	// The real money-path assertion lives in the V2 phase (runV2TransactionProof),
+	// which asserts exact expected balances and IS fatal.
 	chk := integrity.NewChecker(c.Entity)
 	if br, err := chk.GenerateLedgerReport(ctx, orgID, ledgerID); err == nil {
 		for alias, summary := range br.ToSummaryMap() {

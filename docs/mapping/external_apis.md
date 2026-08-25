@@ -11,9 +11,9 @@ This map documents the recommended public SDK surface that consumers should use.
 ### Client options
 
 - `midaz.WithConfig(*config.Config)` - Uses a pre-built SDK configuration.
-- `midaz.WithBaseURL(string)` - Sets a shared base URL and derives Ledger/CRM service URLs.
-- `midaz.WithLedgerURL(string)` - Sets the Ledger service URL (onboarding + transactions).
-- `midaz.WithCRMURL(string)` - Sets the CRM service URL.
+- `midaz.WithBaseURL(string)` - Sets one shared origin and fans it out to **both** planes, re-shaping the Tracer copy (the Tracer base keeps `/v1`, the Ledger base is bare). This is the only fan-out; the per-plane options below each address one plane.
+- `midaz.WithLedgerURL(string)` - Sets the Ledger plane URL. Must carry **no version segment** — the server puts the version in each path, so a `/v1` or `/v2` suffix is rejected at construction rather than producing `/v1/v1/...`. Does **not** derive the Tracer base.
+- `midaz.WithTracerURL(string)` - Sets the Tracer plane URL. The Tracer versions itself in its base URL, so this one keeps `/v1`.
 - `midaz.WithEnvironment(config.Environment)` - Uses a named environment preset.
 - `midaz.WithHTTPClient(*http.Client)` - Supplies a custom HTTP client.
 - `midaz.WithTimeout(time.Duration)` - Sets request timeout.
@@ -31,6 +31,7 @@ This map documents the recommended public SDK surface that consumers should use.
 - `midaz.WithObservabilityProvider(observability.Provider)` - Install a pre-built observability provider. Replacement semantics.
 - `midaz.WithAccessManager(midaz.AccessManager)` - Configure Access Manager OAuth authentication. Mutually exclusive with `WithAnonymous`.
 - `midaz.WithAllowInsecureAccessManagerHTTP(bool)` - Explicitly allow non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Default is strict HTTPS-or-loopback only.
+- `midaz.WithAllowInsecureHTTP(bool)` - Explicitly allow non-loopback `http://` **Ledger and Tracer** URLs for trusted in-cluster networks (e.g. `*.svc.cluster.local`). Independent of the Access Manager knob above, and refused with `WithEnvironment(config.EnvironmentProduction)`. Apply it BEFORE the URL setters in the chain — each URL is validated as it is set.
 - `midaz.WithAnonymous()` - Explicitly opt out of authentication for local development and tests. Mutually exclusive with `WithAccessManager`.
 
 ### Client fields and methods
@@ -76,9 +77,10 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config`.
 - `config.WithEnvironment(config.Environment) config.Option`
 - `config.WithBaseURL(string) config.Option`
 - `config.WithLedgerURL(string) config.Option`
-- `config.WithCRMURL(string) config.Option`
+- `config.WithTracerURL(string) config.Option`
 - `config.WithAccessManager(auth.AccessManager) config.Option`
 - `config.WithAllowInsecureAccessManagerHTTP(bool) config.Option`
+- `config.WithAllowInsecureHTTP(bool) config.Option` - Ledger/Tracer plane equivalent of the option above. Apply before the URL setters; `Validate` refuses it together with `EnvironmentProduction`.
 - `config.WithHTTPClient(*http.Client) config.Option`
 - `config.WithTimeout(time.Duration) config.Option`
 - `config.WithUserAgent(string) config.Option`
@@ -95,8 +97,9 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config`.
 
 - `MIDAZ_ENVIRONMENT`
 - `MIDAZ_BASE_URL`
-- `MIDAZ_LEDGER_URL`
-- `MIDAZ_CRM_URL`
+- `MIDAZ_LEDGER_URL` - no version segment; a `/v1` or `/v2` suffix is rejected
+- `MIDAZ_TRACER_URL` - keeps `/v1`
+- `MIDAZ_TRACER_API_KEY` - optional; authenticates the Tracer plane with an `X-API-Key` instead of the shared Ledger Bearer token
 - `MIDAZ_TIMEOUT`
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
@@ -105,6 +108,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config`.
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
 - `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`
+- `MIDAZ_ALLOW_INSECURE_HTTP` - Ledger/Tracer plane; loaded before the URL variables so the ordering is automatic. Refused with `MIDAZ_ENVIRONMENT=production`
 - `MIDAZ_CLIENT_ID`
 - `MIDAZ_CLIENT_SECRET`
 
@@ -116,46 +120,42 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth` (no alias needed; pac
 - `config.WithAccessManager(auth.AccessManager)` / `midaz.WithAccessManager(midaz.AccessManager)` - Configure plugin auth. The Enabled field is auto-set to true; callers populate Address/ClientID/ClientSecret only.
 - `midaz.WithAnonymous()` / `config.WithAnonymous()` - Explicit auth-less mode for local development and tests.
 
-v3 contract: `midaz.New()` requires exactly one of `WithAccessManager` or `WithAnonymous`. See [docs/auth.md](../auth.md).
+`midaz.New()` requires exactly one of `WithAccessManager` or `WithAnonymous`. See [docs/auth.md](../auth.md).
 
 ## Entity package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v5/entities`. Consumers should prefer promoted client services such as `c.Accounts`, `c.Transactions`, and `c.Organizations`; `c.Entity.Accounts` remains available as the embedded back-compat access path.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/entities`.
 
 ### Entity access point
 
-- `Client.Accounts` (`Client.Entity.Accounts` compatibility path)
-- `Client.AccountTypes` (`Client.Entity.AccountTypes` compatibility path)
-- `Client.Assets` (`Client.Entity.Assets` compatibility path)
-- `Client.AssetRates` (`Client.Entity.AssetRates` compatibility path)
-- `Client.Balances` (`Client.Entity.Balances` compatibility path)
-- `Client.Holders` (`Client.Entity.Holders` compatibility path)
-- `Client.Aliases` (`Client.Entity.Aliases` compatibility path)
-- `Client.Ledgers` (`Client.Entity.Ledgers` compatibility path)
-- `Client.MetadataIndexes` (`Client.Entity.MetadataIndexes` compatibility path)
-- `Client.Operations` (`Client.Entity.Operations` compatibility path)
-- `Client.OperationRoutes` (`Client.Entity.OperationRoutes` compatibility path)
-- `Client.Organizations` (`Client.Entity.Organizations` compatibility path)
-- `Client.Portfolios` (`Client.Entity.Portfolios` compatibility path)
-- `Client.Segments` (`Client.Entity.Segments` compatibility path)
-- `Client.Transactions` (`Client.Entity.Transactions` compatibility path)
-- `Client.TransactionRoutes` (`Client.Entity.TransactionRoutes` compatibility path)
+Ledger-plane accessors are grouped by the **server version that serves them**: `Client.V1.<Service>` and `Client.V2.<Service>`, promoted through the embedded `*Entity` (so `Client.Entity.V1.Accounts` is the same accessor). There are no flat ledger accessors.
 
-Plane-native accessors added in the v4 remodel (Tracer plane and ledger-plane extensions):
+The grouping is a fact about the server, not a style choice. Midaz carries the version inside each operation path (`/v1/organizations`, `/v2/organizations`), deprecated all of /v1 while keeping it alive, and did not mirror every resource across the two. Grouping turns that asymmetry into a compile error rather than a 404. Base URLs carry no version — a `/v1` or `/v2` suffix on the Ledger base URL is rejected at construction.
+
+`V1Services`, 14 members:
+
+- `Client.V1.Organizations`, `Client.V1.Ledgers`, `Client.V1.Accounts`, `Client.V1.AccountTypes`, `Client.V1.Assets`, `Client.V1.Portfolios`, `Client.V1.Segments`, `Client.V1.OperationRoutes`, `Client.V1.TransactionRoutes`, `Client.V1.MetadataIndexes`, `Client.V1.Balances`, `Client.V1.Operations`, `Client.V1.Transactions`
+- `Client.V1.AssetRates` - **V1 only.** /v2 dropped the resource.
+
+`V2Services`, 22 members — wider than V1, and the surface to build against:
+
+- Dual-served families: `Client.V2.Organizations`, `Client.V2.Ledgers`, `Client.V2.Accounts`, `Client.V2.AccountTypes`, `Client.V2.Assets`, `Client.V2.Portfolios`, `Client.V2.Segments`, `Client.V2.OperationRoutes`, `Client.V2.TransactionRoutes`, `Client.V2.MetadataIndexes`, `Client.V2.Balances`, `Client.V2.Operations`, `Client.V2.Transactions`
+- **V2 only** (Midaz removed these from /v1): `Client.V2.Holders`, `Client.V2.Instruments`, `Client.V2.Encryption`, `Client.V2.Composition`, `Client.V2.ProtectionAudit`, `Client.V2.BillingPackages`, `Client.V2.FeePackages`, `Client.V2.FeeEstimates`, `Client.V2.BillingCalculations`
+
+Two V2 members differ in **shape** from their V1 namesake rather than only in path:
+
+- `V2.Transactions` creates at the top level (`/v2/transactions/direct`) with the organization and ledger travelling per leg in the body, and answers with `models.TransactionV2`. The four V1 creation styles (json, inflow, outflow, annotation) have no V2 twin.
+- `V2.Accounts` does not re-expose the account-scoped balance and operation reads. V1 spells each on two facades; V2 spells each once, on `V2.Balances` and `V2.Operations`.
+
+The billing family (`BillingPackages`, `FeePackages`, `FeeEstimates`, `BillingCalculations`) also **moved scope** between versions, from organization to ledger, so every method takes a ledger ID.
+
+Tracer-plane accessors are **not** version-grouped: the Tracer serves one surface and carries its version in the base URL rather than in each path, so they stay flat on the client.
 
 - `Client.Rules` (`Client.Entity.Rules` compatibility path)
 - `Client.Limits` (`Client.Entity.Limits` compatibility path)
 - `Client.Validations` (`Client.Entity.Validations` compatibility path)
 - `Client.Reservations` (`Client.Entity.Reservations` compatibility path)
 - `Client.AuditEvents` (`Client.Entity.AuditEvents` compatibility path)
-- `Client.ProtectionAudit` (`Client.Entity.ProtectionAudit` compatibility path)
-- `Client.Encryption` (`Client.Entity.Encryption` compatibility path)
-- `Client.Instruments` (`Client.Entity.Instruments` compatibility path)
-- `Client.Composition` (`Client.Entity.Composition` compatibility path)
-- `Client.FeePackages` (`Client.Entity.FeePackages` compatibility path)
-- `Client.FeeEstimates` (`Client.Entity.FeeEstimates` compatibility path)
-- `Client.BillingPackages` (`Client.Entity.BillingPackages` compatibility path)
-- `Client.BillingCalculations` (`Client.Entity.BillingCalculations` compatibility path)
 
 ### Organizations
 
@@ -188,6 +188,7 @@ Plane-native accessors added in the v4 remodel (Tracer plane and ledger-plane ex
 - `Pages(ctx, organizationID, ledgerID, opts)`
 - `Get(ctx, organizationID, ledgerID, id)`
 - `GetByAlias(ctx, organizationID, ledgerID, alias)`
+- `GetByExternalCode(ctx, organizationID, ledgerID, code)` - Reaches the EXTERNAL account of an asset (the counterparty every deposit is drawn from) by asset code rather than by id.
 - `Create(ctx, organizationID, ledgerID, input)`
 - `Update(ctx, organizationID, ledgerID, id, input)`
 - `Delete(ctx, organizationID, ledgerID, id)`
@@ -233,7 +234,9 @@ Account balances are listed via `Accounts.ListBalances` (and its `All` / `Pages`
 
 `models.AssetRatesListOpts` embeds `models.CursorListOpts` for `Limit`, `Cursor`, `SortDirection`, `StartDate`, and `EndDate`, plus `models.AssetRatesFilters{To: []string{...}}`. It serializes to `to`, `limit`, `start_date`, `end_date`, `sort_order`, and `cursor`.
 
-### BalancesService
+### Balances
+
+Served on both surfaces: `V1.Balances` and `V2.Balances`.
 
 - `ListBalances(ctx, orgID, ledgerID, opts)`
 - `ListBalancesAll(ctx, orgID, ledgerID, opts)`
@@ -246,13 +249,13 @@ Account balances are listed via `Accounts.ListBalances` (and its `All` / `Pages`
 - `UpdateBalance(ctx, orgID, ledgerID, balanceID, input)`
 - `DeleteBalance(ctx, orgID, ledgerID, balanceID)`
 - `CreateBalance(ctx, orgID, ledgerID, accountID, input)`
-- `ListBalancesByAccountAlias(ctx, orgID, ledgerID, alias, opts)`
-- `ListBalancesByAccountAliasAll(ctx, orgID, ledgerID, alias, opts)`
-- `ListBalancesByAccountAliasPages(ctx, orgID, ledgerID, alias, opts)`
-- `ListBalancesByExternalCode(ctx, orgID, ledgerID, code, opts)`
-- `ListBalancesByExternalCodeAll(ctx, orgID, ledgerID, code, opts)`
-- `ListBalancesByExternalCodePages(ctx, orgID, ledgerID, code, opts)`
+- `ListBalancesByAccountAlias(ctx, orgID, ledgerID, alias)`
+- `ListBalancesByExternalCode(ctx, orgID, ledgerID, code)`
 - `GetAccountBalancesHistory(ctx, orgID, ledgerID, accountID, date)`
+
+The alias and external-code lookups take **no opts and have no `All`/`Pages` iterators**. Those endpoints accept no query parameters and are not paginated — the server answers with a fixed page — so an iterator over them could not advance, and an opts parameter whose only legal value is the zero value is not a parameter.
+
+On /v1 the account-scoped balance reads are also reachable through `V1.Accounts` (`ListBalances`, `ListBalancesAll`, `ListBalancesPages`, `BalancesAtTimestamp`). /v2 spells each endpoint once, here.
 
 ### Portfolios
 
@@ -276,13 +279,19 @@ Account balances are listed via `Accounts.ListBalances` (and its `All` / `Pages`
 - `Delete(ctx, organizationID, ledgerID, id)`
 - `Count(ctx, organizationID, ledgerID)`
 
-### OperationsService
+### Operations
+
+Served on both surfaces: `V1.Operations` and `V2.Operations`.
 
 - `ListOperations(ctx, orgID, ledgerID, accountID, opts)`
 - `ListOperationsAll(ctx, orgID, ledgerID, accountID, opts)`
 - `ListOperationsPages(ctx, orgID, ledgerID, accountID, opts)`
 - `GetOperation(ctx, orgID, ledgerID, accountID, operationID)`
 - `UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
+
+`OperationsFilters` exposes the four predicates the server honors — `Type`, `Direction`, `RouteID`, `RouteCode`. On /v1 the account-scoped list is also reachable through `V1.Accounts.ListOperations`, and the transaction-scoped update through `V1.Transactions.UpdateOperation`; /v2 spells each once, here.
+
+**`V2.Operations` answers with `models.Operation`, not `models.OperationV2`.** The server's v2 operation endpoints return the v1 schema; `OperationV2` appears only nested inside `models.TransactionV2.Operations`. That is a server-side inconsistency the SDK reports rather than papers over.
 
 ### OperationRoutes
 
@@ -306,30 +315,57 @@ Account balances are listed via `Accounts.ListBalances` (and its `All` / `Pages`
 
 ### Transactions
 
-- `CreateJSON(ctx, orgID, ledgerID, input)`
-- `Get(ctx, orgID, ledgerID, transactionID)`
-- `List(ctx, orgID, ledgerID, opts)`
-- `All(ctx, orgID, ledgerID, opts)`
-- `Pages(ctx, orgID, ledgerID, opts)`
-- `Count(ctx, orgID, ledgerID, opts)`
-- `UpdateTransaction(ctx, orgID, ledgerID, transactionID, input)`
-- `UpdateOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
-- `Revert(ctx, orgID, ledgerID, transactionID)`
-- `Commit(ctx, orgID, ledgerID, transactionID)`
-- `Cancel(ctx, orgID, ledgerID, transactionID)`
+The one family whose two surfaces differ in **shape**, not only in path.
+
+`V1.Transactions`, returning `models.Transaction`:
+
+- `CreateJSON(ctx, orgID, ledgerID, input)` - **V1 only**, as are the three below
 - `CreateInflow(ctx, orgID, ledgerID, input)`
 - `CreateOutflow(ctx, orgID, ledgerID, input)`
 - `CreateAnnotation(ctx, orgID, ledgerID, input)`
+- `CreateBlock(ctx, orgID, ledgerID, input)`
+- `CreateUnblock(ctx, orgID, ledgerID, input)`
+- `Get` / `List` / `All` / `Pages` / `Count(ctx, orgID, ledgerID, ...)`
+- `UpdateTransaction(ctx, orgID, ledgerID, transactionID, input)`
+- `UpdateOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
+- `Commit` / `Revert` / `Cancel(ctx, orgID, ledgerID, transactionID)`
 
-Structured splits (multiple sources/destinations in one transaction) are expressed through the send-based payload passed to `CreateJSON` (multiple `Distribute.To` entries); there is no dedicated DSL endpoint on the `Transactions` facade.
+`V2.Transactions`, returning `models.TransactionV2`:
 
-`List` (and the `All` / `Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexes.Create(ctx, "transaction", input)` to avoid a backend collection scan at scale.
+- `CreateDirect(ctx, orgID, ledgerID, input)` - settles immediately
+- `CreateHold(ctx, orgID, ledgerID, input)` - reserves value for a later `Commit`
+- `CreateBlock` / `CreateUnblock(ctx, orgID, ledgerID, input)`
+- `Get` / `List` / `All` / `Pages` / `Count(ctx, orgID, ledgerID, ...)`
+- `Update(ctx, orgID, ledgerID, transactionID, input)`
+- `Commit` / `Revert` / `Cancel(ctx, orgID, ledgerID, transactionID)`
+
+The four V1 creation styles nest a `send` envelope (`send.source.from`, `send.distribute.to`) behind four endpoints. All four V2 creates share **one** request type, `models.CreateTransactionV2Input`, which is flat: an asset, a total, and two leg arrays (`Debits`, `Credits`). Nothing in the payload says which action runs — the endpoint does.
+
+The V2 creates are posted at the **top level** (`POST /v2/transactions/direct`); the URL carries no organization or ledger at all. Instead **every leg** names the pair its account belongs to, and the server refuses a body whose legs disagree. The facade still takes `(orgID, ledgerID)` and stamps them onto any leg that left them empty, into a deep copy — so a caller reusing one input across two ledgers cannot carry the first call's scope into the second. A leg that names a *different* pair is refused rather than posted into the wrong ledger.
+
+A V2 leg carries **exactly one** value expression: an explicit `Amount`, or a `Share` of the transaction total. Both, or neither, is refused before the request leaves.
+
+`models.TransactionV2` is not `models.Transaction` with fields added: it drops four V1 fields the surface does not serve (`chartOfAccountsGroupName`, `route`, `source`, `destination`), carries two V1 dropped (`FeesSkipped`, `TracerSkipped`), and names the participating aliases `Debit`/`Credit` rather than `Source`/`Destination`.
+
+Structured splits (multiple sources or destinations in one transaction) are multiple `Debits` / `Credits` entries on V2, and multiple `Distribute.To` entries on the V1 send payload. There is no dedicated DSL endpoint on either.
+
+#### What a transaction list can narrow by
+
+The date range, the sort direction, and **one metadata predicate** — nothing else, on either surface.
+
+Six `TransactionsFilters` fields — `Status`, `AssetCode`, `Reference`, `SourceAccount`, `DestinationAccount`, `Route` — are **refused before the request is built**, naming every one the caller set. The ledger never honored them: both list routes call the same server function, which parses `status` and `asset_code` and then discards them (`ToCursorPagination` returns only limit/cursor/sort_order/start_date/end_date), and never parses the other four at all. Setting one previously returned the whole unfiltered ledger with a nil error, which is why refusal replaced it in v5. `Status` and `Route` remain honored by `Count`.
+
+The metadata pair (`Filters.MetadataKey` + `MetadataValue`, rendered as `metadata.<key>=<value>`) is the only content filter that survives, which is why a correlation identifier belongs in transaction metadata at create time — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexes.Create(ctx, "transaction", input)` to avoid a backend collection scan at scale.
 
 ### Count method behavior
 
-The supported count is exposed as the `Count(...)` method on the `Organizations`, `Ledgers`, `Assets`, `Portfolios`, `Segments`, `Accounts`, and `Transactions` accessors.
+`Count(...)` is exposed on the `Organizations`, `Ledgers`, `Assets`, `Portfolios`, `Segments`, `Accounts` and `Transactions` accessors, on both surfaces. `AccountTypes` has no count endpoint on either version.
 
 These methods call Midaz `metrics/count` endpoints with `HEAD` and read the integer count from the `X-Total-Count` response header. If the header is missing, blank, non-integer, negative, or overflowing, the SDK returns an internal count-request error.
+
+**`Transactions.Count`'s default window is TODAY, not the ledger.** The SDK omits the dates when the opts leave them unset, and the server then fills in the current UTC day. A `Count` with a zero `TransactionsListOpts` therefore answers "how many transactions today" — a number that looks plausible to a caller reading it as the ledger total.
+
+To count any other span set `StartDate` and `EndDate` as `YYYY-MM-DD`, the **same format `List` takes** from the same opts struct. Both bounds name a whole day and both are inclusive: `2026-01-01` to `2026-01-31` counts from the first instant of January 1st through the last instant of January 31st. The endpoint itself parses RFC 3339; the SDK widens each named day to the boundary instants at param-mapping time, so a caller never carries two date formats for one struct.
 
 ### MetadataIndexes
 
@@ -341,7 +377,7 @@ These methods call Midaz `metrics/count` endpoints with `HEAD` and read the inte
 
 ### CRM services
 
-CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header. Tenant scope is derived from Access Manager/JWT claims; the SDK does not expose or send `X-Tenant-ID`.
+There is no CRM plane and no CRM base URL. Midaz folded these resources into the ledger surface, so they route over the **Ledger** plane client like every other ledger accessor, and they are **/v2 only** — Midaz removed CRM from /v1. Tenant scope is derived from Access Manager/JWT claims; the SDK does not expose or send `X-Tenant-ID`.
 
 #### Holders
 
@@ -353,16 +389,11 @@ CRM services use the CRM base URL and set the organization through the `X-Organi
 - `Update(ctx, organizationID, holderID, input)`
 - `Delete(ctx, organizationID, holderID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 
-#### AliasesService
+#### Aliases — removed, renamed to Instruments
 
-- `ListAliases(ctx, organizationID, opts)`
-- `ListAliasesAll(ctx, organizationID, opts)`
-- `ListAliasesPages(ctx, organizationID, opts)`
-- `CreateAlias(ctx, organizationID, holderID, input)`
-- `GetAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted aliases.
-- `UpdateAlias(ctx, organizationID, holderID, aliasID, input)`
-- `DeleteAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
-- `DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)`
+There is **no alias accessor**. Midaz renamed the resource to *instruments* and serves it on /v2 only; the server has no alias route at any version. `models.AliasesListOpts` and `models.AliasesFilters` are gone with it. See `V2.Instruments` under the plane-native accessors below.
+
+The shared CRM value types the alias models used to carry — `BankingDetails`, `RegulatoryFields`, `RelatedParty` — survive in `models/crm_shared_types.go`, because instruments and composition use them.
 
 ### Plane-native accessors (v4 remodel)
 
@@ -451,14 +482,16 @@ Ledger plane. CRM instruments under a holder, plus the holder's accounts.
 - `List(ctx, organizationID, holderID, opts)`
 - `ListPages(ctx, organizationID, holderID, opts)`
 - `ListAll(ctx, organizationID, holderID, opts)`
-- `Create(ctx, organizationID, holderID, input)`
+- `Create(ctx, organizationID, holderID, input)` - `input` is `models.CreateInstrumentInput`, which requires the ledger, the account the instrument belongs to, banking details and metadata. The endpoint rejects any other property.
 - `Get(ctx, organizationID, holderID, id)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted instruments.
-- `Update(ctx, organizationID, holderID, id, input)`
+- `Update(ctx, organizationID, holderID, id, input)` - `input` is `models.UpdateInstrumentInput`. The PATCH contract requires `bankingDetails` and `metadata` even on a partial update, and declares only `regulatoryFields` and `relatedParties` besides them; those two are also the only ones `WithNullFields` can clear. Neither write payload has a `document` or `type` slot.
 - `Delete(ctx, organizationID, holderID, id)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 - `DeleteRelatedParty(ctx, organizationID, holderID, instrumentID, relatedPartyID)`
-- `ListAccountsByHolder(ctx, organizationID, holderID, opts)`
-- `ListAccountsByHolderPages(ctx, organizationID, holderID, opts)`
-- `ListAccountsByHolderAll(ctx, organizationID, holderID, opts)`
+- `ListAccountsByHolder(ctx, organizationID, ledgerID, holderID, opts)`
+- `ListAccountsByHolderPages(ctx, organizationID, ledgerID, holderID, opts)`
+- `ListAccountsByHolderAll(ctx, organizationID, ledgerID, holderID, opts)`
+
+The three holder-accounts methods take a ledger even though only the holder is a path segment: the endpoint requires the ledger as a query parameter at runtime, while the published contract does not declare it, so the SDK carries it explicitly. Without it every call fails with a missing-parameter error.
 
 #### Composition
 
@@ -468,39 +501,39 @@ Ledger plane. Opens a holder-owned account and, when instrument fields are prese
 
 #### FeePackages
 
-Ledger plane, organization-scoped, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
+Ledger plane, **ledger-scoped**, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
 
-- `List(ctx, organizationID, opts)`
-- `Pages(ctx, organizationID, opts)`
-- `All(ctx, organizationID, opts)`
-- `Create(ctx, organizationID, input)`
-- `Get(ctx, organizationID, id)`
-- `Update(ctx, organizationID, id, input)`
-- `Delete(ctx, organizationID, id)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
 
 #### FeeEstimates
 
-Ledger plane, organization-scoped. Dry-run fee estimation; a 2xx with `feesApplied:null` (no rules matched) is a success, not an error.
+Ledger plane, **ledger-scoped**. Dry-run fee estimation; a 2xx with `feesApplied:null` (no rules matched) is a success, not an error.
 
-- `EstimateFee(ctx, organizationID, input)`
+- `EstimateFee(ctx, organizationID, ledgerID, input)`
 
 #### BillingPackages
 
-Ledger plane, organization-scoped, page-mode paginated (`ListPages` advances `Page++` and stops on `!HasMore()`).
+Ledger plane, **ledger-scoped**, page-mode paginated (`ListPages` advances `Page++` and stops on `!HasMore()`).
 
-- `List(ctx, organizationID, opts)`
-- `ListPages(ctx, organizationID, opts)`
-- `ListAll(ctx, organizationID, opts)`
-- `Create(ctx, organizationID, input)`
-- `Get(ctx, organizationID, id)`
-- `Update(ctx, organizationID, id, input)`
-- `Delete(ctx, organizationID, id)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `ListPages(ctx, organizationID, ledgerID, opts)`
+- `ListAll(ctx, organizationID, ledgerID, opts)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
 
 #### BillingCalculations
 
-Ledger plane, organization-scoped. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error.
+Ledger plane, **ledger-scoped**. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error. The ledger travels in the path AND in the body: an empty `input.LedgerID` inherits the path ledger, and a different one is rejected locally.
 
-- `CalculateBilling(ctx, organizationID, input)`
+- `CalculateBilling(ctx, organizationID, ledgerID, input)`
 
 ## Transaction helpers package
 
@@ -514,11 +547,11 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/models`.
 
 ### List and pagination
 
-v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate base structs, so wrong-shape opts do not compile. The v2 `models.ListOptions` mega-struct, `NewListOptions`, all `With*` setters, and the `HasNextPage` / `NextPageOptions` / `CurrentPage` / `TotalPages` methods are deleted. See [docs/pagination.md](../pagination.md) for the full contract.
+The SDK uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate base structs, so wrong-shape opts do not compile. SDK v2's `models.ListOptions` mega-struct, `NewListOptions`, all `With*` setters, and the `HasNextPage` / `NextPageOptions` / `CurrentPage` / `TotalPages` methods are deleted. See [docs/pagination.md](../pagination.md) for the full contract.
 
 #### Base structs
 
-- `models.PageListOpts{Limit, Page, SortDirection, StartDate, EndDate}` - Shared base for page-based endpoints (Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, AccountTypes, Balances, Holders, Aliases). Embedded in per-entity opts.
+- `models.PageListOpts{Limit, Page, SortDirection, StartDate, EndDate}` - Shared base for page-based endpoints (Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, AccountTypes). Embedded in per-entity opts. Balances, Holders and Instruments are **cursor**-based, not page-based.
 - `models.CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}` - Shared base for cursor-based endpoints (Transactions, Operations, OperationRoutes, TransactionRoutes, AssetRates). Embedded in per-entity opts.
 
 #### Per-entity opts
@@ -529,11 +562,18 @@ Each list endpoint exposes a typed opts struct embedding the appropriate base an
 - `models.AccountTypesListOpts` / `AccountTypesFilters`
 - `models.AssetsListOpts` / `AssetsFilters`
 - `models.AssetRatesListOpts` / `AssetRatesFilters` (cursor base)
-- `models.BalancesListOpts` / `BalancesFilters`
-- `models.HoldersListOpts` / `HoldersFilters`
-- `models.AliasesListOpts` / `AliasesFilters`
+- `models.BalancesListOpts` (cursor base, **no Filters**) - the balance lists
+  honor no predicate: the account is a path segment on the account-scoped
+  list, and there is no asset-code or status filter to narrow by.
+- `models.BillingPackagesListOpts` / `BillingPackagesFilters`
+- `models.HoldersListOpts` / `HoldersFilters` (cursor base)
+- `models.InstrumentsListOpts` / `InstrumentFilters` (cursor base) - the
+  resource /v1 served as "aliases" before Midaz renamed it. V2 only.
 - `models.LedgersListOpts` / `LedgersFilters`
-- `models.OperationsListOpts` / `OperationsFilters` (cursor base)
+- `models.OperationsListOpts` / `OperationsFilters` (cursor base) - aliases of
+  `AccountOperationsListOpts` / `AccountOperationsFilters`. One server endpoint,
+  one type, so the two spellings cannot drift apart.
+- `models.PackagesListOpts` / `PackagesFilters`
 - `models.OperationRoutesListOpts` / `OperationRoutesFilters` (cursor base)
 - `models.OrganizationsListOpts` / `OrganizationsFilters`
 - `models.PortfoliosListOpts` / `PortfoliosFilters`
@@ -544,7 +584,7 @@ Each list endpoint exposes a typed opts struct embedding the appropriate base an
 Each per-entity opts struct exposes:
 
 - `Validate() error` - Enforces SDK-side preconditions (delegates to `ValidatePageListOpts` or `ValidateCursorListOpts` then layers in filter-specific checks).
-- `ToQueryParams() map[string]string` - Renders the opts into the wire query map. Internal contract; customers should reach the wire path through `List* / List*All / List*Pages` instead of calling `ToQueryParams` directly.
+- `ToQueryParams() map[string]string` - On most opts structs. Renders the opts into the wire query map. Internal contract; customers should reach the wire path through `List* / List*All / List*Pages` instead of calling `ToQueryParams` directly. `BalancesListOpts`, `OperationsListOpts`, `AccountOperationsListOpts`, and `TransactionsListOpts` do not carry it: their facades map the fields straight onto the generated request params.
 
 #### Pagination metadata
 
@@ -591,8 +631,6 @@ Each per-entity opts struct exposes:
 - `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
-- `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
-- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. Repeated `WithRelatedParties` calls replace the in-builder related-party list; empty alias updates are rejected by the SDK.
 - `models.NewFeeEstimateInput(packageID, ledgerID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
 - `models.NewBillingCalculateInput(ledgerID, period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
 - `models.NewCreateHolderAccountInput(assetCode, accountType)` with account setters (`WithName`, `WithParentAccountID`, `WithEntityID`, `WithPortfolioID`, `WithSegmentID`, `WithStatus`, `WithAlias`, `WithMetadata`) and instrument setters (`WithBankingDetails`, `WithRegulatoryFields`, `WithRelatedParties`). An instrument is written if and only if any instrument setter is used. Feeds `Composition.CreateHolderAccount`.
@@ -686,5 +724,6 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/generator` for demo-data wo
 - `generator.NewTransactionGenerator(entity, provider)`
 - `generator.NewTransactionLifecycle(entity, provider)`
 - `generator.NewAccountHierarchyGenerator(accountGenerator)`
+- `generator.GenerateTaxDocument(locale string, formatted bool) string` - Company tax document for the locale: a Brazilian CNPJ with valid check digits for `br` (case-insensitive), a US EIN otherwise. `formatted` adds the CNPJ punctuation and is ignored for the EIN. Non-cryptographic, for demo and fixture data only.
 
 The mass demo generator is example tooling, not an idempotent migration system. It creates remote resources and writes local report artifacts containing operational identifiers.

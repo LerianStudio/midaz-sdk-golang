@@ -4,9 +4,8 @@
 package entities
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"iter"
@@ -61,6 +60,18 @@ type transactionsFacade struct {
 	enableIdempotency bool
 }
 
+// errNoResponse is the cause behind a (nil, nil) pair from a generated call.
+//
+// The natural spelling of that mistake does not compile — the generated methods
+// return a response and an error, and Go makes you name both — so reaching it
+// takes a deliberate `resp, _ :=` that discards a transport failure. The point
+// is not that it is likely; it is that this SDK does not panic in library code,
+// and every one of the 45 retrofitted read sites plus every write now funnels
+// through this one function, so a nil dereference here would be a panic on the
+// money path rather than an error a caller can act on. Callers wrap it the way
+// they wrap any other cause from here.
+var errNoResponse = stderrors.New("generated call returned no response and no error")
+
 // readRawResponse drains a generated lower-level call's raw response into bytes,
 // closing the body, so the write path can decide success on isSuccess(2xx) and
 // decode into models.* — never through the status-exact generated parser (see
@@ -68,6 +79,10 @@ type transactionsFacade struct {
 func readRawResponse(resp *http.Response, err error) (*http.Response, []byte, error) {
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if resp == nil {
+		return nil, nil, errNoResponse
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -104,7 +119,11 @@ const jsonContentType = "application/json"
 func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateJSON"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -123,7 +142,11 @@ func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID str
 func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateInflow"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -142,7 +165,11 @@ func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID s
 func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateOutflow"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -162,7 +189,11 @@ func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID 
 func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateAnnotation"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -175,6 +206,58 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 	})
 }
 
+// CreateBlock creates a transaction that BLOCKS value on the accounts it names,
+// via POST .../transactions/block.
+//
+// The body is the same shape as CreateJSON — the endpoint takes
+// CreateTransactionInput and the wire body is json.Marshal(input), routed
+// through ToLibTransaction(). What differs is entirely server-side: the ledger
+// stamps every resulting operation with the BLOCK type and forces the
+// transaction non-pending, so it settles immediately instead of waiting for a
+// commit. Reverse it with CreateUnblock, not with Cancel.
+func (f *transactionsFacade) CreateBlock(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
+	const operation = "Transactions.CreateBlock"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
+		return nil, err
+	}
+
+	params := &genledger.CreateTransactionBlockParams{}
+	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
+	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
+
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateTransactionBlockWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+	})
+}
+
+// CreateUnblock releases value a block transaction held, via
+// POST .../transactions/unblock. Same body and same immediate-settlement
+// semantics as CreateBlock; the ledger stamps UNBLOCK instead of BLOCK.
+func (f *transactionsFacade) CreateUnblock(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
+	const operation = "Transactions.CreateUnblock"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
+		return nil, err
+	}
+
+	params := &genledger.CreateTransactionUnblockParams{}
+	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
+	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
+
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateTransactionUnblockWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+	})
+}
+
 // Commit finalizes a PENDING transaction (PENDING → APPROVED) via
 // POST .../transactions/{id}/commit. Success is HTTP 201. The action carries no
 // body and is not auto-idempotent: it stamps X-Idempotency only when the caller
@@ -182,6 +265,10 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 // parity with the prior action-context idempotency handling.
 func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Commit"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
 
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CommitTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
@@ -199,6 +286,10 @@ func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transa
 func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Revert"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
+
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.RevertTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
@@ -209,12 +300,33 @@ func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transa
 }
 
 // Cancel aborts a PENDING transaction (PENDING → CANCELED) via
-// POST .../transactions/{id}/cancel. Success is HTTP 201. The cancel endpoint
-// sometimes returns an empty (or "null") body; in that case we synthesize a
-// CANCELED transaction rather than failing the decode, so callers always get a
-// status-bearing value — parity with the legacy CancelTransactionWithResponse.
+// POST .../transactions/{id}/cancel. Success is HTTP 201.
+//
+// The cancel endpoint has been observed returning an empty (or "null") body, and
+// this is the one single-object call on either surface that tolerates it: rather
+// than failing the decode, the facade synthesizes a CANCELED transaction —
+// parity with the legacy CancelTransactionWithResponse. Every other 2xx that
+// carries no resource is refused in decodeOne, Commit and Revert included. See
+// transactionsV2Facade.Cancel for why cancel alone can synthesize and they
+// cannot.
+//
+// WHAT THE SYNTHESIZED VALUE CARRIES, AND WHAT IT DOES NOT. Only ID and
+// Status.Code. Amount, AssetCode, Operations, Metadata and every timestamp are
+// the ZERO value, with a nil error — so a caller that reads Operations or
+// CreatedAt off a Cancel result gets an empty slice and a zero time rather than
+// a failure. Read the transaction back with Get if the record matters.
+//
+// Against the pinned server this branch is unreachable: CancelTransaction always
+// answers with a populated body (transaction_handler.go:293-298 projects the
+// transaction commitTransaction returned), as does its /v2 shell over the same
+// core (transaction_handler_v2.go:208-213). The tolerance is for a gateway or
+// proxy that drops the body, not for a server behaviour.
 func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Cancel"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
 
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CancelTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
@@ -231,13 +343,6 @@ func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transa
 	}
 
 	return decodeOne[models.Transaction](operation, resp.StatusCode, body, resp)
-}
-
-// isEmptyBody reports whether a success body carries no transaction — an empty
-// body or the JSON literal "null" (the cancel endpoint emits either).
-func isEmptyBody(body []byte) bool {
-	trimmed := bytes.TrimSpace(body)
-	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null"))
 }
 
 // actionIdempotencyEditors returns the request editors for a lifecycle action.
@@ -265,7 +370,11 @@ func actionIdempotencyEditors(ctx context.Context) []genledger.RequestEditorFn {
 func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error) {
 	const operation = "Transactions.UpdateTransaction"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -282,7 +391,11 @@ func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledge
 func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error) {
 	const operation = "Transactions.UpdateOperation"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID, "operationID", operationID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -291,49 +404,78 @@ func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerI
 	})
 }
 
-// Get retrieves one transaction by ID under an org+ledger. Like the onboarding
-// reads, it decodes the raw response body into models.Transaction (never the
-// generated genledger.Transaction, whose openapi_types.UUID would eager-validate
-// on 200), so the generated type never enters the public path.
+// Get retrieves one transaction by ID under an org+ledger. It decodes the RAW
+// response body into models.Transaction (never the generated
+// genledger.Transaction, whose openapi_types.UUID would eager-validate on 200),
+// so the generated type never enters the public path.
+//
+// Raw rather than through GetTransactionWithResponse, matching every other
+// method in this money-path facade: the generated parser unmarshals before the
+// facade sees anything, so a 2xx whose body a gateway dropped fails INSIDE it
+// and surfaces as an internal error — "the SDK is broken" — instead of as the
+// response-decode error that tells a caller the server answered and the read
+// could not be trusted. Reading raw puts every 2xx shape in front of the shared
+// decodeOne guard.
 func (f *transactionsFacade) Get(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Get"
 
-	resp, err := f.ledger.GetTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "transactionID", transactionID); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetTransaction(ctx, orgID, ledgerID, transactionID)
+
+	return readOne[models.Transaction](operation, resp, err)
 }
 
 // List retrieves one cursor page of transactions under an org+ledger. The
 // endpoint is CURSOR-paginated: opts carry a Cursor (never a Page). The
-// generated GetAllTransactionsParams only exposes the cursor/limit/sort/date
-// slots — the six transaction filters (asset_code/status/reference/
-// source_account/destination_account/route) and the metadata predicate have no
-// slot, so they ride as query-param request editors rather than being dropped.
+// generated GetAllTransactionsParams exposes only the cursor/limit/sort/date
+// slots, and the metadata predicate rides as a query-param request editor.
+//
+// The six transaction filters (asset_code/status/reference/source_account/
+// destination_account/route) are REFUSED here, exactly as on /v2. They never
+// narrowed anything on this surface either, and that is settled at the handler
+// rather than inferred from a spec:
+//
+//   - Both list routes call the SAME server function. transaction_handler.go:500
+//     and transaction_v2_mirror_handler.go:148 both invoke
+//     handler.getAllTransactions with the raw query values.
+//   - status and asset_code are parsed and then DISCARDED.
+//     QueryHeader.ToCursorPagination (pkg/net/http/httputils.go:533-539) returns
+//     only Limit, Cursor, SortOrder, StartDate and EndDate, and that struct is
+//     the only value handed to the repository
+//     (transaction.postgresql.go:1333, FindOrListAllWithOperations).
+//   - reference, source_account, destination_account and route are never parsed
+//     at all: the query switch (httputils.go:150-252) has no case matching any
+//     of them.
+//
+// So a caller setting Filters.Status here received EVERY transaction in the
+// ledger and had no way to know. Sending them under their legacy query names was
+// how the surface shipped; v5 is a breaking major and stops pretending.
+//
+// Count is unaffected: countTransactionsByFilters DOES declare and honour status
+// and route.
 func (f *transactionsFacade) List(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
 	const operation = "Transactions.List"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllTransactionsWithResponse(ctx, orgID, ledgerID, listTransactionsParams(opts), listTransactionsReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := refuseUndeclaredListFilters(operation, opts.Filters); err != nil {
+		return nil, err
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllTransactions(ctx, orgID, ledgerID, listTransactionsParams(opts), metadataFilterEditors(opts)...)
 
-	var page models.ListResponse[models.Transaction]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Transaction](operation, resp, err)
 }
 
 // Pages yields one cursor page per iteration, advancing by the response
@@ -385,6 +527,21 @@ func (f *transactionsFacade) All(ctx context.Context, orgID, ledgerID string, op
 // is needed. A missing/blank/non-integer/negative header is an error, never a
 // silent zero.
 //
+// THE DEFAULT WINDOW IS TODAY, NOT THE WHOLE LEDGER. The SDK omits the dates
+// when opts leaves them unset, and the server then fills them in with the
+// current UTC day: buildCountFilter defaults an absent start_date to today at
+// 00:00:00 and an absent end_date to today at 23:59:59.999999999
+// (count_transactions_by_filters.go:63-65 and 75-77). So Count with a zero
+// TransactionsListOpts answers "how many transactions today", which a caller
+// reading it as the ledger total will misread — and the number looks plausible.
+//
+// To count any other span, set StartDate and EndDate as YYYY-MM-DD — the SAME
+// format List takes, from the same opts struct. Both bounds name a WHOLE day and
+// both are inclusive: 2026-01-01 to 2026-01-31 counts from the first instant of
+// January 1st through the last instant of January 31st. (The endpoint itself
+// parses RFC3339 rather than YYYY-MM-DD; countTransactionsParams widens the days
+// to the boundary instants, so the caller never carries two date formats.)
+//
 // It calls the LOWER-LEVEL raw CountTransactionsByFilters (returning the raw
 // *http.Response) rather than the generated WithResponse variant on purpose: a
 // HEAD count is a headers-only reply, so an error status arrives with a JSON
@@ -394,7 +551,15 @@ func (f *transactionsFacade) All(ctx context.Context, orgID, ledgerID string, op
 // directly (DecodeProblemJSON handles the empty body), so the true status
 // surfaces.
 func (f *transactionsFacade) Count(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (int, error) {
+	if err := requirePathIDs("Transactions.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return 0, err
+	}
+
 	if err := opts.Validate(); err != nil {
+		return 0, err
+	}
+
+	if err := refuseUndeclaredCountFilters("Transactions.Count", opts.Filters); err != nil {
 		return 0, err
 	}
 
@@ -403,16 +568,26 @@ func (f *transactionsFacade) Count(ctx context.Context, orgID, ledgerID string, 
 }
 
 // readCount maps a HEAD count response into the total. A transport error becomes
-// an internal error; a non-2xx decodes the unified RFC 9457 envelope via
+// an internal error; a nil response with no error is refused for the reason
+// errNoResponse gives; a non-2xx decodes the unified RFC 9457 envelope via
 // DecodeProblemJSON (which handles the empty body a HEAD error carries, unlike
 // the generated status-exact parser); a 2xx reads the X-Total-Count header,
 // where a missing/blank/non-integer/negative value is an error, never a silent
 // zero. Shared by the transactions count and the six onboarding counts.
+//
+// It does not route through readRawResponse, and cannot: a HEAD reply is
+// headers-only, so the total lives in X-Total-Count and there is no body to
+// drain. That is why the nil guard is repeated here rather than inherited — the
+// two functions share a hazard, not a code path.
 func readCount(resp *http.Response, err error) (int, error) {
 	const operation = "Count"
 
 	if err != nil {
 		return 0, errors.NewInternalError(operation, err)
+	}
+
+	if resp == nil {
+		return 0, errors.NewInternalError(operation, errNoResponse)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -461,50 +636,33 @@ func listTransactionsParams(opts models.TransactionsListOpts) *genledger.GetAllT
 	return params
 }
 
-// listTransactionsReqEditors carries the transaction filters the generated
-// GetAllTransactionsParams cannot express. The ledger OAS omits every
-// TransactionsFilters field from the list params (it exposes only a single
-// opaque metadata JSON slot), so the SDK injects each filter as a query param
-// under its legacy wire name rather than dropping it silently — including the
-// single metadata predicate rendered as metadata.<key>=<value>. Returns nil
-// when no filter is set so the common path adds zero overhead.
-func listTransactionsReqEditors(opts models.TransactionsListOpts) []genledger.RequestEditorFn {
-	var editors []genledger.RequestEditorFn
-
-	if opts.Filters.AssetCode != "" {
-		editors = append(editors, setQueryParam("asset_code", opts.Filters.AssetCode))
-	}
-
-	if opts.Filters.Status != "" {
-		editors = append(editors, setQueryParam("status", opts.Filters.Status))
-	}
-
-	if opts.Filters.Reference != "" {
-		editors = append(editors, setQueryParam("reference", opts.Filters.Reference))
-	}
-
-	if opts.Filters.SourceAccount != "" {
-		editors = append(editors, setQueryParam("source_account", opts.Filters.SourceAccount))
-	}
-
-	if opts.Filters.DestinationAccount != "" {
-		editors = append(editors, setQueryParam("destination_account", opts.Filters.DestinationAccount))
-	}
-
-	if opts.Filters.Route != "" {
-		editors = append(editors, setQueryParam("route", opts.Filters.Route))
-	}
-
-	if opts.Filters.MetadataKey != "" && opts.Filters.MetadataValue != "" {
-		editors = append(editors, setQueryParam("metadata."+opts.Filters.MetadataKey, opts.Filters.MetadataValue))
-	}
-
-	return editors
-}
+// The instants a named DAY widens to on the count endpoint.
+//
+// The count endpoint strict-parses its dates as RFC3339
+// (count_transactions_by_filters.go:57 and 69, time.Parse(time.RFC3339, ...)),
+// while every list on this plane takes YYYY-MM-DD (httputils.go:176). Callers
+// pass ONE opts struct to both, so the SDK keeps ONE caller-facing format —
+// YYYY-MM-DD — and widens it here rather than making the same two fields mean
+// different things depending on which method reads them.
+//
+// The chosen instants are the server's own: with no dates at all buildCountFilter
+// fills start = today 00:00:00 UTC and end = today 23:59:59.999999999 UTC
+// (count_transactions_by_filters.go:63-65 and 75-77). Both bounds are INCLUSIVE
+// in the query (created_at >= start AND created_at <= end,
+// transaction.postgresql.go:1594-1595), so END-of-day is what makes a caller
+// asking "through Jan 31" actually receive Jan 31.
+const (
+	countStartOfDayUTC = "T00:00:00Z"
+	countEndOfDayUTC   = "T23:59:59.999999999Z"
+)
 
 // countTransactionsParams renders ONLY the four filters the HEAD count endpoint
 // honors (status/route/start_date/end_date). Cursor/limit/sort do not apply to
-// a count.
+// a count. Shared by both surfaces: countTransactionsV2Params delegates here.
+//
+// The date pair arrives as YYYY-MM-DD — opts.Validate() has already proved that,
+// and Count is the only caller — and leaves widened to the day boundaries the
+// endpoint's RFC3339 parser needs.
 func countTransactionsParams(opts models.TransactionsListOpts) *genledger.CountTransactionsByFiltersParams {
 	params := &genledger.CountTransactionsByFiltersParams{}
 
@@ -517,11 +675,11 @@ func countTransactionsParams(opts models.TransactionsListOpts) *genledger.CountT
 	}
 
 	if opts.StartDate != "" {
-		params.StartDate = strPtr(opts.StartDate)
+		params.StartDate = strPtr(opts.StartDate + countStartOfDayUTC)
 	}
 
 	if opts.EndDate != "" {
-		params.EndDate = strPtr(opts.EndDate)
+		params.EndDate = strPtr(opts.EndDate + countEndOfDayUTC)
 	}
 
 	return params

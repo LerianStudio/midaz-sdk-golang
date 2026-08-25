@@ -56,7 +56,6 @@ func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs
 
 	entity := &Entity{
 		httpClient:    NewHTTPClient(client, authToken, provider),
-		baseURLs:      normalizedBaseURLs,
 		planes:        planes,
 		observability: provider,
 	}
@@ -66,24 +65,93 @@ func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs
 	return entity
 }
 
-func TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
-	t.Setenv("MIDAZ_CRM_URL", "")
+// TestNormalizeBaseURLs_LedgerVersionSuffix pins the asymmetry between the two
+// planes: the Ledger base URL must be bare (its version rides inside every
+// operation path), the Tracer base URL must carry "/v1" (its spec declares
+// servers:[{url: "/v1"}] with unversioned paths).
+//
+// The rejection exists because the SDK used to pin "/v1" onto the Ledger base,
+// so .env files in the wild still carry MIDAZ_LEDGER_URL=...:3002/v1. Accepting
+// it would double the segment and 404 every request with nothing pointing at the
+// base URL as the cause.
+func TestNormalizeBaseURLs_LedgerVersionSuffix(t *testing.T) {
+	tests := []struct {
+		name          string
+		baseURLs      map[string]string
+		wantOnboard   string
+		wantTracer    string
+		wantErrSubstr string
+	}{
+		{
+			name:        "bare ledger base is accepted unchanged",
+			baseURLs:    map[string]string{"onboarding": "https://api.example.com"},
+			wantOnboard: "https://api.example.com",
+			wantTracer:  "https://api.example.com/v1",
+		},
+		{
+			name:        "ledger subpath base is accepted unchanged",
+			baseURLs:    map[string]string{"onboarding": "https://api.example.com/midaz"},
+			wantOnboard: "https://api.example.com/midaz",
+			wantTracer:  "https://api.example.com/midaz/v1",
+		},
+		{
+			name:          "v1-suffixed ledger base is rejected",
+			baseURLs:      map[string]string{"onboarding": "https://api.example.com/v1"},
+			wantErrSubstr: `base URL must not end in "/v1"`,
+		},
+		{
+			name:          "v2-suffixed ledger base is rejected",
+			baseURLs:      map[string]string{"onboarding": "https://api.example.com/v2"},
+			wantErrSubstr: `base URL must not end in "/v2"`,
+		},
+		{
+			name:          "v1-suffixed ledger subpath base is rejected",
+			baseURLs:      map[string]string{"onboarding": "https://api.example.com/midaz/v1"},
+			wantErrSubstr: `base URL must not end in "/v1"`,
+		},
+		{
+			name: "explicit tracer base keeps its v1 suffix",
+			baseURLs: map[string]string{
+				"onboarding": "https://api.example.com",
+				"tracer":     "https://tracer.example.com/v1",
+			},
+			wantOnboard: "https://api.example.com",
+			wantTracer:  "https://tracer.example.com/v1",
+		},
+		{
+			name: "bare tracer base gets v1 stamped on",
+			baseURLs: map[string]string{
+				"onboarding": "https://api.example.com",
+				"tracer":     "https://tracer.example.com",
+			},
+			wantOnboard: "https://api.example.com",
+			wantTracer:  "https://tracer.example.com/v1",
+		},
+	}
 
-	normalized, err := normalizeBaseURLs(map[string]string{
-		"onboarding":  "https://api.example.com/onboarding",
-		"transaction": "https://api.example.com/transaction",
-	}, false)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			normalized, err := normalizeBaseURLs(tt.baseURLs, false)
 
-	require.NoError(t, err)
-	require.Equal(t, "https://api.example.com/onboarding/v1", normalized["crm"])
+			if tt.wantErrSubstr != "" {
+				require.Error(t, err)
+				require.Nil(t, normalized)
+				require.Contains(t, err.Error(), tt.wantErrSubstr)
+				require.Contains(t, err.Error(), "MIDAZ_LEDGER_URL",
+					"the error must name the setting the operator has to edit")
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantOnboard, normalized["onboarding"])
+			require.Equal(t, tt.wantTracer, normalized["tracer"])
+		})
+	}
 }
 
 func TestNormalizeBaseURLs_RequiresOnboardingKey(t *testing.T) {
-	t.Setenv("MIDAZ_CRM_URL", "https://api.example.com/crm")
-
-	baseURLs, err := normalizeBaseURLs(map[string]string{
-		"transaction": "https://api.example.com/transaction",
-	}, false)
+	baseURLs, err := normalizeBaseURLs(map[string]string{}, false)
 
 	require.Error(t, err)
 	require.Nil(t, baseURLs)

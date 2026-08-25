@@ -199,7 +199,7 @@ func TestBatchTransactions_MissingIdempotencyKeyFailsBeforeAnySend(t *testing.T)
 }
 
 // panicTransactions is a transactionCreator whose CreateJSON panics — used to
-// exercise the batch worker's panic-recovery path. (client.Transactions is now
+// exercise the batch worker's panic-recovery path. (client.V1.Transactions is now
 // a concrete facade, so the generated gomock can't be injected via the entity.)
 type panicTransactions struct{}
 

@@ -141,9 +141,7 @@ func createMockPluginAuthConfig(pluginAuth auth.AccessManager) *mockPluginAuthCo
 	return &mockPluginAuthConfig{
 		httpClient: &http.Client{},
 		baseURLs: map[string]string{
-			"onboarding":  "http://localhost:3000/v1",
-			"transaction": "http://localhost:3001/v1",
-			"crm":         "http://localhost:3002/v1",
+			"onboarding": "http://localhost:3000",
 		},
 		pluginAuth: pluginAuth,
 	}

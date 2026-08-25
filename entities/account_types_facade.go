@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // accountTypesFacade is the Phase 2 (Task 2.1.b) hand-written facade over the
@@ -47,25 +45,18 @@ func newAccountTypesFacade(ledger *genledger.ClientWithResponses, enableIdempote
 func (f *accountTypesFacade) List(ctx context.Context, orgID, ledgerID string, opts models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error) {
 	const operation = "AccountTypes.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListAccountTypesWithResponse(ctx, orgID, ledgerID, listAccountTypesParams(opts), listAccountTypesReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListAccountTypes(ctx, orgID, ledgerID, listAccountTypesParams(opts), listAccountTypesReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.AccountType]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.AccountType](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing while the response reports
@@ -113,17 +104,17 @@ func (f *accountTypesFacade) All(ctx context.Context, orgID, ledgerID string, op
 func (f *accountTypesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountTypeInput) (*models.AccountType, error) {
 	const operation = "AccountTypes.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.AccountType](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateAccountTypeWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateAccountTypeWithBody(ctx, orgID, ledgerID, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -131,12 +122,14 @@ func (f *accountTypesFacade) Create(ctx context.Context, orgID, ledgerID string,
 func (f *accountTypesFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.AccountType, error) {
 	const operation = "AccountTypes.Get"
 
-	resp, err := f.ledger.GetAccountTypeByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.AccountType](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountTypeByID(ctx, orgID, ledgerID, id)
+
+	return readOne[models.AccountType](operation, resp, err)
 }
 
 // Update patches an account type by ID under an org+ledger. Same write-facade
@@ -144,17 +137,17 @@ func (f *accountTypesFacade) Get(ctx context.Context, orgID, ledgerID, id string
 func (f *accountTypesFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountTypeInput) (*models.AccountType, error) {
 	const operation = "AccountTypes.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.AccountType](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateAccountTypeWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateAccountTypeWithBody(ctx, orgID, ledgerID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -163,16 +156,14 @@ func (f *accountTypesFacade) Update(ctx context.Context, orgID, ledgerID, id str
 func (f *accountTypesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "AccountTypes.Delete"
 
-	resp, err := f.ledger.DeleteAccountTypeWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteAccountType(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // listAccountTypesParams renders the pagination/sort/date fields plus the one

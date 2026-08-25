@@ -27,7 +27,6 @@ func TestTypeAliasesAreIdentical(t *testing.T) {
 		// Resource entities.
 		{"Account", midaz.Account{}, models.Account{}},
 		{"AccountType", midaz.AccountType{}, models.AccountType{}},
-		{"Alias", midaz.Alias{}, models.Alias{}},
 		{"Asset", midaz.Asset{}, models.Asset{}},
 		{"AssetRate", midaz.AssetRate{}, models.AssetRate{}},
 		{"Balance", midaz.Balance{}, models.Balance{}},
@@ -45,7 +44,6 @@ func TestTypeAliasesAreIdentical(t *testing.T) {
 		// Create inputs.
 		{"CreateAccountInput", midaz.CreateAccountInput{}, models.CreateAccountInput{}},
 		{"CreateAccountTypeInput", midaz.CreateAccountTypeInput{}, models.CreateAccountTypeInput{}},
-		{"CreateAliasInput", midaz.CreateAliasInput{}, models.CreateAliasInput{}},
 		{"CreateAssetInput", midaz.CreateAssetInput{}, models.CreateAssetInput{}},
 		{"CreateAssetRateInput", midaz.CreateAssetRateInput{}, models.CreateAssetRateInput{}},
 		{"CreateBalanceInput", midaz.CreateBalanceInput{}, models.CreateBalanceInput{}},
@@ -62,7 +60,6 @@ func TestTypeAliasesAreIdentical(t *testing.T) {
 		// Update inputs.
 		{"UpdateAccountInput", midaz.UpdateAccountInput{}, models.UpdateAccountInput{}},
 		{"UpdateAccountTypeInput", midaz.UpdateAccountTypeInput{}, models.UpdateAccountTypeInput{}},
-		{"UpdateAliasInput", midaz.UpdateAliasInput{}, models.UpdateAliasInput{}},
 		{"UpdateAssetInput", midaz.UpdateAssetInput{}, models.UpdateAssetInput{}},
 		{"UpdateBalanceInput", midaz.UpdateBalanceInput{}, models.UpdateBalanceInput{}},
 		{"UpdateHolderInput", midaz.UpdateHolderInput{}, models.UpdateHolderInput{}},

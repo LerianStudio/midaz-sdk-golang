@@ -44,12 +44,11 @@ func validReserveInput() *models.ReserveInput {
 	)
 }
 
-// TestReservationsFacade_Reserve201 is the load-bearing raw-gate red. The server
-// returns 201 on a new reservation, but the generated CreateReservationResp parser
-// only fills JSON200 on an exact 200 — a WithResponse-based Reserve would DROP the
-// 201 body. The facade MUST route the write through the raw call + 2xx gate so the
-// 201 decodes into models.ReserveResponse. Also proves money is sent as a quoted
-// decimal string (never a float).
+// TestReservationsFacade_Reserve201 is the load-bearing raw-gate guard. The
+// server returns 201 on a new reservation and the generated CreateReservationResp
+// parser is status-exact, so the facade MUST route the write through the raw call
+// + 2xx gate rather than depend on one exact success status. Also proves money is
+// sent as a quoted decimal string (never a float).
 func TestReservationsFacade_Reserve201(t *testing.T) {
 	var method, path, body string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

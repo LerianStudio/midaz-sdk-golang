@@ -1,10 +1,10 @@
 // Package main demonstrates unit-testing your code against the Midaz
 // SDK using a consumer-defined interface.
 //
-// The idiomatic v4 pattern: depend on a NARROW interface you declare
+// The idiomatic pattern: depend on a NARROW interface you declare
 // yourself — only the methods you actually call — rather than the
 // concrete *midaz.Client or a broad SDK interface. In production you
-// pass c.Accounts (the facade satisfies your interface structurally);
+// pass c.V2.Accounts (the facade satisfies your interface structurally);
 // in tests you pass a tiny local mock. "Accept interfaces, return
 // structs."
 //
@@ -23,9 +23,9 @@ import (
 )
 
 // accountSource is the narrow slice of the Accounts facade this reporter
-// needs. c.Accounts satisfies it in production; a local stub satisfies it
+// needs. c.V2.Accounts satisfies it in production; a local stub satisfies it
 // in tests. Declaring the interface on the consumer side (not importing a
-// broad SDK interface) is the idiomatic v4 testing pattern.
+// broad SDK interface) is the idiomatic testing pattern.
 type accountSource interface {
 	All(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error]
 	GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
@@ -39,7 +39,7 @@ type AccountReporter struct {
 }
 
 // NewAccountReporter wires a reporter to any accountSource —
-// in production, c.Accounts; in tests, a local mock.
+// in production, c.V2.Accounts; in tests, a local mock.
 func NewAccountReporter(svc accountSource) *AccountReporter {
 	return &AccountReporter{accounts: svc}
 }

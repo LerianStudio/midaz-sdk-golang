@@ -27,7 +27,7 @@ const (
 // maxAmount as a quoted decimal string.
 func limitJSON(id, status, maxAmount string) string {
 	return `{"limitId":"` + id + `","name":"daily-cap","limitType":"DAILY",` +
-		`"maxAmount":"` + maxAmount + `","currency":"USD","status":"` + status + `",` +
+		`"maxAmount":"` + maxAmount + `","asset":"USD","status":"` + status + `",` +
 		`"scopes":[{"transactionType":"` + limitScopeTxn + `"}],` +
 		`"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}`
 }
@@ -38,11 +38,10 @@ func newCreateLimit() *models.CreateLimitInput {
 		WithScope(models.Scope{TransactionType: strPtr(limitScopeTxn)})
 }
 
-// TestLimitsFacade_Create201Money is the combined 201-drift + MONEY-PATH red.
-// The server returns 201 (the generated CreateLimitResp parser only fills JSON200
-// on an exact 200, so a WithResponse-based create misclassifies it as an error),
-// and the high-precision maxAmount must survive marshal → wire → decode with no
-// loss. The facade MUST route through the raw call + 2xx gate.
+// TestLimitsFacade_Create201Money is the combined 201 + MONEY-PATH guard. The
+// server returns 201 and the generated CreateLimitResp parser is status-exact, so
+// the facade must gate on any 2xx rather than on one status; and the
+// high-precision maxAmount must survive marshal → wire → decode with no loss.
 func TestLimitsFacade_Create201Money(t *testing.T) {
 	var method, path, reqBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +75,7 @@ func TestLimitsFacade_Create201Money(t *testing.T) {
 }
 
 // TestLimitsFacade_UpdateOmitsImmutable proves the PATCH omit-unset body reaches
-// the server as PATCH and never carries the immutable limitType/currency keys.
+// the server as PATCH and never carries the immutable limitType/asset keys.
 func TestLimitsFacade_UpdateOmitsImmutable(t *testing.T) {
 	var method, path, body string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,8 +95,8 @@ func TestLimitsFacade_UpdateOmitsImmutable(t *testing.T) {
 	if method != http.MethodPatch || path != "/v1/limits/"+limitID {
 		t.Fatalf("update req = %s %s, want PATCH /v1/limits/%s", method, path, limitID)
 	}
-	if strings.Contains(body, "limitType") || strings.Contains(body, "currency") {
-		t.Fatalf("update body = %q, must NOT contain immutable limitType/currency", body)
+	if strings.Contains(body, "limitType") || strings.Contains(body, "asset") {
+		t.Fatalf("update body = %q, must NOT contain immutable limitType/asset", body)
 	}
 	if !strings.Contains(body, `"maxAmount"`) {
 		t.Fatalf("update body = %q, want the set maxAmount field", body)
@@ -306,8 +305,13 @@ func TestLimitsFacade_ListError(t *testing.T) {
 }
 
 // TestLimitsFacade_ListMalformedBody proves a 200 whose body is not valid JSON
-// for the flat {limits:[...]} envelope surfaces as a typed internal error
+// for the flat {limits:[...]} envelope surfaces as a typed response-decode error
 // rather than an empty page or a panic.
+//
+// The class is a RESPONSE DECODE error, not an internal one: the server
+// answered and the SDK could not read the answer, which is a different fact
+// from "the SDK is broken" and is what a caller needs in order to decide
+// whether to reconcile.
 func TestLimitsFacade_ListMalformedBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -320,8 +324,8 @@ func TestLimitsFacade_ListMalformedBody(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.Code != sdkerrors.CodeInternal {
-		t.Fatalf("error code = %q, want %q (malformed body must be an internal error)", sdkErr.Code, sdkerrors.CodeInternal)
+	if sdkErr.Code != sdkerrors.CodeResponseDecode {
+		t.Fatalf("error code = %q, want %q (malformed body must be a response-decode error)", sdkErr.Code, sdkerrors.CodeResponseDecode)
 	}
 }
 

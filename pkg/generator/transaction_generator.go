@@ -41,8 +41,8 @@ func NewTransactionGenerator(e *entities.Entity, obs observability.Provider) Tra
 	}
 
 	g := &transactionGenerator{obs: obs, mc: mc}
-	if e != nil && e.Transactions != nil {
-		g.transactions = e.Transactions
+	if e != nil && e.V1.Transactions != nil {
+		g.transactions = e.V1.Transactions
 	}
 
 	return g

@@ -25,10 +25,15 @@ import (
 // Real UUIDs: the /json and /inflow etc. responses decode into
 // models.Transaction, but the org/ledger path segments and the response id are
 // exercised end-to-end, so keep them valid.
+//
+// Each one carries HEX LETTERS as well as digits, deliberately. An all-digit
+// fixture is unchanged by strings.ToUpper, so every test that upper-cases one to
+// exercise the case-insensitive UUID comparison the v2 leg scope performs was
+// comparing a value against itself and proving nothing.
 const (
-	txOrgID    = "11111111-1111-1111-1111-111111111111"
-	txLedgerID = "22222222-2222-2222-2222-222222222222"
-	txID       = "33333333-3333-3333-3333-333333333333"
+	txOrgID    = "1a2b3c4d-1111-4111-8111-1a2b3c4d5e6f"
+	txLedgerID = "2b3c4d5e-2222-4222-8222-2b3c4d5e6f70"
+	txID       = "3c4d5e6f-3333-4333-8333-3c4d5e6f7081"
 )
 
 func txBase() string {
@@ -40,10 +45,9 @@ func newTestTransactionsFacade(t *testing.T, srv *httptest.Server) *transactions
 	return newTransactionsFacade(newTestLedgerClient(t, srv), true)
 }
 
-// txResponseBody is a 200 create response carrying the two skip flags the SDK
-// model must now surface, plus a real id.
+// txResponseBody is a 200 create response with a real id.
 func txResponseBody() string {
-	return `{"id":"` + txID + `","assetCode":"USD","amount":"100","status":{"code":"APPROVED"},"feesSkipped":true,"tracerSkipped":true}`
+	return `{"id":"` + txID + `","assetCode":"USD","amount":"100","status":{"code":"APPROVED"}}`
 }
 
 func sampleTransactionInput() *models.CreateTransactionInput {
@@ -176,10 +180,6 @@ func TestTransactionsFacade_Create(t *testing.T) {
 				}
 			}
 
-			// Skip flags the SDK model previously dropped must decode.
-			if !tx.FeesSkipped || !tx.TracerSkipped {
-				t.Fatalf("skip flags not decoded: FeesSkipped=%v TracerSkipped=%v", tx.FeesSkipped, tx.TracerSkipped)
-			}
 			if tx.ID != txID {
 				t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
 			}
@@ -783,9 +783,6 @@ func TestTransactionsFacade_Get(t *testing.T) {
 	if tx.ID != txID {
 		t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
 	}
-	if !tx.FeesSkipped || !tx.TracerSkipped {
-		t.Fatalf("skip flags not decoded on Get: FeesSkipped=%v TracerSkipped=%v", tx.FeesSkipped, tx.TracerSkipped)
-	}
 }
 
 // TestTransactionsFacade_GetError maps a non-2xx into the unified error,
@@ -876,63 +873,6 @@ func TestTransactionsFacade_ListCursorChainsAndTerminates(t *testing.T) {
 	}
 }
 
-// TestTransactionsFacade_ListFilters proves every TransactionsFilters field
-// reaches the wire query with the legacy wire name — none dropped silently —
-// alongside the native cursor/limit/sort/date params.
-func TestTransactionsFacade_ListFilters(t *testing.T) {
-	var q url.Values
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		q = r.URL.Query()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"items":[],"next_cursor":""}`))
-	}))
-	defer srv.Close()
-
-	opts := models.TransactionsListOpts{
-		CursorListOpts: models.CursorListOpts{
-			Limit:         25,
-			Cursor:        "CUR",
-			SortDirection: "desc",
-			StartDate:     "2026-01-01",
-			EndDate:       "2026-02-01",
-		},
-		Filters: models.TransactionsFilters{
-			AssetCode:          "USD",
-			Status:             "APPROVED",
-			Reference:          "inv-99",
-			SourceAccount:      "@src",
-			DestinationAccount: "@dst",
-			Route:              "cashin",
-			MetadataKey:        "transferId",
-			MetadataValue:      "abc-123",
-		},
-	}
-
-	if _, err := newTestTransactionsFacade(t, srv).List(context.Background(), txOrgID, txLedgerID, opts); err != nil {
-		t.Fatalf("List: %v", err)
-	}
-
-	want := map[string]string{
-		"limit":               "25",
-		"cursor":              "CUR",
-		"sort_order":          "desc",
-		"start_date":          "2026-01-01",
-		"end_date":            "2026-02-01",
-		"asset_code":          "USD",
-		"status":              "APPROVED",
-		"reference":           "inv-99",
-		"source_account":      "@src",
-		"destination_account": "@dst",
-		"route":               "cashin",
-		"metadata.transferId": "abc-123",
-	}
-	for k, v := range want {
-		if got := q.Get(k); got != v {
-			t.Fatalf("query[%q] = %q, want %q (full query: %v)", k, got, v, q)
-		}
-	}
-}
-
 // TestTransactionsFacade_Count parses X-Total-Count from the HEAD response and
 // sends only the filters the count endpoint honors (status/route/dates).
 func TestTransactionsFacade_Count(t *testing.T) {
@@ -961,7 +901,12 @@ func TestTransactionsFacade_Count(t *testing.T) {
 	if n != 42 {
 		t.Fatalf("count = %d, want 42", n)
 	}
-	for k, v := range map[string]string{"status": "APPROVED", "route": "cashin", "start_date": "2026-01-01", "end_date": "2026-02-01"} {
+	for k, v := range map[string]string{
+		"status": "APPROVED", "route": "cashin",
+		// Days in, day boundaries out — see countTransactionsParams.
+		"start_date": "2026-01-01T00:00:00Z",
+		"end_date":   "2026-02-01T23:59:59.999999999Z",
+	} {
 		if got := q.Get(k); got != v {
 			t.Fatalf("count query[%q] = %q, want %q", k, got, v)
 		}

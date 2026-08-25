@@ -1,12 +1,15 @@
 // Package entities provides the service interfaces for interacting with the
 // Midaz API resources — organizations, ledgers, accounts, assets, balances,
-// portfolios, segments, transactions, and CRM resources.
+// portfolios, segments, transactions, and CRM resources (holders, instruments).
 //
 // The package entry point is [Entity], constructed via [NewEntityWithConfig]
-// (or [NewEntityWithConfigContext] for explicit context propagation). Each
-// service is exposed as an interface on Entity (for example Entity.Accounts,
-// Entity.Transactions), letting callers depend on the interface and mock it
-// in tests.
+// (or [NewEntityWithConfigContext] for explicit context propagation). Ledger
+// services are reached through the version group that serves them
+// (Entity.V1.Accounts, Entity.V2.Holders — see [V1Services] and [V2Services]);
+// Tracer services stay flat on Entity (Entity.Rules, Entity.Limits). Each
+// accessor is a concrete facade, so callers who want to mock the SDK declare
+// the narrow interface they actually call and let the facade satisfy it
+// structurally.
 //
 // All HTTP traffic flows through a shared [HTTPClient] that handles auth
 // injection, retries, idempotency keys, and observability hooks. Service
@@ -142,15 +145,14 @@ func configPlaneRetry(config Config) (retry.Options, func(*http.Response, error)
 // It acts as a factory for creating specific entity interfaces for different resource types
 // and operations.
 type Entity struct {
-	// HTTP client configuration
+	// httpClient no longer serves any resource — every accessor routes over a
+	// plane client. It survives because [Entity.GetEntityHTTPClient] hands it to
+	// callers for debug/user-agent/retry tuning.
 	httpClient *HTTPClient
-	baseURLs   map[string]string
 
 	// planes holds the two generated, typed plane clients (Ledger + Tracer).
-	// They are the low-level surface the hand-written facade migrates onto in
-	// Phases 2-4; during the transition the legacy per-service *HTTPClient
-	// above still serves the 3 legacy services (Balances, Operations, Aliases).
-	// Nil only when construction never reached the plane-client build step.
+	// They are the low-level surface every facade is built on. Nil only when
+	// construction never reached the plane-client build step.
 	planes *PlaneClients
 
 	// Observability provider for tracing, metrics, and logging
@@ -162,46 +164,29 @@ type Entity struct {
 	// facade's constructor by initServices.
 	enableIdempotency bool
 
-	// Ledger-plane resource accessors. Epic 5.3 swap: these 13 now route to the
-	// concrete plane facades (*xFacade) over e.planes.Ledger, not the legacy
-	// per-service interfaces. Balances/Operations/Aliases stay legacy (no facade
-	// exists yet — Epic 5.4 gap resolution).
-	Accounts          *accountsFacade
-	AccountTypes      *accountTypesFacade
-	Assets            *assetsFacade
-	AssetRates        *assetRatesFacade
-	Balances          BalancesService
-	Holders           *holdersFacade
-	Aliases           AliasesService
-	Ledgers           *ledgersFacade
-	MetadataIndexes   *metadataIndexesFacade
-	Operations        OperationsService
-	OperationRoutes   *operationRoutesFacade
-	Organizations     *organizationsFacade
-	Portfolios        *portfoliosFacade
-	Segments          *segmentsFacade
-	Transactions      *transactionsFacade
-	TransactionRoutes *transactionRoutesFacade
+	// Ledger-plane accessors, grouped by the server version that serves them.
+	// Midaz keeps both surfaces alive and does not mirror every resource across
+	// them, so the group a resource lives in is a fact about the server, not a
+	// preference — see [V1Services] and [V2Services]. Reached as client.V1.X /
+	// client.V2.X (promoted through the embedded *Entity).
+	//
+	// These are struct VALUES, not pointers, and deliberately so: a hand-rolled
+	// zero-value &Entity{} is legal (Entity and InitServices are both exported),
+	// and with a value group its members are simply nil there — exactly as the
+	// flat accessors used to be. A pointer group would make the idiomatic guard
+	// `if e != nil && e.V1.Accounts != nil` panic on that same zero value, one
+	// level deeper than the caller's nil check can see.
+	V1 V1Services
+	V2 V2Services
 
-	// Plane-native facades (Phases 3-4). Additive accessors over the typed
-	// generated plane clients; they coexist with the resource accessors above
-	// (13 already plane facades, plus the legacy Balances/Operations/Aliases
-	// trio) until the Phase 5 cutover repoints the remaining trio too. Reached
-	// fluently via client.X.Method (promoted through the embedded *Entity). Nil
-	// when the Entity was built without plane clients.
-	Rules               *rulesFacade
-	Limits              *limitsFacade
-	Validations         *validationsFacade
-	Reservations        *reservationsFacade
-	AuditEvents         *auditEventsFacade
-	ProtectionAudit     *auditFacade
-	Encryption          *encryptionFacade
-	Instruments         *instrumentsFacade
-	Composition         *compositionFacade
-	FeePackages         *feePackagesFacade
-	FeeEstimates        *feeEstimateFacade
-	BillingPackages     *billingPackagesFacade
-	BillingCalculations *billingCalculateFacade
+	// Tracer-plane accessors. NOT version-grouped: the Tracer serves one surface
+	// and carries its version in the base URL rather than in each path, so these
+	// stay flat. Nil when the Entity was built without plane clients.
+	Rules        *rulesFacade
+	Limits       *limitsFacade
+	Validations  *validationsFacade
+	Reservations *reservationsFacade
+	AuditEvents  *auditEventsFacade
 }
 
 // NewEntityWithConfig creates a new Entity using a Config object.
@@ -265,21 +250,8 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 		return nil, err
 	}
 
-	if strings.TrimSpace(normalizedBaseURLs["transaction"]) == "" {
-		normalizedBaseURLs["transaction"] = normalizedBaseURLs["onboarding"]
-	}
-
-	if strings.TrimSpace(normalizedBaseURLs["crm"]) == "" {
-		normalizedBaseURLs["crm"] = normalizedBaseURLs["onboarding"]
-	}
-
-	if strings.TrimSpace(normalizedBaseURLs["tracer"]) == "" {
-		normalizedBaseURLs["tracer"] = normalizedBaseURLs["onboarding"]
-	}
-
 	entity := &Entity{
 		httpClient:        httpClient,
-		baseURLs:          normalizedBaseURLs,
 		observability:     config.GetObservabilityProvider(),
 		enableIdempotency: configEnableIdempotency(config),
 	}
@@ -305,25 +277,12 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 	return entity, nil
 }
 
-// initServices initializes the service interfaces for the entity.
+// initServices initializes the service accessors for the entity.
 //
-// The 3 legacy service entities (Balances, Operations, Aliases) share the SAME
-// parent [*HTTPClient] — passed via [newSharedServiceEntity]. That single
-// instance owns the auth-token cache, the singleflight token-refresh group,
-// the customRetryPolicy, the observability surface, and the
-// userAgent/debug/idempotency knobs. Sharing
-// the client matters in three places:
-//
-//   - Token refresh on 401: when one service refreshes via [HTTPClient.refreshAuthToken]
-//     the new token is visible to every other service immediately because
-//     they read from the same authToken field under c.mu.
-//   - Singleflight dedup: a 401 burst hitting multiple services collapses
-//     onto one underlying tokenProvider call, since [HTTPClient.tokenRefreshGroup]
-//     is one [singleflight.Group] not three.
-//   - Set* propagation: [Entity.GetEntityHTTPClient] returns the same client
-//     that every service uses, so SetDebug / SetUserAgent / SetLogger and
-//     friends take effect on the next request from any service — no
-//     "post-construction propagate" step required.
+// Every accessor is a facade over one of the two generated plane clients. The
+// entity's own [*HTTPClient] no longer serves any resource; it survives as the
+// object [Entity.GetEntityHTTPClient] hands back for debug/user-agent/retry
+// tuning.
 func (e *Entity) initServices() {
 	if e == nil || e.httpClient == nil {
 		return
@@ -333,62 +292,22 @@ func (e *Entity) initServices() {
 		e.httpClient.client = defaultHTTPClient()
 	}
 
-	if e.baseURLs == nil {
-		e.baseURLs = map[string]string{}
-	}
-
-	// Build the shared base once per service. The *HTTPClient is a pointer,
-	// so all 3 legacy services see the same mutable state (auth token, refresh
-	// group, customRetryPolicy, etc.); baseURLs is cloned per service via
-	// prepareServiceBaseURLs so per-service mutation cannot bleed across
-	// services.
-	shared := func() serviceEntity {
-		return newSharedServiceEntity(e.httpClient, e.baseURLs)
-	}
-
-	// Legacy per-service surface. Epic 5.3 repointed the 13 ledger resources to
-	// facades (below); only Balances/Operations/Aliases remain legacy-wired
-	// (no facade exists yet — Epic 5.4 gap).
-	e.Balances = &balancesEntity{serviceEntity: shared()}
-	e.Aliases = &aliasesEntity{serviceEntity: shared()}
-	e.Operations = &operationsEntity{serviceEntity: shared()}
-
-	// Plane-native facades. The 13 ledger resource accessors (Epic 5.3 swap)
-	// join the Phase 3-4 additive facades here — all route over the typed plane
-	// clients, not the legacy *HTTPClient. The e.planes != nil guard is
+	// Plane-native facades: every accessor routes over the typed plane clients.
+	// The e.planes != nil guard is
 	// defensive: no first-party constructor reaches this with planes == nil
 	// (buildPlaneClients either errors or returns a non-nil PlaneClients, and
 	// NewEntityWithConfigContext always assigns e.planes before initServices).
 	// It exists only so a hand-rolled zero-value &Entity{} — legal because
 	// Entity and InitServices are exported — cannot nil-deref the plane clients.
 	if e.planes != nil {
-		e.Organizations = newOrganizationsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Ledgers = newLedgersFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Accounts = newAccountsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Assets = newAssetsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.AssetRates = newAssetRatesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Portfolios = newPortfoliosFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Segments = newSegmentsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.AccountTypes = newAccountTypesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.MetadataIndexes = newMetadataIndexesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.OperationRoutes = newOperationRoutesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.TransactionRoutes = newTransactionRoutesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Holders = newHoldersFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Transactions = newTransactionsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.V1 = newV1Services(e.planes.Ledger, e.enableIdempotency)
+		e.V2 = newV2Services(e.planes.Ledger, e.enableIdempotency)
 
 		e.Rules = newRulesFacade(e.planes.Tracer, e.enableIdempotency)
 		e.Limits = newLimitsFacade(e.planes.Tracer, e.enableIdempotency)
 		e.Validations = newValidationsFacade(e.planes.Tracer)
 		e.Reservations = newReservationsFacade(e.planes.Tracer)
 		e.AuditEvents = newAuditEventsFacade(e.planes.Tracer)
-		e.ProtectionAudit = newAuditFacade(e.planes.Ledger)
-		e.Encryption = newEncryptionFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Instruments = newInstrumentsFacade(e.planes.Ledger, e.enableIdempotency)
-		e.Composition = newCompositionFacade(e.planes.Ledger, e.enableIdempotency)
-		e.FeePackages = newFeePackagesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.FeeEstimates = newFeeEstimateFacade(e.planes.Ledger)
-		e.BillingPackages = newBillingPackagesFacade(e.planes.Ledger, e.enableIdempotency)
-		e.BillingCalculations = newBillingCalculateFacade(e.planes.Ledger)
 	}
 }
 
@@ -457,20 +376,18 @@ func (e *Entity) GetObservabilityProvider() observability.Provider {
 	return e.observability
 }
 
-// SetHTTPClient replaces the HTTP client used by the LEGACY per-service surface
-// only — Balances, Operations, and Aliases — and preserves the entity's tenant
-// ID and auth token across the swap.
+// SetHTTPClient swaps the *HTTPClient the entity hands back from
+// [Entity.GetEntityHTTPClient], preserving the auth token and the rest of the
+// client configuration across the swap.
 //
-// LIMITATION: it does NOT re-transport the 18 plane facades (Organizations,
-// Ledgers, Accounts, Transactions, Encryption, and the rest). initServices
-// rebuilds those facades over the already-constructed e.planes.Ledger /
-// e.planes.Tracer clients, whose transport is fixed at construction and is not
-// rebuilt here; only the legacy trio picks up the new client. To control the
-// transport for the facades/planes, pass config.WithHTTPClient(client) when the
-// client is constructed rather than swapping it afterward.
+// It changes NO API traffic. Every accessor routes over the two generated plane
+// clients, whose transport is fixed when they are constructed and is not
+// rebuilt here — the pair of services this method used to re-transport is gone.
+// To control the transport an actual request uses, pass
+// config.WithHTTPClient(client) at construction rather than swapping afterward.
 //
 // Parameters:
-//   - client: The HTTP client to use for API requests (legacy trio only).
+//   - client: The HTTP client to install on the entity's *HTTPClient.
 func (e *Entity) SetHTTPClient(client *http.Client) {
 	if e == nil {
 		return
@@ -555,16 +472,14 @@ func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[
 		return nil, errors.New("missing onboarding URL in service URLs map")
 	}
 
-	if strings.TrimSpace(normalized["transaction"]) == "" {
-		normalized["transaction"] = onboarding
-	}
-
-	if strings.TrimSpace(normalized["crm"]) == "" {
-		normalized["crm"] = onboarding
+	// The Tracer fallback must happen BEFORE normalization so the loop below can
+	// stamp the plane's "/v1" onto a URL inherited from the (now bare) Ledger base.
+	if strings.TrimSpace(normalized["tracer"]) == "" {
+		normalized["tracer"] = onboarding
 	}
 
 	for service, serviceURL := range normalized {
-		normalizedURL, err := normalizeServiceURL(serviceURL, allowInsecureHTTP)
+		normalizedURL, err := normalizeServiceURL(serviceURL, planeVersionPath(service), allowInsecureHTTP)
 		if err != nil {
 			return nil, fmt.Errorf("invalid %s URL: %w", service, err)
 		}
@@ -575,7 +490,32 @@ func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[
 	return normalized, nil
 }
 
-func normalizeServiceURL(rawURL string, allowInsecureHTTP bool) (string, error) {
+// planeVersionPath returns the version segment a plane's base URL must carry.
+//
+// The two planes version themselves differently, and the difference is fixed by
+// each plane's OpenAPI contract, not by preference:
+//
+//   - Ledger (onboarding): its spec declares servers:[{url: "/"}]
+//     and carries the version inside every path ("/v1/organizations",
+//     "/v2/organizations"). A base-URL pin here would produce "/v1/v1/...".
+//   - Tracer: its spec declares servers:[{url: "/v1"}] with unversioned paths
+//     ("/validations", "/limits"); the server mounts Huma on a Fiber "/v1" group.
+//     The version therefore has to live in the base URL.
+func planeVersionPath(service string) string {
+	if service == "tracer" {
+		return tracerAPIVersionPath
+	}
+
+	return ""
+}
+
+// normalizeServiceURL validates a plane base URL and stamps versionPath onto it.
+//
+// An empty versionPath marks the Ledger plane, whose base URL must be BARE: the
+// version lives inside every operation path there. A caller-supplied version
+// suffix is REJECTED rather than silently accepted — see
+// [rejectLedgerVersionSuffix] for why silence is the dangerous option.
+func normalizeServiceURL(rawURL, versionPath string, allowInsecureHTTP bool) (string, error) {
 	parsedURL, err := url.Parse(strings.TrimRight(strings.TrimSpace(rawURL), "/"))
 	if err != nil {
 		return "", err
@@ -598,13 +538,46 @@ func normalizeServiceURL(rawURL string, allowInsecureHTTP bool) (string, error) 
 	}
 
 	cleanPath := strings.TrimRight(parsedURL.Path, "/")
-	if cleanPath == "" {
-		parsedURL.Path = "/v1"
-	} else if cleanPath != "/v1" && !strings.HasSuffix(cleanPath, "/v1") {
-		parsedURL.Path = cleanPath + "/v1"
-	} else {
+
+	if versionPath == "" {
+		if err := rejectLedgerVersionSuffix(cleanPath); err != nil {
+			return "", err
+		}
+	}
+
+	switch {
+	case versionPath == "":
 		parsedURL.Path = cleanPath
+	case cleanPath == "":
+		parsedURL.Path = versionPath
+	case strings.HasSuffix(cleanPath, versionPath):
+		parsedURL.Path = cleanPath
+	default:
+		parsedURL.Path = cleanPath + versionPath
 	}
 
 	return parsedURL.String(), nil
+}
+
+// rejectLedgerVersionSuffix refuses a Ledger base URL that ends in a version
+// segment.
+//
+// The SDK used to pin the version onto the base URL, so deployments configured
+// MIDAZ_LEDGER_URL=https://host:3002/v1 and .env files in the wild still carry
+// that shape. The SDK now versions each operation path itself, so accepting the
+// suffix would produce "/v1/v1/organizations/..." — a 404 on every single call,
+// with nothing in the error to point at the base URL as the cause. Failing at
+// construction time, naming the variable to edit, is the only outcome that tells
+// the operator what is actually wrong.
+func rejectLedgerVersionSuffix(cleanPath string) error {
+	for _, version := range []string{"/v1", "/v2"} {
+		if strings.HasSuffix(cleanPath, version) {
+			return fmt.Errorf(
+				"base URL must not end in %q: the SDK versions Ledger paths itself, so a version suffix here sends every request to %q. Remove it from MIDAZ_LEDGER_URL / MIDAZ_BASE_URL / WithBaseURL / WithLedgerURL",
+				version, version+version,
+			)
+		}
+	}
+
+	return nil
 }

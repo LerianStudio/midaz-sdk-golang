@@ -63,7 +63,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	// Create payment transaction route
 	fmt.Println("Creating payment transaction route...")
 
-	paymentTransactionRoute, err := midazClient.TransactionRoutes.Create(
+	paymentTransactionRoute, err := midazClient.V2.TransactionRoutes.Create(
 		ctx, orgID, ledgerID,
 		models.NewCreateTransactionRouteInput(
 			"Payment Transaction Route",
@@ -90,7 +90,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	// Create refund transaction route
 	fmt.Println("Creating refund transaction route...")
 
-	refundTransactionRoute, err := midazClient.TransactionRoutes.Create(
+	refundTransactionRoute, err := midazClient.V2.TransactionRoutes.Create(
 		ctx, orgID, ledgerID,
 		models.NewCreateTransactionRouteInput(
 			"Refund Transaction Route",

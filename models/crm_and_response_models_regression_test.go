@@ -89,16 +89,16 @@ func TestCRMAndResponseModelsLedgerSettingsExplicitFalseSerializes(t *testing.T)
 // ListResponse[T] generic, covered by TestListResponseZeroValueMarshalUsesEmptyItems
 // in model_test.go.
 
-// TestCRMAndResponseModelsUpdateAliasRelatedPartiesReplaceOnRepeatedBuilderCalls pins
+// TestCRMAndResponseModelsUpdateInstrumentRelatedPartiesReplaceOnRepeatedBuilderCalls pins
 // down the documented contract: repeated WithRelatedParties calls REPLACE
 // rather than append. Builders with replace semantics are idempotent;
 // "I called this twice with two values, why are there four?" was a
 // recurring bug report under the previous append behavior.
-func TestCRMAndResponseModelsUpdateAliasRelatedPartiesReplaceOnRepeatedBuilderCalls(t *testing.T) {
+func TestCRMAndResponseModelsUpdateInstrumentRelatedPartiesReplaceOnRepeatedBuilderCalls(t *testing.T) {
 	first := &RelatedParty{Document: "DOC-1", Name: "A", Role: RelatedPartyRolePrimaryHolder, StartDate: "2026-01-01"}
 	second := &RelatedParty{Document: "DOC-2", Name: "B", Role: RelatedPartyRoleResponsibleParty, StartDate: "2026-01-01"}
 
-	input := NewUpdateAliasInput().
+	input := NewUpdateInstrumentInput().
 		WithRelatedParties([]*RelatedParty{first}).
 		WithRelatedParties([]*RelatedParty{second})
 

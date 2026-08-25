@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // transactionRoutesFacade is the Phase 2 (Task 2.3.2) hand-written facade over
@@ -59,25 +57,18 @@ func newTransactionRoutesFacade(ledger *genledger.ClientWithResponses, enableIde
 func (f *transactionRoutesFacade) List(ctx context.Context, orgID, ledgerID string, opts models.TransactionRoutesListOpts) (*models.ListResponse[models.TransactionRoute], error) {
 	const operation = "TransactionRoutes.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListTransactionRoutesWithResponse(ctx, orgID, ledgerID, listTransactionRoutesParams(opts), listTransactionRoutesReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListTransactionRoutes(ctx, orgID, ledgerID, listTransactionRoutesParams(opts), listTransactionRoutesReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.TransactionRoute]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.TransactionRoute](operation, resp, err)
 }
 
 // Pages yields one cursor page per iteration, advancing by the response
@@ -128,7 +119,11 @@ func (f *transactionRoutesFacade) All(ctx context.Context, orgID, ledgerID strin
 func (f *transactionRoutesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 	const operation = "TransactionRoutes.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -141,12 +136,14 @@ func (f *transactionRoutesFacade) Create(ctx context.Context, orgID, ledgerID st
 func (f *transactionRoutesFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.TransactionRoute, error) {
 	const operation = "TransactionRoutes.Get"
 
-	resp, err := f.ledger.GetTransactionRouteByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.TransactionRoute](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetTransactionRouteByID(ctx, orgID, ledgerID, id)
+
+	return readOne[models.TransactionRoute](operation, resp, err)
 }
 
 // Update patches a transaction route by ID under an org+ledger. Same
@@ -154,7 +151,11 @@ func (f *transactionRoutesFacade) Get(ctx context.Context, orgID, ledgerID, id s
 func (f *transactionRoutesFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error) {
 	const operation = "TransactionRoutes.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -168,16 +169,14 @@ func (f *transactionRoutesFacade) Update(ctx context.Context, orgID, ledgerID, i
 func (f *transactionRoutesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "TransactionRoutes.Delete"
 
-	resp, err := f.ledger.DeleteTransactionRouteWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteTransactionRoute(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // listTransactionRoutesParams renders the cursor/sort/date fields that have a

@@ -24,7 +24,7 @@ import (
 // string on the wire.
 //
 // Validate is RELAXED (mirrors the server's ValidateForReserve): TransactionID,
-// RequestID, Amount, Currency and TransactionTimestamp are required, but
+// RequestID, Amount, Asset and TransactionTimestamp are required, but
 // TransactionType and Account are optional — the ledger cannot always supply a
 // rail type or an internal account UUID at the reserve anchor.
 type ReserveInput struct {
@@ -37,8 +37,8 @@ type ReserveInput struct {
 	// Amount is the transaction amount as exact decimal money. Required, > 0.
 	Amount decimal.Decimal `json:"amount"`
 
-	// Currency is the ISO-4217 currency code. Required, exactly 3 chars.
-	Currency string `json:"currency"`
+	// Asset is the ISO-4217 asset code. Required, exactly 3 chars.
+	Asset string `json:"asset"`
 
 	// TransactionTimestamp is the transaction time (RFC3339). Required; the
 	// server enforces a window (≤ now+skew, ≥ now-24h).
@@ -73,12 +73,12 @@ type ReserveInput struct {
 
 // NewReserveInput builds a reserve payload with the required fields. Account and
 // TransactionType are optional (relaxed reserve rules) and set via the builders.
-func NewReserveInput(transactionID, requestID string, amount decimal.Decimal, currency, transactionTimestamp string) *ReserveInput {
+func NewReserveInput(transactionID, requestID string, amount decimal.Decimal, asset, transactionTimestamp string) *ReserveInput {
 	return &ReserveInput{
 		TransactionID:        transactionID,
 		RequestID:            requestID,
 		Amount:               amount,
-		Currency:             currency,
+		Asset:                asset,
 		TransactionTimestamp: transactionTimestamp,
 	}
 }
@@ -173,7 +173,7 @@ func (input *ReserveInput) WithMetadata(metadata map[string]any) *ReserveInput {
 
 // Validate enforces the RELAXED reserve preconditions (mirrors the server's
 // ValidateForReserve): TransactionID non-empty, RequestID non-empty, Amount
-// strictly positive, Currency exactly 3 chars, TransactionTimestamp non-empty.
+// strictly positive, Asset exactly 3 chars, TransactionTimestamp non-empty.
 // TransactionType and Account are intentionally NOT required.
 func (input *ReserveInput) Validate() error {
 	if input == nil {
@@ -194,8 +194,8 @@ func (input *ReserveInput) Validate() error {
 		errs.Append("amount", "must be greater than zero")
 	}
 
-	if len(input.Currency) != currencyCodeLength {
-		errs.Append("currency", fmt.Sprintf("must be exactly %d characters", currencyCodeLength))
+	if len(input.Asset) != assetCodeLength {
+		errs.Append("asset", fmt.Sprintf("must be exactly %d characters", assetCodeLength))
 	}
 
 	if strings.TrimSpace(input.TransactionTimestamp) == "" {

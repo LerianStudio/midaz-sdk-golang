@@ -12,11 +12,13 @@ import (
 )
 
 // BillingCalculateInput is the billing-calculation request. It mirrors the server
-// DTO (feeshared/model/billing_calculation.go BillingCalculateRequest):
-// OrganizationID travels as a path segment (not in the body), LedgerID and Period
-// are required, and Type is optional. When Type is empty both "volume" and
-// "maintenance" packages are calculated; otherwise it restricts the calculation
-// to the named type.
+// DTO (feeshared/model/billing_calculation.go BillingCalculateRequest): the
+// organization and the ledger BOTH travel as path segments, and the server schema
+// requires ledgerId in the body as well. Leave LedgerID empty and the SDK fills it
+// from the ledger you addressed in the call; set it to a different ledger and the
+// call is rejected rather than attributed to the wrong one. Period is required and
+// Type is optional — empty calculates both "volume" and "maintenance" packages,
+// otherwise the calculation is restricted to the named type.
 //
 // Period must be "YYYY-MM" (monthly), "YYYY-Www" (weekly), or "YYYY-MM-DD"
 // (daily), e.g. "2026-01", "2026-W13", or "2026-01-15".

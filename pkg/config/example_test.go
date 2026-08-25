@@ -77,5 +77,5 @@ func ExampleNewConfig_customEndpoint() {
 	fmt.Println("ledger:", cfg.ServiceURLs[config.ServiceOnboarding])
 	// Output:
 	// idempotency: true
-	// ledger: https://midaz.internal.example.com/v1
+	// ledger: https://midaz.internal.example.com
 }

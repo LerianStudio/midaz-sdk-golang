@@ -26,10 +26,10 @@ func ruleJSON(id, status string) string {
 		`"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}`
 }
 
-// TestRulesFacade_Create201 is the 201-drift red. The server returns 201 on
-// create; the generated CreateRuleResp parser only fills JSON200 on an exact 200,
-// so a WithResponse-based create misclassifies the success body as an error. The
-// facade MUST route through the raw call + 2xx success gate so 201 decodes.
+// TestRulesFacade_Create201 guards the raw 2xx gate. The server returns 201 on
+// create and the generated CreateRuleResp parser is status-exact, so the facade
+// MUST route through the raw call + 2xx success gate rather than depend on one
+// exact success status.
 func TestRulesFacade_Create201(t *testing.T) {
 	var method, path string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -256,8 +256,13 @@ func TestRulesFacade_ListError(t *testing.T) {
 }
 
 // TestRulesFacade_ListMalformedBody proves a 200 whose body is not valid JSON
-// for the flat {rules:[...]} envelope surfaces as a typed internal error rather
-// than an empty page or a panic.
+// for the flat {rules:[...]} envelope surfaces as a typed response-decode error
+// rather than an empty page or a panic.
+//
+// The class is a RESPONSE DECODE error, not an internal one: the server
+// answered and the SDK could not read the answer, which is a different fact
+// from "the SDK is broken" and is what a caller needs in order to decide
+// whether to reconcile.
 func TestRulesFacade_ListMalformedBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -270,8 +275,8 @@ func TestRulesFacade_ListMalformedBody(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.Code != sdkerrors.CodeInternal {
-		t.Fatalf("error code = %q, want %q (malformed body must be an internal error)", sdkErr.Code, sdkerrors.CodeInternal)
+	if sdkErr.Code != sdkerrors.CodeResponseDecode {
+		t.Fatalf("error code = %q, want %q (malformed body must be a response-decode error)", sdkErr.Code, sdkerrors.CodeResponseDecode)
 	}
 }
 
@@ -309,7 +314,7 @@ func newTestTracerClient(t *testing.T, srv *httptest.Server) *gentracer.ClientWi
 	t.Helper()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },

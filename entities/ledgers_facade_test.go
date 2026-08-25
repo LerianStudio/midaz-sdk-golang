@@ -408,7 +408,10 @@ func newTestLedgerClient(t *testing.T, srv *httptest.Server) *genledger.ClientWi
 	t.Helper()
 
 	planes, err := newPlaneClients(planeClientsConfig{
-		ledgerURL: srv.URL + "/v1",
+		// Ledger base is BARE: the spec carries the version in every path
+		// ("/v1/organizations", "/v2/organizations"). Tracer keeps "/v1" because
+		// its spec declares servers:[{url: "/v1"}] with unversioned paths.
+		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },

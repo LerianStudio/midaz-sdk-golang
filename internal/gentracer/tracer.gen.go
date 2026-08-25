@@ -77,7 +77,8 @@ type Error struct {
 	Title *string `json:"title,omitempty"`
 
 	// Type A URI reference to human-readable documentation for the error.
-	Type *string `json:"type,omitempty"`
+	Type     *string   `json:"type,omitempty"`
+	Upstream *Upstream `json:"upstream,omitempty"`
 }
 
 // ErrorDetail defines model for ErrorDetail.
@@ -104,8 +105,8 @@ type HashChainVerificationResult struct {
 type Limit struct {
 	ActiveTimeEnd   *string            `json:"activeTimeEnd,omitempty"`
 	ActiveTimeStart *string            `json:"activeTimeStart,omitempty"`
+	Asset           string             `json:"asset"`
 	CreatedAt       time.Time          `json:"createdAt"`
-	Currency        string             `json:"currency"`
 	CustomEndDate   *time.Time         `json:"customEndDate,omitempty"`
 	CustomStartDate *time.Time         `json:"customStartDate,omitempty"`
 	DeletedAt       *time.Time         `json:"deletedAt,omitempty"`
@@ -234,8 +235,8 @@ type TransactionActionResponse struct {
 type TransactionValidation struct {
 	Account              AccountContext          `json:"account"`
 	Amount               string                  `json:"amount"`
+	Asset                string                  `json:"asset"`
 	CreatedAt            time.Time               `json:"createdAt"`
-	Currency             string                  `json:"currency"`
 	Decision             string                  `json:"decision"`
 	EvaluatedRuleIds     *[]openapi_types.UUID   `json:"evaluatedRuleIds"`
 	LimitUsageDetails    *[]LimitUsageDetail     `json:"limitUsageDetails"`
@@ -253,6 +254,15 @@ type TransactionValidation struct {
 	TransactionType      string                  `json:"transactionType"`
 	Truncated            bool                    `json:"truncated"`
 	ValidationId         openapi_types.UUID      `json:"validationId"`
+}
+
+// Upstream defines model for Upstream.
+type Upstream struct {
+	// Code The upstream provider's own error code, verbatim.
+	Code *string `json:"code,omitempty"`
+
+	// Message The upstream provider's own error message, verbatim (bounded, never its raw response body).
+	Message *string `json:"message,omitempty"`
 }
 
 // UsageSnapshot defines model for UsageSnapshot.
@@ -284,8 +294,8 @@ type ValidationResponse struct {
 type ValidationSummary struct {
 	AccountId        openapi_types.UUID    `json:"accountId"`
 	Amount           string                `json:"amount"`
+	Asset            string                `json:"asset"`
 	CreatedAt        time.Time             `json:"createdAt"`
-	Currency         string                `json:"currency"`
 	Decision         string                `json:"decision"`
 	ExceededLimitIds *[]openapi_types.UUID `json:"exceededLimitIds"`
 	MatchedRuleIds   *[]openapi_types.UUID `json:"matchedRuleIds"`
@@ -3239,7 +3249,7 @@ func (r ListLimitsResp) StatusCode() int {
 type CreateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON200                       *Limit
+	JSON201                       *Limit
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3422,7 +3432,7 @@ func (r GetLimitUsageResp) StatusCode() int {
 type CreateReservationResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON200                       *ReserveResponse
+	JSON201                       *ReserveResponse
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3560,7 +3570,7 @@ func (r ListRulesResp) StatusCode() int {
 type CreateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON200                       *Rule
+	JSON201                       *Rule
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -4231,12 +4241,12 @@ func ParseCreateLimitResp(rsp *http.Response) (*CreateLimitResp, error) {
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Limit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4488,12 +4498,12 @@ func ParseCreateReservationResp(rsp *http.Response) (*CreateReservationResp, err
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest ReserveResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4686,12 +4696,12 @@ func ParseCreateRuleResp(rsp *http.Response) (*CreateRuleResp, error) {
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Rule
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error

@@ -45,7 +45,7 @@ func newValidationsFacade(tracer *gentracer.ClientWithResponses) *validationsFac
 func (f *validationsFacade) Evaluate(ctx context.Context, input *models.ValidateTransactionInput) (*models.ValidationResponse, error) {
 	const operation = "Validations.Evaluate"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -58,12 +58,14 @@ func (f *validationsFacade) Evaluate(ctx context.Context, input *models.Validate
 func (f *validationsFacade) Get(ctx context.Context, id string) (*models.TransactionValidation, error) {
 	const operation = "Validations.Get"
 
-	resp, err := f.tracer.GetValidationWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.TransactionValidation](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetValidation(ctx, id)
+
+	return readOne[models.TransactionValidation](operation, resp, err)
 }
 
 // List retrieves one cursor page of stored validations.
@@ -81,21 +83,22 @@ func (f *validationsFacade) List(ctx context.Context, opts models.ValidationsLis
 		return nil, err
 	}
 
-	resp, err := f.tracer.ListValidationsWithResponse(ctx, listValidationsParams(opts))
+	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
+	httpResp, body, err := readRawResponse(f.tracer.ListValidations(ctx, listValidationsParams(opts)))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
+		return nil, err
 	}
 
 	var env struct {
 		TransactionValidations []models.ValidationSummary `json:"transactionValidations"`
 		NextCursor             string                     `json:"nextCursor"`
 	}
-	if err := json.Unmarshal(resp.Body, &env); err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, err)
 	}
 
 	return &models.ListResponse[models.ValidationSummary]{

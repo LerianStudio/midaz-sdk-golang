@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // accountsFacade is the Phase 2 (Task 2.1.c) hand-written facade over the
@@ -47,25 +45,18 @@ func newAccountsFacade(ledger *genledger.ClientWithResponses, enableIdempotency 
 func (f *accountsFacade) List(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
 	const operation = "Accounts.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListAccountsWithResponse(ctx, orgID, ledgerID, listAccountsParams(opts), listAccountsReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListAccounts(ctx, orgID, ledgerID, listAccountsParams(opts), listAccountsReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Account]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Account](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing page-by-page while the
@@ -114,17 +105,17 @@ func (f *accountsFacade) All(ctx context.Context, orgID, ledgerID string, opts m
 func (f *accountsFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
 	const operation = "Accounts.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.Account](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateAccountWithBodyWithResponse(ctx, orgID, ledgerID, &genledger.CreateAccountParams{}, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateAccountWithBody(ctx, orgID, ledgerID, &genledger.CreateAccountParams{},
+			jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -132,12 +123,14 @@ func (f *accountsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 func (f *accountsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
 	const operation = "Accounts.Get"
 
-	resp, err := f.ledger.GetAccountByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.Account](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountByID(ctx, orgID, ledgerID, id)
+
+	return readOne[models.Account](operation, resp, err)
 }
 
 // GetByAlias retrieves one account by its alias. The alias is a path segment
@@ -146,12 +139,36 @@ func (f *accountsFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*
 func (f *accountsFacade) GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
 	const operation = "Accounts.GetByAlias"
 
-	resp, err := f.ledger.GetAccountByAliasWithResponse(ctx, orgID, ledgerID, alias)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "alias", alias); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.Account](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountByAlias(ctx, orgID, ledgerID, alias)
+
+	return readOne[models.Account](operation, resp, err)
+}
+
+// GetByExternalCode retrieves the ledger's EXTERNAL account for an asset code —
+// the counterparty every deposit is drawn from and every withdrawal is paid
+// into, which is what makes an inflow or an outflow balance.
+//
+// The code is the bare asset code ("USD"), a path segment on
+// .../accounts/external/{code}. The alias spelling of the same account
+// ("@external/USD") is deliberately NOT accepted anywhere: Midaz prohibits the
+// "@external/" prefix on a client-supplied alias, so this route is the only way
+// to reach it.
+func (f *accountsFacade) GetByExternalCode(ctx context.Context, orgID, ledgerID, code string) (*models.Account, error) {
+	const operation = "Accounts.GetByExternalCode"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "code", code); err != nil {
+		return nil, err
+	}
+
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountExternalByCode(ctx, orgID, ledgerID, code)
+
+	return readOne[models.Account](operation, resp, err)
 }
 
 // Update patches an account by ID under an org+ledger. Same write-facade
@@ -159,17 +176,17 @@ func (f *accountsFacade) GetByAlias(ctx context.Context, orgID, ledgerID, alias 
 func (f *accountsFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {
 	const operation = "Accounts.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.Account](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateAccountWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateAccountWithBody(ctx, orgID, ledgerID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -179,16 +196,14 @@ func (f *accountsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 func (f *accountsFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Accounts.Delete"
 
-	resp, err := f.ledger.DeleteAccountWithResponse(ctx, orgID, ledgerID, id, &genledger.DeleteAccountParams{}, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteAccount(ctx, orgID, ledgerID, id, &genledger.DeleteAccountParams{}, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // ListBalances retrieves one cursor page of an account's balances. This
@@ -197,25 +212,18 @@ func (f *accountsFacade) Delete(ctx context.Context, orgID, ledgerID, id string)
 func (f *accountsFacade) ListBalances(ctx context.Context, orgID, ledgerID, accountID string, opts models.CursorListOpts) (*models.ListResponse[models.Balance], error) {
 	const operation = "Accounts.ListBalances"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
+
 	if err := models.ValidateCursorListOpts(operation, opts); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllBalancesByAccountIDWithResponse(ctx, orgID, ledgerID, accountID, balancesByAccountParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllBalancesByAccountID(ctx, orgID, ledgerID, accountID, balancesByAccountParams(opts))
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Balance]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Balance](operation, resp, err)
 }
 
 // ListBalancesPages yields one cursor page per iteration, advancing by the
@@ -265,25 +273,18 @@ func (f *accountsFacade) ListBalancesAll(ctx context.Context, orgID, ledgerID, a
 func (f *accountsFacade) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts models.AccountOperationsListOpts) (*models.ListResponse[models.Operation], error) {
 	const operation = "Accounts.ListOperations"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAllOperationsByAccountWithResponse(ctx, orgID, ledgerID, accountID, operationsByAccountParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAllOperationsByAccount(ctx, orgID, ledgerID, accountID, operationsByAccountParams(opts))
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Operation]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Operation](operation, resp, err)
 }
 
 // ListOperationsPages yields one cursor page per iteration, advancing by the
@@ -325,32 +326,34 @@ func (f *accountsFacade) ListOperationsAll(ctx context.Context, orgID, ledgerID,
 	return flattenPages(f.ListOperationsPages(ctx, orgID, ledgerID, accountID, opts))
 }
 
-// BalancesAtTimestamp returns an account's balances as of a point in time
-// (format "yyyy-mm-dd hh:mm:ss"). The endpoint is non-paginated: the response
-// is a bare array, decoded straight into a []models.BalanceHistory slice.
+// BalancesAtTimestamp returns an account's balances as of a point in time. The
+// endpoint is non-paginated: the response is a bare array, decoded straight into
+// a []models.BalanceHistory slice.
+//
+// The timestamp must name an instant ("2026-01-02 03:04:05", "2026-01-02T03:04:05"
+// or RFC3339), and it is required. This is the SAME wire call as
+// [balancesFacade.GetAccountBalancesHistory], so it enforces the SAME date
+// contract through [validateBalanceHistoryDate] — one endpoint cannot have two
+// contracts depending on which spelling the caller reached for. An empty
+// timestamp used to be omitted from the query silently, which asked the server
+// for "now" while the caller believed they had asked for a moment in the past.
 func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerID, accountID, timestamp string) ([]models.BalanceHistory, error) {
 	const operation = "Accounts.BalancesAtTimestamp"
 
-	params := &genledger.GetAccountBalancesAtTimestampParams{}
-	if timestamp != "" {
-		params.Date = strPtr(timestamp)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "accountID", accountID); err != nil {
+		return nil, err
 	}
 
-	resp, err := f.ledger.GetAccountBalancesAtTimestampWithResponse(ctx, orgID, ledgerID, accountID, params)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := validateBalanceHistoryDate(operation, timestamp); err != nil {
+		return nil, err
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	params := &genledger.GetAccountBalancesAtTimestampParams{Date: strPtr(timestamp)}
 
-	var out []models.BalanceHistory
-	if err := json.Unmarshal(resp.Body, &out); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readSlice drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAccountBalancesAtTimestamp(ctx, orgID, ledgerID, accountID, params)
 
-	return out, nil
+	return readSlice[models.BalanceHistory](operation, resp, err)
 }
 
 // Count returns the total number of accounts under an org+ledger via
@@ -358,6 +361,10 @@ func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerI
 // through the raw CountAccounts + readCount so a headers-only error reply (empty
 // body) maps to the real status rather than an internal error.
 func (f *accountsFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	if err := requirePathIDs("Accounts.Count", "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountAccounts(ctx, orgID, ledgerID))
 }

@@ -1,6 +1,12 @@
 // Package entities contains entity-specific operations for the complete workflow example.
 // It provides higher-level functions that wrap the SDK's core functionality to
 // simplify common operations and demonstrate best practices.
+//
+// The transfer helpers here create through c.V1.Transactions.CreateJSON. That
+// nested send/source/distribute creation style exists only on /v1 — /v2
+// replaced the four /v1 styles with the flat top-level direct/hold actions, so
+// there is no /v2 twin to swap these onto. See examples/03-end-to-end for the
+// /v2 creation path.
 package entities
 
 import (
@@ -91,7 +97,7 @@ func TransferFunds(
 	input := newTransferFundsInput(sourceAccountAlias, destAccountAlias, assetCode, amountValue, description)
 
 	// Create the transaction
-	tx, err := entity.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+	tx, err := entity.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transfer funds: %w", err)
 	}
@@ -104,7 +110,7 @@ func resolveSourceAccountAlias(ctx context.Context, entity *entities.Entity, org
 		return sourceAccountID, nil
 	}
 
-	sourceAccount, err := entity.Accounts.Get(ctx, orgID, ledgerID, sourceAccountID)
+	sourceAccount, err := entity.V1.Accounts.Get(ctx, orgID, ledgerID, sourceAccountID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get source account: %w", err)
 	}
@@ -121,7 +127,7 @@ func resolveDestinationAccountAlias(ctx context.Context, entity *entities.Entity
 		return destAccountID, nil
 	}
 
-	destAccount, err := entity.Accounts.Get(ctx, orgID, ledgerID, destAccountID)
+	destAccount, err := entity.V1.Accounts.Get(ctx, orgID, ledgerID, destAccountID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get destination account: %w", err)
 	}
@@ -172,7 +178,7 @@ func newTransferFundsInput(sourceAccountAlias, destAccountAlias, assetCode strin
 }
 
 func requireTransactionEntity(entity *entities.Entity) error {
-	if entity == nil || entity.Accounts == nil || entity.Transactions == nil {
+	if entity == nil || entity.V1.Accounts == nil || entity.V1.Transactions == nil {
 		return errors.New("initialized entity with accounts and transactions services is required")
 	}
 

@@ -40,7 +40,7 @@ func newEncryptionFacade(ledger *genledger.ClientWithResponses, enableIdempotenc
 
 // Provision provisions envelope encryption for an organization.
 //
-// This routes through the RAW ProvisionEncryptionWithBody + readRawResponse and
+// This routes through the RAW ProvisionEncryptionV2WithBody + readRawResponse and
 // gates success on isSuccess(2xx) via writeJSON — NEVER through the generated
 // ...WithResponse parser, whose ParseProvisionEncryptionResp gates JSON200 on
 // StatusCode==200 exactly. The server returns 201 Created on success, so the
@@ -53,12 +53,16 @@ func newEncryptionFacade(ledger *genledger.ClientWithResponses, enableIdempotenc
 func (f *encryptionFacade) Provision(ctx context.Context, orgID string, input *models.ProvisionEncryptionInput) (*models.ProvisionEncryptionResponse, error) {
 	const operation = "Encryption.Provision"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	resp, err := writeJSON[models.ProvisionEncryptionResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.ProvisionEncryptionWithBody(ctx, orgID, &genledger.ProvisionEncryptionParams{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
+		return readRawResponse(f.ledger.ProvisionEncryptionV2WithBody(ctx, orgID, &genledger.ProvisionEncryptionV2Params{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 
 	// A 404 here means envelope encryption is disabled (legacy mode); tag it so
@@ -76,12 +80,14 @@ func (f *encryptionFacade) Provision(ctx context.Context, orgID string, input *m
 func (f *encryptionFacade) GetProvisioningStatus(ctx context.Context, orgID string) (*models.ProvisioningStatusResponse, error) {
 	const operation = "Encryption.GetProvisioningStatus"
 
-	resp, err := f.ledger.GetProvisioningStatusWithResponse(ctx, orgID, &genledger.GetProvisioningStatusParams{})
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
 	}
 
-	res, err := decodeOne[models.ProvisioningStatusResponse](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetProvisioningStatusV2(ctx, orgID, &genledger.GetProvisioningStatusV2Params{})
+
+	res, err := readOne[models.ProvisioningStatusResponse](operation, resp, err)
 
 	// A 404 here means envelope encryption is disabled (legacy mode); tag it so
 	// callers can IsFeatureNotAvailable it, distinct from a generic NotFound.

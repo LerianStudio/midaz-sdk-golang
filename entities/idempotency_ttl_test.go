@@ -51,7 +51,7 @@ func TestEditorsHonorIdempotencyTTL(t *testing.T) {
 
 		ctx := sdkctx.WithIdempotencyTTL(context.Background(), 60)
 		_, _ = newTestInstrumentsFacade(t, srv).Create(ctx, instrumentsFacadeOrgID, instrumentsFacadeHolderID,
-			models.NewCreateInstrumentInput("CHECKING").WithDocument("DOC-1"))
+			validCreateInstrumentInput())
 
 		idem, ttl := get()
 		if idem == "" {
@@ -84,7 +84,7 @@ func TestEditorsHonorIdempotencyTTL(t *testing.T) {
 		defer srv.Close()
 
 		_, _ = newTestInstrumentsFacade(t, srv).Create(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID,
-			models.NewCreateInstrumentInput("CHECKING").WithDocument("DOC-1"))
+			validCreateInstrumentInput())
 
 		if _, ttl := get(); ttl != "" {
 			t.Fatalf("X-TTL=%q, want none (server default)", ttl)

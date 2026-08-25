@@ -90,7 +90,7 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = c.Organizations.Create(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
+	_, err = c.V1.Organizations.Create(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
 	require.NoError(t, err)
 	require.NoError(t, <-writeErrs)
 	require.NotEmpty(t, seenIdempotency)
@@ -101,14 +101,13 @@ func TestClientNew_WithEnvironmentRecomputesDefaultServiceURLs(t *testing.T) {
 	require.NoError(t, err)
 
 	urls := c.GetConfig().ServiceURLs
-	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceOnboarding])
-	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceTransaction])
+	require.Equal(t, "https://api.midaz.io", urls[config.ServiceOnboarding])
 	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceTracer])
 }
 
 func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 	c, err := New(
-		WithLedgerURL("https://ledger.example.com/v1"),
+		WithLedgerURL("https://ledger.example.com"),
 		WithTracerURL("https://tracer.example.com/v1"),
 		WithEnvironment(config.EnvironmentProduction),
 		WithAnonymous(),
@@ -116,8 +115,7 @@ func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 	require.NoError(t, err)
 
 	urls := c.GetConfig().ServiceURLs
-	require.Equal(t, "https://ledger.example.com/v1", urls[config.ServiceOnboarding])
-	require.Equal(t, "https://ledger.example.com/v1", urls[config.ServiceTransaction])
+	require.Equal(t, "https://ledger.example.com", urls[config.ServiceOnboarding])
 	require.Equal(t, "https://tracer.example.com/v1", urls[config.ServiceTracer])
 }
 
@@ -141,18 +139,18 @@ func TestClientConfigProviderHelpers(t *testing.T) {
 
 	t.Run("WithConfig clones caller-owned config", func(t *testing.T) {
 		cfg := config.DefaultConfig()
-		cfg.ServiceURLs[config.ServiceOnboarding] = "https://original.example.com/v1"
+		cfg.ServiceURLs[config.ServiceOnboarding] = "https://original.example.com"
 		cfg.Anonymous = true // satisfies v3 auth-required gate
 
 		c, err := New(WithConfig(cfg))
 		require.NoError(t, err)
 
-		cfg.ServiceURLs[config.ServiceOnboarding] = "https://mutated.example.com/v1"
-		require.Equal(t, "https://original.example.com/v1", c.config.ServiceURLs[config.ServiceOnboarding])
+		cfg.ServiceURLs[config.ServiceOnboarding] = "https://mutated.example.com"
+		require.Equal(t, "https://original.example.com", c.config.ServiceURLs[config.ServiceOnboarding])
 
 		returned := c.GetConfig()
-		returned.ServiceURLs[config.ServiceOnboarding] = "https://returned.example.com/v1"
-		require.Equal(t, "https://original.example.com/v1", c.config.ServiceURLs[config.ServiceOnboarding])
+		returned.ServiceURLs[config.ServiceOnboarding] = "https://returned.example.com"
+		require.Equal(t, "https://original.example.com", c.config.ServiceURLs[config.ServiceOnboarding])
 	})
 
 	t.Run("WithConfig attaches observability provider to context", func(t *testing.T) {

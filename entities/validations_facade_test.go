@@ -55,7 +55,7 @@ func validationResponseJSON(decision string) string {
 // transactionValidationJSON is a canonical stored record (the Get body).
 func transactionValidationJSON() string {
 	return `{"validationId":"` + validationID + `","requestId":"` + valRequestID + `",` +
-		`"decision":"DENY","reason":"limit exceeded","amount":"` + bigMoney + `","currency":"USD",` +
+		`"decision":"DENY","reason":"limit exceeded","amount":"` + bigMoney + `","asset":"USD",` +
 		`"transactionType":"PIX",` +
 		`"account":{"accountId":"` + valAccountID + `","status":"ACTIVE","type":"deposit"},` +
 		`"matchedRuleIds":["` + valMatchedID + `"],"evaluatedRuleIds":["` + valMatchedID + `"],` +
@@ -68,7 +68,7 @@ func transactionValidationJSON() string {
 func validationSummaryJSON(id string) string {
 	return `{"validationId":"` + id + `","accountId":"` + valAccountID + `",` +
 		`"segmentId":"` + valSegmentID + `","portfolioId":"` + valPortfolioX + `",` +
-		`"amount":"` + bigMoney + `","currency":"USD","decision":"ALLOW","reason":"ok",` +
+		`"amount":"` + bigMoney + `","asset":"USD","decision":"ALLOW","reason":"ok",` +
 		`"transactionType":"CARD","matchedRuleIds":["` + valMatchedID + `"],` +
 		`"exceededLimitIds":["` + valLimitID + `"],"processingTimeMs":1.1,` +
 		`"createdAt":"2026-01-01T00:00:00Z"}`
@@ -355,7 +355,7 @@ func TestValidationsFacade_ValidateBeforeWire(t *testing.T) {
 	}{
 		{"zero amount", models.NewValidateTransactionInput(valRequestID, decimal.Zero, "USD", "2026-01-01T00:00:00Z", acct)},
 		{"negative amount", models.NewValidateTransactionInput(valRequestID, decimal.RequireFromString("-1"), "USD", "2026-01-01T00:00:00Z", acct)},
-		{"bad currency", models.NewValidateTransactionInput(valRequestID, decimal.NewFromInt(1), "US", "2026-01-01T00:00:00Z", acct)},
+		{"bad asset", models.NewValidateTransactionInput(valRequestID, decimal.NewFromInt(1), "US", "2026-01-01T00:00:00Z", acct)},
 		{"empty requestId", models.NewValidateTransactionInput("  ", decimal.NewFromInt(1), "USD", "2026-01-01T00:00:00Z", acct)},
 		{"missing account", models.NewValidateTransactionInput(valRequestID, decimal.NewFromInt(1), "USD", "2026-01-01T00:00:00Z", models.AccountContext{})},
 	}
@@ -413,7 +413,12 @@ func TestValidationsFacade_ListError(t *testing.T) {
 }
 
 // TestValidationsFacade_ListMalformedBody proves a 200 whose body is not valid
-// JSON for the flat envelope surfaces as a typed internal error.
+// JSON for the flat envelope surfaces as a typed response-decode error.
+//
+// The class is a RESPONSE DECODE error, not an internal one: the server
+// answered and the SDK could not read the answer, which is a different fact
+// from "the SDK is broken" and is what a caller needs in order to decide
+// whether to reconcile.
 func TestValidationsFacade_ListMalformedBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -426,8 +431,8 @@ func TestValidationsFacade_ListMalformedBody(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.Code != sdkerrors.CodeInternal {
-		t.Fatalf("error code = %q, want %q", sdkErr.Code, sdkerrors.CodeInternal)
+	if sdkErr.Code != sdkerrors.CodeResponseDecode {
+		t.Fatalf("error code = %q, want %q", sdkErr.Code, sdkerrors.CodeResponseDecode)
 	}
 }
 

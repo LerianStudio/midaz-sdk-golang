@@ -15,8 +15,8 @@ import (
 // time, so a normal range-over-func loop just works.
 //
 // For one-page-at-a-time access (page metadata, custom batching), use
-// c.Accounts.List; for page-level iteration with metadata, use
-// c.Accounts.Pages.
+// c.V1.Accounts.List; for page-level iteration with metadata, use
+// c.V1.Accounts.Pages.
 func Example_accountsListAll() {
 	cfg, err := config.NewConfig(config.FromEnvironment())
 	if err != nil {
@@ -37,7 +37,7 @@ func Example_accountsListAll() {
 	}
 
 	count := 0
-	for acct, err := range c.Accounts.All(ctx, "org-123", "ledger-456", opts) {
+	for acct, err := range c.V1.Accounts.All(ctx, "org-123", "ledger-456", opts) {
 		if err != nil {
 			fmt.Printf("iteration error: %v\n", err)
 			return
@@ -71,13 +71,21 @@ func Example_transactionsListAll() {
 	}
 
 	ctx := context.Background()
+
+	// The metadata predicate is the ONE content filter the transaction list
+	// honours. Status and AssetCode are refused before the request is built, on
+	// both surfaces, so setting them here would fail the call rather than narrow
+	// it — see models.TransactionsFilters.
 	opts := models.TransactionsListOpts{
 		CursorListOpts: models.CursorListOpts{Limit: 50},
-		Filters:        models.TransactionsFilters{Status: "APPROVED", AssetCode: "USD"},
+		Filters: models.TransactionsFilters{
+			MetadataKey:   "transferId",
+			MetadataValue: "transfer-42",
+		},
 	}
 
 	count := 0
-	for tx, err := range c.Transactions.All(ctx, "org-123", "ledger-456", opts) {
+	for tx, err := range c.V1.Transactions.All(ctx, "org-123", "ledger-456", opts) {
 		if err != nil {
 			fmt.Printf("iteration error: %v\n", err)
 			return

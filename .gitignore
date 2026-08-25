@@ -92,6 +92,13 @@ examples/mass-demo-generator/mass-demo-*.html
 examples/workflow-with-entities/workflow-with-entities
 .repos/
 
+# The generator writes its artifacts to the CURRENT directory, and the
+# documented way to run it is `go run ./examples/mass-demo-generator` from the
+# repository root — so they land here, not next to the example. They carry live
+# organization/ledger/account UUIDs from a real run and must never be committed.
+/mass-demo-*.json
+/mass-demo-*.html
+
 # Stray binaries from `go build ./examples/<name>` at repo root
 # (Go drops the binary in $PWD by default; these match the example dir names).
 /01-hello-world

@@ -18,7 +18,7 @@ const (
 )
 
 // TestLedgerResourceWritesStampIdempotency proves Task 5.3.1: every write on the
-// 12 non-transaction ledger facades stamps an auto-generated X-Idempotency with
+// non-transaction ledger facades stamps an auto-generated X-Idempotency with
 // the gate ON and stays header-free with the gate OFF (no ctx key). One row per
 // write op — a missing editor append, or a hardcoded gate, fails here.
 func TestLedgerResourceWritesStampIdempotency(t *testing.T) {
@@ -177,6 +177,26 @@ func TestLedgerResourceWritesStampIdempotency(t *testing.T) {
 			t.Helper()
 			_, _ = newAssetRatesFacade(newTestLedgerClient(t, srv), gate).CreateOrUpdateAssetRate(context.Background(), resOrg, resLedger,
 				models.NewCreateAssetRateInput("USD", "BRL", 525).WithScale(2))
+		}},
+		{"balances.CreateBalance", func(t *testing.T, srv *httptest.Server, gate bool) {
+			t.Helper()
+			_, _ = newBalancesFacade(newTestLedgerClient(t, srv), gate).CreateBalance(context.Background(), resOrg, resLedger, stampID,
+				&models.CreateBalanceInput{Key: "default"})
+		}},
+		{"balances.UpdateBalance", func(t *testing.T, srv *httptest.Server, gate bool) {
+			t.Helper()
+			allow := false
+			_, _ = newBalancesFacade(newTestLedgerClient(t, srv), gate).UpdateBalance(context.Background(), resOrg, resLedger, stampID,
+				&models.UpdateBalanceInput{AllowSending: &allow})
+		}},
+		{"balances.DeleteBalance", func(t *testing.T, srv *httptest.Server, gate bool) {
+			t.Helper()
+			_ = newBalancesFacade(newTestLedgerClient(t, srv), gate).DeleteBalance(context.Background(), resOrg, resLedger, stampID)
+		}},
+		{"operations.UpdateTransactionOperation", func(t *testing.T, srv *httptest.Server, gate bool) {
+			t.Helper()
+			_, _ = newOperationsFacade(newTestLedgerClient(t, srv), gate).UpdateTransactionOperation(context.Background(), resOrg, resLedger,
+				"33333333-3333-3333-3333-333333333333", stampID, &models.UpdateOperationInput{Description: "updated"})
 		}},
 	}
 

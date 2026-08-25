@@ -1,6 +1,6 @@
 # 06-idempotency
 
-Demonstrates the v3 idempotency surface — three modes for the
+Demonstrates the idempotency surface — three modes for the
 `X-Idempotency` request header on unsafe (POST/PUT/PATCH/DELETE)
 requests.
 

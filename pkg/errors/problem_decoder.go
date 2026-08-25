@@ -6,6 +6,8 @@ package errors
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 )
 
 // problemEnvelope mirrors the unified RFC 9457 (application/problem+json)
@@ -14,6 +16,11 @@ import (
 // pkg/errors never imports the generated internal/gen* types, keeping the
 // generated surface out of the public SDK error path. All fields are
 // optional pointers on the wire; the decoder nil-guards every one.
+// The envelope also carries the two members that exist ONLY on the legacy /v1
+// shape (LegacyError: application/json with code/message/title/entityType/fields).
+// Both server surfaces are alive — /v1 is deprecated, not gone — so one decoder
+// reads both: an /v1 error body has no "detail" and no "errors", and its message
+// and per-field detail live under "message" and "fields" instead.
 type problemEnvelope struct {
 	Code     *string               `json:"code"`
 	Detail   *string               `json:"detail"`
@@ -22,6 +29,31 @@ type problemEnvelope struct {
 	Status   *int64                `json:"status"`
 	Title    *string               `json:"title"`
 	Type     *string               `json:"type"`
+
+	// Message is the /v1 counterpart of Detail.
+	Message *string `json:"message"`
+
+	// EntityType is the /v1 domain entity the error concerns; the RFC 9457
+	// envelope has no equivalent member.
+	EntityType *string `json:"entityType"`
+
+	// Fields is the /v1 counterpart of Errors: per-field violation detail keyed by
+	// field name. Values are not always strings (an unexpected field carries the
+	// offending value), hence map[string]any.
+	Fields *map[string]any `json:"fields"`
+
+	// Upstream is the RFC 9457 extension member carrying the error a proxied
+	// third-party provider reported. It is the ONE member that survives the
+	// server's >= 500 scrub, so on a scrubbed 5xx it is the only actionable
+	// diagnostic the caller gets — see decodeUpstream.
+	Upstream *problemUpstream `json:"upstream"`
+}
+
+// problemUpstream mirrors the "upstream" extension member: the provider's own
+// code and message, verbatim and bounded (never its raw response body).
+type problemUpstream struct {
+	Code    *string `json:"code"`
+	Message *string `json:"message"`
 }
 
 // problemErrorDetail mirrors a single RFC 9457 field error.
@@ -31,14 +63,26 @@ type problemErrorDetail struct {
 	Value    *any    `json:"value"`
 }
 
-// DecodeProblemJSON decodes a unified RFC 9457 problem+json error body into
-// an *Error. It accepts the raw response bytes (the wire format the two
-// server planes share) and the transport-observed HTTP status/request ID.
+// DecodeProblemJSON decodes a server error body into an *Error. It accepts the
+// raw response bytes and the transport-observed HTTP status/request ID, and reads
+// BOTH live wire formats: the RFC 9457 problem+json envelope (/v2 and the Tracer
+// plane) and the legacy /v1 shape (application/json with
+// code/message/title/entityType/fields).
 //
 // Mapping: Code→APICode, Detail→Message, Title→Title, Status→StatusCode
 // (envelope status preferred, transport status as fallback), and
 // Errors[]→field-errors (Location into Fields, {location,message,value}
 // per entry into Details["errors"]).
+//
+// When the RFC 9457 members are absent the legacy members take over:
+// Message→Message and Fields→field-errors (keys into Fields, the whole map into
+// Details["fields"]), plus EntityType. Without this the whole /v1 surface reported
+// nothing but "API error with status code N" and dropped every field violation.
+//
+// The "upstream" extension member — a proxied provider's own code and message —
+// lands in Details["upstream"] regardless of which shape carried it. The server
+// scrubs detail, errors[] and code at status >= 500 but lifts this member through
+// the scrub, so on a 5xx it is often the only actionable diagnostic there is.
 //
 // Retryability is not decided here: it is a property of the resulting
 // *Error, keyed by the shared status→category adapter and the Code-suffix
@@ -63,24 +107,83 @@ func DecodeProblemJSON(httpStatus int, body []byte, requestID string) error {
 		statusCode = int(*env.Status)
 	}
 
+	// "detail" is the RFC 9457 member; "message" is its /v1 counterpart. Prefer
+	// the RFC one so a body carrying both (a server mid-migration) reads as /v2.
 	message := deref(env.Detail)
+	if message == "" {
+		message = deref(env.Message)
+	}
+
 	if message == "" {
 		message = fmt.Sprintf("API error with status code %d", statusCode)
 	}
 
 	fields, details := decodeProblemFieldErrors(env.Errors)
+	if fields == nil && details == nil {
+		fields, details = decodeLegacyFieldErrors(env.Fields)
+	}
+
+	if upstream := decodeUpstream(env.Upstream); upstream != nil {
+		if details == nil {
+			details = map[string]any{}
+		}
+
+		details["upstream"] = upstream
+	}
 
 	return ErrorFromHTTPResponseWithDetails(
 		statusCode,
 		requestID,
 		message,
 		deref(env.Code),
-		"", // entityType: not part of the RFC 9457 envelope
-		"", // resourceID: not part of the RFC 9457 envelope
+		deref(env.EntityType), // /v1 only; absent from the RFC 9457 envelope
+		"",                    // resourceID: carried by neither envelope
 		deref(env.Title),
 		fields,
 		details,
 	)
+}
+
+// decodeLegacyFieldErrors flattens the /v1 "fields" object into the SDK's
+// field-errors: the keys become Fields (the same slot RFC 9457 locations land in,
+// so consumers read one shape), and the full map is preserved under
+// Details["fields"] because a value is not always a string — for an unexpected
+// field it is the offending value. Keys are sorted so Fields is deterministic.
+// Redaction is applied downstream by ErrorFromHTTPResponseWithDetails.
+func decodeLegacyFieldErrors(legacy *map[string]any) (fields []string, details map[string]any) {
+	if legacy == nil || len(*legacy) == 0 {
+		return nil, nil
+	}
+
+	fields = slices.Sorted(maps.Keys(*legacy))
+
+	return fields, map[string]any{"fields": *legacy}
+}
+
+// decodeUpstream renders the "upstream" extension member into the Details map,
+// keeping only the members the provider actually sent so a consumer can tell
+// "provider reported no code" from "code was empty". An absent or wholly empty
+// member yields nil, so Details never grows a hollow key.
+func decodeUpstream(upstream *problemUpstream) map[string]any {
+	if upstream == nil {
+		return nil
+	}
+
+	rendered := map[string]any{}
+
+	if code := deref(upstream.Code); code != "" {
+		rendered["code"] = code
+	}
+
+	if message := deref(upstream.Message); message != "" {
+		rendered["message"] = message
+	}
+
+	if len(rendered) == 0 {
+		return nil
+	}
+
+	return rendered
 }
 
 // decodeProblemFieldErrors flattens RFC 9457 Errors[] into the SDK's

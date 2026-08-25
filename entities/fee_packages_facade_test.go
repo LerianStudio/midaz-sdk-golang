@@ -23,7 +23,7 @@ const (
 )
 
 func feePackagesBase() string {
-	return "/v1/organizations/" + feePackagesOrgID + "/packages"
+	return "/v2/organizations/" + feePackagesOrgID + "/ledgers/" + feePackagesLedgerID + "/packages"
 }
 
 // TestFeePackagesFacade_ListAndPaginate exercises PAGE-mode pagination: the loop
@@ -52,7 +52,7 @@ func TestFeePackagesFacade_ListAndPaginate(t *testing.T) {
 
 	facade := newTestFeePackagesFacade(t, srv)
 
-	first, err := facade.List(context.Background(), feePackagesOrgID, models.PackagesListOpts{PageListOpts: models.PageListOpts{Limit: 1}})
+	first, err := facade.List(context.Background(), feePackagesOrgID, feePackagesLedgerID, models.PackagesListOpts{PageListOpts: models.PageListOpts{Limit: 1}})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestFeePackagesFacade_ListAndPaginate(t *testing.T) {
 		t.Fatalf("List page 1 = %+v", first.Items)
 	}
 
-	all, err := CollectAll(facade.All(context.Background(), feePackagesOrgID, models.PackagesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}))
+	all, err := CollectAll(facade.All(context.Background(), feePackagesOrgID, feePackagesLedgerID, models.PackagesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}))
 	if err != nil {
 		t.Fatalf("CollectAll: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestFeePackagesFacade_StringAmountRoundTrip(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	pkg, err := newTestFeePackagesFacade(t, srv).Get(context.Background(), feePackagesOrgID, "cccc")
+	pkg, err := newTestFeePackagesFacade(t, srv).Get(context.Background(), feePackagesOrgID, feePackagesLedgerID, "cccc")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestFeePackagesFacade_CRUD(t *testing.T) {
 			"admin": validFee(),
 		}).WithEnable(enable)
 
-		pkg, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, input)
+		pkg, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID, input)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
@@ -150,7 +150,7 @@ func TestFeePackagesFacade_CRUD(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		pkg, err := newTestFeePackagesFacade(t, srv).Get(context.Background(), feePackagesOrgID, id)
+		pkg, err := newTestFeePackagesFacade(t, srv).Get(context.Background(), feePackagesOrgID, feePackagesLedgerID, id)
 		if err != nil {
 			t.Fatalf("Get: %v", err)
 		}
@@ -173,7 +173,7 @@ func TestFeePackagesFacade_CRUD(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		pkg, err := newTestFeePackagesFacade(t, srv).Update(context.Background(), feePackagesOrgID, id, models.NewUpdatePackageInput().WithMaxAmount("5000.00"))
+		pkg, err := newTestFeePackagesFacade(t, srv).Update(context.Background(), feePackagesOrgID, feePackagesLedgerID, id, models.NewUpdatePackageInput().WithMaxAmount("5000.00"))
 		if err != nil {
 			t.Fatalf("Update: %v", err)
 		}
@@ -199,7 +199,7 @@ func TestFeePackagesFacade_CRUD(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		if err := newTestFeePackagesFacade(t, srv).Delete(context.Background(), feePackagesOrgID, id); err != nil {
+		if err := newTestFeePackagesFacade(t, srv).Delete(context.Background(), feePackagesOrgID, feePackagesLedgerID, id); err != nil {
 			t.Fatalf("Delete: %v", err)
 		}
 		if m != http.MethodDelete || p != feePackagesBase()+"/"+id {
@@ -211,19 +211,22 @@ func TestFeePackagesFacade_CRUD(t *testing.T) {
 // TestFeePackagesFacade_Filters proves the native filter slots reach the wire.
 func TestFeePackagesFacade_Filters(t *testing.T) {
 	var q url.Values
+
+	var gotPath string
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q = r.URL.Query()
+		gotPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"items":[],"limit":3,"total":0}`))
 	}))
 	defer srv.Close()
 
 	enable := true
-	_, err := newTestFeePackagesFacade(t, srv).List(context.Background(), feePackagesOrgID, models.PackagesListOpts{
+	_, err := newTestFeePackagesFacade(t, srv).List(context.Background(), feePackagesOrgID, feePackagesLedgerID, models.PackagesListOpts{
 		PageListOpts: models.PageListOpts{Limit: 3},
 		Filters: models.PackagesFilters{
 			SegmentID:        "seg-1",
-			LedgerID:         feePackagesLedgerID,
 			TransactionRoute: "route-1",
 			Enable:           &enable,
 		},
@@ -231,11 +234,18 @@ func TestFeePackagesFacade_Filters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
+
+	// The ledger travels in the PATH on v2, not as a ledgerId query filter.
+	if gotPath != feePackagesBase() {
+		t.Fatalf("path = %q, want %q", gotPath, feePackagesBase())
+	}
+
+	if got := q.Get("ledgerId"); got != "" {
+		t.Fatalf("ledgerId query = %q, want empty (ledger is a path segment on v2)", got)
+	}
+
 	if got := q.Get("segmentId"); got != "seg-1" {
 		t.Fatalf("segmentId = %q, want seg-1", got)
-	}
-	if got := q.Get("ledgerId"); got != feePackagesLedgerID {
-		t.Fatalf("ledgerId = %q, want %q", got, feePackagesLedgerID)
 	}
 	if got := q.Get("transactionRoute"); got != "route-1" {
 		t.Fatalf("transactionRoute = %q, want route-1", got)
@@ -258,7 +268,7 @@ func TestFeePackagesFacade_ErrorDecodes(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestFeePackagesFacade(t, srv).Get(context.Background(), feePackagesOrgID, "33333333-3333-3333-3333-333333333333")
+	_, err := newTestFeePackagesFacade(t, srv).Get(context.Background(), feePackagesOrgID, feePackagesLedgerID, "33333333-3333-3333-3333-333333333333")
 	var sdkErr *sdkerrors.Error
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
@@ -292,7 +302,7 @@ func TestFeePackagesFacade_WriteReplaySafe(t *testing.T) {
 		"admin": validFee(),
 	}).WithEnable(true)
 
-	_, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, input)
+	_, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID, input)
 	if err != nil {
 		t.Fatalf("Create with one 401 refresh: %v", err)
 	}
@@ -314,13 +324,13 @@ func TestFeePackagesFacade_Validation(t *testing.T) {
 	facade := newTestFeePackagesFacade(t, srv)
 
 	// Missing required fields + empty fees map.
-	_, err := facade.Create(context.Background(), feePackagesOrgID, &models.CreatePackageInput{})
+	_, err := facade.Create(context.Background(), feePackagesOrgID, feePackagesLedgerID, &models.CreatePackageInput{})
 	if err == nil {
 		t.Fatal("Create with empty input must fail validation")
 	}
 
 	// Empty PATCH is a no-op round trip.
-	_, err = facade.Update(context.Background(), feePackagesOrgID, "id", models.NewUpdatePackageInput())
+	_, err = facade.Update(context.Background(), feePackagesOrgID, feePackagesLedgerID, "id", models.NewUpdatePackageInput())
 	if err == nil {
 		t.Fatal("Update with empty payload must fail validation")
 	}
@@ -343,13 +353,77 @@ func TestFeePackagesFacade_UpdateMinAmountStringRail(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestFeePackagesFacade(t, srv).Update(context.Background(), feePackagesOrgID, id, models.NewUpdatePackageInput().WithMinAmount(precise))
+	_, err := newTestFeePackagesFacade(t, srv).Update(context.Background(), feePackagesOrgID, feePackagesLedgerID, id, models.NewUpdatePackageInput().WithMinAmount(precise))
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 	if !strings.Contains(body, `"minimumAmount":"`+precise+`"`) {
 		t.Fatalf("PATCH body = %q, want exact minimumAmount string %q (no float hop)", body, precise)
 	}
+}
+
+// TestFeePackagesFacade_LedgerReconciliation covers the path-vs-body ledger on
+// create: the server takes the ledger from the URL AND requires ledgerId in the
+// body, so an empty body value must inherit the addressed ledger and a
+// contradicting one must never reach the wire — it would register a fee package
+// (which prices money movement) against a ledger the caller did not address.
+func TestFeePackagesFacade_LedgerReconciliation(t *testing.T) {
+	newInput := func(ledgerID string) *models.CreatePackageInput {
+		return models.NewCreatePackageInput("Std", ledgerID, "100.00", "1000.00", map[string]models.Fee{
+			"admin": validFee(),
+		}).WithEnable(true)
+	}
+
+	t.Run("empty body ledgerId inherits the path ledger", func(t *testing.T) {
+		var body string
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, _ := io.ReadAll(r.Body)
+			body = string(b)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"aaaa","feeGroupLabel":"Std"}`))
+		}))
+		defer srv.Close()
+
+		input := newInput("")
+
+		if _, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID, input); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+
+		if !strings.Contains(body, `"ledgerId":"`+feePackagesLedgerID+`"`) {
+			t.Fatalf("body = %q, want the path ledger filled into ledgerId", body)
+		}
+
+		if input.LedgerID != "" {
+			t.Fatalf("caller input mutated: LedgerID = %q, want it left empty", input.LedgerID)
+		}
+	})
+
+	t.Run("mismatched body ledgerId is rejected before transport", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			t.Fatal("no request may reach the server when the ledgers disagree")
+		}))
+		defer srv.Close()
+
+		const otherLedger = "66666666-6666-6666-6666-666666666666"
+
+		input := newInput(otherLedger)
+
+		_, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID, input)
+		if err == nil {
+			t.Fatal("Create must reject a body ledgerId that differs from the path ledger")
+		}
+
+		if !strings.Contains(err.Error(), otherLedger) || !strings.Contains(err.Error(), feePackagesLedgerID) {
+			t.Fatalf("error = %v, want both ledger IDs named", err)
+		}
+
+		if input.LedgerID != otherLedger {
+			t.Fatalf("caller input mutated: LedgerID = %q", input.LedgerID)
+		}
+	})
 }
 
 // validFee returns an inner Fee that satisfies CreatePackageInput.Validate's dive

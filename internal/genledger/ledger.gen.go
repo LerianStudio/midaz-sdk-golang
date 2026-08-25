@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	ApiKeyAuthScopes = "ApiKeyAuth.Scopes"
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
@@ -27,6 +26,13 @@ const (
 const (
 	AccountRuleRuleTypeAccountType AccountRuleRuleType = "account_type"
 	AccountRuleRuleTypeAlias       AccountRuleRuleType = "alias"
+)
+
+// Defines values for CreateOperationRouteInputOperationType.
+const (
+	CreateOperationRouteInputOperationTypeBidirectional CreateOperationRouteInputOperationType = "bidirectional"
+	CreateOperationRouteInputOperationTypeDestination   CreateOperationRouteInputOperationType = "destination"
+	CreateOperationRouteInputOperationTypeSource        CreateOperationRouteInputOperationType = "source"
 )
 
 // Defines values for StatusCode.
@@ -70,28 +76,36 @@ type AccountRule struct {
 // AccountRuleRuleType defines model for AccountRule.RuleType.
 type AccountRuleRuleType string
 
+// AccountSkip defines model for AccountSkip.
+type AccountSkip struct {
+	Holder *bool `json:"holder,omitempty"`
+}
+
 // AccountType defines model for AccountType.
 type AccountType struct {
-	CreatedAt      time.Time               `json:"createdAt"`
-	DeletedAt      *time.Time              `json:"deletedAt"`
-	Description    *string                 `json:"description,omitempty"`
-	Id             *string                 `json:"id,omitempty"`
-	KeyValue       *string                 `json:"keyValue,omitempty"`
-	LedgerId       *string                 `json:"ledgerId,omitempty"`
-	Metadata       *map[string]interface{} `json:"metadata,omitempty"`
-	Name           *string                 `json:"name,omitempty"`
-	OrganizationId *string                 `json:"organizationId,omitempty"`
-	UpdatedAt      time.Time               `json:"updatedAt"`
+	CreatedAt        time.Time               `json:"createdAt"`
+	DefaultDirection *string                 `json:"defaultDirection,omitempty"`
+	DeletedAt        *time.Time              `json:"deletedAt"`
+	Description      *string                 `json:"description,omitempty"`
+	Id               *string                 `json:"id,omitempty"`
+	KeyValue         *string                 `json:"keyValue,omitempty"`
+	LedgerId         *string                 `json:"ledgerId,omitempty"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	Name             *string                 `json:"name,omitempty"`
+	OrganizationId   *string                 `json:"organizationId,omitempty"`
+	UpdatedAt        time.Time               `json:"updatedAt"`
 }
 
 // AccountingEntries defines model for AccountingEntries.
 type AccountingEntries struct {
+	Block     *AccountingEntry `json:"block,omitempty"`
 	Cancel    *AccountingEntry `json:"cancel,omitempty"`
 	Commit    *AccountingEntry `json:"commit,omitempty"`
 	Direct    *AccountingEntry `json:"direct,omitempty"`
 	Hold      *AccountingEntry `json:"hold,omitempty"`
 	Overdraft *AccountingEntry `json:"overdraft,omitempty"`
 	Revert    *AccountingEntry `json:"revert,omitempty"`
+	Unblock   *AccountingEntry `json:"unblock,omitempty"`
 }
 
 // AccountingEntry defines model for AccountingEntry.
@@ -113,6 +127,13 @@ type AccountingValidation struct {
 	ValidateRoutes      bool `json:"validateRoutes"`
 }
 
+// AccountingValidationInput defines model for AccountingValidationInput.
+type AccountingValidationInput struct {
+	RequireHolder       *bool `json:"requireHolder,omitempty"`
+	ValidateAccountType *bool `json:"validateAccountType,omitempty"`
+	ValidateRoutes      *bool `json:"validateRoutes,omitempty"`
+}
+
 // Address defines model for Address.
 type Address struct {
 	City        string  `json:"city"`
@@ -129,6 +150,12 @@ type Addresses struct {
 	Additional1 *Address `json:"additional1,omitempty"`
 	Additional2 *Address `json:"additional2,omitempty"`
 	Primary     *Address `json:"primary,omitempty"`
+}
+
+// Amount defines model for Amount.
+type Amount struct {
+	Asset *string `json:"asset,omitempty"`
+	Value *string `json:"value,omitempty"`
 }
 
 // Asset defines model for Asset.
@@ -257,6 +284,227 @@ type Contact struct {
 	SecondaryEmail *string `json:"secondaryEmail,omitempty"`
 }
 
+// CreateAccountInput defines model for CreateAccountInput.
+type CreateAccountInput struct {
+	Alias           *string                `json:"alias"`
+	AssetCode       string                 `json:"assetCode"`
+	Blocked         *bool                  `json:"blocked"`
+	EntityId        *string                `json:"entityId"`
+	HolderId        *openapi_types.UUID    `json:"holderId"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	Name            string                 `json:"name"`
+	ParentAccountId *openapi_types.UUID    `json:"parentAccountId"`
+	PortfolioId     *openapi_types.UUID    `json:"portfolioId"`
+	SegmentId       *openapi_types.UUID    `json:"segmentId"`
+	Skip            *AccountSkip           `json:"skip,omitempty"`
+	Status          Status                 `json:"status"`
+	Type            string                 `json:"type"`
+}
+
+// CreateAccountTypeInput defines model for CreateAccountTypeInput.
+type CreateAccountTypeInput struct {
+	DefaultDirection *string                `json:"defaultDirection,omitempty"`
+	Description      *string                `json:"description,omitempty"`
+	KeyValue         string                 `json:"keyValue"`
+	Metadata         map[string]interface{} `json:"metadata"`
+	Name             string                 `json:"name"`
+}
+
+// CreateAdditionalBalance defines model for CreateAdditionalBalance.
+type CreateAdditionalBalance struct {
+	AllowReceiving *bool            `json:"allowReceiving"`
+	AllowSending   *bool            `json:"allowSending"`
+	Direction      *string          `json:"direction,omitempty"`
+	Key            string           `json:"key"`
+	Settings       *BalanceSettings `json:"settings,omitempty"`
+}
+
+// CreateAssetInput defines model for CreateAssetInput.
+type CreateAssetInput struct {
+	Code     string                 `json:"code"`
+	Metadata map[string]interface{} `json:"metadata"`
+	Name     string                 `json:"name"`
+	Status   Status                 `json:"status"`
+	Type     string                 `json:"type"`
+}
+
+// CreateAssetRateInput defines model for CreateAssetRateInput.
+type CreateAssetRateInput struct {
+	ExternalId *openapi_types.UUID    `json:"externalId,omitempty"`
+	From       string                 `json:"from"`
+	Metadata   map[string]interface{} `json:"metadata"`
+	Rate       int64                  `json:"rate"`
+	Scale      *int64                 `json:"scale,omitempty"`
+	Source     *string                `json:"source,omitempty"`
+	To         string                 `json:"to"`
+	Ttl        *int64                 `json:"ttl,omitempty"`
+}
+
+// CreateHolderAccountInput defines model for CreateHolderAccountInput.
+type CreateHolderAccountInput struct {
+	Alias            *string                `json:"alias"`
+	AssetCode        string                 `json:"assetCode"`
+	BankingDetails   *BankingDetails        `json:"bankingDetails,omitempty"`
+	Blocked          *bool                  `json:"blocked"`
+	EntityId         *string                `json:"entityId"`
+	Metadata         map[string]interface{} `json:"metadata"`
+	Name             string                 `json:"name"`
+	ParentAccountId  *openapi_types.UUID    `json:"parentAccountId"`
+	PortfolioId      *openapi_types.UUID    `json:"portfolioId"`
+	RegulatoryFields *RegulatoryFields      `json:"regulatoryFields,omitempty"`
+	RelatedParties   *[]RelatedParty        `json:"relatedParties"`
+	SegmentId        *openapi_types.UUID    `json:"segmentId"`
+	Skip             *AccountSkip           `json:"skip,omitempty"`
+	Status           Status                 `json:"status"`
+	Type             string                 `json:"type"`
+}
+
+// CreateHolderInput defines model for CreateHolderInput.
+type CreateHolderInput struct {
+	Addresses     Addresses              `json:"addresses"`
+	Contact       Contact                `json:"contact"`
+	Document      string                 `json:"document"`
+	ExternalId    *string                `json:"externalId"`
+	LegalPerson   LegalPerson            `json:"legalPerson"`
+	Metadata      map[string]interface{} `json:"metadata"`
+	Name          string                 `json:"name"`
+	NaturalPerson NaturalPerson          `json:"naturalPerson"`
+	Type          *string                `json:"type"`
+}
+
+// CreateInstrumentInput defines model for CreateInstrumentInput.
+type CreateInstrumentInput struct {
+	AccountId        openapi_types.UUID     `json:"accountId"`
+	BankingDetails   BankingDetails         `json:"bankingDetails"`
+	LedgerId         openapi_types.UUID     `json:"ledgerId"`
+	Metadata         map[string]interface{} `json:"metadata"`
+	RegulatoryFields *RegulatoryFields      `json:"regulatoryFields,omitempty"`
+	RelatedParties   *[]RelatedParty        `json:"relatedParties"`
+}
+
+// CreateLedgerInput defines model for CreateLedgerInput.
+type CreateLedgerInput struct {
+	Metadata map[string]interface{} `json:"metadata"`
+	Name     string                 `json:"name"`
+	Settings *LedgerSettingsInput   `json:"settings,omitempty"`
+	Status   Status                 `json:"status"`
+}
+
+// CreateMetadataIndexInput defines model for CreateMetadataIndexInput.
+type CreateMetadataIndexInput struct {
+	MetadataKey string `json:"metadataKey"`
+	Sparse      *bool  `json:"sparse"`
+	Unique      bool   `json:"unique"`
+}
+
+// CreateOperationRouteInput defines model for CreateOperationRouteInput.
+type CreateOperationRouteInput struct {
+	Account           *AccountRule                            `json:"account,omitempty"`
+	AccountingEntries *AccountingEntries                      `json:"accountingEntries,omitempty"`
+	Code              *string                                 `json:"code,omitempty"`
+	Description       *string                                 `json:"description,omitempty"`
+	Metadata          map[string]interface{}                  `json:"metadata"`
+	OperationType     *CreateOperationRouteInputOperationType `json:"operationType,omitempty"`
+	Title             *string                                 `json:"title,omitempty"`
+}
+
+// CreateOperationRouteInputOperationType defines model for CreateOperationRouteInput.OperationType.
+type CreateOperationRouteInputOperationType string
+
+// CreateOrganizationInput defines model for CreateOrganizationInput.
+type CreateOrganizationInput struct {
+	Address              Address                `json:"address"`
+	DoingBusinessAs      *string                `json:"doingBusinessAs"`
+	LegalDocument        string                 `json:"legalDocument"`
+	LegalName            string                 `json:"legalName"`
+	Metadata             map[string]interface{} `json:"metadata"`
+	ParentOrganizationId *openapi_types.UUID    `json:"parentOrganizationId"`
+	Status               Status                 `json:"status"`
+}
+
+// CreatePortfolioInput defines model for CreatePortfolioInput.
+type CreatePortfolioInput struct {
+	EntityId string                 `json:"entityId"`
+	Metadata map[string]interface{} `json:"metadata"`
+	Name     string                 `json:"name"`
+	Status   Status                 `json:"status"`
+}
+
+// CreateSegmentInput defines model for CreateSegmentInput.
+type CreateSegmentInput struct {
+	Metadata map[string]interface{} `json:"metadata"`
+	Name     string                 `json:"name"`
+	Status   Status                 `json:"status"`
+}
+
+// CreateTransactionInflowInput defines model for CreateTransactionInflowInput.
+type CreateTransactionInflowInput struct {
+	ChartOfAccountsGroupName *string                `json:"chartOfAccountsGroupName,omitempty"`
+	Code                     *string                `json:"code,omitempty"`
+	Description              *string                `json:"description,omitempty"`
+	Metadata                 map[string]interface{} `json:"metadata"`
+	Route                    *string                `json:"route,omitempty"`
+	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
+	Send                     SendInflow             `json:"send"`
+	Skip                     *TransactionSkip       `json:"skip,omitempty"`
+	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
+}
+
+// CreateTransactionInput defines model for CreateTransactionInput.
+type CreateTransactionInput struct {
+	ChartOfAccountsGroupName *string                `json:"chartOfAccountsGroupName,omitempty"`
+	Code                     *string                `json:"code,omitempty"`
+	Description              *string                `json:"description,omitempty"`
+	Metadata                 map[string]interface{} `json:"metadata"`
+	Pending                  bool                   `json:"pending"`
+	Route                    *string                `json:"route,omitempty"`
+	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
+	Send                     Send                   `json:"send"`
+	Skip                     *TransactionSkip       `json:"skip,omitempty"`
+	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
+}
+
+// CreateTransactionOutflowInput defines model for CreateTransactionOutflowInput.
+type CreateTransactionOutflowInput struct {
+	ChartOfAccountsGroupName *string                `json:"chartOfAccountsGroupName,omitempty"`
+	Code                     *string                `json:"code,omitempty"`
+	Description              *string                `json:"description,omitempty"`
+	Metadata                 map[string]interface{} `json:"metadata"`
+	Pending                  bool                   `json:"pending"`
+	Route                    *string                `json:"route,omitempty"`
+	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
+	Send                     SendOutflow            `json:"send"`
+	Skip                     *TransactionSkip       `json:"skip,omitempty"`
+	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
+}
+
+// CreateTransactionRouteInput defines model for CreateTransactionRouteInput.
+type CreateTransactionRouteInput struct {
+	Description     *string                `json:"description,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	OperationRoutes *[]openapi_types.UUID  `json:"operationRoutes"`
+	Title           *string                `json:"title,omitempty"`
+}
+
+// CreateTransactionV2Input Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
+type CreateTransactionV2Input struct {
+	Amount           string                  `json:"amount"`
+	Asset            string                  `json:"asset"`
+	Code             *string                 `json:"code,omitempty"`
+	Credits          []V2LegInput            `json:"credits"`
+	Debits           []V2LegInput            `json:"debits"`
+	Description      *string                 `json:"description,omitempty"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	OperationRouteId *openapi_types.UUID     `json:"operationRouteId,omitempty"`
+	RouteId          *openapi_types.UUID     `json:"routeId,omitempty"`
+}
+
+// Distribute defines model for Distribute.
+type Distribute struct {
+	Remaining *string   `json:"remaining,omitempty"`
+	To        *[]FromTo `json:"to"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Stable, machine-readable domain error code scoped to the emitting service (format: <SERVICE>-NNNN).
@@ -278,7 +526,8 @@ type Error struct {
 	Title *string `json:"title,omitempty"`
 
 	// Type A URI reference to human-readable documentation for the error.
-	Type *string `json:"type,omitempty"`
+	Type     *string   `json:"type,omitempty"`
+	Upstream *Upstream `json:"upstream,omitempty"`
 }
 
 // ErrorDetail defines model for ErrorDetail.
@@ -310,6 +559,13 @@ type FeeAccountTarget struct {
 	Aliases     *[]string `json:"aliases"`
 	PortfolioId *string   `json:"portfolioId,omitempty"`
 	SegmentId   *string   `json:"segmentId,omitempty"`
+}
+
+// FeeBillingCalculateRequest defines model for FeeBillingCalculateRequest.
+type FeeBillingCalculateRequest struct {
+	LedgerId string  `json:"ledgerId"`
+	Period   string  `json:"period"`
+	Type     *string `json:"type,omitempty"`
 }
 
 // FeeBillingCalculateResponse defines model for FeeBillingCalculateResponse.
@@ -365,6 +621,13 @@ type FeeBillingPackage struct {
 	UpdatedAt                string             `json:"updatedAt"`
 }
 
+// FeeBillingPackageUpdate defines model for FeeBillingPackageUpdate.
+type FeeBillingPackageUpdate struct {
+	Description *string `json:"description,omitempty"`
+	Enable      *bool   `json:"enable,omitempty"`
+	Label       *string `json:"label,omitempty"`
+}
+
 // FeeCalculation defines model for FeeCalculation.
 type FeeCalculation struct {
 	Type  string `json:"type"`
@@ -377,10 +640,31 @@ type FeeCalculationModel struct {
 	Calculations    *[]FeeCalculation `json:"calculations"`
 }
 
+// FeeCreatePackageInput defines model for FeeCreatePackageInput.
+type FeeCreatePackageInput struct {
+	Description      *string        `json:"description,omitempty"`
+	Enable           *bool          `json:"enable"`
+	FeeGroupLabel    string         `json:"feeGroupLabel"`
+	Fees             map[string]Fee `json:"fees"`
+	LedgerId         string         `json:"ledgerId"`
+	MaximumAmount    string         `json:"maximumAmount"`
+	MinimumAmount    string         `json:"minimumAmount"`
+	SegmentId        *string        `json:"segmentId"`
+	TransactionRoute *string        `json:"transactionRoute,omitempty"`
+	WaivedAccounts   *[]string      `json:"waivedAccounts,omitempty"`
+}
+
 // FeeDiscountTier defines model for FeeDiscountTier.
 type FeeDiscountTier struct {
 	DiscountPercentage string `json:"discountPercentage"`
 	MinQuantity        int64  `json:"minQuantity"`
+}
+
+// FeeEstimate defines model for FeeEstimate.
+type FeeEstimate struct {
+	LedgerId    string           `json:"ledgerId"`
+	PackageId   string           `json:"packageId"`
+	Transaction TransactionInput `json:"transaction"`
 }
 
 // FeeEventFilter defines model for FeeEventFilter.
@@ -420,6 +704,33 @@ type FeePricingTier struct {
 	MaxQuantity *int64 `json:"maxQuantity,omitempty"`
 	MinQuantity int64  `json:"minQuantity"`
 	UnitPrice   string `json:"unitPrice"`
+}
+
+// FeeUpdatePackageInput defines model for FeeUpdatePackageInput.
+type FeeUpdatePackageInput struct {
+	Description    string         `json:"description"`
+	Enable         *bool          `json:"enable,omitempty"`
+	FeeGroupLabel  string         `json:"feeGroupLabel"`
+	Fees           map[string]Fee `json:"fees"`
+	MaximumAmount  *string        `json:"maximumAmount"`
+	MinimumAmount  *string        `json:"minimumAmount"`
+	WaivedAccounts *[]string      `json:"waivedAccounts"`
+}
+
+// FromTo defines model for FromTo.
+type FromTo struct {
+	AccountAlias    *string                `json:"accountAlias,omitempty"`
+	Amount          *Amount                `json:"amount,omitempty"`
+	BalanceKey      *string                `json:"balanceKey,omitempty"`
+	ChartOfAccounts string                 `json:"chartOfAccounts"`
+	Description     *string                `json:"description,omitempty"`
+	IsFrom          *bool                  `json:"isFrom,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	Rate            *Rate                  `json:"rate,omitempty"`
+	Remaining       *string                `json:"remaining,omitempty"`
+	Route           *string                `json:"route,omitempty"`
+	RouteId         *openapi_types.UUID    `json:"routeId,omitempty"`
+	Share           *Share                 `json:"share,omitempty"`
 }
 
 // Holder defines model for Holder.
@@ -493,6 +804,31 @@ type LedgerSettings struct {
 	Accounting AccountingValidation `json:"accounting"`
 	Overrides  OverridePolicy       `json:"overrides"`
 	Tracer     TracerSettings       `json:"tracer"`
+}
+
+// LedgerSettingsInput defines model for LedgerSettingsInput.
+type LedgerSettingsInput struct {
+	Accounting *AccountingValidationInput `json:"accounting,omitempty"`
+	Overrides  *OverridePolicyInput       `json:"overrides,omitempty"`
+	Tracer     *TracerSettingsInput       `json:"tracer,omitempty"`
+}
+
+// LegacyError defines model for LegacyError.
+type LegacyError struct {
+	// Code Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition.
+	Code string `json:"code"`
+
+	// EntityType The domain entity the error concerns. Present only on field-validation errors.
+	EntityType *string `json:"entityType,omitempty"`
+
+	// Fields Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array.
+	Fields *map[string]interface{} `json:"fields,omitempty"`
+
+	// Message Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'.
+	Message string `json:"message"`
+
+	// Title Short, human-readable summary of the error.
+	Title string `json:"title"`
 }
 
 // LegalPerson defines model for LegalPerson.
@@ -595,6 +931,40 @@ type OperationStatus struct {
 	Description *string `json:"description"`
 }
 
+// OperationUpdateOperationInput defines model for OperationUpdateOperationInput.
+type OperationUpdateOperationInput struct {
+	Description string                 `json:"description"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
+// OperationV2 defines model for OperationV2.
+type OperationV2 struct {
+	AccountAlias     string                 `json:"accountAlias"`
+	AccountId        openapi_types.UUID     `json:"accountId"`
+	Amount           OperationAmount        `json:"amount"`
+	AssetCode        string                 `json:"assetCode"`
+	Balance          OperationBalance       `json:"balance"`
+	BalanceAffected  bool                   `json:"balanceAffected"`
+	BalanceAfter     OperationBalance       `json:"balanceAfter"`
+	BalanceId        openapi_types.UUID     `json:"balanceId"`
+	BalanceKey       string                 `json:"balanceKey"`
+	CreatedAt        time.Time              `json:"createdAt"`
+	DeletedAt        *time.Time             `json:"deletedAt"`
+	Description      string                 `json:"description"`
+	Direction        *string                `json:"direction,omitempty"`
+	Id               openapi_types.UUID     `json:"id"`
+	LedgerId         openapi_types.UUID     `json:"ledgerId"`
+	Metadata         map[string]interface{} `json:"metadata"`
+	OrganizationId   openapi_types.UUID     `json:"organizationId"`
+	RouteCode        *string                `json:"routeCode,omitempty"`
+	RouteDescription *string                `json:"routeDescription,omitempty"`
+	RouteId          *openapi_types.UUID    `json:"routeId,omitempty"`
+	Status           OperationStatus        `json:"status"`
+	TransactionId    openapi_types.UUID     `json:"transactionId"`
+	Type             string                 `json:"type"`
+	UpdatedAt        time.Time              `json:"updatedAt"`
+}
+
 // Organization defines model for Organization.
 type Organization struct {
 	Address              Address                 `json:"address"`
@@ -615,6 +985,13 @@ type OverridePolicy struct {
 	AllowFeeSkip    bool `json:"allowFeeSkip"`
 	AllowHolderSkip bool `json:"allowHolderSkip"`
 	AllowTracerSkip bool `json:"allowTracerSkip"`
+}
+
+// OverridePolicyInput defines model for OverridePolicyInput.
+type OverridePolicyInput struct {
+	AllowFeeSkip    *bool `json:"allowFeeSkip,omitempty"`
+	AllowHolderSkip *bool `json:"allowHolderSkip,omitempty"`
+	AllowTracerSkip *bool `json:"allowTracerSkip,omitempty"`
 }
 
 // Pagination defines model for Pagination.
@@ -640,6 +1017,12 @@ type Portfolio struct {
 	UpdatedAt      time.Time               `json:"updatedAt"`
 }
 
+// ProvisionEncryptionInput defines model for ProvisionEncryptionInput.
+type ProvisionEncryptionInput struct {
+	Actor  string `json:"actor"`
+	Reason string `json:"reason"`
+}
+
 // ProvisionEncryptionResponse defines model for ProvisionEncryptionResponse.
 type ProvisionEncryptionResponse struct {
 	AeadPrimaryKeyId int32  `json:"aead_primary_key_id"`
@@ -654,6 +1037,14 @@ type ProvisioningStatusResponse struct {
 	OrganizationId string  `json:"organization_id"`
 	Provisioned    bool    `json:"provisioned"`
 	Status         *string `json:"status,omitempty"`
+}
+
+// Rate defines model for Rate.
+type Rate struct {
+	ExternalId string `json:"externalId"`
+	From       string `json:"from"`
+	To         string `json:"to"`
+	Value      string `json:"value"`
 }
 
 // RegulatoryFields defines model for RegulatoryFields.
@@ -692,6 +1083,40 @@ type Segment struct {
 	UpdatedAt      time.Time               `json:"updatedAt"`
 }
 
+// Send defines model for Send.
+type Send struct {
+	Asset      *string     `json:"asset,omitempty"`
+	Distribute *Distribute `json:"distribute,omitempty"`
+	Source     *Source     `json:"source,omitempty"`
+	Value      *string     `json:"value,omitempty"`
+}
+
+// SendInflow defines model for SendInflow.
+type SendInflow struct {
+	Asset      *string     `json:"asset,omitempty"`
+	Distribute *Distribute `json:"distribute,omitempty"`
+	Value      *string     `json:"value,omitempty"`
+}
+
+// SendOutflow defines model for SendOutflow.
+type SendOutflow struct {
+	Asset  *string `json:"asset,omitempty"`
+	Source *Source `json:"source,omitempty"`
+	Value  *string `json:"value,omitempty"`
+}
+
+// Share defines model for Share.
+type Share struct {
+	Percentage             *int64 `json:"percentage,omitempty"`
+	PercentageOfPercentage *int64 `json:"percentageOfPercentage,omitempty"`
+}
+
+// Source defines model for Source.
+type Source struct {
+	From      *[]FromTo `json:"from"`
+	Remaining *string   `json:"remaining,omitempty"`
+}
+
 // Status defines model for Status.
 type Status struct {
 	Code        StatusCode `json:"code"`
@@ -708,6 +1133,13 @@ type TracerSettings struct {
 	TimeoutMs   int64  `json:"timeoutMs"`
 }
 
+// TracerSettingsInput defines model for TracerSettingsInput.
+type TracerSettingsInput struct {
+	FailPosture *string `json:"failPosture,omitempty"`
+	Mode        *string `json:"mode,omitempty"`
+	TimeoutMs   *int64  `json:"timeoutMs,omitempty"`
+}
+
 // Transaction defines model for Transaction.
 type Transaction struct {
 	Amount                   *string                 `json:"amount"`
@@ -717,7 +1149,6 @@ type Transaction struct {
 	DeletedAt                *time.Time              `json:"deletedAt"`
 	Description              string                  `json:"description"`
 	Destination              *[]string               `json:"destination"`
-	FeesSkipped              bool                    `json:"feesSkipped"`
 	Id                       openapi_types.UUID      `json:"id"`
 	LedgerId                 openapi_types.UUID      `json:"ledgerId"`
 	Metadata                 *map[string]interface{} `json:"metadata,omitempty"`
@@ -728,8 +1159,20 @@ type Transaction struct {
 	RouteId                  *openapi_types.UUID     `json:"routeId,omitempty"`
 	Source                   *[]string               `json:"source"`
 	Status                   TransactionStatus       `json:"status"`
-	TracerSkipped            bool                    `json:"tracerSkipped"`
 	UpdatedAt                time.Time               `json:"updatedAt"`
+}
+
+// TransactionInput defines model for TransactionInput.
+type TransactionInput struct {
+	ChartOfAccountsGroupName *string                 `json:"chartOfAccountsGroupName,omitempty"`
+	Code                     *string                 `json:"code,omitempty"`
+	Description              *string                 `json:"description,omitempty"`
+	Metadata                 *map[string]interface{} `json:"metadata,omitempty"`
+	Pending                  *bool                   `json:"pending,omitempty"`
+	Route                    *string                 `json:"route,omitempty"`
+	RouteId                  *openapi_types.UUID     `json:"routeId,omitempty"`
+	Send                     Send                    `json:"send"`
+	TransactionDate          *time.Time              `json:"transactionDate,omitempty"`
 }
 
 // TransactionRoute defines model for TransactionRoute.
@@ -746,10 +1189,180 @@ type TransactionRoute struct {
 	UpdatedAt       time.Time               `json:"updatedAt"`
 }
 
+// TransactionSkip defines model for TransactionSkip.
+type TransactionSkip struct {
+	Fees   *bool `json:"fees,omitempty"`
+	Tracer *bool `json:"tracer,omitempty"`
+}
+
 // TransactionStatus defines model for TransactionStatus.
 type TransactionStatus struct {
 	Code        string  `json:"code"`
 	Description *string `json:"description"`
+}
+
+// TransactionUpdateTransactionInput defines model for TransactionUpdateTransactionInput.
+type TransactionUpdateTransactionInput struct {
+	Description string                 `json:"description"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
+// TransactionV2 defines model for TransactionV2.
+type TransactionV2 struct {
+	Amount              *string                 `json:"amount"`
+	AssetCode           string                  `json:"assetCode"`
+	CreatedAt           time.Time               `json:"createdAt"`
+	Credit              *[]string               `json:"credit"`
+	Debit               *[]string               `json:"debit"`
+	DeletedAt           *time.Time              `json:"deletedAt"`
+	Description         string                  `json:"description"`
+	FeesSkipped         bool                    `json:"feesSkipped"`
+	Id                  openapi_types.UUID      `json:"id"`
+	LedgerId            openapi_types.UUID      `json:"ledgerId"`
+	Metadata            *map[string]interface{} `json:"metadata,omitempty"`
+	Operations          *[]OperationV2          `json:"operations"`
+	OrganizationId      openapi_types.UUID      `json:"organizationId"`
+	ParentTransactionId *openapi_types.UUID     `json:"parentTransactionId,omitempty"`
+	RouteId             *openapi_types.UUID     `json:"routeId,omitempty"`
+	Status              TransactionStatus       `json:"status"`
+	TracerSkipped       bool                    `json:"tracerSkipped"`
+	UpdatedAt           time.Time               `json:"updatedAt"`
+}
+
+// TransactionV2ListBody defines model for TransactionV2ListBody.
+type TransactionV2ListBody struct {
+	Items      *[]TransactionV2 `json:"items"`
+	Limit      int64            `json:"limit"`
+	NextCursor *string          `json:"next_cursor,omitempty"`
+	Page       *int64           `json:"page,omitempty"`
+	PrevCursor *string          `json:"prev_cursor,omitempty"`
+}
+
+// UpdateAccountInput defines model for UpdateAccountInput.
+type UpdateAccountInput struct {
+	Blocked     *bool                  `json:"blocked"`
+	EntityId    *string                `json:"entityId"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	Name        string                 `json:"name"`
+	PortfolioId *openapi_types.UUID    `json:"portfolioId"`
+	SegmentId   *openapi_types.UUID    `json:"segmentId"`
+	Status      Status                 `json:"status"`
+}
+
+// UpdateAccountTypeInput defines model for UpdateAccountTypeInput.
+type UpdateAccountTypeInput struct {
+	DefaultDirection *string                `json:"defaultDirection,omitempty"`
+	Description      *string                `json:"description,omitempty"`
+	Metadata         map[string]interface{} `json:"metadata"`
+	Name             *string                `json:"name,omitempty"`
+}
+
+// UpdateAssetInput defines model for UpdateAssetInput.
+type UpdateAssetInput struct {
+	Metadata map[string]interface{} `json:"metadata"`
+	Name     string                 `json:"name"`
+	Status   Status                 `json:"status"`
+}
+
+// UpdateBalance defines model for UpdateBalance.
+type UpdateBalance struct {
+	AllowReceiving *bool            `json:"allowReceiving"`
+	AllowSending   *bool            `json:"allowSending"`
+	Settings       *BalanceSettings `json:"settings,omitempty"`
+}
+
+// UpdateHolderInput defines model for UpdateHolderInput.
+type UpdateHolderInput struct {
+	Addresses     Addresses              `json:"addresses"`
+	Contact       Contact                `json:"contact"`
+	ExternalId    *string                `json:"externalId"`
+	LegalPerson   LegalPerson            `json:"legalPerson"`
+	Metadata      map[string]interface{} `json:"metadata"`
+	Name          *string                `json:"name"`
+	NaturalPerson NaturalPerson          `json:"naturalPerson"`
+}
+
+// UpdateInstrumentInput defines model for UpdateInstrumentInput.
+type UpdateInstrumentInput struct {
+	BankingDetails   BankingDetails         `json:"bankingDetails"`
+	Metadata         map[string]interface{} `json:"metadata"`
+	RegulatoryFields *RegulatoryFields      `json:"regulatoryFields,omitempty"`
+	RelatedParties   *[]RelatedParty        `json:"relatedParties"`
+}
+
+// UpdateLedgerInput defines model for UpdateLedgerInput.
+type UpdateLedgerInput struct {
+	Metadata map[string]interface{} `json:"metadata"`
+	Name     string                 `json:"name"`
+	Status   Status                 `json:"status"`
+}
+
+// UpdateOperationRouteInput defines model for UpdateOperationRouteInput.
+type UpdateOperationRouteInput struct {
+	Account           *AccountRule           `json:"account,omitempty"`
+	AccountingEntries *AccountingEntries     `json:"accountingEntries,omitempty"`
+	Code              *string                `json:"code,omitempty"`
+	Description       *string                `json:"description,omitempty"`
+	Metadata          map[string]interface{} `json:"metadata"`
+	Title             *string                `json:"title,omitempty"`
+}
+
+// UpdateOrganizationInput defines model for UpdateOrganizationInput.
+type UpdateOrganizationInput struct {
+	Address              Address                `json:"address"`
+	DoingBusinessAs      *string                `json:"doingBusinessAs"`
+	LegalName            string                 `json:"legalName"`
+	Metadata             map[string]interface{} `json:"metadata"`
+	ParentOrganizationId *openapi_types.UUID    `json:"parentOrganizationId"`
+	Status               Status                 `json:"status"`
+}
+
+// UpdatePortfolioInput defines model for UpdatePortfolioInput.
+type UpdatePortfolioInput struct {
+	EntityId string                 `json:"entityId"`
+	Metadata map[string]interface{} `json:"metadata"`
+	Name     string                 `json:"name"`
+	Status   Status                 `json:"status"`
+}
+
+// UpdateSegmentInput defines model for UpdateSegmentInput.
+type UpdateSegmentInput struct {
+	Metadata map[string]interface{} `json:"metadata"`
+	Name     string                 `json:"name"`
+	Status   Status                 `json:"status"`
+}
+
+// UpdateTransactionRouteInput defines model for UpdateTransactionRouteInput.
+type UpdateTransactionRouteInput struct {
+	Description     *string                `json:"description,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	OperationRoutes *[]openapi_types.UUID  `json:"operationRoutes,omitempty"`
+	Title           *string                `json:"title,omitempty"`
+}
+
+// Upstream defines model for Upstream.
+type Upstream struct {
+	// Code The upstream provider's own error code, verbatim.
+	Code *string `json:"code,omitempty"`
+
+	// Message The upstream provider's own error message, verbatim (bounded, never its raw response body).
+	Message *string `json:"message,omitempty"`
+}
+
+// V2LegInput One leg of a transaction side. Fill EXACTLY ONE value expression per leg: `amount` for an explicit value, or `share` for a percentage of the transaction total. A leg carrying both, or neither, is rejected.
+type V2LegInput struct {
+	Alias            string              `json:"alias"`
+	Amount           *string             `json:"amount,omitempty"`
+	LedgerId         openapi_types.UUID  `json:"ledgerId"`
+	OperationRouteId *openapi_types.UUID `json:"operationRouteId,omitempty"`
+	OrganizationId   openapi_types.UUID  `json:"organizationId"`
+	Share            *V2ShareInput       `json:"share,omitempty"`
+}
+
+// V2ShareInput defines model for V2ShareInput.
+type V2ShareInput struct {
+	Percentage             int64  `json:"percentage"`
+	PercentageOfPercentage *int64 `json:"percentageOfPercentage,omitempty"`
 }
 
 // ListOrganizationsParams defines parameters for ListOrganizations.
@@ -785,180 +1398,6 @@ type ListOrganizationsParams struct {
 	LegalDocument *string `form:"legal_document,omitempty" json:"legal_document,omitempty"`
 }
 
-// CreateOrganizationJSONBody defines parameters for CreateOrganization.
-type CreateOrganizationJSONBody = openapi_types.File
-
-// CreateOrganizationParams defines parameters for CreateOrganization.
-type CreateOrganizationParams struct {
-	// Authorization Bearer token (forwarded to the service)
-	Authorization *string `json:"Authorization,omitempty"`
-}
-
-// UpdateOrganizationJSONBody defines parameters for UpdateOrganization.
-type UpdateOrganizationJSONBody = openapi_types.File
-
-// GetAllBillingPackagesParams defines parameters for GetAllBillingPackages.
-type GetAllBillingPackagesParams struct {
-	// LedgerId Filter by ledger ID (UUID) — omit to list all packages for the organization
-	LedgerId *string `form:"ledgerId,omitempty" json:"ledgerId,omitempty"`
-
-	// Type Filter by billing package type (volume, maintenance)
-	Type *string `form:"type,omitempty" json:"type,omitempty"`
-
-	// Limit Number of items per page (default 10)
-	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Page Page number (default 1)
-	Page *string `form:"page,omitempty" json:"page,omitempty"`
-}
-
-// CreateBillingPackageJSONBody defines parameters for CreateBillingPackage.
-type CreateBillingPackageJSONBody = openapi_types.File
-
-// UpdateBillingPackageJSONBody defines parameters for UpdateBillingPackage.
-type UpdateBillingPackageJSONBody = openapi_types.File
-
-// CalculateBillingJSONBody defines parameters for CalculateBilling.
-type CalculateBillingJSONBody = openapi_types.File
-
-// ProvisionEncryptionJSONBody defines parameters for ProvisionEncryption.
-type ProvisionEncryptionJSONBody = openapi_types.File
-
-// ProvisionEncryptionParams defines parameters for ProvisionEncryption.
-type ProvisionEncryptionParams struct {
-	// Authorization Bearer token; only required when the auth plugin is enabled
-	Authorization *string `json:"Authorization,omitempty"`
-}
-
-// GetProvisioningStatusParams defines parameters for GetProvisioningStatus.
-type GetProvisioningStatusParams struct {
-	// Authorization Bearer token; only required when the auth plugin is enabled
-	Authorization *string `json:"Authorization,omitempty"`
-}
-
-// EstimateFeeCalculationJSONBody defines parameters for EstimateFeeCalculation.
-type EstimateFeeCalculationJSONBody = openapi_types.File
-
-// ListHoldersParams defines parameters for ListHolders.
-type ListHoldersParams struct {
-	// Metadata JSON string to filter holders by metadata fields
-	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
-
-	// Limit Max items per page (1-100, default 10)
-	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Page Page number (default 1)
-	Page *string `form:"page,omitempty" json:"page,omitempty"`
-
-	// SortOrder Sort direction (asc, desc)
-	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
-
-	// IncludeDeleted Return includes logically deleted holders (true,false)
-	IncludeDeleted *string `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
-
-	// ExternalId Filter holders by externalID
-	ExternalId *string `form:"external_id,omitempty" json:"external_id,omitempty"`
-
-	// Document Filter holders by document
-	Document *string `form:"document,omitempty" json:"document,omitempty"`
-}
-
-// CreateHolderJSONBody defines parameters for CreateHolder.
-type CreateHolderJSONBody = openapi_types.File
-
-// CreateHolderParams defines parameters for CreateHolder.
-type CreateHolderParams struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original holder
-	XIdempotency *string `json:"X-Idempotency,omitempty"`
-
-	// XTTL Idempotency slot TTL in seconds (default 300)
-	XTTL *string `json:"X-TTL,omitempty"`
-}
-
-// CreateInstrumentJSONBody defines parameters for CreateInstrument.
-type CreateInstrumentJSONBody = openapi_types.File
-
-// CreateInstrumentParams defines parameters for CreateInstrument.
-type CreateInstrumentParams struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original instrument
-	XIdempotency *string `json:"X-Idempotency,omitempty"`
-
-	// XTTL Idempotency slot TTL in seconds (default 300)
-	XTTL *string `json:"X-TTL,omitempty"`
-}
-
-// DeleteInstrumentParams defines parameters for DeleteInstrument.
-type DeleteInstrumentParams struct {
-	// HardDelete Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
-	HardDelete *string `form:"hard_delete,omitempty" json:"hard_delete,omitempty"`
-}
-
-// GetInstrumentByIDParams defines parameters for GetInstrumentByID.
-type GetInstrumentByIDParams struct {
-	// IncludeDeleted Returns the instrument even if it was logically deleted (true,false)
-	IncludeDeleted *string `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
-}
-
-// UpdateInstrumentJSONBody defines parameters for UpdateInstrument.
-type UpdateInstrumentJSONBody = openapi_types.File
-
-// DeleteHolderParams defines parameters for DeleteHolder.
-type DeleteHolderParams struct {
-	// HardDelete Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
-	HardDelete *string `form:"hard_delete,omitempty" json:"hard_delete,omitempty"`
-}
-
-// GetHolderByIDParams defines parameters for GetHolderByID.
-type GetHolderByIDParams struct {
-	// IncludeDeleted Returns the holder even if it was logically deleted (true,false)
-	IncludeDeleted *string `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
-}
-
-// UpdateHolderJSONBody defines parameters for UpdateHolder.
-type UpdateHolderJSONBody = openapi_types.File
-
-// ListAccountsByHolderParams defines parameters for ListAccountsByHolder.
-type ListAccountsByHolderParams struct {
-	// Limit Max items per page (1-100, default 10)
-	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Page Page number (default 1)
-	Page *string `form:"page,omitempty" json:"page,omitempty"`
-
-	// SortOrder Sort direction (asc, desc)
-	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
-}
-
-// ListInstrumentsParams defines parameters for ListInstruments.
-type ListInstrumentsParams struct {
-	// HolderId Filter instruments by holder ID (UUID)
-	HolderId *string `form:"holder_id,omitempty" json:"holder_id,omitempty"`
-
-	// Metadata JSON string to filter instruments by metadata fields
-	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
-
-	// Limit Max items per page (1-100, default 10)
-	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Page Page number (default 1)
-	Page *string `form:"page,omitempty" json:"page,omitempty"`
-
-	// SortOrder Sort direction (asc, desc)
-	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
-
-	// IncludeDeleted Return includes logically deleted instruments (true,false)
-	IncludeDeleted *string `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
-
-	// AccountId Filter instrument by accountID
-	AccountId *string `form:"account_id,omitempty" json:"account_id,omitempty"`
-
-	// LedgerId Filter instrument by ledgerID
-	LedgerId *string `form:"ledger_id,omitempty" json:"ledger_id,omitempty"`
-
-	// Document Filter instrument by document
-	Document *string `form:"document,omitempty" json:"document,omitempty"`
-}
-
 // ListLedgersParams defines parameters for ListLedgers.
 type ListLedgersParams struct {
 	// Metadata JSON string to filter ledgers by metadata fields
@@ -986,12 +1425,6 @@ type ListLedgersParams struct {
 	Status *string `form:"status,omitempty" json:"status,omitempty"`
 }
 
-// CreateLedgerJSONBody defines parameters for CreateLedger.
-type CreateLedgerJSONBody = openapi_types.File
-
-// UpdateLedgerJSONBody defines parameters for UpdateLedger.
-type UpdateLedgerJSONBody = openapi_types.File
-
 // ListAccountTypesParams defines parameters for ListAccountTypes.
 type ListAccountTypesParams struct {
 	// Metadata JSON string to filter account types by metadata fields
@@ -1018,12 +1451,6 @@ type ListAccountTypesParams struct {
 	// SortOrder Sort direction (asc, desc)
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
-
-// CreateAccountTypeJSONBody defines parameters for CreateAccountType.
-type CreateAccountTypeJSONBody = openapi_types.File
-
-// UpdateAccountTypeJSONBody defines parameters for UpdateAccountType.
-type UpdateAccountTypeJSONBody = openapi_types.File
 
 // ListAccountsParams defines parameters for ListAccounts.
 type ListAccountsParams struct {
@@ -1076,9 +1503,6 @@ type ListAccountsParams struct {
 	Alias *string `form:"alias,omitempty" json:"alias,omitempty"`
 }
 
-// CreateAccountJSONBody defines parameters for CreateAccount.
-type CreateAccountJSONBody = openapi_types.File
-
 // CreateAccountParams defines parameters for CreateAccount.
 type CreateAccountParams struct {
 	// Authorization Bearer token (forwarded to the service)
@@ -1102,9 +1526,6 @@ type GetAllBalancesByAccountIDParams struct {
 	// Cursor Opaque cursor token for pagination
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
-
-// CreateAdditionalBalanceJSONBody defines parameters for CreateAdditionalBalance.
-type CreateAdditionalBalanceJSONBody = openapi_types.File
 
 // GetAccountBalancesAtTimestampParams defines parameters for GetAccountBalancesAtTimestamp.
 type GetAccountBalancesAtTimestampParams struct {
@@ -1151,15 +1572,9 @@ type DeleteAccountParams struct {
 	Authorization *string `json:"Authorization,omitempty"`
 }
 
-// UpdateAccountJSONBody defines parameters for UpdateAccount.
-type UpdateAccountJSONBody = openapi_types.File
-
-// CreateOrUpdateAssetRateJSONBody defines parameters for CreateOrUpdateAssetRate.
-type CreateOrUpdateAssetRateJSONBody = openapi_types.File
-
 // GetAllAssetRatesByAssetCodeParams defines parameters for GetAllAssetRatesByAssetCode.
 type GetAllAssetRatesByAssetCodeParams struct {
-	// To Filter by destination asset codes
+	// To Filter by destination asset codes as one comma-separated list (e.g. USD,EUR) — the published serialization is explode=false. Repeated to keys are also accepted at runtime.
 	To *[]string `form:"to,omitempty" json:"to,omitempty"`
 
 	// Limit Max items per page (1-100, default 10)
@@ -1199,17 +1614,11 @@ type ListAssetsParams struct {
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
 
-// CreateAssetJSONBody defines parameters for CreateAsset.
-type CreateAssetJSONBody = openapi_types.File
-
 // CreateAssetParams defines parameters for CreateAsset.
 type CreateAssetParams struct {
 	// Authorization Bearer token (forwarded to the service)
 	Authorization *string `json:"Authorization,omitempty"`
 }
-
-// UpdateAssetJSONBody defines parameters for UpdateAsset.
-type UpdateAssetJSONBody = openapi_types.File
 
 // GetAllBalancesParams defines parameters for GetAllBalances.
 type GetAllBalancesParams struct {
@@ -1229,22 +1638,10 @@ type GetAllBalancesParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
-// UpdateBalanceJSONBody defines parameters for UpdateBalance.
-type UpdateBalanceJSONBody = openapi_types.File
-
 // GetBalanceAtTimestampParams defines parameters for GetBalanceAtTimestamp.
 type GetBalanceAtTimestampParams struct {
 	// Date Point in time (format: yyyy-mm-dd hh:mm:ss)
 	Date *string `form:"date,omitempty" json:"date,omitempty"`
-}
-
-// CreateHolderAccountJSONBody defines parameters for CreateHolderAccount.
-type CreateHolderAccountJSONBody = openapi_types.File
-
-// CreateHolderAccountParams defines parameters for CreateHolderAccount.
-type CreateHolderAccountParams struct {
-	// Authorization Bearer token (forwarded to the composed account-create use case)
-	Authorization *string `json:"Authorization,omitempty"`
 }
 
 // ListOperationRoutesParams defines parameters for ListOperationRoutes.
@@ -1264,12 +1661,6 @@ type ListOperationRoutesParams struct {
 	// Cursor Opaque cursor token for pagination
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
-
-// CreateOperationRouteJSONBody defines parameters for CreateOperationRoute.
-type CreateOperationRouteJSONBody = openapi_types.File
-
-// UpdateOperationRouteJSONBody defines parameters for UpdateOperationRoute.
-type UpdateOperationRouteJSONBody = openapi_types.File
 
 // ListPortfoliosParams defines parameters for ListPortfolios.
 type ListPortfoliosParams struct {
@@ -1298,12 +1689,6 @@ type ListPortfoliosParams struct {
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
 
-// CreatePortfolioJSONBody defines parameters for CreatePortfolio.
-type CreatePortfolioJSONBody = openapi_types.File
-
-// UpdatePortfolioJSONBody defines parameters for UpdatePortfolio.
-type UpdatePortfolioJSONBody = openapi_types.File
-
 // ListSegmentsParams defines parameters for ListSegments.
 type ListSegmentsParams struct {
 	// Metadata JSON string to filter segments by metadata fields
@@ -1325,14 +1710,8 @@ type ListSegmentsParams struct {
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
 
-// CreateSegmentJSONBody defines parameters for CreateSegment.
-type CreateSegmentJSONBody = openapi_types.File
-
-// UpdateSegmentJSONBody defines parameters for UpdateSegment.
-type UpdateSegmentJSONBody = openapi_types.File
-
 // UpdateLedgerSettingsJSONBody defines parameters for UpdateLedgerSettings.
-type UpdateLedgerSettingsJSONBody = openapi_types.File
+type UpdateLedgerSettingsJSONBody map[string]interface{}
 
 // ListTransactionRoutesParams defines parameters for ListTransactionRoutes.
 type ListTransactionRoutesParams struct {
@@ -1351,12 +1730,6 @@ type ListTransactionRoutesParams struct {
 	// Cursor Opaque cursor token for pagination
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
-
-// CreateTransactionRouteJSONBody defines parameters for CreateTransactionRoute.
-type CreateTransactionRouteJSONBody = openapi_types.File
-
-// UpdateTransactionRouteJSONBody defines parameters for UpdateTransactionRoute.
-type UpdateTransactionRouteJSONBody = openapi_types.File
 
 // GetAllTransactionsParams defines parameters for GetAllTransactions.
 type GetAllTransactionsParams struct {
@@ -1379,9 +1752,6 @@ type GetAllTransactionsParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
-// CreateTransactionAnnotationJSONBody defines parameters for CreateTransactionAnnotation.
-type CreateTransactionAnnotationJSONBody = openapi_types.File
-
 // CreateTransactionAnnotationParams defines parameters for CreateTransactionAnnotation.
 type CreateTransactionAnnotationParams struct {
 	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
@@ -1391,8 +1761,14 @@ type CreateTransactionAnnotationParams struct {
 	XTTL *string `json:"X-TTL,omitempty"`
 }
 
-// CreateTransactionInflowJSONBody defines parameters for CreateTransactionInflow.
-type CreateTransactionInflowJSONBody = openapi_types.File
+// CreateTransactionBlockParams defines parameters for CreateTransactionBlock.
+type CreateTransactionBlockParams struct {
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
 
 // CreateTransactionInflowParams defines parameters for CreateTransactionInflow.
 type CreateTransactionInflowParams struct {
@@ -1402,9 +1778,6 @@ type CreateTransactionInflowParams struct {
 	// XTTL Idempotency slot TTL in seconds (default 300)
 	XTTL *string `json:"X-TTL,omitempty"`
 }
-
-// CreateTransactionJSONJSONBody defines parameters for CreateTransactionJSON.
-type CreateTransactionJSONJSONBody = openapi_types.File
 
 // CreateTransactionJSONParams defines parameters for CreateTransactionJSON.
 type CreateTransactionJSONParams struct {
@@ -1430,9 +1803,6 @@ type CountTransactionsByFiltersParams struct {
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 }
 
-// CreateTransactionOutflowJSONBody defines parameters for CreateTransactionOutflow.
-type CreateTransactionOutflowJSONBody = openapi_types.File
-
 // CreateTransactionOutflowParams defines parameters for CreateTransactionOutflow.
 type CreateTransactionOutflowParams struct {
 	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
@@ -1442,19 +1812,439 @@ type CreateTransactionOutflowParams struct {
 	XTTL *string `json:"X-TTL,omitempty"`
 }
 
-// UpdateTransactionJSONBody defines parameters for UpdateTransaction.
-type UpdateTransactionJSONBody = openapi_types.File
+// CreateTransactionUnblockParams defines parameters for CreateTransactionUnblock.
+type CreateTransactionUnblockParams struct {
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
-// UpdateOperationJSONBody defines parameters for UpdateOperation.
-type UpdateOperationJSONBody = openapi_types.File
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
 
-// GetAllPackagesParams defines parameters for GetAllPackages.
-type GetAllPackagesParams struct {
+// GetAllMetadataIndexesParams defines parameters for GetAllMetadataIndexes.
+type GetAllMetadataIndexesParams struct {
+	// EntityName Optional entity name filter
+	EntityName *string `form:"entity_name,omitempty" json:"entity_name,omitempty"`
+}
+
+// ListOrganizationsV2Params defines parameters for ListOrganizationsV2.
+type ListOrganizationsV2Params struct {
+	// Metadata JSON string to filter organizations by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// StartDate Filter organizations created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter organizations created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// LegalName Filter by legal name (case-insensitive, prefix match)
+	LegalName *string `form:"legal_name,omitempty" json:"legal_name,omitempty"`
+
+	// DoingBusinessAs Filter by doing business as name (case-insensitive, prefix match)
+	DoingBusinessAs *string `form:"doing_business_as,omitempty" json:"doing_business_as,omitempty"`
+
+	// Status Filter by status
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// LegalDocument Filter by legal document (exact match)
+	LegalDocument *string `form:"legal_document,omitempty" json:"legal_document,omitempty"`
+}
+
+// ProvisionEncryptionV2Params defines parameters for ProvisionEncryptionV2.
+type ProvisionEncryptionV2Params struct {
+	// Authorization Bearer token; only required when the auth plugin is enabled
+	Authorization *string `json:"Authorization,omitempty"`
+}
+
+// GetProvisioningStatusV2Params defines parameters for GetProvisioningStatusV2.
+type GetProvisioningStatusV2Params struct {
+	// Authorization Bearer token; only required when the auth plugin is enabled
+	Authorization *string `json:"Authorization,omitempty"`
+}
+
+// ListHoldersV2Params defines parameters for ListHoldersV2.
+type ListHoldersV2Params struct {
+	// Metadata JSON string to filter holders by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// IncludeDeleted Return includes logically deleted holders (true,false)
+	IncludeDeleted *string `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
+
+	// ExternalId Filter holders by externalID
+	ExternalId *string `form:"external_id,omitempty" json:"external_id,omitempty"`
+
+	// Document Filter holders by document
+	Document *string `form:"document,omitempty" json:"document,omitempty"`
+}
+
+// CreateHolderV2Params defines parameters for CreateHolderV2.
+type CreateHolderV2Params struct {
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original holder
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
+
+// CreateInstrumentV2Params defines parameters for CreateInstrumentV2.
+type CreateInstrumentV2Params struct {
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original instrument
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
+
+// DeleteInstrumentV2Params defines parameters for DeleteInstrumentV2.
+type DeleteInstrumentV2Params struct {
+	// HardDelete Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+	HardDelete *string `form:"hard_delete,omitempty" json:"hard_delete,omitempty"`
+}
+
+// GetInstrumentByIDV2Params defines parameters for GetInstrumentByIDV2.
+type GetInstrumentByIDV2Params struct {
+	// IncludeDeleted Returns the instrument even if it was logically deleted (true,false)
+	IncludeDeleted *string `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
+}
+
+// DeleteHolderV2Params defines parameters for DeleteHolderV2.
+type DeleteHolderV2Params struct {
+	// HardDelete Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+	HardDelete *string `form:"hard_delete,omitempty" json:"hard_delete,omitempty"`
+}
+
+// GetHolderByIDV2Params defines parameters for GetHolderByIDV2.
+type GetHolderByIDV2Params struct {
+	// IncludeDeleted Returns the holder even if it was logically deleted (true,false)
+	IncludeDeleted *string `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
+}
+
+// ListAccountsByHolderV2Params defines parameters for ListAccountsByHolderV2.
+type ListAccountsByHolderV2Params struct {
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// ListInstrumentsV2Params defines parameters for ListInstrumentsV2.
+type ListInstrumentsV2Params struct {
+	// HolderId Filter instruments by holder ID (UUID)
+	HolderId *string `form:"holder_id,omitempty" json:"holder_id,omitempty"`
+
+	// Metadata JSON string to filter instruments by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// IncludeDeleted Return includes logically deleted instruments (true,false)
+	IncludeDeleted *string `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
+
+	// AccountId Filter instrument by accountID
+	AccountId *string `form:"account_id,omitempty" json:"account_id,omitempty"`
+
+	// LedgerId Filter instrument by ledgerID
+	LedgerId *string `form:"ledger_id,omitempty" json:"ledger_id,omitempty"`
+
+	// Document Filter instrument by document
+	Document *string `form:"document,omitempty" json:"document,omitempty"`
+}
+
+// ListLedgersV2Params defines parameters for ListLedgersV2.
+type ListLedgersV2Params struct {
+	// Metadata JSON string to filter ledgers by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// StartDate Filter ledgers created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter ledgers created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Name Filter ledgers by name (case-insensitive, prefix match)
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Status Filter ledgers by status (ACTIVE, INACTIVE)
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// ListAccountTypesV2Params defines parameters for ListAccountTypesV2.
+type ListAccountTypesV2Params struct {
+	// Metadata JSON string to filter account types by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// KeyValue Filter account types by key value
+	KeyValue *string `form:"key_value,omitempty" json:"key_value,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// Cursor Cursor for cursor-based pagination
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// StartDate Filter account types created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter account types created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// ListAccountsV2Params defines parameters for ListAccountsV2.
+type ListAccountsV2Params struct {
+	// Metadata JSON string to filter accounts by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// StartDate Filter accounts created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter accounts created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// PortfolioId Filter accounts by portfolio ID (UUID)
+	PortfolioId *string `form:"portfolio_id,omitempty" json:"portfolio_id,omitempty"`
+
+	// SegmentId Filter accounts by segment ID (UUID)
+	SegmentId *string `form:"segment_id,omitempty" json:"segment_id,omitempty"`
+
+	// Status Filter accounts by status (ACTIVE, INACTIVE, BLOCKED)
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Type Filter accounts by type (e.g., deposit, savings, external)
+	Type *string `form:"type,omitempty" json:"type,omitempty"`
+
+	// AssetCode Filter accounts by asset code (e.g., USD, BRL, EUR)
+	AssetCode *string `form:"asset_code,omitempty" json:"asset_code,omitempty"`
+
+	// EntityId Filter accounts by entity ID
+	EntityId *string `form:"entity_id,omitempty" json:"entity_id,omitempty"`
+
+	// Blocked Filter accounts by blocked status (true, false)
+	Blocked *string `form:"blocked,omitempty" json:"blocked,omitempty"`
+
+	// ParentAccountId Filter accounts by parent account ID (UUID)
+	ParentAccountId *string `form:"parent_account_id,omitempty" json:"parent_account_id,omitempty"`
+
+	// Name Filter accounts by name (case-insensitive, prefix match)
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Alias Filter accounts by alias (case-insensitive, prefix match)
+	Alias *string `form:"alias,omitempty" json:"alias,omitempty"`
+}
+
+// CreateAccountV2Params defines parameters for CreateAccountV2.
+type CreateAccountV2Params struct {
+	// Authorization Bearer token (forwarded to the service)
+	Authorization *string `json:"Authorization,omitempty"`
+}
+
+// GetAllBalancesByAccountIDV2Params defines parameters for GetAllBalancesByAccountIDV2.
+type GetAllBalancesByAccountIDV2Params struct {
+	// Limit Max items per page (max 100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartDate Filter balances created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter balances created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Cursor Opaque cursor token for pagination
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetAccountBalancesAtTimestampV2Params defines parameters for GetAccountBalancesAtTimestampV2.
+type GetAccountBalancesAtTimestampV2Params struct {
+	// Date Point in time (format: yyyy-mm-dd hh:mm:ss)
+	Date *string `form:"date,omitempty" json:"date,omitempty"`
+}
+
+// GetAllOperationsByAccountV2Params defines parameters for GetAllOperationsByAccountV2.
+type GetAllOperationsByAccountV2Params struct {
+	// Metadata JSON string to filter operations by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (max 100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartDate Filter operations created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter operations created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Cursor Opaque cursor token for pagination
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Type Filter by operation type (DEBIT, CREDIT)
+	Type *string `form:"type,omitempty" json:"type,omitempty"`
+
+	// Direction Filter by direction (debit, credit)
+	Direction *string `form:"direction,omitempty" json:"direction,omitempty"`
+
+	// RouteId Filter by operation route ID (UUID)
+	RouteId *string `form:"route_id,omitempty" json:"route_id,omitempty"`
+
+	// RouteCode Filter by operation route code
+	RouteCode *string `form:"route_code,omitempty" json:"route_code,omitempty"`
+}
+
+// DeleteAccountV2Params defines parameters for DeleteAccountV2.
+type DeleteAccountV2Params struct {
+	// Authorization Bearer token (forwarded to the service)
+	Authorization *string `json:"Authorization,omitempty"`
+}
+
+// ListAssetsV2Params defines parameters for ListAssetsV2.
+type ListAssetsV2Params struct {
+	// Metadata JSON string to filter assets by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// StartDate Filter assets created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter assets created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// CreateAssetV2Params defines parameters for CreateAssetV2.
+type CreateAssetV2Params struct {
+	// Authorization Bearer token (forwarded to the service)
+	Authorization *string `json:"Authorization,omitempty"`
+}
+
+// GetAllBalancesV2Params defines parameters for GetAllBalancesV2.
+type GetAllBalancesV2Params struct {
+	// Limit Max items per page (max 100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartDate Filter balances created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter balances created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Cursor Opaque cursor token for pagination
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetBalanceAtTimestampV2Params defines parameters for GetBalanceAtTimestampV2.
+type GetBalanceAtTimestampV2Params struct {
+	// Date Point in time (format: yyyy-mm-dd hh:mm:ss)
+	Date *string `form:"date,omitempty" json:"date,omitempty"`
+}
+
+// GetAllBillingPackagesV2Params defines parameters for GetAllBillingPackagesV2.
+type GetAllBillingPackagesV2Params struct {
+	// Type Filter by billing package type (volume, maintenance)
+	Type *string `form:"type,omitempty" json:"type,omitempty"`
+
+	// Limit Number of items per page (default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+}
+
+// CreateHolderAccountV2Params defines parameters for CreateHolderAccountV2.
+type CreateHolderAccountV2Params struct {
+	// Authorization Bearer token (forwarded to the composed account-create use case)
+	Authorization *string `json:"Authorization,omitempty"`
+}
+
+// ListOperationRoutesV2Params defines parameters for ListOperationRoutesV2.
+type ListOperationRoutesV2Params struct {
+	// Limit Max items per page (default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartDate Filter created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Cursor Opaque cursor token for pagination
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetAllPackagesV2Params defines parameters for GetAllPackagesV2.
+type GetAllPackagesV2Params struct {
 	// SegmentId Filter by segment ID (UUID)
 	SegmentId *string `form:"segmentId,omitempty" json:"segmentId,omitempty"`
-
-	// LedgerId Filter by ledger ID (UUID)
-	LedgerId *string `form:"ledgerId,omitempty" json:"ledgerId,omitempty"`
 
 	// TransactionRoute Filter by transaction route
 	TransactionRoute *string `form:"transactionRoute,omitempty" json:"transactionRoute,omitempty"`
@@ -1469,14 +2259,113 @@ type GetAllPackagesParams struct {
 	Page *string `form:"page,omitempty" json:"page,omitempty"`
 }
 
-// CreatePackageJSONBody defines parameters for CreatePackage.
-type CreatePackageJSONBody = openapi_types.File
+// ListPortfoliosV2Params defines parameters for ListPortfoliosV2.
+type ListPortfoliosV2Params struct {
+	// Metadata JSON string to filter portfolios by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
 
-// UpdatePackageJSONBody defines parameters for UpdatePackage.
-type UpdatePackageJSONBody = openapi_types.File
+	// EntityId Filter portfolios by entity ID
+	EntityId *string `form:"entity_id,omitempty" json:"entity_id,omitempty"`
 
-// GetAuditEventsParams defines parameters for GetAuditEvents.
-type GetAuditEventsParams struct {
+	// Status Filter portfolios by status
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// StartDate Filter portfolios created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter portfolios created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// ListSegmentsV2Params defines parameters for ListSegmentsV2.
+type ListSegmentsV2Params struct {
+	// Metadata JSON string to filter segments by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+
+	// StartDate Filter segments created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter segments created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// UpdateLedgerSettingsV2JSONBody defines parameters for UpdateLedgerSettingsV2.
+type UpdateLedgerSettingsV2JSONBody map[string]interface{}
+
+// ListTransactionRoutesV2Params defines parameters for ListTransactionRoutesV2.
+type ListTransactionRoutesV2Params struct {
+	// Limit Max items per page (default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartDate Filter created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Cursor Opaque cursor token for pagination
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetAllTransactionsV2Params defines parameters for GetAllTransactionsV2.
+type GetAllTransactionsV2Params struct {
+	// Metadata JSON string to filter transactions by metadata fields
+	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartDate Filter transactions created on/after this date
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter transactions created on/before this date
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Cursor Pagination cursor
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// CountTransactionsByFiltersV2Params defines parameters for CountTransactionsByFiltersV2.
+type CountTransactionsByFiltersV2Params struct {
+	// Route Filter by transaction route
+	Route *string `form:"route,omitempty" json:"route,omitempty"`
+
+	// Status Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED, NOTED)
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// StartDate Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+}
+
+// GetAuditEventsV2Params defines parameters for GetAuditEventsV2.
+type GetAuditEventsV2Params struct {
 	// Limit Maximum number of events to return (default 20)
 	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -1505,137 +2394,260 @@ type GetAuditEventsParams struct {
 	Authorization *string `json:"Authorization,omitempty"`
 }
 
-// GetAllMetadataIndexesParams defines parameters for GetAllMetadataIndexes.
-type GetAllMetadataIndexesParams struct {
+// GetAllMetadataIndexesV2Params defines parameters for GetAllMetadataIndexesV2.
+type GetAllMetadataIndexesV2Params struct {
 	// EntityName Optional entity name filter
 	EntityName *string `form:"entity_name,omitempty" json:"entity_name,omitempty"`
 }
 
-// CreateMetadataIndexJSONBody defines parameters for CreateMetadataIndex.
-type CreateMetadataIndexJSONBody = openapi_types.File
+// CreateTransactionBlockV2Params defines parameters for CreateTransactionBlockV2.
+type CreateTransactionBlockV2Params struct {
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
+
+// CreateTransactionDirectV2Params defines parameters for CreateTransactionDirectV2.
+type CreateTransactionDirectV2Params struct {
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
+
+// CreateTransactionHoldV2Params defines parameters for CreateTransactionHoldV2.
+type CreateTransactionHoldV2Params struct {
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
+
+// CreateTransactionUnblockV2Params defines parameters for CreateTransactionUnblockV2.
+type CreateTransactionUnblockV2Params struct {
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
 
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
-type CreateOrganizationJSONRequestBody = CreateOrganizationJSONBody
+type CreateOrganizationJSONRequestBody = CreateOrganizationInput
 
 // UpdateOrganizationJSONRequestBody defines body for UpdateOrganization for application/json ContentType.
-type UpdateOrganizationJSONRequestBody = UpdateOrganizationJSONBody
-
-// CreateBillingPackageJSONRequestBody defines body for CreateBillingPackage for application/json ContentType.
-type CreateBillingPackageJSONRequestBody = CreateBillingPackageJSONBody
-
-// UpdateBillingPackageJSONRequestBody defines body for UpdateBillingPackage for application/json ContentType.
-type UpdateBillingPackageJSONRequestBody = UpdateBillingPackageJSONBody
-
-// CalculateBillingJSONRequestBody defines body for CalculateBilling for application/json ContentType.
-type CalculateBillingJSONRequestBody = CalculateBillingJSONBody
-
-// ProvisionEncryptionJSONRequestBody defines body for ProvisionEncryption for application/json ContentType.
-type ProvisionEncryptionJSONRequestBody = ProvisionEncryptionJSONBody
-
-// EstimateFeeCalculationJSONRequestBody defines body for EstimateFeeCalculation for application/json ContentType.
-type EstimateFeeCalculationJSONRequestBody = EstimateFeeCalculationJSONBody
-
-// CreateHolderJSONRequestBody defines body for CreateHolder for application/json ContentType.
-type CreateHolderJSONRequestBody = CreateHolderJSONBody
-
-// CreateInstrumentJSONRequestBody defines body for CreateInstrument for application/json ContentType.
-type CreateInstrumentJSONRequestBody = CreateInstrumentJSONBody
-
-// UpdateInstrumentJSONRequestBody defines body for UpdateInstrument for application/json ContentType.
-type UpdateInstrumentJSONRequestBody = UpdateInstrumentJSONBody
-
-// UpdateHolderJSONRequestBody defines body for UpdateHolder for application/json ContentType.
-type UpdateHolderJSONRequestBody = UpdateHolderJSONBody
+type UpdateOrganizationJSONRequestBody = UpdateOrganizationInput
 
 // CreateLedgerJSONRequestBody defines body for CreateLedger for application/json ContentType.
-type CreateLedgerJSONRequestBody = CreateLedgerJSONBody
+type CreateLedgerJSONRequestBody = CreateLedgerInput
 
 // UpdateLedgerJSONRequestBody defines body for UpdateLedger for application/json ContentType.
-type UpdateLedgerJSONRequestBody = UpdateLedgerJSONBody
+type UpdateLedgerJSONRequestBody = UpdateLedgerInput
 
 // CreateAccountTypeJSONRequestBody defines body for CreateAccountType for application/json ContentType.
-type CreateAccountTypeJSONRequestBody = CreateAccountTypeJSONBody
+type CreateAccountTypeJSONRequestBody = CreateAccountTypeInput
 
 // UpdateAccountTypeJSONRequestBody defines body for UpdateAccountType for application/json ContentType.
-type UpdateAccountTypeJSONRequestBody = UpdateAccountTypeJSONBody
+type UpdateAccountTypeJSONRequestBody = UpdateAccountTypeInput
 
 // CreateAccountJSONRequestBody defines body for CreateAccount for application/json ContentType.
-type CreateAccountJSONRequestBody = CreateAccountJSONBody
+type CreateAccountJSONRequestBody = CreateAccountInput
 
 // CreateAdditionalBalanceJSONRequestBody defines body for CreateAdditionalBalance for application/json ContentType.
-type CreateAdditionalBalanceJSONRequestBody = CreateAdditionalBalanceJSONBody
+type CreateAdditionalBalanceJSONRequestBody = CreateAdditionalBalance
 
 // UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
-type UpdateAccountJSONRequestBody = UpdateAccountJSONBody
+type UpdateAccountJSONRequestBody = UpdateAccountInput
 
 // CreateOrUpdateAssetRateJSONRequestBody defines body for CreateOrUpdateAssetRate for application/json ContentType.
-type CreateOrUpdateAssetRateJSONRequestBody = CreateOrUpdateAssetRateJSONBody
+type CreateOrUpdateAssetRateJSONRequestBody = CreateAssetRateInput
 
 // CreateAssetJSONRequestBody defines body for CreateAsset for application/json ContentType.
-type CreateAssetJSONRequestBody = CreateAssetJSONBody
+type CreateAssetJSONRequestBody = CreateAssetInput
 
 // UpdateAssetJSONRequestBody defines body for UpdateAsset for application/json ContentType.
-type UpdateAssetJSONRequestBody = UpdateAssetJSONBody
+type UpdateAssetJSONRequestBody = UpdateAssetInput
 
 // UpdateBalanceJSONRequestBody defines body for UpdateBalance for application/json ContentType.
-type UpdateBalanceJSONRequestBody = UpdateBalanceJSONBody
-
-// CreateHolderAccountJSONRequestBody defines body for CreateHolderAccount for application/json ContentType.
-type CreateHolderAccountJSONRequestBody = CreateHolderAccountJSONBody
+type UpdateBalanceJSONRequestBody = UpdateBalance
 
 // CreateOperationRouteJSONRequestBody defines body for CreateOperationRoute for application/json ContentType.
-type CreateOperationRouteJSONRequestBody = CreateOperationRouteJSONBody
+type CreateOperationRouteJSONRequestBody = CreateOperationRouteInput
 
 // UpdateOperationRouteJSONRequestBody defines body for UpdateOperationRoute for application/json ContentType.
-type UpdateOperationRouteJSONRequestBody = UpdateOperationRouteJSONBody
+type UpdateOperationRouteJSONRequestBody = UpdateOperationRouteInput
 
 // CreatePortfolioJSONRequestBody defines body for CreatePortfolio for application/json ContentType.
-type CreatePortfolioJSONRequestBody = CreatePortfolioJSONBody
+type CreatePortfolioJSONRequestBody = CreatePortfolioInput
 
 // UpdatePortfolioJSONRequestBody defines body for UpdatePortfolio for application/json ContentType.
-type UpdatePortfolioJSONRequestBody = UpdatePortfolioJSONBody
+type UpdatePortfolioJSONRequestBody = UpdatePortfolioInput
 
 // CreateSegmentJSONRequestBody defines body for CreateSegment for application/json ContentType.
-type CreateSegmentJSONRequestBody = CreateSegmentJSONBody
+type CreateSegmentJSONRequestBody = CreateSegmentInput
 
 // UpdateSegmentJSONRequestBody defines body for UpdateSegment for application/json ContentType.
-type UpdateSegmentJSONRequestBody = UpdateSegmentJSONBody
+type UpdateSegmentJSONRequestBody = UpdateSegmentInput
 
 // UpdateLedgerSettingsJSONRequestBody defines body for UpdateLedgerSettings for application/json ContentType.
-type UpdateLedgerSettingsJSONRequestBody = UpdateLedgerSettingsJSONBody
+type UpdateLedgerSettingsJSONRequestBody UpdateLedgerSettingsJSONBody
 
 // CreateTransactionRouteJSONRequestBody defines body for CreateTransactionRoute for application/json ContentType.
-type CreateTransactionRouteJSONRequestBody = CreateTransactionRouteJSONBody
+type CreateTransactionRouteJSONRequestBody = CreateTransactionRouteInput
 
 // UpdateTransactionRouteJSONRequestBody defines body for UpdateTransactionRoute for application/json ContentType.
-type UpdateTransactionRouteJSONRequestBody = UpdateTransactionRouteJSONBody
+type UpdateTransactionRouteJSONRequestBody = UpdateTransactionRouteInput
 
 // CreateTransactionAnnotationJSONRequestBody defines body for CreateTransactionAnnotation for application/json ContentType.
-type CreateTransactionAnnotationJSONRequestBody = CreateTransactionAnnotationJSONBody
+type CreateTransactionAnnotationJSONRequestBody = CreateTransactionInput
+
+// CreateTransactionBlockJSONRequestBody defines body for CreateTransactionBlock for application/json ContentType.
+type CreateTransactionBlockJSONRequestBody = CreateTransactionInput
 
 // CreateTransactionInflowJSONRequestBody defines body for CreateTransactionInflow for application/json ContentType.
-type CreateTransactionInflowJSONRequestBody = CreateTransactionInflowJSONBody
+type CreateTransactionInflowJSONRequestBody = CreateTransactionInflowInput
 
 // CreateTransactionJSONJSONRequestBody defines body for CreateTransactionJSON for application/json ContentType.
-type CreateTransactionJSONJSONRequestBody = CreateTransactionJSONJSONBody
+type CreateTransactionJSONJSONRequestBody = CreateTransactionInput
 
 // CreateTransactionOutflowJSONRequestBody defines body for CreateTransactionOutflow for application/json ContentType.
-type CreateTransactionOutflowJSONRequestBody = CreateTransactionOutflowJSONBody
+type CreateTransactionOutflowJSONRequestBody = CreateTransactionOutflowInput
+
+// CreateTransactionUnblockJSONRequestBody defines body for CreateTransactionUnblock for application/json ContentType.
+type CreateTransactionUnblockJSONRequestBody = CreateTransactionInput
 
 // UpdateTransactionJSONRequestBody defines body for UpdateTransaction for application/json ContentType.
-type UpdateTransactionJSONRequestBody = UpdateTransactionJSONBody
+type UpdateTransactionJSONRequestBody = TransactionUpdateTransactionInput
 
 // UpdateOperationJSONRequestBody defines body for UpdateOperation for application/json ContentType.
-type UpdateOperationJSONRequestBody = UpdateOperationJSONBody
-
-// CreatePackageJSONRequestBody defines body for CreatePackage for application/json ContentType.
-type CreatePackageJSONRequestBody = CreatePackageJSONBody
-
-// UpdatePackageJSONRequestBody defines body for UpdatePackage for application/json ContentType.
-type UpdatePackageJSONRequestBody = UpdatePackageJSONBody
+type UpdateOperationJSONRequestBody = OperationUpdateOperationInput
 
 // CreateMetadataIndexJSONRequestBody defines body for CreateMetadataIndex for application/json ContentType.
-type CreateMetadataIndexJSONRequestBody = CreateMetadataIndexJSONBody
+type CreateMetadataIndexJSONRequestBody = CreateMetadataIndexInput
+
+// CreateOrganizationV2JSONRequestBody defines body for CreateOrganizationV2 for application/json ContentType.
+type CreateOrganizationV2JSONRequestBody = CreateOrganizationInput
+
+// UpdateOrganizationV2JSONRequestBody defines body for UpdateOrganizationV2 for application/json ContentType.
+type UpdateOrganizationV2JSONRequestBody = UpdateOrganizationInput
+
+// ProvisionEncryptionV2JSONRequestBody defines body for ProvisionEncryptionV2 for application/json ContentType.
+type ProvisionEncryptionV2JSONRequestBody = ProvisionEncryptionInput
+
+// CreateHolderV2JSONRequestBody defines body for CreateHolderV2 for application/json ContentType.
+type CreateHolderV2JSONRequestBody = CreateHolderInput
+
+// CreateInstrumentV2JSONRequestBody defines body for CreateInstrumentV2 for application/json ContentType.
+type CreateInstrumentV2JSONRequestBody = CreateInstrumentInput
+
+// UpdateInstrumentV2JSONRequestBody defines body for UpdateInstrumentV2 for application/json ContentType.
+type UpdateInstrumentV2JSONRequestBody = UpdateInstrumentInput
+
+// UpdateHolderV2JSONRequestBody defines body for UpdateHolderV2 for application/json ContentType.
+type UpdateHolderV2JSONRequestBody = UpdateHolderInput
+
+// CreateLedgerV2JSONRequestBody defines body for CreateLedgerV2 for application/json ContentType.
+type CreateLedgerV2JSONRequestBody = CreateLedgerInput
+
+// UpdateLedgerV2JSONRequestBody defines body for UpdateLedgerV2 for application/json ContentType.
+type UpdateLedgerV2JSONRequestBody = UpdateLedgerInput
+
+// CreateAccountTypeV2JSONRequestBody defines body for CreateAccountTypeV2 for application/json ContentType.
+type CreateAccountTypeV2JSONRequestBody = CreateAccountTypeInput
+
+// UpdateAccountTypeV2JSONRequestBody defines body for UpdateAccountTypeV2 for application/json ContentType.
+type UpdateAccountTypeV2JSONRequestBody = UpdateAccountTypeInput
+
+// CreateAccountV2JSONRequestBody defines body for CreateAccountV2 for application/json ContentType.
+type CreateAccountV2JSONRequestBody = CreateAccountInput
+
+// CreateAdditionalBalanceV2JSONRequestBody defines body for CreateAdditionalBalanceV2 for application/json ContentType.
+type CreateAdditionalBalanceV2JSONRequestBody = CreateAdditionalBalance
+
+// UpdateAccountV2JSONRequestBody defines body for UpdateAccountV2 for application/json ContentType.
+type UpdateAccountV2JSONRequestBody = UpdateAccountInput
+
+// CreateAssetV2JSONRequestBody defines body for CreateAssetV2 for application/json ContentType.
+type CreateAssetV2JSONRequestBody = CreateAssetInput
+
+// UpdateAssetV2JSONRequestBody defines body for UpdateAssetV2 for application/json ContentType.
+type UpdateAssetV2JSONRequestBody = UpdateAssetInput
+
+// UpdateBalanceV2JSONRequestBody defines body for UpdateBalanceV2 for application/json ContentType.
+type UpdateBalanceV2JSONRequestBody = UpdateBalance
+
+// CreateBillingPackageV2JSONRequestBody defines body for CreateBillingPackageV2 for application/json ContentType.
+type CreateBillingPackageV2JSONRequestBody = FeeBillingPackage
+
+// UpdateBillingPackageV2JSONRequestBody defines body for UpdateBillingPackageV2 for application/json ContentType.
+type UpdateBillingPackageV2JSONRequestBody = FeeBillingPackageUpdate
+
+// CalculateBillingV2JSONRequestBody defines body for CalculateBillingV2 for application/json ContentType.
+type CalculateBillingV2JSONRequestBody = FeeBillingCalculateRequest
+
+// EstimateFeeCalculationV2JSONRequestBody defines body for EstimateFeeCalculationV2 for application/json ContentType.
+type EstimateFeeCalculationV2JSONRequestBody = FeeEstimate
+
+// CreateHolderAccountV2JSONRequestBody defines body for CreateHolderAccountV2 for application/json ContentType.
+type CreateHolderAccountV2JSONRequestBody = CreateHolderAccountInput
+
+// CreateOperationRouteV2JSONRequestBody defines body for CreateOperationRouteV2 for application/json ContentType.
+type CreateOperationRouteV2JSONRequestBody = CreateOperationRouteInput
+
+// UpdateOperationRouteV2JSONRequestBody defines body for UpdateOperationRouteV2 for application/json ContentType.
+type UpdateOperationRouteV2JSONRequestBody = UpdateOperationRouteInput
+
+// CreatePackageV2JSONRequestBody defines body for CreatePackageV2 for application/json ContentType.
+type CreatePackageV2JSONRequestBody = FeeCreatePackageInput
+
+// UpdatePackageV2JSONRequestBody defines body for UpdatePackageV2 for application/json ContentType.
+type UpdatePackageV2JSONRequestBody = FeeUpdatePackageInput
+
+// CreatePortfolioV2JSONRequestBody defines body for CreatePortfolioV2 for application/json ContentType.
+type CreatePortfolioV2JSONRequestBody = CreatePortfolioInput
+
+// UpdatePortfolioV2JSONRequestBody defines body for UpdatePortfolioV2 for application/json ContentType.
+type UpdatePortfolioV2JSONRequestBody = UpdatePortfolioInput
+
+// CreateSegmentV2JSONRequestBody defines body for CreateSegmentV2 for application/json ContentType.
+type CreateSegmentV2JSONRequestBody = CreateSegmentInput
+
+// UpdateSegmentV2JSONRequestBody defines body for UpdateSegmentV2 for application/json ContentType.
+type UpdateSegmentV2JSONRequestBody = UpdateSegmentInput
+
+// UpdateLedgerSettingsV2JSONRequestBody defines body for UpdateLedgerSettingsV2 for application/json ContentType.
+type UpdateLedgerSettingsV2JSONRequestBody UpdateLedgerSettingsV2JSONBody
+
+// CreateTransactionRouteV2JSONRequestBody defines body for CreateTransactionRouteV2 for application/json ContentType.
+type CreateTransactionRouteV2JSONRequestBody = CreateTransactionRouteInput
+
+// UpdateTransactionRouteV2JSONRequestBody defines body for UpdateTransactionRouteV2 for application/json ContentType.
+type UpdateTransactionRouteV2JSONRequestBody = UpdateTransactionRouteInput
+
+// UpdateTransactionV2JSONRequestBody defines body for UpdateTransactionV2 for application/json ContentType.
+type UpdateTransactionV2JSONRequestBody = TransactionUpdateTransactionInput
+
+// UpdateOperationV2JSONRequestBody defines body for UpdateOperationV2 for application/json ContentType.
+type UpdateOperationV2JSONRequestBody = OperationUpdateOperationInput
+
+// CreateMetadataIndexV2JSONRequestBody defines body for CreateMetadataIndexV2 for application/json ContentType.
+type CreateMetadataIndexV2JSONRequestBody = CreateMetadataIndexInput
+
+// CreateTransactionBlockV2JSONRequestBody defines body for CreateTransactionBlockV2 for application/json ContentType.
+type CreateTransactionBlockV2JSONRequestBody = CreateTransactionV2Input
+
+// CreateTransactionDirectV2JSONRequestBody defines body for CreateTransactionDirectV2 for application/json ContentType.
+type CreateTransactionDirectV2JSONRequestBody = CreateTransactionV2Input
+
+// CreateTransactionHoldV2JSONRequestBody defines body for CreateTransactionHoldV2 for application/json ContentType.
+type CreateTransactionHoldV2JSONRequestBody = CreateTransactionV2Input
+
+// CreateTransactionUnblockV2JSONRequestBody defines body for CreateTransactionUnblockV2 for application/json ContentType.
+type CreateTransactionUnblockV2JSONRequestBody = CreateTransactionV2Input
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -1714,9 +2726,9 @@ type ClientInterface interface {
 	ListOrganizations(ctx context.Context, params *ListOrganizationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateOrganizationWithBody request with any body
-	CreateOrganizationWithBody(ctx context.Context, params *CreateOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateOrganizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateOrganization(ctx context.Context, params *CreateOrganizationParams, body CreateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateOrganization(ctx context.Context, body CreateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CountOrganizations request
 	CountOrganizations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1731,87 +2743,6 @@ type ClientInterface interface {
 	UpdateOrganizationWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateOrganization(ctx context.Context, id string, body UpdateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetAllBillingPackages request
-	GetAllBillingPackages(ctx context.Context, organizationId string, params *GetAllBillingPackagesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateBillingPackageWithBody request with any body
-	CreateBillingPackageWithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateBillingPackage(ctx context.Context, organizationId string, body CreateBillingPackageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteBillingPackage request
-	DeleteBillingPackage(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetBillingPackageByID request
-	GetBillingPackageByID(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateBillingPackageWithBody request with any body
-	UpdateBillingPackageWithBody(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateBillingPackage(ctx context.Context, organizationId string, id string, body UpdateBillingPackageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CalculateBillingWithBody request with any body
-	CalculateBillingWithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CalculateBilling(ctx context.Context, organizationId string, body CalculateBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ProvisionEncryptionWithBody request with any body
-	ProvisionEncryptionWithBody(ctx context.Context, organizationId string, params *ProvisionEncryptionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	ProvisionEncryption(ctx context.Context, organizationId string, params *ProvisionEncryptionParams, body ProvisionEncryptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetProvisioningStatus request
-	GetProvisioningStatus(ctx context.Context, organizationId string, params *GetProvisioningStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// EstimateFeeCalculationWithBody request with any body
-	EstimateFeeCalculationWithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	EstimateFeeCalculation(ctx context.Context, organizationId string, body EstimateFeeCalculationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListHolders request
-	ListHolders(ctx context.Context, organizationId string, params *ListHoldersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateHolderWithBody request with any body
-	CreateHolderWithBody(ctx context.Context, organizationId string, params *CreateHolderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateHolder(ctx context.Context, organizationId string, params *CreateHolderParams, body CreateHolderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateInstrumentWithBody request with any body
-	CreateInstrumentWithBody(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateInstrument(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentParams, body CreateInstrumentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteInstrument request
-	DeleteInstrument(ctx context.Context, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetInstrumentByID request
-	GetInstrumentByID(ctx context.Context, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateInstrumentWithBody request with any body
-	UpdateInstrumentWithBody(ctx context.Context, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateInstrument(ctx context.Context, organizationId string, holderId string, instrumentId string, body UpdateInstrumentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteRelatedParty request
-	DeleteRelatedParty(ctx context.Context, organizationId string, holderId string, instrumentId string, relatedPartyId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteHolder request
-	DeleteHolder(ctx context.Context, organizationId string, id string, params *DeleteHolderParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetHolderByID request
-	GetHolderByID(ctx context.Context, organizationId string, id string, params *GetHolderByIDParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateHolderWithBody request with any body
-	UpdateHolderWithBody(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateHolder(ctx context.Context, organizationId string, id string, body UpdateHolderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListAccountsByHolder request
-	ListAccountsByHolder(ctx context.Context, organizationId string, id string, params *ListAccountsByHolderParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListInstruments request
-	ListInstruments(ctx context.Context, organizationId string, params *ListInstrumentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListLedgers request
 	ListLedgers(ctx context.Context, organizationId string, params *ListLedgersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1955,11 +2886,6 @@ type ClientInterface interface {
 	// GetBalanceAtTimestamp request
 	GetBalanceAtTimestamp(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateHolderAccountWithBody request with any body
-	CreateHolderAccountWithBody(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateHolderAccount(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, body CreateHolderAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListOperationRoutes request
 	ListOperationRoutes(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2058,6 +2984,11 @@ type ClientInterface interface {
 
 	CreateTransactionAnnotation(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionAnnotationParams, body CreateTransactionAnnotationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateTransactionBlockWithBody request with any body
+	CreateTransactionBlockWithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionBlockParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateTransactionBlock(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionBlockParams, body CreateTransactionBlockJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateTransactionInflowWithBody request with any body
 	CreateTransactionInflowWithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionInflowParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2075,6 +3006,11 @@ type ClientInterface interface {
 	CreateTransactionOutflowWithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionOutflowParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CreateTransactionOutflow(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionOutflowParams, body CreateTransactionOutflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTransactionUnblockWithBody request with any body
+	CreateTransactionUnblockWithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateTransactionUnblock(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, body CreateTransactionUnblockJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTransaction request
 	GetTransaction(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2098,28 +3034,6 @@ type ClientInterface interface {
 	// RevertTransaction request
 	RevertTransaction(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetAllPackages request
-	GetAllPackages(ctx context.Context, organizationId string, params *GetAllPackagesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreatePackageWithBody request with any body
-	CreatePackageWithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreatePackage(ctx context.Context, organizationId string, body CreatePackageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeletePackage request
-	DeletePackage(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetPackageByID request
-	GetPackageByID(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdatePackageWithBody request with any body
-	UpdatePackageWithBody(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdatePackage(ctx context.Context, organizationId string, id string, body UpdatePackageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetAuditEvents request
-	GetAuditEvents(ctx context.Context, organizationId string, params *GetAuditEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetAllMetadataIndexes request
 	GetAllMetadataIndexes(ctx context.Context, params *GetAllMetadataIndexesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2130,6 +3044,416 @@ type ClientInterface interface {
 
 	// DeleteMetadataIndex request
 	DeleteMetadataIndex(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOrganizationsV2 request
+	ListOrganizationsV2(ctx context.Context, params *ListOrganizationsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateOrganizationV2WithBody request with any body
+	CreateOrganizationV2WithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateOrganizationV2(ctx context.Context, body CreateOrganizationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CountOrganizationsV2 request
+	CountOrganizationsV2(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteOrganizationV2 request
+	DeleteOrganizationV2(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetOrganizationByIDV2 request
+	GetOrganizationByIDV2(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateOrganizationV2WithBody request with any body
+	UpdateOrganizationV2WithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateOrganizationV2(ctx context.Context, id string, body UpdateOrganizationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ProvisionEncryptionV2WithBody request with any body
+	ProvisionEncryptionV2WithBody(ctx context.Context, organizationId string, params *ProvisionEncryptionV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ProvisionEncryptionV2(ctx context.Context, organizationId string, params *ProvisionEncryptionV2Params, body ProvisionEncryptionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProvisioningStatusV2 request
+	GetProvisioningStatusV2(ctx context.Context, organizationId string, params *GetProvisioningStatusV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListHoldersV2 request
+	ListHoldersV2(ctx context.Context, organizationId string, params *ListHoldersV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateHolderV2WithBody request with any body
+	CreateHolderV2WithBody(ctx context.Context, organizationId string, params *CreateHolderV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateHolderV2(ctx context.Context, organizationId string, params *CreateHolderV2Params, body CreateHolderV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateInstrumentV2WithBody request with any body
+	CreateInstrumentV2WithBody(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateInstrumentV2(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentV2Params, body CreateInstrumentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteInstrumentV2 request
+	DeleteInstrumentV2(ctx context.Context, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetInstrumentByIDV2 request
+	GetInstrumentByIDV2(ctx context.Context, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateInstrumentV2WithBody request with any body
+	UpdateInstrumentV2WithBody(ctx context.Context, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateInstrumentV2(ctx context.Context, organizationId string, holderId string, instrumentId string, body UpdateInstrumentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteRelatedPartyV2 request
+	DeleteRelatedPartyV2(ctx context.Context, organizationId string, holderId string, instrumentId string, relatedPartyId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteHolderV2 request
+	DeleteHolderV2(ctx context.Context, organizationId string, id string, params *DeleteHolderV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetHolderByIDV2 request
+	GetHolderByIDV2(ctx context.Context, organizationId string, id string, params *GetHolderByIDV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateHolderV2WithBody request with any body
+	UpdateHolderV2WithBody(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateHolderV2(ctx context.Context, organizationId string, id string, body UpdateHolderV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAccountsByHolderV2 request
+	ListAccountsByHolderV2(ctx context.Context, organizationId string, id string, params *ListAccountsByHolderV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListInstrumentsV2 request
+	ListInstrumentsV2(ctx context.Context, organizationId string, params *ListInstrumentsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListLedgersV2 request
+	ListLedgersV2(ctx context.Context, organizationId string, params *ListLedgersV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateLedgerV2WithBody request with any body
+	CreateLedgerV2WithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateLedgerV2(ctx context.Context, organizationId string, body CreateLedgerV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CountLedgersV2 request
+	CountLedgersV2(ctx context.Context, organizationId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteLedgerV2 request
+	DeleteLedgerV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLedgerByIDV2 request
+	GetLedgerByIDV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateLedgerV2WithBody request with any body
+	UpdateLedgerV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateLedgerV2(ctx context.Context, organizationId string, ledgerId string, body UpdateLedgerV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAccountTypesV2 request
+	ListAccountTypesV2(ctx context.Context, organizationId string, ledgerId string, params *ListAccountTypesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAccountTypeV2WithBody request with any body
+	CreateAccountTypeV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAccountTypeV2(ctx context.Context, organizationId string, ledgerId string, body CreateAccountTypeV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAccountTypeV2 request
+	DeleteAccountTypeV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAccountTypeByIDV2 request
+	GetAccountTypeByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAccountTypeV2WithBody request with any body
+	UpdateAccountTypeV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAccountTypeV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAccountTypeV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAccountsV2 request
+	ListAccountsV2(ctx context.Context, organizationId string, ledgerId string, params *ListAccountsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAccountV2WithBody request with any body
+	CreateAccountV2WithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAccountV2(ctx context.Context, organizationId string, ledgerId string, params *CreateAccountV2Params, body CreateAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAccountByAliasV2 request
+	GetAccountByAliasV2(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetBalancesByAliasV2 request
+	GetBalancesByAliasV2(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAccountExternalByCodeV2 request
+	GetAccountExternalByCodeV2(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetBalancesExternalByCodeV2 request
+	GetBalancesExternalByCodeV2(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CountAccountsV2 request
+	CountAccountsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAllBalancesByAccountIDV2 request
+	GetAllBalancesByAccountIDV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllBalancesByAccountIDV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAdditionalBalanceV2WithBody request with any body
+	CreateAdditionalBalanceV2WithBody(ctx context.Context, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAdditionalBalanceV2(ctx context.Context, organizationId string, ledgerId string, accountId string, body CreateAdditionalBalanceV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAccountBalancesAtTimestampV2 request
+	GetAccountBalancesAtTimestampV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountBalancesAtTimestampV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAllOperationsByAccountV2 request
+	GetAllOperationsByAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetOperationByAccountV2 request
+	GetOperationByAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, operationId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAccountV2 request
+	DeleteAccountV2(ctx context.Context, organizationId string, ledgerId string, id string, params *DeleteAccountV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAccountByIDV2 request
+	GetAccountByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAccountV2WithBody request with any body
+	UpdateAccountV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAccountV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAssetsV2 request
+	ListAssetsV2(ctx context.Context, organizationId string, ledgerId string, params *ListAssetsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAssetV2WithBody request with any body
+	CreateAssetV2WithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateAssetV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAssetV2(ctx context.Context, organizationId string, ledgerId string, params *CreateAssetV2Params, body CreateAssetV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CountAssetsV2 request
+	CountAssetsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAssetV2 request
+	DeleteAssetV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAssetByIDV2 request
+	GetAssetByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAssetV2WithBody request with any body
+	UpdateAssetV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateAssetV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAssetV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAllBalancesV2 request
+	GetAllBalancesV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteBalanceV2 request
+	DeleteBalanceV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetBalanceByIDV2 request
+	GetBalanceByIDV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateBalanceV2WithBody request with any body
+	UpdateBalanceV2WithBody(ctx context.Context, organizationId string, ledgerId string, balanceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateBalanceV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, body UpdateBalanceV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetBalanceAtTimestampV2 request
+	GetBalanceAtTimestampV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAllBillingPackagesV2 request
+	GetAllBillingPackagesV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllBillingPackagesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateBillingPackageV2WithBody request with any body
+	CreateBillingPackageV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateBillingPackageV2(ctx context.Context, organizationId string, ledgerId string, body CreateBillingPackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteBillingPackageV2 request
+	DeleteBillingPackageV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetBillingPackageByIDV2 request
+	GetBillingPackageByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateBillingPackageV2WithBody request with any body
+	UpdateBillingPackageV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateBillingPackageV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateBillingPackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CalculateBillingV2WithBody request with any body
+	CalculateBillingV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CalculateBillingV2(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EstimateFeeCalculationV2WithBody request with any body
+	EstimateFeeCalculationV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EstimateFeeCalculationV2(ctx context.Context, organizationId string, ledgerId string, body EstimateFeeCalculationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateHolderAccountV2WithBody request with any body
+	CreateHolderAccountV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateHolderAccountV2(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, body CreateHolderAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOperationRoutesV2 request
+	ListOperationRoutesV2(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateOperationRouteV2WithBody request with any body
+	CreateOperationRouteV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateOperationRouteV2(ctx context.Context, organizationId string, ledgerId string, body CreateOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteOperationRouteV2 request
+	DeleteOperationRouteV2(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetOperationRouteByIDV2 request
+	GetOperationRouteByIDV2(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateOperationRouteV2WithBody request with any body
+	UpdateOperationRouteV2WithBody(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateOperationRouteV2(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, body UpdateOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAllPackagesV2 request
+	GetAllPackagesV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllPackagesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreatePackageV2WithBody request with any body
+	CreatePackageV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreatePackageV2(ctx context.Context, organizationId string, ledgerId string, body CreatePackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeletePackageV2 request
+	DeletePackageV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPackageByIDV2 request
+	GetPackageByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdatePackageV2WithBody request with any body
+	UpdatePackageV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdatePackageV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdatePackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListPortfoliosV2 request
+	ListPortfoliosV2(ctx context.Context, organizationId string, ledgerId string, params *ListPortfoliosV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreatePortfolioV2WithBody request with any body
+	CreatePortfolioV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreatePortfolioV2(ctx context.Context, organizationId string, ledgerId string, body CreatePortfolioV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CountPortfoliosV2 request
+	CountPortfoliosV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeletePortfolioV2 request
+	DeletePortfolioV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPortfolioByIDV2 request
+	GetPortfolioByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdatePortfolioV2WithBody request with any body
+	UpdatePortfolioV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdatePortfolioV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdatePortfolioV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListSegmentsV2 request
+	ListSegmentsV2(ctx context.Context, organizationId string, ledgerId string, params *ListSegmentsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateSegmentV2WithBody request with any body
+	CreateSegmentV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateSegmentV2(ctx context.Context, organizationId string, ledgerId string, body CreateSegmentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CountSegmentsV2 request
+	CountSegmentsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteSegmentV2 request
+	DeleteSegmentV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSegmentByIDV2 request
+	GetSegmentByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSegmentV2WithBody request with any body
+	UpdateSegmentV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateSegmentV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateSegmentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLedgerSettingsV2 request
+	GetLedgerSettingsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateLedgerSettingsV2WithBody request with any body
+	UpdateLedgerSettingsV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateLedgerSettingsV2(ctx context.Context, organizationId string, ledgerId string, body UpdateLedgerSettingsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListTransactionRoutesV2 request
+	ListTransactionRoutesV2(ctx context.Context, organizationId string, ledgerId string, params *ListTransactionRoutesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTransactionRouteV2WithBody request with any body
+	CreateTransactionRouteV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateTransactionRouteV2(ctx context.Context, organizationId string, ledgerId string, body CreateTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteTransactionRouteV2 request
+	DeleteTransactionRouteV2(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTransactionRouteByIDV2 request
+	GetTransactionRouteByIDV2(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateTransactionRouteV2WithBody request with any body
+	UpdateTransactionRouteV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateTransactionRouteV2(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, body UpdateTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAllTransactionsV2 request
+	GetAllTransactionsV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllTransactionsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CountTransactionsByFiltersV2 request
+	CountTransactionsByFiltersV2(ctx context.Context, organizationId string, ledgerId string, params *CountTransactionsByFiltersV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTransactionV2 request
+	GetTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateTransactionV2WithBody request with any body
+	UpdateTransactionV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, body UpdateTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelTransactionV2 request
+	CancelTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CommitTransactionV2 request
+	CommitTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateOperationV2WithBody request with any body
+	UpdateOperationV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateOperationV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, body UpdateOperationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevertTransactionV2 request
+	RevertTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAuditEventsV2 request
+	GetAuditEventsV2(ctx context.Context, organizationId string, params *GetAuditEventsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAllMetadataIndexesV2 request
+	GetAllMetadataIndexesV2(ctx context.Context, params *GetAllMetadataIndexesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateMetadataIndexV2WithBody request with any body
+	CreateMetadataIndexV2WithBody(ctx context.Context, entityName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateMetadataIndexV2(ctx context.Context, entityName string, body CreateMetadataIndexV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteMetadataIndexV2 request
+	DeleteMetadataIndexV2(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTransactionBlockV2WithBody request with any body
+	CreateTransactionBlockV2WithBody(ctx context.Context, params *CreateTransactionBlockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateTransactionBlockV2(ctx context.Context, params *CreateTransactionBlockV2Params, body CreateTransactionBlockV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTransactionDirectV2WithBody request with any body
+	CreateTransactionDirectV2WithBody(ctx context.Context, params *CreateTransactionDirectV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateTransactionDirectV2(ctx context.Context, params *CreateTransactionDirectV2Params, body CreateTransactionDirectV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTransactionHoldV2WithBody request with any body
+	CreateTransactionHoldV2WithBody(ctx context.Context, params *CreateTransactionHoldV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateTransactionHoldV2(ctx context.Context, params *CreateTransactionHoldV2Params, body CreateTransactionHoldV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTransactionUnblockV2WithBody request with any body
+	CreateTransactionUnblockV2WithBody(ctx context.Context, params *CreateTransactionUnblockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateTransactionUnblockV2(ctx context.Context, params *CreateTransactionUnblockV2Params, body CreateTransactionUnblockV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) ListOrganizations(ctx context.Context, params *ListOrganizationsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -2144,8 +3468,8 @@ func (c *Client) ListOrganizations(ctx context.Context, params *ListOrganization
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateOrganizationWithBody(ctx context.Context, params *CreateOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateOrganizationRequestWithBody(c.Server, params, contentType, body)
+func (c *Client) CreateOrganizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrganizationRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2156,8 +3480,8 @@ func (c *Client) CreateOrganizationWithBody(ctx context.Context, params *CreateO
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateOrganization(ctx context.Context, params *CreateOrganizationParams, body CreateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateOrganizationRequest(c.Server, params, body)
+func (c *Client) CreateOrganization(ctx context.Context, body CreateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrganizationRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2218,366 +3542,6 @@ func (c *Client) UpdateOrganizationWithBody(ctx context.Context, id string, cont
 
 func (c *Client) UpdateOrganization(ctx context.Context, id string, body UpdateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateOrganizationRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetAllBillingPackages(ctx context.Context, organizationId string, params *GetAllBillingPackagesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAllBillingPackagesRequest(c.Server, organizationId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateBillingPackageWithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateBillingPackageRequestWithBody(c.Server, organizationId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateBillingPackage(ctx context.Context, organizationId string, body CreateBillingPackageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateBillingPackageRequest(c.Server, organizationId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteBillingPackage(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteBillingPackageRequest(c.Server, organizationId, id)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetBillingPackageByID(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBillingPackageByIDRequest(c.Server, organizationId, id)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateBillingPackageWithBody(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateBillingPackageRequestWithBody(c.Server, organizationId, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateBillingPackage(ctx context.Context, organizationId string, id string, body UpdateBillingPackageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateBillingPackageRequest(c.Server, organizationId, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CalculateBillingWithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCalculateBillingRequestWithBody(c.Server, organizationId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CalculateBilling(ctx context.Context, organizationId string, body CalculateBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCalculateBillingRequest(c.Server, organizationId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ProvisionEncryptionWithBody(ctx context.Context, organizationId string, params *ProvisionEncryptionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewProvisionEncryptionRequestWithBody(c.Server, organizationId, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ProvisionEncryption(ctx context.Context, organizationId string, params *ProvisionEncryptionParams, body ProvisionEncryptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewProvisionEncryptionRequest(c.Server, organizationId, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetProvisioningStatus(ctx context.Context, organizationId string, params *GetProvisioningStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetProvisioningStatusRequest(c.Server, organizationId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) EstimateFeeCalculationWithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEstimateFeeCalculationRequestWithBody(c.Server, organizationId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) EstimateFeeCalculation(ctx context.Context, organizationId string, body EstimateFeeCalculationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEstimateFeeCalculationRequest(c.Server, organizationId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListHolders(ctx context.Context, organizationId string, params *ListHoldersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListHoldersRequest(c.Server, organizationId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateHolderWithBody(ctx context.Context, organizationId string, params *CreateHolderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateHolderRequestWithBody(c.Server, organizationId, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateHolder(ctx context.Context, organizationId string, params *CreateHolderParams, body CreateHolderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateHolderRequest(c.Server, organizationId, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateInstrumentWithBody(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInstrumentRequestWithBody(c.Server, organizationId, holderId, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateInstrument(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentParams, body CreateInstrumentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInstrumentRequest(c.Server, organizationId, holderId, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteInstrument(ctx context.Context, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteInstrumentRequest(c.Server, organizationId, holderId, instrumentId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetInstrumentByID(ctx context.Context, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetInstrumentByIDRequest(c.Server, organizationId, holderId, instrumentId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateInstrumentWithBody(ctx context.Context, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateInstrumentRequestWithBody(c.Server, organizationId, holderId, instrumentId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateInstrument(ctx context.Context, organizationId string, holderId string, instrumentId string, body UpdateInstrumentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateInstrumentRequest(c.Server, organizationId, holderId, instrumentId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteRelatedParty(ctx context.Context, organizationId string, holderId string, instrumentId string, relatedPartyId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteRelatedPartyRequest(c.Server, organizationId, holderId, instrumentId, relatedPartyId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteHolder(ctx context.Context, organizationId string, id string, params *DeleteHolderParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteHolderRequest(c.Server, organizationId, id, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetHolderByID(ctx context.Context, organizationId string, id string, params *GetHolderByIDParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetHolderByIDRequest(c.Server, organizationId, id, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateHolderWithBody(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateHolderRequestWithBody(c.Server, organizationId, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateHolder(ctx context.Context, organizationId string, id string, body UpdateHolderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateHolderRequest(c.Server, organizationId, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListAccountsByHolder(ctx context.Context, organizationId string, id string, params *ListAccountsByHolderParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListAccountsByHolderRequest(c.Server, organizationId, id, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListInstruments(ctx context.Context, organizationId string, params *ListInstrumentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListInstrumentsRequest(c.Server, organizationId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3200,30 +4164,6 @@ func (c *Client) GetBalanceAtTimestamp(ctx context.Context, organizationId strin
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateHolderAccountWithBody(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateHolderAccountRequestWithBody(c.Server, organizationId, ledgerId, id, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateHolderAccount(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, body CreateHolderAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateHolderAccountRequest(c.Server, organizationId, ledgerId, id, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) ListOperationRoutes(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListOperationRoutesRequest(c.Server, organizationId, ledgerId, params)
 	if err != nil {
@@ -3656,6 +4596,30 @@ func (c *Client) CreateTransactionAnnotation(ctx context.Context, organizationId
 	return c.Client.Do(req)
 }
 
+func (c *Client) CreateTransactionBlockWithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionBlockParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionBlockRequestWithBody(c.Server, organizationId, ledgerId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionBlock(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionBlockParams, body CreateTransactionBlockJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionBlockRequest(c.Server, organizationId, ledgerId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateTransactionInflowWithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionInflowParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateTransactionInflowRequestWithBody(c.Server, organizationId, ledgerId, params, contentType, body)
 	if err != nil {
@@ -3730,6 +4694,30 @@ func (c *Client) CreateTransactionOutflowWithBody(ctx context.Context, organizat
 
 func (c *Client) CreateTransactionOutflow(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionOutflowParams, body CreateTransactionOutflowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateTransactionOutflowRequest(c.Server, organizationId, ledgerId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionUnblockWithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionUnblockRequestWithBody(c.Server, organizationId, ledgerId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionUnblock(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, body CreateTransactionUnblockJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionUnblockRequest(c.Server, organizationId, ledgerId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3836,102 +4824,6 @@ func (c *Client) RevertTransaction(ctx context.Context, organizationId string, l
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetAllPackages(ctx context.Context, organizationId string, params *GetAllPackagesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAllPackagesRequest(c.Server, organizationId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreatePackageWithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreatePackageRequestWithBody(c.Server, organizationId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreatePackage(ctx context.Context, organizationId string, body CreatePackageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreatePackageRequest(c.Server, organizationId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeletePackage(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeletePackageRequest(c.Server, organizationId, id)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetPackageByID(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetPackageByIDRequest(c.Server, organizationId, id)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdatePackageWithBody(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdatePackageRequestWithBody(c.Server, organizationId, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdatePackage(ctx context.Context, organizationId string, id string, body UpdatePackageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdatePackageRequest(c.Server, organizationId, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetAuditEvents(ctx context.Context, organizationId string, params *GetAuditEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAuditEventsRequest(c.Server, organizationId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) GetAllMetadataIndexes(ctx context.Context, params *GetAllMetadataIndexesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAllMetadataIndexesRequest(c.Server, params)
 	if err != nil {
@@ -3980,6 +4872,1806 @@ func (c *Client) DeleteMetadataIndex(ctx context.Context, entityName string, ind
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListOrganizationsV2(ctx context.Context, params *ListOrganizationsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrganizationsV2Request(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrganizationV2WithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrganizationV2RequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrganizationV2(ctx context.Context, body CreateOrganizationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrganizationV2Request(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CountOrganizationsV2(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCountOrganizationsV2Request(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteOrganizationV2(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteOrganizationV2Request(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetOrganizationByIDV2(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOrganizationByIDV2Request(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrganizationV2WithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrganizationV2RequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrganizationV2(ctx context.Context, id string, body UpdateOrganizationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrganizationV2Request(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ProvisionEncryptionV2WithBody(ctx context.Context, organizationId string, params *ProvisionEncryptionV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewProvisionEncryptionV2RequestWithBody(c.Server, organizationId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ProvisionEncryptionV2(ctx context.Context, organizationId string, params *ProvisionEncryptionV2Params, body ProvisionEncryptionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewProvisionEncryptionV2Request(c.Server, organizationId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProvisioningStatusV2(ctx context.Context, organizationId string, params *GetProvisioningStatusV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProvisioningStatusV2Request(c.Server, organizationId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListHoldersV2(ctx context.Context, organizationId string, params *ListHoldersV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListHoldersV2Request(c.Server, organizationId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateHolderV2WithBody(ctx context.Context, organizationId string, params *CreateHolderV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHolderV2RequestWithBody(c.Server, organizationId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateHolderV2(ctx context.Context, organizationId string, params *CreateHolderV2Params, body CreateHolderV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHolderV2Request(c.Server, organizationId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateInstrumentV2WithBody(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInstrumentV2RequestWithBody(c.Server, organizationId, holderId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateInstrumentV2(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentV2Params, body CreateInstrumentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInstrumentV2Request(c.Server, organizationId, holderId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteInstrumentV2(ctx context.Context, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteInstrumentV2Request(c.Server, organizationId, holderId, instrumentId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetInstrumentByIDV2(ctx context.Context, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInstrumentByIDV2Request(c.Server, organizationId, holderId, instrumentId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateInstrumentV2WithBody(ctx context.Context, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateInstrumentV2RequestWithBody(c.Server, organizationId, holderId, instrumentId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateInstrumentV2(ctx context.Context, organizationId string, holderId string, instrumentId string, body UpdateInstrumentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateInstrumentV2Request(c.Server, organizationId, holderId, instrumentId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteRelatedPartyV2(ctx context.Context, organizationId string, holderId string, instrumentId string, relatedPartyId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteRelatedPartyV2Request(c.Server, organizationId, holderId, instrumentId, relatedPartyId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteHolderV2(ctx context.Context, organizationId string, id string, params *DeleteHolderV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteHolderV2Request(c.Server, organizationId, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetHolderByIDV2(ctx context.Context, organizationId string, id string, params *GetHolderByIDV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetHolderByIDV2Request(c.Server, organizationId, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateHolderV2WithBody(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateHolderV2RequestWithBody(c.Server, organizationId, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateHolderV2(ctx context.Context, organizationId string, id string, body UpdateHolderV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateHolderV2Request(c.Server, organizationId, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAccountsByHolderV2(ctx context.Context, organizationId string, id string, params *ListAccountsByHolderV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAccountsByHolderV2Request(c.Server, organizationId, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListInstrumentsV2(ctx context.Context, organizationId string, params *ListInstrumentsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListInstrumentsV2Request(c.Server, organizationId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListLedgersV2(ctx context.Context, organizationId string, params *ListLedgersV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListLedgersV2Request(c.Server, organizationId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateLedgerV2WithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateLedgerV2RequestWithBody(c.Server, organizationId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateLedgerV2(ctx context.Context, organizationId string, body CreateLedgerV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateLedgerV2Request(c.Server, organizationId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CountLedgersV2(ctx context.Context, organizationId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCountLedgersV2Request(c.Server, organizationId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteLedgerV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteLedgerV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLedgerByIDV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLedgerByIDV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateLedgerV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLedgerV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateLedgerV2(ctx context.Context, organizationId string, ledgerId string, body UpdateLedgerV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLedgerV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAccountTypesV2(ctx context.Context, organizationId string, ledgerId string, params *ListAccountTypesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAccountTypesV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAccountTypeV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAccountTypeV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAccountTypeV2(ctx context.Context, organizationId string, ledgerId string, body CreateAccountTypeV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAccountTypeV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAccountTypeV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAccountTypeV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAccountTypeByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountTypeByIDV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAccountTypeV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAccountTypeV2RequestWithBody(c.Server, organizationId, ledgerId, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAccountTypeV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAccountTypeV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAccountTypeV2Request(c.Server, organizationId, ledgerId, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAccountsV2(ctx context.Context, organizationId string, ledgerId string, params *ListAccountsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAccountsV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAccountV2WithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAccountV2RequestWithBody(c.Server, organizationId, ledgerId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAccountV2(ctx context.Context, organizationId string, ledgerId string, params *CreateAccountV2Params, body CreateAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAccountV2Request(c.Server, organizationId, ledgerId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAccountByAliasV2(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountByAliasV2Request(c.Server, organizationId, ledgerId, alias)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetBalancesByAliasV2(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBalancesByAliasV2Request(c.Server, organizationId, ledgerId, alias)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAccountExternalByCodeV2(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountExternalByCodeV2Request(c.Server, organizationId, ledgerId, code)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetBalancesExternalByCodeV2(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBalancesExternalByCodeV2Request(c.Server, organizationId, ledgerId, code)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CountAccountsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCountAccountsV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAllBalancesByAccountIDV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllBalancesByAccountIDV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAllBalancesByAccountIDV2Request(c.Server, organizationId, ledgerId, accountId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAdditionalBalanceV2WithBody(ctx context.Context, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAdditionalBalanceV2RequestWithBody(c.Server, organizationId, ledgerId, accountId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAdditionalBalanceV2(ctx context.Context, organizationId string, ledgerId string, accountId string, body CreateAdditionalBalanceV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAdditionalBalanceV2Request(c.Server, organizationId, ledgerId, accountId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAccountBalancesAtTimestampV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountBalancesAtTimestampV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountBalancesAtTimestampV2Request(c.Server, organizationId, ledgerId, accountId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAllOperationsByAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAllOperationsByAccountV2Request(c.Server, organizationId, ledgerId, accountId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetOperationByAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, operationId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOperationByAccountV2Request(c.Server, organizationId, ledgerId, accountId, operationId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAccountV2(ctx context.Context, organizationId string, ledgerId string, id string, params *DeleteAccountV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAccountV2Request(c.Server, organizationId, ledgerId, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAccountByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountByIDV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAccountV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAccountV2RequestWithBody(c.Server, organizationId, ledgerId, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAccountV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAccountV2Request(c.Server, organizationId, ledgerId, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAssetsV2(ctx context.Context, organizationId string, ledgerId string, params *ListAssetsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAssetsV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAssetV2WithBody(ctx context.Context, organizationId string, ledgerId string, params *CreateAssetV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAssetV2RequestWithBody(c.Server, organizationId, ledgerId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAssetV2(ctx context.Context, organizationId string, ledgerId string, params *CreateAssetV2Params, body CreateAssetV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAssetV2Request(c.Server, organizationId, ledgerId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CountAssetsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCountAssetsV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAssetV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAssetV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAssetByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAssetByIDV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAssetV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAssetV2RequestWithBody(c.Server, organizationId, ledgerId, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateAssetV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAssetV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAssetV2Request(c.Server, organizationId, ledgerId, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAllBalancesV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAllBalancesV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteBalanceV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteBalanceV2Request(c.Server, organizationId, ledgerId, balanceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetBalanceByIDV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBalanceByIDV2Request(c.Server, organizationId, ledgerId, balanceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateBalanceV2WithBody(ctx context.Context, organizationId string, ledgerId string, balanceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateBalanceV2RequestWithBody(c.Server, organizationId, ledgerId, balanceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateBalanceV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, body UpdateBalanceV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateBalanceV2Request(c.Server, organizationId, ledgerId, balanceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetBalanceAtTimestampV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBalanceAtTimestampV2Request(c.Server, organizationId, ledgerId, balanceId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAllBillingPackagesV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllBillingPackagesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAllBillingPackagesV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateBillingPackageV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateBillingPackageV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateBillingPackageV2(ctx context.Context, organizationId string, ledgerId string, body CreateBillingPackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateBillingPackageV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteBillingPackageV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteBillingPackageV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetBillingPackageByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBillingPackageByIDV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateBillingPackageV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateBillingPackageV2RequestWithBody(c.Server, organizationId, ledgerId, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateBillingPackageV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateBillingPackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateBillingPackageV2Request(c.Server, organizationId, ledgerId, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CalculateBillingV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCalculateBillingV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CalculateBillingV2(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCalculateBillingV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EstimateFeeCalculationV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEstimateFeeCalculationV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EstimateFeeCalculationV2(ctx context.Context, organizationId string, ledgerId string, body EstimateFeeCalculationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEstimateFeeCalculationV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateHolderAccountV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHolderAccountV2RequestWithBody(c.Server, organizationId, ledgerId, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateHolderAccountV2(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, body CreateHolderAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHolderAccountV2Request(c.Server, organizationId, ledgerId, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOperationRoutesV2(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOperationRoutesV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOperationRouteV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOperationRouteV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOperationRouteV2(ctx context.Context, organizationId string, ledgerId string, body CreateOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOperationRouteV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteOperationRouteV2(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteOperationRouteV2Request(c.Server, organizationId, ledgerId, operationRouteId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetOperationRouteByIDV2(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOperationRouteByIDV2Request(c.Server, organizationId, ledgerId, operationRouteId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOperationRouteV2WithBody(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOperationRouteV2RequestWithBody(c.Server, organizationId, ledgerId, operationRouteId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOperationRouteV2(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, body UpdateOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOperationRouteV2Request(c.Server, organizationId, ledgerId, operationRouteId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAllPackagesV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllPackagesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAllPackagesV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreatePackageV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreatePackageV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreatePackageV2(ctx context.Context, organizationId string, ledgerId string, body CreatePackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreatePackageV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeletePackageV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePackageV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetPackageByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPackageByIDV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdatePackageV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePackageV2RequestWithBody(c.Server, organizationId, ledgerId, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdatePackageV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdatePackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePackageV2Request(c.Server, organizationId, ledgerId, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListPortfoliosV2(ctx context.Context, organizationId string, ledgerId string, params *ListPortfoliosV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListPortfoliosV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreatePortfolioV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreatePortfolioV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreatePortfolioV2(ctx context.Context, organizationId string, ledgerId string, body CreatePortfolioV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreatePortfolioV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CountPortfoliosV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCountPortfoliosV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeletePortfolioV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePortfolioV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetPortfolioByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPortfolioByIDV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdatePortfolioV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePortfolioV2RequestWithBody(c.Server, organizationId, ledgerId, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdatePortfolioV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdatePortfolioV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePortfolioV2Request(c.Server, organizationId, ledgerId, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListSegmentsV2(ctx context.Context, organizationId string, ledgerId string, params *ListSegmentsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListSegmentsV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateSegmentV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSegmentV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateSegmentV2(ctx context.Context, organizationId string, ledgerId string, body CreateSegmentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateSegmentV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CountSegmentsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCountSegmentsV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteSegmentV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteSegmentV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetSegmentByIDV2(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSegmentByIDV2Request(c.Server, organizationId, ledgerId, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSegmentV2WithBody(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSegmentV2RequestWithBody(c.Server, organizationId, ledgerId, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSegmentV2(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateSegmentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSegmentV2Request(c.Server, organizationId, ledgerId, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLedgerSettingsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLedgerSettingsV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateLedgerSettingsV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLedgerSettingsV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateLedgerSettingsV2(ctx context.Context, organizationId string, ledgerId string, body UpdateLedgerSettingsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLedgerSettingsV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListTransactionRoutesV2(ctx context.Context, organizationId string, ledgerId string, params *ListTransactionRoutesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTransactionRoutesV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionRouteV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionRouteV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionRouteV2(ctx context.Context, organizationId string, ledgerId string, body CreateTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionRouteV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteTransactionRouteV2(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteTransactionRouteV2Request(c.Server, organizationId, ledgerId, transactionRouteId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTransactionRouteByIDV2(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTransactionRouteByIDV2Request(c.Server, organizationId, ledgerId, transactionRouteId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTransactionRouteV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTransactionRouteV2RequestWithBody(c.Server, organizationId, ledgerId, transactionRouteId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTransactionRouteV2(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, body UpdateTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTransactionRouteV2Request(c.Server, organizationId, ledgerId, transactionRouteId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAllTransactionsV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllTransactionsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAllTransactionsV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CountTransactionsByFiltersV2(ctx context.Context, organizationId string, ledgerId string, params *CountTransactionsByFiltersV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCountTransactionsByFiltersV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTransactionV2Request(c.Server, organizationId, ledgerId, transactionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTransactionV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTransactionV2RequestWithBody(c.Server, organizationId, ledgerId, transactionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, body UpdateTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTransactionV2Request(c.Server, organizationId, ledgerId, transactionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CancelTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelTransactionV2Request(c.Server, organizationId, ledgerId, transactionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CommitTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCommitTransactionV2Request(c.Server, organizationId, ledgerId, transactionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOperationV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOperationV2RequestWithBody(c.Server, organizationId, ledgerId, transactionId, operationId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOperationV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, body UpdateOperationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOperationV2Request(c.Server, organizationId, ledgerId, transactionId, operationId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevertTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevertTransactionV2Request(c.Server, organizationId, ledgerId, transactionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAuditEventsV2(ctx context.Context, organizationId string, params *GetAuditEventsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAuditEventsV2Request(c.Server, organizationId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAllMetadataIndexesV2(ctx context.Context, params *GetAllMetadataIndexesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAllMetadataIndexesV2Request(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMetadataIndexV2WithBody(ctx context.Context, entityName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMetadataIndexV2RequestWithBody(c.Server, entityName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMetadataIndexV2(ctx context.Context, entityName string, body CreateMetadataIndexV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMetadataIndexV2Request(c.Server, entityName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteMetadataIndexV2(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteMetadataIndexV2Request(c.Server, entityName, indexKey)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionBlockV2WithBody(ctx context.Context, params *CreateTransactionBlockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionBlockV2RequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionBlockV2(ctx context.Context, params *CreateTransactionBlockV2Params, body CreateTransactionBlockV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionBlockV2Request(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionDirectV2WithBody(ctx context.Context, params *CreateTransactionDirectV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionDirectV2RequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionDirectV2(ctx context.Context, params *CreateTransactionDirectV2Params, body CreateTransactionDirectV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionDirectV2Request(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionHoldV2WithBody(ctx context.Context, params *CreateTransactionHoldV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionHoldV2RequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionHoldV2(ctx context.Context, params *CreateTransactionHoldV2Params, body CreateTransactionHoldV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionHoldV2Request(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionUnblockV2WithBody(ctx context.Context, params *CreateTransactionUnblockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionUnblockV2RequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTransactionUnblockV2(ctx context.Context, params *CreateTransactionUnblockV2Params, body CreateTransactionUnblockV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTransactionUnblockV2Request(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // NewListOrganizationsRequest generates requests for ListOrganizations
 func NewListOrganizationsRequest(server string, params *ListOrganizationsParams) (*http.Request, error) {
 	var err error
@@ -3989,7 +6681,7 @@ func NewListOrganizationsRequest(server string, params *ListOrganizationsParams)
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations")
+	operationPath := fmt.Sprintf("/v1/organizations")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4174,18 +6866,18 @@ func NewListOrganizationsRequest(server string, params *ListOrganizationsParams)
 }
 
 // NewCreateOrganizationRequest calls the generic CreateOrganization builder with application/json body
-func NewCreateOrganizationRequest(server string, params *CreateOrganizationParams, body CreateOrganizationJSONRequestBody) (*http.Request, error) {
+func NewCreateOrganizationRequest(server string, body CreateOrganizationJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateOrganizationRequestWithBody(server, params, "application/json", bodyReader)
+	return NewCreateOrganizationRequestWithBody(server, "application/json", bodyReader)
 }
 
 // NewCreateOrganizationRequestWithBody generates requests for CreateOrganization with any type of body
-func NewCreateOrganizationRequestWithBody(server string, params *CreateOrganizationParams, contentType string, body io.Reader) (*http.Request, error) {
+func NewCreateOrganizationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -4193,7 +6885,7 @@ func NewCreateOrganizationRequestWithBody(server string, params *CreateOrganizat
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations")
+	operationPath := fmt.Sprintf("/v1/organizations")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4210,21 +6902,6 @@ func NewCreateOrganizationRequestWithBody(server string, params *CreateOrganizat
 
 	req.Header.Add("Content-Type", contentType)
 
-	if params != nil {
-
-		if params.Authorization != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("Authorization", headerParam0)
-		}
-
-	}
-
 	return req, nil
 }
 
@@ -4237,7 +6914,7 @@ func NewCountOrganizationsRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/metrics/count")
+	operationPath := fmt.Sprintf("/v1/organizations/metrics/count")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4271,7 +6948,7 @@ func NewDeleteOrganizationRequest(server string, id string) (*http.Request, erro
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s", pathParam0)
+	operationPath := fmt.Sprintf("/v1/organizations/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4305,7 +6982,7 @@ func NewGetOrganizationByIDRequest(server string, id string) (*http.Request, err
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s", pathParam0)
+	operationPath := fmt.Sprintf("/v1/organizations/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4350,7 +7027,7 @@ func NewUpdateOrganizationRequestWithBody(server string, id string, contentType 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s", pathParam0)
+	operationPath := fmt.Sprintf("/v1/organizations/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4366,1518 +7043,6 @@ func NewUpdateOrganizationRequestWithBody(server string, id string, contentType 
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetAllBillingPackagesRequest generates requests for GetAllBillingPackages
-func NewGetAllBillingPackagesRequest(server string, organizationId string, params *GetAllBillingPackagesParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/billing-packages", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.LedgerId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "ledgerId", runtime.ParamLocationQuery, *params.LedgerId); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Type != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "type", runtime.ParamLocationQuery, *params.Type); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateBillingPackageRequest calls the generic CreateBillingPackage builder with application/json body
-func NewCreateBillingPackageRequest(server string, organizationId string, body CreateBillingPackageJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateBillingPackageRequestWithBody(server, organizationId, "application/json", bodyReader)
-}
-
-// NewCreateBillingPackageRequestWithBody generates requests for CreateBillingPackage with any type of body
-func NewCreateBillingPackageRequestWithBody(server string, organizationId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/billing-packages", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteBillingPackageRequest generates requests for DeleteBillingPackage
-func NewDeleteBillingPackageRequest(server string, organizationId string, id string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/billing-packages/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetBillingPackageByIDRequest generates requests for GetBillingPackageByID
-func NewGetBillingPackageByIDRequest(server string, organizationId string, id string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/billing-packages/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateBillingPackageRequest calls the generic UpdateBillingPackage builder with application/json body
-func NewUpdateBillingPackageRequest(server string, organizationId string, id string, body UpdateBillingPackageJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateBillingPackageRequestWithBody(server, organizationId, id, "application/json", bodyReader)
-}
-
-// NewUpdateBillingPackageRequestWithBody generates requests for UpdateBillingPackage with any type of body
-func NewUpdateBillingPackageRequestWithBody(server string, organizationId string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/billing-packages/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCalculateBillingRequest calls the generic CalculateBilling builder with application/json body
-func NewCalculateBillingRequest(server string, organizationId string, body CalculateBillingJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCalculateBillingRequestWithBody(server, organizationId, "application/json", bodyReader)
-}
-
-// NewCalculateBillingRequestWithBody generates requests for CalculateBilling with any type of body
-func NewCalculateBillingRequestWithBody(server string, organizationId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/billing/calculate", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewProvisionEncryptionRequest calls the generic ProvisionEncryption builder with application/json body
-func NewProvisionEncryptionRequest(server string, organizationId string, params *ProvisionEncryptionParams, body ProvisionEncryptionJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewProvisionEncryptionRequestWithBody(server, organizationId, params, "application/json", bodyReader)
-}
-
-// NewProvisionEncryptionRequestWithBody generates requests for ProvisionEncryption with any type of body
-func NewProvisionEncryptionRequestWithBody(server string, organizationId string, params *ProvisionEncryptionParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/encryption/provision", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.Authorization != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("Authorization", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewGetProvisioningStatusRequest generates requests for GetProvisioningStatus
-func NewGetProvisioningStatusRequest(server string, organizationId string, params *GetProvisioningStatusParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/encryption/status", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		if params.Authorization != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("Authorization", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewEstimateFeeCalculationRequest calls the generic EstimateFeeCalculation builder with application/json body
-func NewEstimateFeeCalculationRequest(server string, organizationId string, body EstimateFeeCalculationJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewEstimateFeeCalculationRequestWithBody(server, organizationId, "application/json", bodyReader)
-}
-
-// NewEstimateFeeCalculationRequestWithBody generates requests for EstimateFeeCalculation with any type of body
-func NewEstimateFeeCalculationRequestWithBody(server string, organizationId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/estimates", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListHoldersRequest generates requests for ListHolders
-func NewListHoldersRequest(server string, organizationId string, params *ListHoldersParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Metadata != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.SortOrder != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.IncludeDeleted != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "include_deleted", runtime.ParamLocationQuery, *params.IncludeDeleted); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.ExternalId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "external_id", runtime.ParamLocationQuery, *params.ExternalId); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Document != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "document", runtime.ParamLocationQuery, *params.Document); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateHolderRequest calls the generic CreateHolder builder with application/json body
-func NewCreateHolderRequest(server string, organizationId string, params *CreateHolderParams, body CreateHolderJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateHolderRequestWithBody(server, organizationId, params, "application/json", bodyReader)
-}
-
-// NewCreateHolderRequestWithBody generates requests for CreateHolder with any type of body
-func NewCreateHolderRequestWithBody(server string, organizationId string, params *CreateHolderParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.XIdempotency != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-Idempotency", headerParam0)
-		}
-
-		if params.XTTL != nil {
-			var headerParam1 string
-
-			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-TTL", headerParam1)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewCreateInstrumentRequest calls the generic CreateInstrument builder with application/json body
-func NewCreateInstrumentRequest(server string, organizationId string, holderId string, params *CreateInstrumentParams, body CreateInstrumentJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateInstrumentRequestWithBody(server, organizationId, holderId, params, "application/json", bodyReader)
-}
-
-// NewCreateInstrumentRequestWithBody generates requests for CreateInstrument with any type of body
-func NewCreateInstrumentRequestWithBody(server string, organizationId string, holderId string, params *CreateInstrumentParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s/instruments", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.XIdempotency != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-Idempotency", headerParam0)
-		}
-
-		if params.XTTL != nil {
-			var headerParam1 string
-
-			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-TTL", headerParam1)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewDeleteInstrumentRequest generates requests for DeleteInstrument
-func NewDeleteInstrumentRequest(server string, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "instrument_id", runtime.ParamLocationPath, instrumentId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s/instruments/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.HardDelete != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "hard_delete", runtime.ParamLocationQuery, *params.HardDelete); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetInstrumentByIDRequest generates requests for GetInstrumentByID
-func NewGetInstrumentByIDRequest(server string, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "instrument_id", runtime.ParamLocationPath, instrumentId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s/instruments/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.IncludeDeleted != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "include_deleted", runtime.ParamLocationQuery, *params.IncludeDeleted); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateInstrumentRequest calls the generic UpdateInstrument builder with application/json body
-func NewUpdateInstrumentRequest(server string, organizationId string, holderId string, instrumentId string, body UpdateInstrumentJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateInstrumentRequestWithBody(server, organizationId, holderId, instrumentId, "application/json", bodyReader)
-}
-
-// NewUpdateInstrumentRequestWithBody generates requests for UpdateInstrument with any type of body
-func NewUpdateInstrumentRequestWithBody(server string, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "instrument_id", runtime.ParamLocationPath, instrumentId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s/instruments/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteRelatedPartyRequest generates requests for DeleteRelatedParty
-func NewDeleteRelatedPartyRequest(server string, organizationId string, holderId string, instrumentId string, relatedPartyId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "instrument_id", runtime.ParamLocationPath, instrumentId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam3 string
-
-	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "related_party_id", runtime.ParamLocationPath, relatedPartyId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s/instruments/%s/related-parties/%s", pathParam0, pathParam1, pathParam2, pathParam3)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDeleteHolderRequest generates requests for DeleteHolder
-func NewDeleteHolderRequest(server string, organizationId string, id string, params *DeleteHolderParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.HardDelete != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "hard_delete", runtime.ParamLocationQuery, *params.HardDelete); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetHolderByIDRequest generates requests for GetHolderByID
-func NewGetHolderByIDRequest(server string, organizationId string, id string, params *GetHolderByIDParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.IncludeDeleted != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "include_deleted", runtime.ParamLocationQuery, *params.IncludeDeleted); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateHolderRequest calls the generic UpdateHolder builder with application/json body
-func NewUpdateHolderRequest(server string, organizationId string, id string, body UpdateHolderJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateHolderRequestWithBody(server, organizationId, id, "application/json", bodyReader)
-}
-
-// NewUpdateHolderRequestWithBody generates requests for UpdateHolder with any type of body
-func NewUpdateHolderRequestWithBody(server string, organizationId string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListAccountsByHolderRequest generates requests for ListAccountsByHolder
-func NewListAccountsByHolderRequest(server string, organizationId string, id string, params *ListAccountsByHolderParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/holders/%s/accounts", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.SortOrder != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListInstrumentsRequest generates requests for ListInstruments
-func NewListInstrumentsRequest(server string, organizationId string, params *ListInstrumentsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/instruments", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.HolderId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "holder_id", runtime.ParamLocationQuery, *params.HolderId); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Metadata != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.SortOrder != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.IncludeDeleted != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "include_deleted", runtime.ParamLocationQuery, *params.IncludeDeleted); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.AccountId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "account_id", runtime.ParamLocationQuery, *params.AccountId); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.LedgerId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "ledger_id", runtime.ParamLocationQuery, *params.LedgerId); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Document != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "document", runtime.ParamLocationQuery, *params.Document); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -5898,7 +7063,7 @@ func NewListLedgersRequest(server string, organizationId string, params *ListLed
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers", pathParam0)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6077,7 +7242,7 @@ func NewCreateLedgerRequestWithBody(server string, organizationId string, conten
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers", pathParam0)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6113,7 +7278,7 @@ func NewCountLedgersRequest(server string, organizationId string) (*http.Request
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/metrics/count", pathParam0)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/metrics/count", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6154,7 +7319,7 @@ func NewDeleteLedgerRequest(server string, organizationId string, ledgerId strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6195,7 +7360,7 @@ func NewGetLedgerByIDRequest(server string, organizationId string, ledgerId stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6247,7 +7412,7 @@ func NewUpdateLedgerRequestWithBody(server string, organizationId string, ledger
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6290,7 +7455,7 @@ func NewListAccountTypesRequest(server string, organizationId string, ledgerId s
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/account-types", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/account-types", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6476,7 +7641,7 @@ func NewCreateAccountTypeRequestWithBody(server string, organizationId string, l
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/account-types", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/account-types", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6526,7 +7691,7 @@ func NewDeleteAccountTypeRequest(server string, organizationId string, ledgerId 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6574,7 +7739,7 @@ func NewGetAccountTypeByIDRequest(server string, organizationId string, ledgerId
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6633,7 +7798,7 @@ func NewUpdateAccountTypeRequestWithBody(server string, organizationId string, l
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6676,7 +7841,7 @@ func NewListAccountsRequest(server string, organizationId string, ledgerId strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6990,7 +8155,7 @@ func NewCreateAccountRequestWithBody(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7055,7 +8220,7 @@ func NewGetAccountByAliasRequest(server string, organizationId string, ledgerId 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/alias/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7103,7 +8268,7 @@ func NewGetBalancesByAliasRequest(server string, organizationId string, ledgerId
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/alias/%s/balances", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7151,7 +8316,7 @@ func NewGetAccountExternalByCodeRequest(server string, organizationId string, le
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/external/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/external/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7199,7 +8364,7 @@ func NewGetBalancesExternalByCodeRequest(server string, organizationId string, l
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/external/%s/balances", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/external/%s/balances", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7240,7 +8405,7 @@ func NewCountAccountsRequest(server string, organizationId string, ledgerId stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/metrics/count", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/metrics/count", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7288,7 +8453,7 @@ func NewGetAllBalancesByAccountIDRequest(server string, organizationId string, l
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/%s/balances", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7433,7 +8598,7 @@ func NewCreateAdditionalBalanceRequestWithBody(server string, organizationId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/%s/balances", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7483,7 +8648,7 @@ func NewGetAccountBalancesAtTimestampRequest(server string, organizationId strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/%s/balances/history", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances/history", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7553,7 +8718,7 @@ func NewGetAllOperationsByAccountRequest(server string, organizationId string, l
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/%s/operations", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/operations", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7774,7 +8939,7 @@ func NewGetOperationByAccountRequest(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/%s/operations/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/operations/%s", pathParam0, pathParam1, pathParam2, pathParam3)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7822,7 +8987,7 @@ func NewDeleteAccountRequest(server string, organizationId string, ledgerId stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7885,7 +9050,7 @@ func NewGetAccountByIDRequest(server string, organizationId string, ledgerId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7944,7 +9109,7 @@ func NewUpdateAccountRequestWithBody(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7998,7 +9163,7 @@ func NewCreateOrUpdateAssetRateRequestWithBody(server string, organizationId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/asset-rates", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8048,7 +9213,7 @@ func NewGetAllAssetRatesByAssetCodeRequest(server string, organizationId string,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/asset-rates/from/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates/from/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8198,7 +9363,7 @@ func NewGetAssetRateByExternalIDRequest(server string, organizationId string, le
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/asset-rates/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8239,7 +9404,7 @@ func NewListAssetsRequest(server string, organizationId string, ledgerId string,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/assets", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/assets", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8393,7 +9558,7 @@ func NewCreateAssetRequestWithBody(server string, organizationId string, ledgerI
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/assets", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/assets", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8451,7 +9616,7 @@ func NewCountAssetsRequest(server string, organizationId string, ledgerId string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/assets/metrics/count", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/assets/metrics/count", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8499,7 +9664,7 @@ func NewDeleteAssetRequest(server string, organizationId string, ledgerId string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8547,7 +9712,7 @@ func NewGetAssetByIDRequest(server string, organizationId string, ledgerId strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8606,7 +9771,7 @@ func NewUpdateAssetRequestWithBody(server string, organizationId string, ledgerI
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8649,7 +9814,7 @@ func NewGetAllBalancesRequest(server string, organizationId string, ledgerId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/balances", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8783,7 +9948,7 @@ func NewDeleteBalanceRequest(server string, organizationId string, ledgerId stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8831,7 +9996,7 @@ func NewGetBalanceByIDRequest(server string, organizationId string, ledgerId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8890,7 +10055,7 @@ func NewUpdateBalanceRequestWithBody(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8940,7 +10105,7 @@ func NewGetBalanceAtTimestampRequest(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/balances/%s/history", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/%s/history", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8980,82 +10145,6 @@ func NewGetBalanceAtTimestampRequest(server string, organizationId string, ledge
 	return req, nil
 }
 
-// NewCreateHolderAccountRequest calls the generic CreateHolderAccount builder with application/json body
-func NewCreateHolderAccountRequest(server string, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, body CreateHolderAccountJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateHolderAccountRequestWithBody(server, organizationId, ledgerId, id, params, "application/json", bodyReader)
-}
-
-// NewCreateHolderAccountRequestWithBody generates requests for CreateHolderAccount with any type of body
-func NewCreateHolderAccountRequestWithBody(server string, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/holders/%s/accounts", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.Authorization != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("Authorization", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
 // NewListOperationRoutesRequest generates requests for ListOperationRoutes
 func NewListOperationRoutesRequest(server string, organizationId string, ledgerId string, params *ListOperationRoutesParams) (*http.Request, error) {
 	var err error
@@ -9079,7 +10168,7 @@ func NewListOperationRoutesRequest(server string, organizationId string, ledgerI
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/operation-routes", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9217,7 +10306,7 @@ func NewCreateOperationRouteRequestWithBody(server string, organizationId string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/operation-routes", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9267,7 +10356,7 @@ func NewDeleteOperationRouteRequest(server string, organizationId string, ledger
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9315,7 +10404,7 @@ func NewGetOperationRouteByIDRequest(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9374,7 +10463,7 @@ func NewUpdateOperationRouteRequestWithBody(server string, organizationId string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9417,7 +10506,7 @@ func NewListPortfoliosRequest(server string, organizationId string, ledgerId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/portfolios", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/portfolios", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9603,7 +10692,7 @@ func NewCreatePortfolioRequestWithBody(server string, organizationId string, led
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/portfolios", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/portfolios", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9646,7 +10735,7 @@ func NewCountPortfoliosRequest(server string, organizationId string, ledgerId st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/portfolios/metrics/count", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/portfolios/metrics/count", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9694,7 +10783,7 @@ func NewDeletePortfolioRequest(server string, organizationId string, ledgerId st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9742,7 +10831,7 @@ func NewGetPortfolioByIDRequest(server string, organizationId string, ledgerId s
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9801,7 +10890,7 @@ func NewUpdatePortfolioRequestWithBody(server string, organizationId string, led
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9844,7 +10933,7 @@ func NewListSegmentsRequest(server string, organizationId string, ledgerId strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/segments", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/segments", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9998,7 +11087,7 @@ func NewCreateSegmentRequestWithBody(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/segments", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/segments", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10041,7 +11130,7 @@ func NewCountSegmentsRequest(server string, organizationId string, ledgerId stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/segments/metrics/count", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/segments/metrics/count", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10089,7 +11178,7 @@ func NewDeleteSegmentRequest(server string, organizationId string, ledgerId stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10137,7 +11226,7 @@ func NewGetSegmentByIDRequest(server string, organizationId string, ledgerId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10196,7 +11285,7 @@ func NewUpdateSegmentRequestWithBody(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10239,7 +11328,7 @@ func NewGetLedgerSettingsRequest(server string, organizationId string, ledgerId 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/settings", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/settings", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10291,7 +11380,7 @@ func NewUpdateLedgerSettingsRequestWithBody(server string, organizationId string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/settings", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/settings", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10334,7 +11423,7 @@ func NewListTransactionRoutesRequest(server string, organizationId string, ledge
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transaction-routes", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10472,7 +11561,7 @@ func NewCreateTransactionRouteRequestWithBody(server string, organizationId stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transaction-routes", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10522,7 +11611,7 @@ func NewDeleteTransactionRouteRequest(server string, organizationId string, ledg
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10570,7 +11659,7 @@ func NewGetTransactionRouteByIDRequest(server string, organizationId string, led
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10629,7 +11718,7 @@ func NewUpdateTransactionRouteRequestWithBody(server string, organizationId stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10672,7 +11761,7 @@ func NewGetAllTransactionsRequest(server string, organizationId string, ledgerId
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10826,7 +11915,87 @@ func NewCreateTransactionAnnotationRequestWithBody(server string, organizationId
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/annotation", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/annotation", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateTransactionBlockRequest calls the generic CreateTransactionBlock builder with application/json body
+func NewCreateTransactionBlockRequest(server string, organizationId string, ledgerId string, params *CreateTransactionBlockParams, body CreateTransactionBlockJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTransactionBlockRequestWithBody(server, organizationId, ledgerId, params, "application/json", bodyReader)
+}
+
+// NewCreateTransactionBlockRequestWithBody generates requests for CreateTransactionBlock with any type of body
+func NewCreateTransactionBlockRequestWithBody(server string, organizationId string, ledgerId string, params *CreateTransactionBlockParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/block", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10906,7 +12075,7 @@ func NewCreateTransactionInflowRequestWithBody(server string, organizationId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/inflow", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10986,7 +12155,7 @@ func NewCreateTransactionJSONRequestWithBody(server string, organizationId strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/json", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/json", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11055,7 +12224,7 @@ func NewCountTransactionsByFiltersRequest(server string, organizationId string, 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/metrics/count", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/metrics/count", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11177,7 +12346,87 @@ func NewCreateTransactionOutflowRequestWithBody(server string, organizationId st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/outflow", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateTransactionUnblockRequest calls the generic CreateTransactionUnblock builder with application/json body
+func NewCreateTransactionUnblockRequest(server string, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, body CreateTransactionUnblockJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTransactionUnblockRequestWithBody(server, organizationId, ledgerId, params, "application/json", bodyReader)
+}
+
+// NewCreateTransactionUnblockRequestWithBody generates requests for CreateTransactionUnblock with any type of body
+func NewCreateTransactionUnblockRequestWithBody(server string, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/unblock", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11253,7 +12502,7 @@ func NewGetTransactionRequest(server string, organizationId string, ledgerId str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11312,7 +12561,7 @@ func NewUpdateTransactionRequestWithBody(server string, organizationId string, l
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11362,7 +12611,7 @@ func NewCancelTransactionRequest(server string, organizationId string, ledgerId 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/%s/cancel", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s/cancel", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11410,7 +12659,7 @@ func NewCommitTransactionRequest(server string, organizationId string, ledgerId 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/%s/commit", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s/commit", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11476,7 +12725,7 @@ func NewUpdateOperationRequestWithBody(server string, organizationId string, led
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/%s/operations/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s/operations/%s", pathParam0, pathParam1, pathParam2, pathParam3)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11526,7 +12775,7 @@ func NewRevertTransactionRequest(server string, organizationId string, ledgerId 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions/%s/revert", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s/revert", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11544,8 +12793,531 @@ func NewRevertTransactionRequest(server string, organizationId string, ledgerId 
 	return req, nil
 }
 
-// NewGetAllPackagesRequest generates requests for GetAllPackages
-func NewGetAllPackagesRequest(server string, organizationId string, params *GetAllPackagesParams) (*http.Request, error) {
+// NewGetAllMetadataIndexesRequest generates requests for GetAllMetadataIndexes
+func NewGetAllMetadataIndexesRequest(server string, params *GetAllMetadataIndexesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/settings/metadata-indexes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.EntityName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "entity_name", runtime.ParamLocationQuery, *params.EntityName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateMetadataIndexRequest calls the generic CreateMetadataIndex builder with application/json body
+func NewCreateMetadataIndexRequest(server string, entityName string, body CreateMetadataIndexJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateMetadataIndexRequestWithBody(server, entityName, "application/json", bodyReader)
+}
+
+// NewCreateMetadataIndexRequestWithBody generates requests for CreateMetadataIndex with any type of body
+func NewCreateMetadataIndexRequestWithBody(server string, entityName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "entity_name", runtime.ParamLocationPath, entityName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/settings/metadata-indexes/entities/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteMetadataIndexRequest generates requests for DeleteMetadataIndex
+func NewDeleteMetadataIndexRequest(server string, entityName string, indexKey string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "entity_name", runtime.ParamLocationPath, entityName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "index_key", runtime.ParamLocationPath, indexKey)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/settings/metadata-indexes/entities/%s/key/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListOrganizationsV2Request generates requests for ListOrganizationsV2
+func NewListOrganizationsV2Request(server string, params *ListOrganizationsV2Params) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LegalName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "legal_name", runtime.ParamLocationQuery, *params.LegalName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.DoingBusinessAs != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "doing_business_as", runtime.ParamLocationQuery, *params.DoingBusinessAs); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LegalDocument != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "legal_document", runtime.ParamLocationQuery, *params.LegalDocument); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateOrganizationV2Request calls the generic CreateOrganizationV2 builder with application/json body
+func NewCreateOrganizationV2Request(server string, body CreateOrganizationV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateOrganizationV2RequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateOrganizationV2RequestWithBody generates requests for CreateOrganizationV2 with any type of body
+func NewCreateOrganizationV2RequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCountOrganizationsV2Request generates requests for CountOrganizationsV2
+func NewCountOrganizationsV2Request(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/metrics/count")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("HEAD", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteOrganizationV2Request generates requests for DeleteOrganizationV2
+func NewDeleteOrganizationV2Request(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetOrganizationByIDV2Request generates requests for GetOrganizationByIDV2
+func NewGetOrganizationByIDV2Request(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateOrganizationV2Request calls the generic UpdateOrganizationV2 builder with application/json body
+func NewUpdateOrganizationV2Request(server string, id string, body UpdateOrganizationV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateOrganizationV2RequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewUpdateOrganizationV2RequestWithBody generates requests for UpdateOrganizationV2 with any type of body
+func NewUpdateOrganizationV2RequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewProvisionEncryptionV2Request calls the generic ProvisionEncryptionV2 builder with application/json body
+func NewProvisionEncryptionV2Request(server string, organizationId string, params *ProvisionEncryptionV2Params, body ProvisionEncryptionV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewProvisionEncryptionV2RequestWithBody(server, organizationId, params, "application/json", bodyReader)
+}
+
+// NewProvisionEncryptionV2RequestWithBody generates requests for ProvisionEncryptionV2 with any type of body
+func NewProvisionEncryptionV2RequestWithBody(server string, organizationId string, params *ProvisionEncryptionV2Params, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11560,7 +13332,107 @@ func NewGetAllPackagesRequest(server string, organizationId string, params *GetA
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/packages", pathParam0)
+	operationPath := fmt.Sprintf("/v2/organizations/%s/encryption/provision", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Authorization != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Authorization", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetProvisioningStatusV2Request generates requests for GetProvisioningStatusV2
+func NewGetProvisioningStatusV2Request(server string, organizationId string, params *GetProvisioningStatusV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/encryption/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.Authorization != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Authorization", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListHoldersV2Request generates requests for ListHoldersV2
+func NewListHoldersV2Request(server string, organizationId string, params *ListHoldersV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11573,9 +13445,941 @@ func NewGetAllPackagesRequest(server string, organizationId string, params *GetA
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.SegmentId != nil {
+		if params.Metadata != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "segmentId", runtime.ParamLocationQuery, *params.SegmentId); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IncludeDeleted != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "include_deleted", runtime.ParamLocationQuery, *params.IncludeDeleted); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "external_id", runtime.ParamLocationQuery, *params.ExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Document != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "document", runtime.ParamLocationQuery, *params.Document); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateHolderV2Request calls the generic CreateHolderV2 builder with application/json body
+func NewCreateHolderV2Request(server string, organizationId string, params *CreateHolderV2Params, body CreateHolderV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateHolderV2RequestWithBody(server, organizationId, params, "application/json", bodyReader)
+}
+
+// NewCreateHolderV2RequestWithBody generates requests for CreateHolderV2 with any type of body
+func NewCreateHolderV2RequestWithBody(server string, organizationId string, params *CreateHolderV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateInstrumentV2Request calls the generic CreateInstrumentV2 builder with application/json body
+func NewCreateInstrumentV2Request(server string, organizationId string, holderId string, params *CreateInstrumentV2Params, body CreateInstrumentV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateInstrumentV2RequestWithBody(server, organizationId, holderId, params, "application/json", bodyReader)
+}
+
+// NewCreateInstrumentV2RequestWithBody generates requests for CreateInstrumentV2 with any type of body
+func NewCreateInstrumentV2RequestWithBody(server string, organizationId string, holderId string, params *CreateInstrumentV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s/instruments", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteInstrumentV2Request generates requests for DeleteInstrumentV2
+func NewDeleteInstrumentV2Request(server string, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "instrument_id", runtime.ParamLocationPath, instrumentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s/instruments/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.HardDelete != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "hard_delete", runtime.ParamLocationQuery, *params.HardDelete); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetInstrumentByIDV2Request generates requests for GetInstrumentByIDV2
+func NewGetInstrumentByIDV2Request(server string, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "instrument_id", runtime.ParamLocationPath, instrumentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s/instruments/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.IncludeDeleted != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "include_deleted", runtime.ParamLocationQuery, *params.IncludeDeleted); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateInstrumentV2Request calls the generic UpdateInstrumentV2 builder with application/json body
+func NewUpdateInstrumentV2Request(server string, organizationId string, holderId string, instrumentId string, body UpdateInstrumentV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateInstrumentV2RequestWithBody(server, organizationId, holderId, instrumentId, "application/json", bodyReader)
+}
+
+// NewUpdateInstrumentV2RequestWithBody generates requests for UpdateInstrumentV2 with any type of body
+func NewUpdateInstrumentV2RequestWithBody(server string, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "instrument_id", runtime.ParamLocationPath, instrumentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s/instruments/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteRelatedPartyV2Request generates requests for DeleteRelatedPartyV2
+func NewDeleteRelatedPartyV2Request(server string, organizationId string, holderId string, instrumentId string, relatedPartyId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "holder_id", runtime.ParamLocationPath, holderId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "instrument_id", runtime.ParamLocationPath, instrumentId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "related_party_id", runtime.ParamLocationPath, relatedPartyId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s/instruments/%s/related-parties/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteHolderV2Request generates requests for DeleteHolderV2
+func NewDeleteHolderV2Request(server string, organizationId string, id string, params *DeleteHolderV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.HardDelete != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "hard_delete", runtime.ParamLocationQuery, *params.HardDelete); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetHolderByIDV2Request generates requests for GetHolderByIDV2
+func NewGetHolderByIDV2Request(server string, organizationId string, id string, params *GetHolderByIDV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.IncludeDeleted != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "include_deleted", runtime.ParamLocationQuery, *params.IncludeDeleted); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateHolderV2Request calls the generic UpdateHolderV2 builder with application/json body
+func NewUpdateHolderV2Request(server string, organizationId string, id string, body UpdateHolderV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateHolderV2RequestWithBody(server, organizationId, id, "application/json", bodyReader)
+}
+
+// NewUpdateHolderV2RequestWithBody generates requests for UpdateHolderV2 with any type of body
+func NewUpdateHolderV2RequestWithBody(server string, organizationId string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAccountsByHolderV2Request generates requests for ListAccountsByHolderV2
+func NewListAccountsByHolderV2Request(server string, organizationId string, id string, params *ListAccountsByHolderV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/holders/%s/accounts", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListInstrumentsV2Request generates requests for ListInstrumentsV2
+func NewListInstrumentsV2Request(server string, organizationId string, params *ListInstrumentsV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/instruments", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.HolderId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "holder_id", runtime.ParamLocationQuery, *params.HolderId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IncludeDeleted != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "include_deleted", runtime.ParamLocationQuery, *params.IncludeDeleted); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AccountId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "account_id", runtime.ParamLocationQuery, *params.AccountId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -11591,7 +14395,3760 @@ func NewGetAllPackagesRequest(server string, organizationId string, params *GetA
 
 		if params.LedgerId != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "ledgerId", runtime.ParamLocationQuery, *params.LedgerId); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "ledger_id", runtime.ParamLocationQuery, *params.LedgerId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Document != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "document", runtime.ParamLocationQuery, *params.Document); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListLedgersV2Request generates requests for ListLedgersV2
+func NewListLedgersV2Request(server string, organizationId string, params *ListLedgersV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateLedgerV2Request calls the generic CreateLedgerV2 builder with application/json body
+func NewCreateLedgerV2Request(server string, organizationId string, body CreateLedgerV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateLedgerV2RequestWithBody(server, organizationId, "application/json", bodyReader)
+}
+
+// NewCreateLedgerV2RequestWithBody generates requests for CreateLedgerV2 with any type of body
+func NewCreateLedgerV2RequestWithBody(server string, organizationId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCountLedgersV2Request generates requests for CountLedgersV2
+func NewCountLedgersV2Request(server string, organizationId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/metrics/count", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("HEAD", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteLedgerV2Request generates requests for DeleteLedgerV2
+func NewDeleteLedgerV2Request(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLedgerByIDV2Request generates requests for GetLedgerByIDV2
+func NewGetLedgerByIDV2Request(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateLedgerV2Request calls the generic UpdateLedgerV2 builder with application/json body
+func NewUpdateLedgerV2Request(server string, organizationId string, ledgerId string, body UpdateLedgerV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateLedgerV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewUpdateLedgerV2RequestWithBody generates requests for UpdateLedgerV2 with any type of body
+func NewUpdateLedgerV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAccountTypesV2Request generates requests for ListAccountTypesV2
+func NewListAccountTypesV2Request(server string, organizationId string, ledgerId string, params *ListAccountTypesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/account-types", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.KeyValue != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "key_value", runtime.ParamLocationQuery, *params.KeyValue); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAccountTypeV2Request calls the generic CreateAccountTypeV2 builder with application/json body
+func NewCreateAccountTypeV2Request(server string, organizationId string, ledgerId string, body CreateAccountTypeV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAccountTypeV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewCreateAccountTypeV2RequestWithBody generates requests for CreateAccountTypeV2 with any type of body
+func NewCreateAccountTypeV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/account-types", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAccountTypeV2Request generates requests for DeleteAccountTypeV2
+func NewDeleteAccountTypeV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAccountTypeByIDV2Request generates requests for GetAccountTypeByIDV2
+func NewGetAccountTypeByIDV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAccountTypeV2Request calls the generic UpdateAccountTypeV2 builder with application/json body
+func NewUpdateAccountTypeV2Request(server string, organizationId string, ledgerId string, id string, body UpdateAccountTypeV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAccountTypeV2RequestWithBody(server, organizationId, ledgerId, id, "application/json", bodyReader)
+}
+
+// NewUpdateAccountTypeV2RequestWithBody generates requests for UpdateAccountTypeV2 with any type of body
+func NewUpdateAccountTypeV2RequestWithBody(server string, organizationId string, ledgerId string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/account-types/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAccountsV2Request generates requests for ListAccountsV2
+func NewListAccountsV2Request(server string, organizationId string, ledgerId string, params *ListAccountsV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PortfolioId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "portfolio_id", runtime.ParamLocationQuery, *params.PortfolioId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SegmentId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "segment_id", runtime.ParamLocationQuery, *params.SegmentId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Type != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "type", runtime.ParamLocationQuery, *params.Type); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AssetCode != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "asset_code", runtime.ParamLocationQuery, *params.AssetCode); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EntityId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "entity_id", runtime.ParamLocationQuery, *params.EntityId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Blocked != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "blocked", runtime.ParamLocationQuery, *params.Blocked); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ParentAccountId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "parent_account_id", runtime.ParamLocationQuery, *params.ParentAccountId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Alias != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "alias", runtime.ParamLocationQuery, *params.Alias); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAccountV2Request calls the generic CreateAccountV2 builder with application/json body
+func NewCreateAccountV2Request(server string, organizationId string, ledgerId string, params *CreateAccountV2Params, body CreateAccountV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAccountV2RequestWithBody(server, organizationId, ledgerId, params, "application/json", bodyReader)
+}
+
+// NewCreateAccountV2RequestWithBody generates requests for CreateAccountV2 with any type of body
+func NewCreateAccountV2RequestWithBody(server string, organizationId string, ledgerId string, params *CreateAccountV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Authorization != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Authorization", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetAccountByAliasV2Request generates requests for GetAccountByAliasV2
+func NewGetAccountByAliasV2Request(server string, organizationId string, ledgerId string, alias string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "alias", runtime.ParamLocationPath, alias)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/alias/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBalancesByAliasV2Request generates requests for GetBalancesByAliasV2
+func NewGetBalancesByAliasV2Request(server string, organizationId string, ledgerId string, alias string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "alias", runtime.ParamLocationPath, alias)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/alias/%s/balances", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAccountExternalByCodeV2Request generates requests for GetAccountExternalByCodeV2
+func NewGetAccountExternalByCodeV2Request(server string, organizationId string, ledgerId string, code string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "code", runtime.ParamLocationPath, code)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/external/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBalancesExternalByCodeV2Request generates requests for GetBalancesExternalByCodeV2
+func NewGetBalancesExternalByCodeV2Request(server string, organizationId string, ledgerId string, code string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "code", runtime.ParamLocationPath, code)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/external/%s/balances", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCountAccountsV2Request generates requests for CountAccountsV2
+func NewCountAccountsV2Request(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/metrics/count", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("HEAD", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAllBalancesByAccountIDV2Request generates requests for GetAllBalancesByAccountIDV2
+func NewGetAllBalancesByAccountIDV2Request(server string, organizationId string, ledgerId string, accountId string, params *GetAllBalancesByAccountIDV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "account_id", runtime.ParamLocationPath, accountId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/balances", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAdditionalBalanceV2Request calls the generic CreateAdditionalBalanceV2 builder with application/json body
+func NewCreateAdditionalBalanceV2Request(server string, organizationId string, ledgerId string, accountId string, body CreateAdditionalBalanceV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAdditionalBalanceV2RequestWithBody(server, organizationId, ledgerId, accountId, "application/json", bodyReader)
+}
+
+// NewCreateAdditionalBalanceV2RequestWithBody generates requests for CreateAdditionalBalanceV2 with any type of body
+func NewCreateAdditionalBalanceV2RequestWithBody(server string, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "account_id", runtime.ParamLocationPath, accountId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/balances", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAccountBalancesAtTimestampV2Request generates requests for GetAccountBalancesAtTimestampV2
+func NewGetAccountBalancesAtTimestampV2Request(server string, organizationId string, ledgerId string, accountId string, params *GetAccountBalancesAtTimestampV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "account_id", runtime.ParamLocationPath, accountId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/balances/history", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Date != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "date", runtime.ParamLocationQuery, *params.Date); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAllOperationsByAccountV2Request generates requests for GetAllOperationsByAccountV2
+func NewGetAllOperationsByAccountV2Request(server string, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "account_id", runtime.ParamLocationPath, accountId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/operations", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Type != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "type", runtime.ParamLocationQuery, *params.Type); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Direction != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "direction", runtime.ParamLocationQuery, *params.Direction); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.RouteId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "route_id", runtime.ParamLocationQuery, *params.RouteId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.RouteCode != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "route_code", runtime.ParamLocationQuery, *params.RouteCode); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetOperationByAccountV2Request generates requests for GetOperationByAccountV2
+func NewGetOperationByAccountV2Request(server string, organizationId string, ledgerId string, accountId string, operationId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "account_id", runtime.ParamLocationPath, accountId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "operation_id", runtime.ParamLocationPath, operationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/operations/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteAccountV2Request generates requests for DeleteAccountV2
+func NewDeleteAccountV2Request(server string, organizationId string, ledgerId string, id string, params *DeleteAccountV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.Authorization != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Authorization", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetAccountByIDV2Request generates requests for GetAccountByIDV2
+func NewGetAccountByIDV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAccountV2Request calls the generic UpdateAccountV2 builder with application/json body
+func NewUpdateAccountV2Request(server string, organizationId string, ledgerId string, id string, body UpdateAccountV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAccountV2RequestWithBody(server, organizationId, ledgerId, id, "application/json", bodyReader)
+}
+
+// NewUpdateAccountV2RequestWithBody generates requests for UpdateAccountV2 with any type of body
+func NewUpdateAccountV2RequestWithBody(server string, organizationId string, ledgerId string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListAssetsV2Request generates requests for ListAssetsV2
+func NewListAssetsV2Request(server string, organizationId string, ledgerId string, params *ListAssetsV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/assets", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAssetV2Request calls the generic CreateAssetV2 builder with application/json body
+func NewCreateAssetV2Request(server string, organizationId string, ledgerId string, params *CreateAssetV2Params, body CreateAssetV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAssetV2RequestWithBody(server, organizationId, ledgerId, params, "application/json", bodyReader)
+}
+
+// NewCreateAssetV2RequestWithBody generates requests for CreateAssetV2 with any type of body
+func NewCreateAssetV2RequestWithBody(server string, organizationId string, ledgerId string, params *CreateAssetV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/assets", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Authorization != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Authorization", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCountAssetsV2Request generates requests for CountAssetsV2
+func NewCountAssetsV2Request(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/assets/metrics/count", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("HEAD", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteAssetV2Request generates requests for DeleteAssetV2
+func NewDeleteAssetV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAssetByIDV2Request generates requests for GetAssetByIDV2
+func NewGetAssetByIDV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAssetV2Request calls the generic UpdateAssetV2 builder with application/json body
+func NewUpdateAssetV2Request(server string, organizationId string, ledgerId string, id string, body UpdateAssetV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAssetV2RequestWithBody(server, organizationId, ledgerId, id, "application/json", bodyReader)
+}
+
+// NewUpdateAssetV2RequestWithBody generates requests for UpdateAssetV2 with any type of body
+func NewUpdateAssetV2RequestWithBody(server string, organizationId string, ledgerId string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/assets/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAllBalancesV2Request generates requests for GetAllBalancesV2
+func NewGetAllBalancesV2Request(server string, organizationId string, ledgerId string, params *GetAllBalancesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/balances", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteBalanceV2Request generates requests for DeleteBalanceV2
+func NewDeleteBalanceV2Request(server string, organizationId string, ledgerId string, balanceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "balance_id", runtime.ParamLocationPath, balanceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBalanceByIDV2Request generates requests for GetBalanceByIDV2
+func NewGetBalanceByIDV2Request(server string, organizationId string, ledgerId string, balanceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "balance_id", runtime.ParamLocationPath, balanceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateBalanceV2Request calls the generic UpdateBalanceV2 builder with application/json body
+func NewUpdateBalanceV2Request(server string, organizationId string, ledgerId string, balanceId string, body UpdateBalanceV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateBalanceV2RequestWithBody(server, organizationId, ledgerId, balanceId, "application/json", bodyReader)
+}
+
+// NewUpdateBalanceV2RequestWithBody generates requests for UpdateBalanceV2 with any type of body
+func NewUpdateBalanceV2RequestWithBody(server string, organizationId string, ledgerId string, balanceId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "balance_id", runtime.ParamLocationPath, balanceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/balances/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetBalanceAtTimestampV2Request generates requests for GetBalanceAtTimestampV2
+func NewGetBalanceAtTimestampV2Request(server string, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "balance_id", runtime.ParamLocationPath, balanceId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/balances/%s/history", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Date != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "date", runtime.ParamLocationQuery, *params.Date); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAllBillingPackagesV2Request generates requests for GetAllBillingPackagesV2
+func NewGetAllBillingPackagesV2Request(server string, organizationId string, ledgerId string, params *GetAllBillingPackagesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing-packages", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Type != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "type", runtime.ParamLocationQuery, *params.Type); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateBillingPackageV2Request calls the generic CreateBillingPackageV2 builder with application/json body
+func NewCreateBillingPackageV2Request(server string, organizationId string, ledgerId string, body CreateBillingPackageV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateBillingPackageV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewCreateBillingPackageV2RequestWithBody generates requests for CreateBillingPackageV2 with any type of body
+func NewCreateBillingPackageV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing-packages", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteBillingPackageV2Request generates requests for DeleteBillingPackageV2
+func NewDeleteBillingPackageV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing-packages/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBillingPackageByIDV2Request generates requests for GetBillingPackageByIDV2
+func NewGetBillingPackageByIDV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing-packages/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateBillingPackageV2Request calls the generic UpdateBillingPackageV2 builder with application/json body
+func NewUpdateBillingPackageV2Request(server string, organizationId string, ledgerId string, id string, body UpdateBillingPackageV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateBillingPackageV2RequestWithBody(server, organizationId, ledgerId, id, "application/json", bodyReader)
+}
+
+// NewUpdateBillingPackageV2RequestWithBody generates requests for UpdateBillingPackageV2 with any type of body
+func NewUpdateBillingPackageV2RequestWithBody(server string, organizationId string, ledgerId string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing-packages/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCalculateBillingV2Request calls the generic CalculateBillingV2 builder with application/json body
+func NewCalculateBillingV2Request(server string, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCalculateBillingV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewCalculateBillingV2RequestWithBody generates requests for CalculateBillingV2 with any type of body
+func NewCalculateBillingV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing/calculate", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewEstimateFeeCalculationV2Request calls the generic EstimateFeeCalculationV2 builder with application/json body
+func NewEstimateFeeCalculationV2Request(server string, organizationId string, ledgerId string, body EstimateFeeCalculationV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEstimateFeeCalculationV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewEstimateFeeCalculationV2RequestWithBody generates requests for EstimateFeeCalculationV2 with any type of body
+func NewEstimateFeeCalculationV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/estimates", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCreateHolderAccountV2Request calls the generic CreateHolderAccountV2 builder with application/json body
+func NewCreateHolderAccountV2Request(server string, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, body CreateHolderAccountV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateHolderAccountV2RequestWithBody(server, organizationId, ledgerId, id, params, "application/json", bodyReader)
+}
+
+// NewCreateHolderAccountV2RequestWithBody generates requests for CreateHolderAccountV2 with any type of body
+func NewCreateHolderAccountV2RequestWithBody(server string, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/holders/%s/accounts", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Authorization != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "Authorization", runtime.ParamLocationHeader, *params.Authorization)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Authorization", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListOperationRoutesV2Request generates requests for ListOperationRoutesV2
+func NewListOperationRoutesV2Request(server string, organizationId string, ledgerId string, params *ListOperationRoutesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/operation-routes", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateOperationRouteV2Request calls the generic CreateOperationRouteV2 builder with application/json body
+func NewCreateOperationRouteV2Request(server string, organizationId string, ledgerId string, body CreateOperationRouteV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateOperationRouteV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewCreateOperationRouteV2RequestWithBody generates requests for CreateOperationRouteV2 with any type of body
+func NewCreateOperationRouteV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/operation-routes", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteOperationRouteV2Request generates requests for DeleteOperationRouteV2
+func NewDeleteOperationRouteV2Request(server string, organizationId string, ledgerId string, operationRouteId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "operation_route_id", runtime.ParamLocationPath, operationRouteId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetOperationRouteByIDV2Request generates requests for GetOperationRouteByIDV2
+func NewGetOperationRouteByIDV2Request(server string, organizationId string, ledgerId string, operationRouteId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "operation_route_id", runtime.ParamLocationPath, operationRouteId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateOperationRouteV2Request calls the generic UpdateOperationRouteV2 builder with application/json body
+func NewUpdateOperationRouteV2Request(server string, organizationId string, ledgerId string, operationRouteId string, body UpdateOperationRouteV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateOperationRouteV2RequestWithBody(server, organizationId, ledgerId, operationRouteId, "application/json", bodyReader)
+}
+
+// NewUpdateOperationRouteV2RequestWithBody generates requests for UpdateOperationRouteV2 with any type of body
+func NewUpdateOperationRouteV2RequestWithBody(server string, organizationId string, ledgerId string, operationRouteId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "operation_route_id", runtime.ParamLocationPath, operationRouteId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/operation-routes/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAllPackagesV2Request generates requests for GetAllPackagesV2
+func NewGetAllPackagesV2Request(server string, organizationId string, ledgerId string, params *GetAllPackagesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/packages", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.SegmentId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "segmentId", runtime.ParamLocationQuery, *params.SegmentId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -11680,19 +18237,19 @@ func NewGetAllPackagesRequest(server string, organizationId string, params *GetA
 	return req, nil
 }
 
-// NewCreatePackageRequest calls the generic CreatePackage builder with application/json body
-func NewCreatePackageRequest(server string, organizationId string, body CreatePackageJSONRequestBody) (*http.Request, error) {
+// NewCreatePackageV2Request calls the generic CreatePackageV2 builder with application/json body
+func NewCreatePackageV2Request(server string, organizationId string, ledgerId string, body CreatePackageV2JSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreatePackageRequestWithBody(server, organizationId, "application/json", bodyReader)
+	return NewCreatePackageV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
 }
 
-// NewCreatePackageRequestWithBody generates requests for CreatePackage with any type of body
-func NewCreatePackageRequestWithBody(server string, organizationId string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreatePackageV2RequestWithBody generates requests for CreatePackageV2 with any type of body
+func NewCreatePackageV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11702,12 +18259,19 @@ func NewCreatePackageRequestWithBody(server string, organizationId string, conte
 		return nil, err
 	}
 
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/packages", pathParam0)
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/packages", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11727,8 +18291,8 @@ func NewCreatePackageRequestWithBody(server string, organizationId string, conte
 	return req, nil
 }
 
-// NewDeletePackageRequest generates requests for DeletePackage
-func NewDeletePackageRequest(server string, organizationId string, id string) (*http.Request, error) {
+// NewDeletePackageV2Request generates requests for DeletePackageV2
+func NewDeletePackageV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11740,7 +18304,14 @@ func NewDeletePackageRequest(server string, organizationId string, id string) (*
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -11750,7 +18321,7 @@ func NewDeletePackageRequest(server string, organizationId string, id string) (*
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/packages/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/packages/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11768,8 +18339,8 @@ func NewDeletePackageRequest(server string, organizationId string, id string) (*
 	return req, nil
 }
 
-// NewGetPackageByIDRequest generates requests for GetPackageByID
-func NewGetPackageByIDRequest(server string, organizationId string, id string) (*http.Request, error) {
+// NewGetPackageByIDV2Request generates requests for GetPackageByIDV2
+func NewGetPackageByIDV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11781,7 +18352,14 @@ func NewGetPackageByIDRequest(server string, organizationId string, id string) (
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -11791,7 +18369,7 @@ func NewGetPackageByIDRequest(server string, organizationId string, id string) (
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/packages/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/packages/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11809,19 +18387,19 @@ func NewGetPackageByIDRequest(server string, organizationId string, id string) (
 	return req, nil
 }
 
-// NewUpdatePackageRequest calls the generic UpdatePackage builder with application/json body
-func NewUpdatePackageRequest(server string, organizationId string, id string, body UpdatePackageJSONRequestBody) (*http.Request, error) {
+// NewUpdatePackageV2Request calls the generic UpdatePackageV2 builder with application/json body
+func NewUpdatePackageV2Request(server string, organizationId string, ledgerId string, id string, body UpdatePackageV2JSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdatePackageRequestWithBody(server, organizationId, id, "application/json", bodyReader)
+	return NewUpdatePackageV2RequestWithBody(server, organizationId, ledgerId, id, "application/json", bodyReader)
 }
 
-// NewUpdatePackageRequestWithBody generates requests for UpdatePackage with any type of body
-func NewUpdatePackageRequestWithBody(server string, organizationId string, id string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpdatePackageV2RequestWithBody generates requests for UpdatePackageV2 with any type of body
+func NewUpdatePackageV2RequestWithBody(server string, organizationId string, ledgerId string, id string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11833,7 +18411,14 @@ func NewUpdatePackageRequestWithBody(server string, organizationId string, id st
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -11843,7 +18428,7 @@ func NewUpdatePackageRequestWithBody(server string, organizationId string, id st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/packages/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/packages/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11863,8 +18448,1838 @@ func NewUpdatePackageRequestWithBody(server string, organizationId string, id st
 	return req, nil
 }
 
-// NewGetAuditEventsRequest generates requests for GetAuditEvents
-func NewGetAuditEventsRequest(server string, organizationId string, params *GetAuditEventsParams) (*http.Request, error) {
+// NewListPortfoliosV2Request generates requests for ListPortfoliosV2
+func NewListPortfoliosV2Request(server string, organizationId string, ledgerId string, params *ListPortfoliosV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/portfolios", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EntityId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "entity_id", runtime.ParamLocationQuery, *params.EntityId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreatePortfolioV2Request calls the generic CreatePortfolioV2 builder with application/json body
+func NewCreatePortfolioV2Request(server string, organizationId string, ledgerId string, body CreatePortfolioV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreatePortfolioV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewCreatePortfolioV2RequestWithBody generates requests for CreatePortfolioV2 with any type of body
+func NewCreatePortfolioV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/portfolios", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCountPortfoliosV2Request generates requests for CountPortfoliosV2
+func NewCountPortfoliosV2Request(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/portfolios/metrics/count", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("HEAD", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeletePortfolioV2Request generates requests for DeletePortfolioV2
+func NewDeletePortfolioV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetPortfolioByIDV2Request generates requests for GetPortfolioByIDV2
+func NewGetPortfolioByIDV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdatePortfolioV2Request calls the generic UpdatePortfolioV2 builder with application/json body
+func NewUpdatePortfolioV2Request(server string, organizationId string, ledgerId string, id string, body UpdatePortfolioV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdatePortfolioV2RequestWithBody(server, organizationId, ledgerId, id, "application/json", bodyReader)
+}
+
+// NewUpdatePortfolioV2RequestWithBody generates requests for UpdatePortfolioV2 with any type of body
+func NewUpdatePortfolioV2RequestWithBody(server string, organizationId string, ledgerId string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/portfolios/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListSegmentsV2Request generates requests for ListSegmentsV2
+func NewListSegmentsV2Request(server string, organizationId string, ledgerId string, params *ListSegmentsV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/segments", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateSegmentV2Request calls the generic CreateSegmentV2 builder with application/json body
+func NewCreateSegmentV2Request(server string, organizationId string, ledgerId string, body CreateSegmentV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateSegmentV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewCreateSegmentV2RequestWithBody generates requests for CreateSegmentV2 with any type of body
+func NewCreateSegmentV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/segments", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCountSegmentsV2Request generates requests for CountSegmentsV2
+func NewCountSegmentsV2Request(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/segments/metrics/count", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("HEAD", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteSegmentV2Request generates requests for DeleteSegmentV2
+func NewDeleteSegmentV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetSegmentByIDV2Request generates requests for GetSegmentByIDV2
+func NewGetSegmentByIDV2Request(server string, organizationId string, ledgerId string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateSegmentV2Request calls the generic UpdateSegmentV2 builder with application/json body
+func NewUpdateSegmentV2Request(server string, organizationId string, ledgerId string, id string, body UpdateSegmentV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSegmentV2RequestWithBody(server, organizationId, ledgerId, id, "application/json", bodyReader)
+}
+
+// NewUpdateSegmentV2RequestWithBody generates requests for UpdateSegmentV2 with any type of body
+func NewUpdateSegmentV2RequestWithBody(server string, organizationId string, ledgerId string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/segments/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetLedgerSettingsV2Request generates requests for GetLedgerSettingsV2
+func NewGetLedgerSettingsV2Request(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/settings", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateLedgerSettingsV2Request calls the generic UpdateLedgerSettingsV2 builder with application/json body
+func NewUpdateLedgerSettingsV2Request(server string, organizationId string, ledgerId string, body UpdateLedgerSettingsV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateLedgerSettingsV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewUpdateLedgerSettingsV2RequestWithBody generates requests for UpdateLedgerSettingsV2 with any type of body
+func NewUpdateLedgerSettingsV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/settings", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListTransactionRoutesV2Request generates requests for ListTransactionRoutesV2
+func NewListTransactionRoutesV2Request(server string, organizationId string, ledgerId string, params *ListTransactionRoutesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transaction-routes", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateTransactionRouteV2Request calls the generic CreateTransactionRouteV2 builder with application/json body
+func NewCreateTransactionRouteV2Request(server string, organizationId string, ledgerId string, body CreateTransactionRouteV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTransactionRouteV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewCreateTransactionRouteV2RequestWithBody generates requests for CreateTransactionRouteV2 with any type of body
+func NewCreateTransactionRouteV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transaction-routes", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteTransactionRouteV2Request generates requests for DeleteTransactionRouteV2
+func NewDeleteTransactionRouteV2Request(server string, organizationId string, ledgerId string, transactionRouteId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_route_id", runtime.ParamLocationPath, transactionRouteId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetTransactionRouteByIDV2Request generates requests for GetTransactionRouteByIDV2
+func NewGetTransactionRouteByIDV2Request(server string, organizationId string, ledgerId string, transactionRouteId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_route_id", runtime.ParamLocationPath, transactionRouteId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateTransactionRouteV2Request calls the generic UpdateTransactionRouteV2 builder with application/json body
+func NewUpdateTransactionRouteV2Request(server string, organizationId string, ledgerId string, transactionRouteId string, body UpdateTransactionRouteV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateTransactionRouteV2RequestWithBody(server, organizationId, ledgerId, transactionRouteId, "application/json", bodyReader)
+}
+
+// NewUpdateTransactionRouteV2RequestWithBody generates requests for UpdateTransactionRouteV2 with any type of body
+func NewUpdateTransactionRouteV2RequestWithBody(server string, organizationId string, ledgerId string, transactionRouteId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_route_id", runtime.ParamLocationPath, transactionRouteId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transaction-routes/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAllTransactionsV2Request generates requests for GetAllTransactionsV2
+func NewGetAllTransactionsV2Request(server string, organizationId string, ledgerId string, params *GetAllTransactionsV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Metadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "metadata", runtime.ParamLocationQuery, *params.Metadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "sort_order", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCountTransactionsByFiltersV2Request generates requests for CountTransactionsByFiltersV2
+func NewCountTransactionsByFiltersV2Request(server string, organizationId string, ledgerId string, params *CountTransactionsByFiltersV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions/metrics/count", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Route != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "route", runtime.ParamLocationQuery, *params.Route); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "start_date", runtime.ParamLocationQuery, *params.StartDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", false, "end_date", runtime.ParamLocationQuery, *params.EndDate); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("HEAD", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetTransactionV2Request generates requests for GetTransactionV2
+func NewGetTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_id", runtime.ParamLocationPath, transactionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateTransactionV2Request calls the generic UpdateTransactionV2 builder with application/json body
+func NewUpdateTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string, body UpdateTransactionV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateTransactionV2RequestWithBody(server, organizationId, ledgerId, transactionId, "application/json", bodyReader)
+}
+
+// NewUpdateTransactionV2RequestWithBody generates requests for UpdateTransactionV2 with any type of body
+func NewUpdateTransactionV2RequestWithBody(server string, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_id", runtime.ParamLocationPath, transactionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCancelTransactionV2Request generates requests for CancelTransactionV2
+func NewCancelTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_id", runtime.ParamLocationPath, transactionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions/%s/cancel", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCommitTransactionV2Request generates requests for CommitTransactionV2
+func NewCommitTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_id", runtime.ParamLocationPath, transactionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions/%s/commit", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateOperationV2Request calls the generic UpdateOperationV2 builder with application/json body
+func NewUpdateOperationV2Request(server string, organizationId string, ledgerId string, transactionId string, operationId string, body UpdateOperationV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateOperationV2RequestWithBody(server, organizationId, ledgerId, transactionId, operationId, "application/json", bodyReader)
+}
+
+// NewUpdateOperationV2RequestWithBody generates requests for UpdateOperationV2 with any type of body
+func NewUpdateOperationV2RequestWithBody(server string, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_id", runtime.ParamLocationPath, transactionId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithLocation("simple", false, "operation_id", runtime.ParamLocationPath, operationId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions/%s/operations/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRevertTransactionV2Request generates requests for RevertTransactionV2
+func NewRevertTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "organization_id", runtime.ParamLocationPath, organizationId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ledger_id", runtime.ParamLocationPath, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "transaction_id", runtime.ParamLocationPath, transactionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions/%s/revert", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAuditEventsV2Request generates requests for GetAuditEventsV2
+func NewGetAuditEventsV2Request(server string, organizationId string, params *GetAuditEventsV2Params) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11879,7 +20294,7 @@ func NewGetAuditEventsRequest(server string, organizationId string, params *GetA
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/organizations/%s/protection/audit", pathParam0)
+	operationPath := fmt.Sprintf("/v2/organizations/%s/protection/audit", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12046,8 +20461,8 @@ func NewGetAuditEventsRequest(server string, organizationId string, params *GetA
 	return req, nil
 }
 
-// NewGetAllMetadataIndexesRequest generates requests for GetAllMetadataIndexes
-func NewGetAllMetadataIndexesRequest(server string, params *GetAllMetadataIndexesParams) (*http.Request, error) {
+// NewGetAllMetadataIndexesV2Request generates requests for GetAllMetadataIndexesV2
+func NewGetAllMetadataIndexesV2Request(server string, params *GetAllMetadataIndexesV2Params) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -12055,7 +20470,7 @@ func NewGetAllMetadataIndexesRequest(server string, params *GetAllMetadataIndexe
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/settings/metadata-indexes")
+	operationPath := fmt.Sprintf("/v2/settings/metadata-indexes")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12095,19 +20510,19 @@ func NewGetAllMetadataIndexesRequest(server string, params *GetAllMetadataIndexe
 	return req, nil
 }
 
-// NewCreateMetadataIndexRequest calls the generic CreateMetadataIndex builder with application/json body
-func NewCreateMetadataIndexRequest(server string, entityName string, body CreateMetadataIndexJSONRequestBody) (*http.Request, error) {
+// NewCreateMetadataIndexV2Request calls the generic CreateMetadataIndexV2 builder with application/json body
+func NewCreateMetadataIndexV2Request(server string, entityName string, body CreateMetadataIndexV2JSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateMetadataIndexRequestWithBody(server, entityName, "application/json", bodyReader)
+	return NewCreateMetadataIndexV2RequestWithBody(server, entityName, "application/json", bodyReader)
 }
 
-// NewCreateMetadataIndexRequestWithBody generates requests for CreateMetadataIndex with any type of body
-func NewCreateMetadataIndexRequestWithBody(server string, entityName string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateMetadataIndexV2RequestWithBody generates requests for CreateMetadataIndexV2 with any type of body
+func NewCreateMetadataIndexV2RequestWithBody(server string, entityName string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -12122,7 +20537,7 @@ func NewCreateMetadataIndexRequestWithBody(server string, entityName string, con
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/settings/metadata-indexes/entities/%s", pathParam0)
+	operationPath := fmt.Sprintf("/v2/settings/metadata-indexes/entities/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12142,8 +20557,8 @@ func NewCreateMetadataIndexRequestWithBody(server string, entityName string, con
 	return req, nil
 }
 
-// NewDeleteMetadataIndexRequest generates requests for DeleteMetadataIndex
-func NewDeleteMetadataIndexRequest(server string, entityName string, indexKey string) (*http.Request, error) {
+// NewDeleteMetadataIndexV2Request generates requests for DeleteMetadataIndexV2
+func NewDeleteMetadataIndexV2Request(server string, entityName string, indexKey string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -12165,7 +20580,7 @@ func NewDeleteMetadataIndexRequest(server string, entityName string, indexKey st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/settings/metadata-indexes/entities/%s/key/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/v2/settings/metadata-indexes/entities/%s/key/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12178,6 +20593,270 @@ func NewDeleteMetadataIndexRequest(server string, entityName string, indexKey st
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateTransactionBlockV2Request calls the generic CreateTransactionBlockV2 builder with application/json body
+func NewCreateTransactionBlockV2Request(server string, params *CreateTransactionBlockV2Params, body CreateTransactionBlockV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTransactionBlockV2RequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateTransactionBlockV2RequestWithBody generates requests for CreateTransactionBlockV2 with any type of body
+func NewCreateTransactionBlockV2RequestWithBody(server string, params *CreateTransactionBlockV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/transactions/block")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateTransactionDirectV2Request calls the generic CreateTransactionDirectV2 builder with application/json body
+func NewCreateTransactionDirectV2Request(server string, params *CreateTransactionDirectV2Params, body CreateTransactionDirectV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTransactionDirectV2RequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateTransactionDirectV2RequestWithBody generates requests for CreateTransactionDirectV2 with any type of body
+func NewCreateTransactionDirectV2RequestWithBody(server string, params *CreateTransactionDirectV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/transactions/direct")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateTransactionHoldV2Request calls the generic CreateTransactionHoldV2 builder with application/json body
+func NewCreateTransactionHoldV2Request(server string, params *CreateTransactionHoldV2Params, body CreateTransactionHoldV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTransactionHoldV2RequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateTransactionHoldV2RequestWithBody generates requests for CreateTransactionHoldV2 with any type of body
+func NewCreateTransactionHoldV2RequestWithBody(server string, params *CreateTransactionHoldV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/transactions/hold")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateTransactionUnblockV2Request calls the generic CreateTransactionUnblockV2 builder with application/json body
+func NewCreateTransactionUnblockV2Request(server string, params *CreateTransactionUnblockV2Params, body CreateTransactionUnblockV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTransactionUnblockV2RequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateTransactionUnblockV2RequestWithBody generates requests for CreateTransactionUnblockV2 with any type of body
+func NewCreateTransactionUnblockV2RequestWithBody(server string, params *CreateTransactionUnblockV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/transactions/unblock")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithLocation("simple", false, "X-Idempotency", runtime.ParamLocationHeader, *params.XIdempotency)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithLocation("simple", false, "X-TTL", runtime.ParamLocationHeader, *params.XTTL)
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
 	}
 
 	return req, nil
@@ -12230,9 +20909,9 @@ type ClientWithResponsesInterface interface {
 	ListOrganizationsWithResponse(ctx context.Context, params *ListOrganizationsParams, reqEditors ...RequestEditorFn) (*ListOrganizationsResp, error)
 
 	// CreateOrganizationWithBodyWithResponse request with any body
-	CreateOrganizationWithBodyWithResponse(ctx context.Context, params *CreateOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationResp, error)
+	CreateOrganizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationResp, error)
 
-	CreateOrganizationWithResponse(ctx context.Context, params *CreateOrganizationParams, body CreateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationResp, error)
+	CreateOrganizationWithResponse(ctx context.Context, body CreateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationResp, error)
 
 	// CountOrganizationsWithResponse request
 	CountOrganizationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CountOrganizationsResp, error)
@@ -12247,87 +20926,6 @@ type ClientWithResponsesInterface interface {
 	UpdateOrganizationWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrganizationResp, error)
 
 	UpdateOrganizationWithResponse(ctx context.Context, id string, body UpdateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrganizationResp, error)
-
-	// GetAllBillingPackagesWithResponse request
-	GetAllBillingPackagesWithResponse(ctx context.Context, organizationId string, params *GetAllBillingPackagesParams, reqEditors ...RequestEditorFn) (*GetAllBillingPackagesResp, error)
-
-	// CreateBillingPackageWithBodyWithResponse request with any body
-	CreateBillingPackageWithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateBillingPackageResp, error)
-
-	CreateBillingPackageWithResponse(ctx context.Context, organizationId string, body CreateBillingPackageJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateBillingPackageResp, error)
-
-	// DeleteBillingPackageWithResponse request
-	DeleteBillingPackageWithResponse(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*DeleteBillingPackageResp, error)
-
-	// GetBillingPackageByIDWithResponse request
-	GetBillingPackageByIDWithResponse(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*GetBillingPackageByIDResp, error)
-
-	// UpdateBillingPackageWithBodyWithResponse request with any body
-	UpdateBillingPackageWithBodyWithResponse(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBillingPackageResp, error)
-
-	UpdateBillingPackageWithResponse(ctx context.Context, organizationId string, id string, body UpdateBillingPackageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBillingPackageResp, error)
-
-	// CalculateBillingWithBodyWithResponse request with any body
-	CalculateBillingWithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CalculateBillingResp, error)
-
-	CalculateBillingWithResponse(ctx context.Context, organizationId string, body CalculateBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*CalculateBillingResp, error)
-
-	// ProvisionEncryptionWithBodyWithResponse request with any body
-	ProvisionEncryptionWithBodyWithResponse(ctx context.Context, organizationId string, params *ProvisionEncryptionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ProvisionEncryptionResp, error)
-
-	ProvisionEncryptionWithResponse(ctx context.Context, organizationId string, params *ProvisionEncryptionParams, body ProvisionEncryptionJSONRequestBody, reqEditors ...RequestEditorFn) (*ProvisionEncryptionResp, error)
-
-	// GetProvisioningStatusWithResponse request
-	GetProvisioningStatusWithResponse(ctx context.Context, organizationId string, params *GetProvisioningStatusParams, reqEditors ...RequestEditorFn) (*GetProvisioningStatusResp, error)
-
-	// EstimateFeeCalculationWithBodyWithResponse request with any body
-	EstimateFeeCalculationWithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationResp, error)
-
-	EstimateFeeCalculationWithResponse(ctx context.Context, organizationId string, body EstimateFeeCalculationJSONRequestBody, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationResp, error)
-
-	// ListHoldersWithResponse request
-	ListHoldersWithResponse(ctx context.Context, organizationId string, params *ListHoldersParams, reqEditors ...RequestEditorFn) (*ListHoldersResp, error)
-
-	// CreateHolderWithBodyWithResponse request with any body
-	CreateHolderWithBodyWithResponse(ctx context.Context, organizationId string, params *CreateHolderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderResp, error)
-
-	CreateHolderWithResponse(ctx context.Context, organizationId string, params *CreateHolderParams, body CreateHolderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHolderResp, error)
-
-	// CreateInstrumentWithBodyWithResponse request with any body
-	CreateInstrumentWithBodyWithResponse(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInstrumentResp, error)
-
-	CreateInstrumentWithResponse(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentParams, body CreateInstrumentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInstrumentResp, error)
-
-	// DeleteInstrumentWithResponse request
-	DeleteInstrumentWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentParams, reqEditors ...RequestEditorFn) (*DeleteInstrumentResp, error)
-
-	// GetInstrumentByIDWithResponse request
-	GetInstrumentByIDWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDParams, reqEditors ...RequestEditorFn) (*GetInstrumentByIDResp, error)
-
-	// UpdateInstrumentWithBodyWithResponse request with any body
-	UpdateInstrumentWithBodyWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInstrumentResp, error)
-
-	UpdateInstrumentWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, body UpdateInstrumentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInstrumentResp, error)
-
-	// DeleteRelatedPartyWithResponse request
-	DeleteRelatedPartyWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, relatedPartyId string, reqEditors ...RequestEditorFn) (*DeleteRelatedPartyResp, error)
-
-	// DeleteHolderWithResponse request
-	DeleteHolderWithResponse(ctx context.Context, organizationId string, id string, params *DeleteHolderParams, reqEditors ...RequestEditorFn) (*DeleteHolderResp, error)
-
-	// GetHolderByIDWithResponse request
-	GetHolderByIDWithResponse(ctx context.Context, organizationId string, id string, params *GetHolderByIDParams, reqEditors ...RequestEditorFn) (*GetHolderByIDResp, error)
-
-	// UpdateHolderWithBodyWithResponse request with any body
-	UpdateHolderWithBodyWithResponse(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateHolderResp, error)
-
-	UpdateHolderWithResponse(ctx context.Context, organizationId string, id string, body UpdateHolderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateHolderResp, error)
-
-	// ListAccountsByHolderWithResponse request
-	ListAccountsByHolderWithResponse(ctx context.Context, organizationId string, id string, params *ListAccountsByHolderParams, reqEditors ...RequestEditorFn) (*ListAccountsByHolderResp, error)
-
-	// ListInstrumentsWithResponse request
-	ListInstrumentsWithResponse(ctx context.Context, organizationId string, params *ListInstrumentsParams, reqEditors ...RequestEditorFn) (*ListInstrumentsResp, error)
 
 	// ListLedgersWithResponse request
 	ListLedgersWithResponse(ctx context.Context, organizationId string, params *ListLedgersParams, reqEditors ...RequestEditorFn) (*ListLedgersResp, error)
@@ -12471,11 +21069,6 @@ type ClientWithResponsesInterface interface {
 	// GetBalanceAtTimestampWithResponse request
 	GetBalanceAtTimestampWithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampParams, reqEditors ...RequestEditorFn) (*GetBalanceAtTimestampResp, error)
 
-	// CreateHolderAccountWithBodyWithResponse request with any body
-	CreateHolderAccountWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderAccountResp, error)
-
-	CreateHolderAccountWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, body CreateHolderAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHolderAccountResp, error)
-
 	// ListOperationRoutesWithResponse request
 	ListOperationRoutesWithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesParams, reqEditors ...RequestEditorFn) (*ListOperationRoutesResp, error)
 
@@ -12574,6 +21167,11 @@ type ClientWithResponsesInterface interface {
 
 	CreateTransactionAnnotationWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionAnnotationParams, body CreateTransactionAnnotationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionAnnotationResp, error)
 
+	// CreateTransactionBlockWithBodyWithResponse request with any body
+	CreateTransactionBlockWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionBlockParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionBlockResp, error)
+
+	CreateTransactionBlockWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionBlockParams, body CreateTransactionBlockJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionBlockResp, error)
+
 	// CreateTransactionInflowWithBodyWithResponse request with any body
 	CreateTransactionInflowWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionInflowParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionInflowResp, error)
 
@@ -12591,6 +21189,11 @@ type ClientWithResponsesInterface interface {
 	CreateTransactionOutflowWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionOutflowParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionOutflowResp, error)
 
 	CreateTransactionOutflowWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionOutflowParams, body CreateTransactionOutflowJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionOutflowResp, error)
+
+	// CreateTransactionUnblockWithBodyWithResponse request with any body
+	CreateTransactionUnblockWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionUnblockResp, error)
+
+	CreateTransactionUnblockWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, body CreateTransactionUnblockJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionUnblockResp, error)
 
 	// GetTransactionWithResponse request
 	GetTransactionWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*GetTransactionResp, error)
@@ -12614,28 +21217,6 @@ type ClientWithResponsesInterface interface {
 	// RevertTransactionWithResponse request
 	RevertTransactionWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*RevertTransactionResp, error)
 
-	// GetAllPackagesWithResponse request
-	GetAllPackagesWithResponse(ctx context.Context, organizationId string, params *GetAllPackagesParams, reqEditors ...RequestEditorFn) (*GetAllPackagesResp, error)
-
-	// CreatePackageWithBodyWithResponse request with any body
-	CreatePackageWithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePackageResp, error)
-
-	CreatePackageWithResponse(ctx context.Context, organizationId string, body CreatePackageJSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePackageResp, error)
-
-	// DeletePackageWithResponse request
-	DeletePackageWithResponse(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*DeletePackageResp, error)
-
-	// GetPackageByIDWithResponse request
-	GetPackageByIDWithResponse(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*GetPackageByIDResp, error)
-
-	// UpdatePackageWithBodyWithResponse request with any body
-	UpdatePackageWithBodyWithResponse(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePackageResp, error)
-
-	UpdatePackageWithResponse(ctx context.Context, organizationId string, id string, body UpdatePackageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePackageResp, error)
-
-	// GetAuditEventsWithResponse request
-	GetAuditEventsWithResponse(ctx context.Context, organizationId string, params *GetAuditEventsParams, reqEditors ...RequestEditorFn) (*GetAuditEventsResp, error)
-
 	// GetAllMetadataIndexesWithResponse request
 	GetAllMetadataIndexesWithResponse(ctx context.Context, params *GetAllMetadataIndexesParams, reqEditors ...RequestEditorFn) (*GetAllMetadataIndexesResp, error)
 
@@ -12646,13 +21227,423 @@ type ClientWithResponsesInterface interface {
 
 	// DeleteMetadataIndexWithResponse request
 	DeleteMetadataIndexWithResponse(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*DeleteMetadataIndexResp, error)
+
+	// ListOrganizationsV2WithResponse request
+	ListOrganizationsV2WithResponse(ctx context.Context, params *ListOrganizationsV2Params, reqEditors ...RequestEditorFn) (*ListOrganizationsV2Resp, error)
+
+	// CreateOrganizationV2WithBodyWithResponse request with any body
+	CreateOrganizationV2WithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationV2Resp, error)
+
+	CreateOrganizationV2WithResponse(ctx context.Context, body CreateOrganizationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationV2Resp, error)
+
+	// CountOrganizationsV2WithResponse request
+	CountOrganizationsV2WithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CountOrganizationsV2Resp, error)
+
+	// DeleteOrganizationV2WithResponse request
+	DeleteOrganizationV2WithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteOrganizationV2Resp, error)
+
+	// GetOrganizationByIDV2WithResponse request
+	GetOrganizationByIDV2WithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetOrganizationByIDV2Resp, error)
+
+	// UpdateOrganizationV2WithBodyWithResponse request with any body
+	UpdateOrganizationV2WithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrganizationV2Resp, error)
+
+	UpdateOrganizationV2WithResponse(ctx context.Context, id string, body UpdateOrganizationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrganizationV2Resp, error)
+
+	// ProvisionEncryptionV2WithBodyWithResponse request with any body
+	ProvisionEncryptionV2WithBodyWithResponse(ctx context.Context, organizationId string, params *ProvisionEncryptionV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ProvisionEncryptionV2Resp, error)
+
+	ProvisionEncryptionV2WithResponse(ctx context.Context, organizationId string, params *ProvisionEncryptionV2Params, body ProvisionEncryptionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*ProvisionEncryptionV2Resp, error)
+
+	// GetProvisioningStatusV2WithResponse request
+	GetProvisioningStatusV2WithResponse(ctx context.Context, organizationId string, params *GetProvisioningStatusV2Params, reqEditors ...RequestEditorFn) (*GetProvisioningStatusV2Resp, error)
+
+	// ListHoldersV2WithResponse request
+	ListHoldersV2WithResponse(ctx context.Context, organizationId string, params *ListHoldersV2Params, reqEditors ...RequestEditorFn) (*ListHoldersV2Resp, error)
+
+	// CreateHolderV2WithBodyWithResponse request with any body
+	CreateHolderV2WithBodyWithResponse(ctx context.Context, organizationId string, params *CreateHolderV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderV2Resp, error)
+
+	CreateHolderV2WithResponse(ctx context.Context, organizationId string, params *CreateHolderV2Params, body CreateHolderV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHolderV2Resp, error)
+
+	// CreateInstrumentV2WithBodyWithResponse request with any body
+	CreateInstrumentV2WithBodyWithResponse(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInstrumentV2Resp, error)
+
+	CreateInstrumentV2WithResponse(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentV2Params, body CreateInstrumentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInstrumentV2Resp, error)
+
+	// DeleteInstrumentV2WithResponse request
+	DeleteInstrumentV2WithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentV2Params, reqEditors ...RequestEditorFn) (*DeleteInstrumentV2Resp, error)
+
+	// GetInstrumentByIDV2WithResponse request
+	GetInstrumentByIDV2WithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDV2Params, reqEditors ...RequestEditorFn) (*GetInstrumentByIDV2Resp, error)
+
+	// UpdateInstrumentV2WithBodyWithResponse request with any body
+	UpdateInstrumentV2WithBodyWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInstrumentV2Resp, error)
+
+	UpdateInstrumentV2WithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, body UpdateInstrumentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInstrumentV2Resp, error)
+
+	// DeleteRelatedPartyV2WithResponse request
+	DeleteRelatedPartyV2WithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, relatedPartyId string, reqEditors ...RequestEditorFn) (*DeleteRelatedPartyV2Resp, error)
+
+	// DeleteHolderV2WithResponse request
+	DeleteHolderV2WithResponse(ctx context.Context, organizationId string, id string, params *DeleteHolderV2Params, reqEditors ...RequestEditorFn) (*DeleteHolderV2Resp, error)
+
+	// GetHolderByIDV2WithResponse request
+	GetHolderByIDV2WithResponse(ctx context.Context, organizationId string, id string, params *GetHolderByIDV2Params, reqEditors ...RequestEditorFn) (*GetHolderByIDV2Resp, error)
+
+	// UpdateHolderV2WithBodyWithResponse request with any body
+	UpdateHolderV2WithBodyWithResponse(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateHolderV2Resp, error)
+
+	UpdateHolderV2WithResponse(ctx context.Context, organizationId string, id string, body UpdateHolderV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateHolderV2Resp, error)
+
+	// ListAccountsByHolderV2WithResponse request
+	ListAccountsByHolderV2WithResponse(ctx context.Context, organizationId string, id string, params *ListAccountsByHolderV2Params, reqEditors ...RequestEditorFn) (*ListAccountsByHolderV2Resp, error)
+
+	// ListInstrumentsV2WithResponse request
+	ListInstrumentsV2WithResponse(ctx context.Context, organizationId string, params *ListInstrumentsV2Params, reqEditors ...RequestEditorFn) (*ListInstrumentsV2Resp, error)
+
+	// ListLedgersV2WithResponse request
+	ListLedgersV2WithResponse(ctx context.Context, organizationId string, params *ListLedgersV2Params, reqEditors ...RequestEditorFn) (*ListLedgersV2Resp, error)
+
+	// CreateLedgerV2WithBodyWithResponse request with any body
+	CreateLedgerV2WithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateLedgerV2Resp, error)
+
+	CreateLedgerV2WithResponse(ctx context.Context, organizationId string, body CreateLedgerV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLedgerV2Resp, error)
+
+	// CountLedgersV2WithResponse request
+	CountLedgersV2WithResponse(ctx context.Context, organizationId string, reqEditors ...RequestEditorFn) (*CountLedgersV2Resp, error)
+
+	// DeleteLedgerV2WithResponse request
+	DeleteLedgerV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*DeleteLedgerV2Resp, error)
+
+	// GetLedgerByIDV2WithResponse request
+	GetLedgerByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerByIDV2Resp, error)
+
+	// UpdateLedgerV2WithBodyWithResponse request with any body
+	UpdateLedgerV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLedgerV2Resp, error)
+
+	UpdateLedgerV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body UpdateLedgerV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLedgerV2Resp, error)
+
+	// ListAccountTypesV2WithResponse request
+	ListAccountTypesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListAccountTypesV2Params, reqEditors ...RequestEditorFn) (*ListAccountTypesV2Resp, error)
+
+	// CreateAccountTypeV2WithBodyWithResponse request with any body
+	CreateAccountTypeV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAccountTypeV2Resp, error)
+
+	CreateAccountTypeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateAccountTypeV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAccountTypeV2Resp, error)
+
+	// DeleteAccountTypeV2WithResponse request
+	DeleteAccountTypeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeleteAccountTypeV2Resp, error)
+
+	// GetAccountTypeByIDV2WithResponse request
+	GetAccountTypeByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetAccountTypeByIDV2Resp, error)
+
+	// UpdateAccountTypeV2WithBodyWithResponse request with any body
+	UpdateAccountTypeV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAccountTypeV2Resp, error)
+
+	UpdateAccountTypeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAccountTypeV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAccountTypeV2Resp, error)
+
+	// ListAccountsV2WithResponse request
+	ListAccountsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListAccountsV2Params, reqEditors ...RequestEditorFn) (*ListAccountsV2Resp, error)
+
+	// CreateAccountV2WithBodyWithResponse request with any body
+	CreateAccountV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAccountV2Resp, error)
+
+	CreateAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateAccountV2Params, body CreateAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAccountV2Resp, error)
+
+	// GetAccountByAliasV2WithResponse request
+	GetAccountByAliasV2WithResponse(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*GetAccountByAliasV2Resp, error)
+
+	// GetBalancesByAliasV2WithResponse request
+	GetBalancesByAliasV2WithResponse(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*GetBalancesByAliasV2Resp, error)
+
+	// GetAccountExternalByCodeV2WithResponse request
+	GetAccountExternalByCodeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*GetAccountExternalByCodeV2Resp, error)
+
+	// GetBalancesExternalByCodeV2WithResponse request
+	GetBalancesExternalByCodeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*GetBalancesExternalByCodeV2Resp, error)
+
+	// CountAccountsV2WithResponse request
+	CountAccountsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountAccountsV2Resp, error)
+
+	// GetAllBalancesByAccountIDV2WithResponse request
+	GetAllBalancesByAccountIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllBalancesByAccountIDV2Params, reqEditors ...RequestEditorFn) (*GetAllBalancesByAccountIDV2Resp, error)
+
+	// CreateAdditionalBalanceV2WithBodyWithResponse request with any body
+	CreateAdditionalBalanceV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAdditionalBalanceV2Resp, error)
+
+	CreateAdditionalBalanceV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, body CreateAdditionalBalanceV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAdditionalBalanceV2Resp, error)
+
+	// GetAccountBalancesAtTimestampV2WithResponse request
+	GetAccountBalancesAtTimestampV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountBalancesAtTimestampV2Params, reqEditors ...RequestEditorFn) (*GetAccountBalancesAtTimestampV2Resp, error)
+
+	// GetAllOperationsByAccountV2WithResponse request
+	GetAllOperationsByAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*GetAllOperationsByAccountV2Resp, error)
+
+	// GetOperationByAccountV2WithResponse request
+	GetOperationByAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, operationId string, reqEditors ...RequestEditorFn) (*GetOperationByAccountV2Resp, error)
+
+	// DeleteAccountV2WithResponse request
+	DeleteAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *DeleteAccountV2Params, reqEditors ...RequestEditorFn) (*DeleteAccountV2Resp, error)
+
+	// GetAccountByIDV2WithResponse request
+	GetAccountByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetAccountByIDV2Resp, error)
+
+	// UpdateAccountV2WithBodyWithResponse request with any body
+	UpdateAccountV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAccountV2Resp, error)
+
+	UpdateAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAccountV2Resp, error)
+
+	// ListAssetsV2WithResponse request
+	ListAssetsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListAssetsV2Params, reqEditors ...RequestEditorFn) (*ListAssetsV2Resp, error)
+
+	// CreateAssetV2WithBodyWithResponse request with any body
+	CreateAssetV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateAssetV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAssetV2Resp, error)
+
+	CreateAssetV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateAssetV2Params, body CreateAssetV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAssetV2Resp, error)
+
+	// CountAssetsV2WithResponse request
+	CountAssetsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountAssetsV2Resp, error)
+
+	// DeleteAssetV2WithResponse request
+	DeleteAssetV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeleteAssetV2Resp, error)
+
+	// GetAssetByIDV2WithResponse request
+	GetAssetByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetAssetByIDV2Resp, error)
+
+	// UpdateAssetV2WithBodyWithResponse request with any body
+	UpdateAssetV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAssetV2Resp, error)
+
+	UpdateAssetV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAssetV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAssetV2Resp, error)
+
+	// GetAllBalancesV2WithResponse request
+	GetAllBalancesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesV2Params, reqEditors ...RequestEditorFn) (*GetAllBalancesV2Resp, error)
+
+	// DeleteBalanceV2WithResponse request
+	DeleteBalanceV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*DeleteBalanceV2Resp, error)
+
+	// GetBalanceByIDV2WithResponse request
+	GetBalanceByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*GetBalanceByIDV2Resp, error)
+
+	// UpdateBalanceV2WithBodyWithResponse request with any body
+	UpdateBalanceV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBalanceV2Resp, error)
+
+	UpdateBalanceV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, body UpdateBalanceV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBalanceV2Resp, error)
+
+	// GetBalanceAtTimestampV2WithResponse request
+	GetBalanceAtTimestampV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampV2Params, reqEditors ...RequestEditorFn) (*GetBalanceAtTimestampV2Resp, error)
+
+	// GetAllBillingPackagesV2WithResponse request
+	GetAllBillingPackagesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllBillingPackagesV2Params, reqEditors ...RequestEditorFn) (*GetAllBillingPackagesV2Resp, error)
+
+	// CreateBillingPackageV2WithBodyWithResponse request with any body
+	CreateBillingPackageV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateBillingPackageV2Resp, error)
+
+	CreateBillingPackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateBillingPackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateBillingPackageV2Resp, error)
+
+	// DeleteBillingPackageV2WithResponse request
+	DeleteBillingPackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeleteBillingPackageV2Resp, error)
+
+	// GetBillingPackageByIDV2WithResponse request
+	GetBillingPackageByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetBillingPackageByIDV2Resp, error)
+
+	// UpdateBillingPackageV2WithBodyWithResponse request with any body
+	UpdateBillingPackageV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBillingPackageV2Resp, error)
+
+	UpdateBillingPackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateBillingPackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBillingPackageV2Resp, error)
+
+	// CalculateBillingV2WithBodyWithResponse request with any body
+	CalculateBillingV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CalculateBillingV2Resp, error)
+
+	CalculateBillingV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CalculateBillingV2Resp, error)
+
+	// EstimateFeeCalculationV2WithBodyWithResponse request with any body
+	EstimateFeeCalculationV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationV2Resp, error)
+
+	EstimateFeeCalculationV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body EstimateFeeCalculationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationV2Resp, error)
+
+	// CreateHolderAccountV2WithBodyWithResponse request with any body
+	CreateHolderAccountV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderAccountV2Resp, error)
+
+	CreateHolderAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, body CreateHolderAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHolderAccountV2Resp, error)
+
+	// ListOperationRoutesV2WithResponse request
+	ListOperationRoutesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesV2Params, reqEditors ...RequestEditorFn) (*ListOperationRoutesV2Resp, error)
+
+	// CreateOperationRouteV2WithBodyWithResponse request with any body
+	CreateOperationRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOperationRouteV2Resp, error)
+
+	CreateOperationRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOperationRouteV2Resp, error)
+
+	// DeleteOperationRouteV2WithResponse request
+	DeleteOperationRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, reqEditors ...RequestEditorFn) (*DeleteOperationRouteV2Resp, error)
+
+	// GetOperationRouteByIDV2WithResponse request
+	GetOperationRouteByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, reqEditors ...RequestEditorFn) (*GetOperationRouteByIDV2Resp, error)
+
+	// UpdateOperationRouteV2WithBodyWithResponse request with any body
+	UpdateOperationRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOperationRouteV2Resp, error)
+
+	UpdateOperationRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, body UpdateOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOperationRouteV2Resp, error)
+
+	// GetAllPackagesV2WithResponse request
+	GetAllPackagesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllPackagesV2Params, reqEditors ...RequestEditorFn) (*GetAllPackagesV2Resp, error)
+
+	// CreatePackageV2WithBodyWithResponse request with any body
+	CreatePackageV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePackageV2Resp, error)
+
+	CreatePackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreatePackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePackageV2Resp, error)
+
+	// DeletePackageV2WithResponse request
+	DeletePackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeletePackageV2Resp, error)
+
+	// GetPackageByIDV2WithResponse request
+	GetPackageByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetPackageByIDV2Resp, error)
+
+	// UpdatePackageV2WithBodyWithResponse request with any body
+	UpdatePackageV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePackageV2Resp, error)
+
+	UpdatePackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdatePackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePackageV2Resp, error)
+
+	// ListPortfoliosV2WithResponse request
+	ListPortfoliosV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListPortfoliosV2Params, reqEditors ...RequestEditorFn) (*ListPortfoliosV2Resp, error)
+
+	// CreatePortfolioV2WithBodyWithResponse request with any body
+	CreatePortfolioV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePortfolioV2Resp, error)
+
+	CreatePortfolioV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreatePortfolioV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePortfolioV2Resp, error)
+
+	// CountPortfoliosV2WithResponse request
+	CountPortfoliosV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountPortfoliosV2Resp, error)
+
+	// DeletePortfolioV2WithResponse request
+	DeletePortfolioV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeletePortfolioV2Resp, error)
+
+	// GetPortfolioByIDV2WithResponse request
+	GetPortfolioByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetPortfolioByIDV2Resp, error)
+
+	// UpdatePortfolioV2WithBodyWithResponse request with any body
+	UpdatePortfolioV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePortfolioV2Resp, error)
+
+	UpdatePortfolioV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdatePortfolioV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePortfolioV2Resp, error)
+
+	// ListSegmentsV2WithResponse request
+	ListSegmentsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListSegmentsV2Params, reqEditors ...RequestEditorFn) (*ListSegmentsV2Resp, error)
+
+	// CreateSegmentV2WithBodyWithResponse request with any body
+	CreateSegmentV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSegmentV2Resp, error)
+
+	CreateSegmentV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateSegmentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSegmentV2Resp, error)
+
+	// CountSegmentsV2WithResponse request
+	CountSegmentsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountSegmentsV2Resp, error)
+
+	// DeleteSegmentV2WithResponse request
+	DeleteSegmentV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeleteSegmentV2Resp, error)
+
+	// GetSegmentByIDV2WithResponse request
+	GetSegmentByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetSegmentByIDV2Resp, error)
+
+	// UpdateSegmentV2WithBodyWithResponse request with any body
+	UpdateSegmentV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSegmentV2Resp, error)
+
+	UpdateSegmentV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateSegmentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSegmentV2Resp, error)
+
+	// GetLedgerSettingsV2WithResponse request
+	GetLedgerSettingsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerSettingsV2Resp, error)
+
+	// UpdateLedgerSettingsV2WithBodyWithResponse request with any body
+	UpdateLedgerSettingsV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLedgerSettingsV2Resp, error)
+
+	UpdateLedgerSettingsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body UpdateLedgerSettingsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLedgerSettingsV2Resp, error)
+
+	// ListTransactionRoutesV2WithResponse request
+	ListTransactionRoutesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListTransactionRoutesV2Params, reqEditors ...RequestEditorFn) (*ListTransactionRoutesV2Resp, error)
+
+	// CreateTransactionRouteV2WithBodyWithResponse request with any body
+	CreateTransactionRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionRouteV2Resp, error)
+
+	CreateTransactionRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionRouteV2Resp, error)
+
+	// DeleteTransactionRouteV2WithResponse request
+	DeleteTransactionRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*DeleteTransactionRouteV2Resp, error)
+
+	// GetTransactionRouteByIDV2WithResponse request
+	GetTransactionRouteByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*GetTransactionRouteByIDV2Resp, error)
+
+	// UpdateTransactionRouteV2WithBodyWithResponse request with any body
+	UpdateTransactionRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTransactionRouteV2Resp, error)
+
+	UpdateTransactionRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, body UpdateTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTransactionRouteV2Resp, error)
+
+	// GetAllTransactionsV2WithResponse request
+	GetAllTransactionsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllTransactionsV2Params, reqEditors ...RequestEditorFn) (*GetAllTransactionsV2Resp, error)
+
+	// CountTransactionsByFiltersV2WithResponse request
+	CountTransactionsByFiltersV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *CountTransactionsByFiltersV2Params, reqEditors ...RequestEditorFn) (*CountTransactionsByFiltersV2Resp, error)
+
+	// GetTransactionV2WithResponse request
+	GetTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*GetTransactionV2Resp, error)
+
+	// UpdateTransactionV2WithBodyWithResponse request with any body
+	UpdateTransactionV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTransactionV2Resp, error)
+
+	UpdateTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, body UpdateTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTransactionV2Resp, error)
+
+	// CancelTransactionV2WithResponse request
+	CancelTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*CancelTransactionV2Resp, error)
+
+	// CommitTransactionV2WithResponse request
+	CommitTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error)
+
+	// UpdateOperationV2WithBodyWithResponse request with any body
+	UpdateOperationV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOperationV2Resp, error)
+
+	UpdateOperationV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, body UpdateOperationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOperationV2Resp, error)
+
+	// RevertTransactionV2WithResponse request
+	RevertTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*RevertTransactionV2Resp, error)
+
+	// GetAuditEventsV2WithResponse request
+	GetAuditEventsV2WithResponse(ctx context.Context, organizationId string, params *GetAuditEventsV2Params, reqEditors ...RequestEditorFn) (*GetAuditEventsV2Resp, error)
+
+	// GetAllMetadataIndexesV2WithResponse request
+	GetAllMetadataIndexesV2WithResponse(ctx context.Context, params *GetAllMetadataIndexesV2Params, reqEditors ...RequestEditorFn) (*GetAllMetadataIndexesV2Resp, error)
+
+	// CreateMetadataIndexV2WithBodyWithResponse request with any body
+	CreateMetadataIndexV2WithBodyWithResponse(ctx context.Context, entityName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMetadataIndexV2Resp, error)
+
+	CreateMetadataIndexV2WithResponse(ctx context.Context, entityName string, body CreateMetadataIndexV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMetadataIndexV2Resp, error)
+
+	// DeleteMetadataIndexV2WithResponse request
+	DeleteMetadataIndexV2WithResponse(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*DeleteMetadataIndexV2Resp, error)
+
+	// CreateTransactionBlockV2WithBodyWithResponse request with any body
+	CreateTransactionBlockV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionBlockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionBlockV2Resp, error)
+
+	CreateTransactionBlockV2WithResponse(ctx context.Context, params *CreateTransactionBlockV2Params, body CreateTransactionBlockV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionBlockV2Resp, error)
+
+	// CreateTransactionDirectV2WithBodyWithResponse request with any body
+	CreateTransactionDirectV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionDirectV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionDirectV2Resp, error)
+
+	CreateTransactionDirectV2WithResponse(ctx context.Context, params *CreateTransactionDirectV2Params, body CreateTransactionDirectV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionDirectV2Resp, error)
+
+	// CreateTransactionHoldV2WithBodyWithResponse request with any body
+	CreateTransactionHoldV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionHoldV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionHoldV2Resp, error)
+
+	CreateTransactionHoldV2WithResponse(ctx context.Context, params *CreateTransactionHoldV2Params, body CreateTransactionHoldV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionHoldV2Resp, error)
+
+	// CreateTransactionUnblockV2WithBodyWithResponse request with any body
+	CreateTransactionUnblockV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionUnblockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionUnblockV2Resp, error)
+
+	CreateTransactionUnblockV2WithResponse(ctx context.Context, params *CreateTransactionUnblockV2Params, body CreateTransactionUnblockV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionUnblockV2Resp, error)
 }
 
 type ListOrganizationsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -12672,10 +21663,10 @@ func (r ListOrganizationsResp) StatusCode() int {
 }
 
 type CreateOrganizationResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Organization
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Organization
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -12695,9 +21686,9 @@ func (r CreateOrganizationResp) StatusCode() int {
 }
 
 type CountOrganizationsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -12717,9 +21708,9 @@ func (r CountOrganizationsResp) StatusCode() int {
 }
 
 type DeleteOrganizationResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -12739,10 +21730,10 @@ func (r DeleteOrganizationResp) StatusCode() int {
 }
 
 type GetOrganizationByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Organization
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Organization
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -12762,10 +21753,10 @@ func (r GetOrganizationByIDResp) StatusCode() int {
 }
 
 type UpdateOrganizationResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Organization
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Organization
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -12784,490 +21775,11 @@ func (r UpdateOrganizationResp) StatusCode() int {
 	return 0
 }
 
-type GetAllBillingPackagesResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeePagination
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetAllBillingPackagesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetAllBillingPackagesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateBillingPackageResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeeBillingPackage
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateBillingPackageResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateBillingPackageResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteBillingPackageResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteBillingPackageResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteBillingPackageResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetBillingPackageByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeeBillingPackage
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetBillingPackageByIDResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetBillingPackageByIDResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateBillingPackageResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeeBillingPackage
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateBillingPackageResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateBillingPackageResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CalculateBillingResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeeBillingCalculateResponse
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CalculateBillingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CalculateBillingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ProvisionEncryptionResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *ProvisionEncryptionResponse
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ProvisionEncryptionResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ProvisionEncryptionResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetProvisioningStatusResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *ProvisioningStatusResponse
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetProvisioningStatusResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetProvisioningStatusResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type EstimateFeeCalculationResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *[]byte
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r EstimateFeeCalculationResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r EstimateFeeCalculationResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListHoldersResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ListHoldersResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListHoldersResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateHolderResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Holder
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateHolderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateHolderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateInstrumentResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Instrument
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateInstrumentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateInstrumentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteInstrumentResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteInstrumentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteInstrumentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetInstrumentByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Instrument
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetInstrumentByIDResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetInstrumentByIDResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateInstrumentResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Instrument
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateInstrumentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateInstrumentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteRelatedPartyResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteRelatedPartyResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteRelatedPartyResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteHolderResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteHolderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteHolderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetHolderByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Holder
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetHolderByIDResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetHolderByIDResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateHolderResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Holder
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateHolderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateHolderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListAccountsByHolderResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ListAccountsByHolderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListAccountsByHolderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListInstrumentsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ListInstrumentsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListInstrumentsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type ListLedgersResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13287,10 +21799,10 @@ func (r ListLedgersResp) StatusCode() int {
 }
 
 type CreateLedgerResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Ledger
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Ledger
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13310,9 +21822,9 @@ func (r CreateLedgerResp) StatusCode() int {
 }
 
 type CountLedgersResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13332,9 +21844,9 @@ func (r CountLedgersResp) StatusCode() int {
 }
 
 type DeleteLedgerResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13354,10 +21866,10 @@ func (r DeleteLedgerResp) StatusCode() int {
 }
 
 type GetLedgerByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Ledger
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Ledger
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13377,10 +21889,10 @@ func (r GetLedgerByIDResp) StatusCode() int {
 }
 
 type UpdateLedgerResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Ledger
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Ledger
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13400,10 +21912,10 @@ func (r UpdateLedgerResp) StatusCode() int {
 }
 
 type ListAccountTypesResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13423,10 +21935,10 @@ func (r ListAccountTypesResp) StatusCode() int {
 }
 
 type CreateAccountTypeResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *AccountType
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *AccountType
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13446,9 +21958,9 @@ func (r CreateAccountTypeResp) StatusCode() int {
 }
 
 type DeleteAccountTypeResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13468,10 +21980,10 @@ func (r DeleteAccountTypeResp) StatusCode() int {
 }
 
 type GetAccountTypeByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *AccountType
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AccountType
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13491,10 +22003,10 @@ func (r GetAccountTypeByIDResp) StatusCode() int {
 }
 
 type UpdateAccountTypeResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *AccountType
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AccountType
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13514,10 +22026,10 @@ func (r UpdateAccountTypeResp) StatusCode() int {
 }
 
 type ListAccountsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13537,10 +22049,10 @@ func (r ListAccountsResp) StatusCode() int {
 }
 
 type CreateAccountResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Account
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Account
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13560,10 +22072,10 @@ func (r CreateAccountResp) StatusCode() int {
 }
 
 type GetAccountByAliasResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Account
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Account
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13583,10 +22095,10 @@ func (r GetAccountByAliasResp) StatusCode() int {
 }
 
 type GetBalancesByAliasResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13606,10 +22118,10 @@ func (r GetBalancesByAliasResp) StatusCode() int {
 }
 
 type GetAccountExternalByCodeResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Account
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Account
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13629,10 +22141,10 @@ func (r GetAccountExternalByCodeResp) StatusCode() int {
 }
 
 type GetBalancesExternalByCodeResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13652,9 +22164,9 @@ func (r GetBalancesExternalByCodeResp) StatusCode() int {
 }
 
 type CountAccountsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13674,10 +22186,10 @@ func (r CountAccountsResp) StatusCode() int {
 }
 
 type GetAllBalancesByAccountIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13697,10 +22209,10 @@ func (r GetAllBalancesByAccountIDResp) StatusCode() int {
 }
 
 type CreateAdditionalBalanceResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Balance
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Balance
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13720,10 +22232,10 @@ func (r CreateAdditionalBalanceResp) StatusCode() int {
 }
 
 type GetAccountBalancesAtTimestampResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *[]BalanceHistory
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]BalanceHistory
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13743,10 +22255,10 @@ func (r GetAccountBalancesAtTimestampResp) StatusCode() int {
 }
 
 type GetAllOperationsByAccountResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13766,10 +22278,10 @@ func (r GetAllOperationsByAccountResp) StatusCode() int {
 }
 
 type GetOperationByAccountResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Operation
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Operation
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13789,9 +22301,9 @@ func (r GetOperationByAccountResp) StatusCode() int {
 }
 
 type DeleteAccountResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13811,10 +22323,10 @@ func (r DeleteAccountResp) StatusCode() int {
 }
 
 type GetAccountByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Account
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Account
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13834,10 +22346,10 @@ func (r GetAccountByIDResp) StatusCode() int {
 }
 
 type UpdateAccountResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Account
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Account
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13857,10 +22369,10 @@ func (r UpdateAccountResp) StatusCode() int {
 }
 
 type CreateOrUpdateAssetRateResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *AssetRate
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *AssetRate
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13880,10 +22392,10 @@ func (r CreateOrUpdateAssetRateResp) StatusCode() int {
 }
 
 type GetAllAssetRatesByAssetCodeResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13903,10 +22415,10 @@ func (r GetAllAssetRatesByAssetCodeResp) StatusCode() int {
 }
 
 type GetAssetRateByExternalIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *AssetRate
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AssetRate
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13926,10 +22438,10 @@ func (r GetAssetRateByExternalIDResp) StatusCode() int {
 }
 
 type ListAssetsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13949,10 +22461,10 @@ func (r ListAssetsResp) StatusCode() int {
 }
 
 type CreateAssetResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Asset
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Asset
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13972,9 +22484,9 @@ func (r CreateAssetResp) StatusCode() int {
 }
 
 type CountAssetsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -13994,9 +22506,9 @@ func (r CountAssetsResp) StatusCode() int {
 }
 
 type DeleteAssetResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14016,10 +22528,10 @@ func (r DeleteAssetResp) StatusCode() int {
 }
 
 type GetAssetByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Asset
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Asset
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14039,10 +22551,10 @@ func (r GetAssetByIDResp) StatusCode() int {
 }
 
 type UpdateAssetResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Asset
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Asset
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14062,10 +22574,10 @@ func (r UpdateAssetResp) StatusCode() int {
 }
 
 type GetAllBalancesResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14085,9 +22597,9 @@ func (r GetAllBalancesResp) StatusCode() int {
 }
 
 type DeleteBalanceResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14107,10 +22619,10 @@ func (r DeleteBalanceResp) StatusCode() int {
 }
 
 type GetBalanceByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Balance
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Balance
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14130,10 +22642,10 @@ func (r GetBalanceByIDResp) StatusCode() int {
 }
 
 type UpdateBalanceResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Balance
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Balance
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14153,10 +22665,10 @@ func (r UpdateBalanceResp) StatusCode() int {
 }
 
 type GetBalanceAtTimestampResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *BalanceHistory
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *BalanceHistory
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14175,34 +22687,11 @@ func (r GetBalanceAtTimestampResp) StatusCode() int {
 	return 0
 }
 
-type CreateHolderAccountResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *HolderAccountResponse
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateHolderAccountResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateHolderAccountResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type ListOperationRoutesResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14222,10 +22711,10 @@ func (r ListOperationRoutesResp) StatusCode() int {
 }
 
 type CreateOperationRouteResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *OperationRoute
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *OperationRoute
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14245,9 +22734,9 @@ func (r CreateOperationRouteResp) StatusCode() int {
 }
 
 type DeleteOperationRouteResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14267,10 +22756,10 @@ func (r DeleteOperationRouteResp) StatusCode() int {
 }
 
 type GetOperationRouteByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *OperationRoute
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OperationRoute
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14290,10 +22779,10 @@ func (r GetOperationRouteByIDResp) StatusCode() int {
 }
 
 type UpdateOperationRouteResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *OperationRoute
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OperationRoute
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14313,10 +22802,10 @@ func (r UpdateOperationRouteResp) StatusCode() int {
 }
 
 type ListPortfoliosResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14336,10 +22825,10 @@ func (r ListPortfoliosResp) StatusCode() int {
 }
 
 type CreatePortfolioResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Portfolio
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Portfolio
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14359,9 +22848,9 @@ func (r CreatePortfolioResp) StatusCode() int {
 }
 
 type CountPortfoliosResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14381,9 +22870,9 @@ func (r CountPortfoliosResp) StatusCode() int {
 }
 
 type DeletePortfolioResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14403,10 +22892,10 @@ func (r DeletePortfolioResp) StatusCode() int {
 }
 
 type GetPortfolioByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Portfolio
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Portfolio
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14426,10 +22915,10 @@ func (r GetPortfolioByIDResp) StatusCode() int {
 }
 
 type UpdatePortfolioResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Portfolio
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Portfolio
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14449,10 +22938,10 @@ func (r UpdatePortfolioResp) StatusCode() int {
 }
 
 type ListSegmentsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14472,10 +22961,10 @@ func (r ListSegmentsResp) StatusCode() int {
 }
 
 type CreateSegmentResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Segment
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Segment
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14495,9 +22984,9 @@ func (r CreateSegmentResp) StatusCode() int {
 }
 
 type CountSegmentsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14517,9 +23006,9 @@ func (r CountSegmentsResp) StatusCode() int {
 }
 
 type DeleteSegmentResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14539,10 +23028,10 @@ func (r DeleteSegmentResp) StatusCode() int {
 }
 
 type GetSegmentByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Segment
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Segment
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14562,10 +23051,10 @@ func (r GetSegmentByIDResp) StatusCode() int {
 }
 
 type UpdateSegmentResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Segment
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Segment
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14585,10 +23074,10 @@ func (r UpdateSegmentResp) StatusCode() int {
 }
 
 type GetLedgerSettingsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *LedgerSettings
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LedgerSettings
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14608,10 +23097,10 @@ func (r GetLedgerSettingsResp) StatusCode() int {
 }
 
 type UpdateLedgerSettingsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *LedgerSettings
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LedgerSettings
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14631,10 +23120,10 @@ func (r UpdateLedgerSettingsResp) StatusCode() int {
 }
 
 type ListTransactionRoutesResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14654,10 +23143,10 @@ func (r ListTransactionRoutesResp) StatusCode() int {
 }
 
 type CreateTransactionRouteResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *TransactionRoute
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *TransactionRoute
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14677,9 +23166,9 @@ func (r CreateTransactionRouteResp) StatusCode() int {
 }
 
 type DeleteTransactionRouteResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14699,10 +23188,10 @@ func (r DeleteTransactionRouteResp) StatusCode() int {
 }
 
 type GetTransactionRouteByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *TransactionRoute
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TransactionRoute
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14722,10 +23211,10 @@ func (r GetTransactionRouteByIDResp) StatusCode() int {
 }
 
 type UpdateTransactionRouteResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *TransactionRoute
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TransactionRoute
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14745,10 +23234,10 @@ func (r UpdateTransactionRouteResp) StatusCode() int {
 }
 
 type GetAllTransactionsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Pagination
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Pagination
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14768,10 +23257,10 @@ func (r GetAllTransactionsResp) StatusCode() int {
 }
 
 type CreateTransactionAnnotationResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14790,11 +23279,34 @@ func (r CreateTransactionAnnotationResp) StatusCode() int {
 	return 0
 }
 
+type CreateTransactionBlockResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTransactionBlockResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTransactionBlockResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CreateTransactionInflowResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14814,10 +23326,10 @@ func (r CreateTransactionInflowResp) StatusCode() int {
 }
 
 type CreateTransactionJSONResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14837,9 +23349,9 @@ func (r CreateTransactionJSONResp) StatusCode() int {
 }
 
 type CountTransactionsByFiltersResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14859,10 +23371,10 @@ func (r CountTransactionsByFiltersResp) StatusCode() int {
 }
 
 type CreateTransactionOutflowResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14881,11 +23393,34 @@ func (r CreateTransactionOutflowResp) StatusCode() int {
 	return 0
 }
 
+type CreateTransactionUnblockResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTransactionUnblockResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTransactionUnblockResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetTransactionResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14905,10 +23440,10 @@ func (r GetTransactionResp) StatusCode() int {
 }
 
 type UpdateTransactionResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14928,10 +23463,10 @@ func (r UpdateTransactionResp) StatusCode() int {
 }
 
 type CancelTransactionResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON201                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14951,10 +23486,10 @@ func (r CancelTransactionResp) StatusCode() int {
 }
 
 type CommitTransactionResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON201                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14974,10 +23509,10 @@ func (r CommitTransactionResp) StatusCode() int {
 }
 
 type UpdateOperationResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *Operation
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Operation
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -14997,10 +23532,10 @@ func (r UpdateOperationResp) StatusCode() int {
 }
 
 type RevertTransactionResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON201                       *Transaction
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Transaction
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -15019,148 +23554,11 @@ func (r RevertTransactionResp) StatusCode() int {
 	return 0
 }
 
-type GetAllPackagesResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeePagination
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetAllPackagesResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetAllPackagesResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreatePackageResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeePackage
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreatePackageResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreatePackageResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeletePackageResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r DeletePackageResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeletePackageResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetPackageByIDResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeePackage
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetPackageByIDResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetPackageByIDResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdatePackageResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *FeePackage
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdatePackageResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdatePackageResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetAuditEventsResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *AuditEventsEnvelope
-	ApplicationproblemJSONDefault *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetAuditEventsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetAuditEventsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type GetAllMetadataIndexesResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *[]MetadataIndex
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]MetadataIndex
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -15180,10 +23578,10 @@ func (r GetAllMetadataIndexesResp) StatusCode() int {
 }
 
 type CreateMetadataIndexResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	JSON200                       *MetadataIndex
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *MetadataIndex
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -15203,9 +23601,9 @@ func (r CreateMetadataIndexResp) StatusCode() int {
 }
 
 type DeleteMetadataIndexResp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
+	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -15224,6 +23622,2513 @@ func (r DeleteMetadataIndexResp) StatusCode() int {
 	return 0
 }
 
+type ListOrganizationsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOrganizationsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOrganizationsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateOrganizationV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Organization
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateOrganizationV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateOrganizationV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CountOrganizationsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CountOrganizationsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CountOrganizationsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteOrganizationV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteOrganizationV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteOrganizationV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetOrganizationByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Organization
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOrganizationByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOrganizationByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateOrganizationV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Organization
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateOrganizationV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateOrganizationV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ProvisionEncryptionV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *ProvisionEncryptionResponse
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ProvisionEncryptionV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ProvisionEncryptionV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProvisioningStatusV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *ProvisioningStatusResponse
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProvisioningStatusV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProvisioningStatusV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListHoldersV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListHoldersV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListHoldersV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateHolderV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Holder
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateHolderV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateHolderV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateInstrumentV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Instrument
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateInstrumentV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateInstrumentV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteInstrumentV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteInstrumentV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteInstrumentV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetInstrumentByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Instrument
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetInstrumentByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetInstrumentByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateInstrumentV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Instrument
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateInstrumentV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateInstrumentV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteRelatedPartyV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteRelatedPartyV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteRelatedPartyV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteHolderV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteHolderV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteHolderV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetHolderByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Holder
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetHolderByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetHolderByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateHolderV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Holder
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateHolderV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateHolderV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAccountsByHolderV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAccountsByHolderV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAccountsByHolderV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListInstrumentsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListInstrumentsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListInstrumentsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListLedgersV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListLedgersV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListLedgersV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateLedgerV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Ledger
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateLedgerV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateLedgerV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CountLedgersV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CountLedgersV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CountLedgersV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteLedgerV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteLedgerV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteLedgerV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetLedgerByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Ledger
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLedgerByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLedgerByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateLedgerV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Ledger
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateLedgerV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateLedgerV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAccountTypesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAccountTypesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAccountTypesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAccountTypeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *AccountType
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAccountTypeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAccountTypeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAccountTypeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAccountTypeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAccountTypeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAccountTypeByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *AccountType
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAccountTypeByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAccountTypeByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateAccountTypeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *AccountType
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAccountTypeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAccountTypeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAccountsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAccountsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAccountsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAccountV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Account
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAccountV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAccountV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAccountByAliasV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Account
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAccountByAliasV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAccountByAliasV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetBalancesByAliasV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBalancesByAliasV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBalancesByAliasV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAccountExternalByCodeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Account
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAccountExternalByCodeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAccountExternalByCodeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetBalancesExternalByCodeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBalancesExternalByCodeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBalancesExternalByCodeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CountAccountsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CountAccountsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CountAccountsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAllBalancesByAccountIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAllBalancesByAccountIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAllBalancesByAccountIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAdditionalBalanceV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Balance
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAdditionalBalanceV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAdditionalBalanceV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAccountBalancesAtTimestampV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *[]BalanceHistory
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAccountBalancesAtTimestampV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAccountBalancesAtTimestampV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAllOperationsByAccountV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAllOperationsByAccountV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAllOperationsByAccountV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetOperationByAccountV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Operation
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOperationByAccountV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOperationByAccountV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAccountV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAccountV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAccountV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAccountByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Account
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAccountByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAccountByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateAccountV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Account
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAccountV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAccountV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAssetsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAssetsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAssetsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateAssetV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Asset
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAssetV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAssetV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CountAssetsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CountAssetsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CountAssetsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteAssetV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAssetV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAssetV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAssetByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Asset
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAssetByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAssetByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateAssetV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Asset
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAssetV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAssetV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAllBalancesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAllBalancesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAllBalancesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteBalanceV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteBalanceV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteBalanceV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetBalanceByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Balance
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBalanceByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBalanceByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateBalanceV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Balance
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateBalanceV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateBalanceV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetBalanceAtTimestampV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *BalanceHistory
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBalanceAtTimestampV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBalanceAtTimestampV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAllBillingPackagesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeePagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAllBillingPackagesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAllBillingPackagesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateBillingPackageV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *FeeBillingPackage
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateBillingPackageV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateBillingPackageV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteBillingPackageV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteBillingPackageV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteBillingPackageV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetBillingPackageByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeBillingPackage
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBillingPackageByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBillingPackageByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateBillingPackageV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeBillingPackage
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateBillingPackageV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateBillingPackageV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CalculateBillingV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeBillingCalculateResponse
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CalculateBillingV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CalculateBillingV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EstimateFeeCalculationV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *[]byte
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r EstimateFeeCalculationV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EstimateFeeCalculationV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateHolderAccountV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *HolderAccountResponse
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateHolderAccountV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateHolderAccountV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListOperationRoutesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOperationRoutesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOperationRoutesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateOperationRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *OperationRoute
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateOperationRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateOperationRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteOperationRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteOperationRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteOperationRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetOperationRouteByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *OperationRoute
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOperationRouteByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOperationRouteByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateOperationRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *OperationRoute
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateOperationRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateOperationRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAllPackagesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeePagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAllPackagesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAllPackagesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreatePackageV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *FeePackage
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreatePackageV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreatePackageV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeletePackageV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePackageV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePackageV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetPackageByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeePackage
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPackageByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPackageByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdatePackageV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeePackage
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdatePackageV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdatePackageV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListPortfoliosV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListPortfoliosV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListPortfoliosV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreatePortfolioV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Portfolio
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreatePortfolioV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreatePortfolioV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CountPortfoliosV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CountPortfoliosV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CountPortfoliosV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeletePortfolioV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePortfolioV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePortfolioV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetPortfolioByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Portfolio
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPortfolioByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPortfolioByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdatePortfolioV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Portfolio
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdatePortfolioV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdatePortfolioV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListSegmentsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListSegmentsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListSegmentsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateSegmentV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *Segment
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateSegmentV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateSegmentV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CountSegmentsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CountSegmentsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CountSegmentsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteSegmentV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteSegmentV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteSegmentV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetSegmentByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Segment
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSegmentByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSegmentByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateSegmentV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Segment
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSegmentV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSegmentV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetLedgerSettingsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *LedgerSettings
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLedgerSettingsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLedgerSettingsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateLedgerSettingsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *LedgerSettings
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateLedgerSettingsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateLedgerSettingsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListTransactionRoutesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListTransactionRoutesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListTransactionRoutesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateTransactionRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionRoute
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTransactionRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTransactionRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteTransactionRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteTransactionRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteTransactionRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetTransactionRouteByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *TransactionRoute
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTransactionRouteByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTransactionRouteByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateTransactionRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *TransactionRoute
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateTransactionRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateTransactionRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAllTransactionsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *TransactionV2ListBody
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAllTransactionsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAllTransactionsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CountTransactionsByFiltersV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CountTransactionsByFiltersV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CountTransactionsByFiltersV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetTransactionV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTransactionV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTransactionV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateTransactionV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateTransactionV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateTransactionV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CancelTransactionV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelTransactionV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelTransactionV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CommitTransactionV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CommitTransactionV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CommitTransactionV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateOperationV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Operation
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateOperationV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateOperationV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RevertTransactionV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r RevertTransactionV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevertTransactionV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAuditEventsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *AuditEventsEnvelope
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAuditEventsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAuditEventsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAllMetadataIndexesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *[]MetadataIndex
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAllMetadataIndexesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAllMetadataIndexesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateMetadataIndexV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *MetadataIndex
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateMetadataIndexV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateMetadataIndexV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteMetadataIndexV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteMetadataIndexV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteMetadataIndexV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateTransactionBlockV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTransactionBlockV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTransactionBlockV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateTransactionDirectV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTransactionDirectV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTransactionDirectV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateTransactionHoldV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTransactionHoldV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTransactionHoldV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateTransactionUnblockV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionV2
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTransactionUnblockV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTransactionUnblockV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // ListOrganizationsWithResponse request returning *ListOrganizationsResp
 func (c *ClientWithResponses) ListOrganizationsWithResponse(ctx context.Context, params *ListOrganizationsParams, reqEditors ...RequestEditorFn) (*ListOrganizationsResp, error) {
 	rsp, err := c.ListOrganizations(ctx, params, reqEditors...)
@@ -15234,16 +26139,16 @@ func (c *ClientWithResponses) ListOrganizationsWithResponse(ctx context.Context,
 }
 
 // CreateOrganizationWithBodyWithResponse request with arbitrary body returning *CreateOrganizationResp
-func (c *ClientWithResponses) CreateOrganizationWithBodyWithResponse(ctx context.Context, params *CreateOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationResp, error) {
-	rsp, err := c.CreateOrganizationWithBody(ctx, params, contentType, body, reqEditors...)
+func (c *ClientWithResponses) CreateOrganizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationResp, error) {
+	rsp, err := c.CreateOrganizationWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateOrganizationResp(rsp)
 }
 
-func (c *ClientWithResponses) CreateOrganizationWithResponse(ctx context.Context, params *CreateOrganizationParams, body CreateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationResp, error) {
-	rsp, err := c.CreateOrganization(ctx, params, body, reqEditors...)
+func (c *ClientWithResponses) CreateOrganizationWithResponse(ctx context.Context, body CreateOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationResp, error) {
+	rsp, err := c.CreateOrganization(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -15292,267 +26197,6 @@ func (c *ClientWithResponses) UpdateOrganizationWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseUpdateOrganizationResp(rsp)
-}
-
-// GetAllBillingPackagesWithResponse request returning *GetAllBillingPackagesResp
-func (c *ClientWithResponses) GetAllBillingPackagesWithResponse(ctx context.Context, organizationId string, params *GetAllBillingPackagesParams, reqEditors ...RequestEditorFn) (*GetAllBillingPackagesResp, error) {
-	rsp, err := c.GetAllBillingPackages(ctx, organizationId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetAllBillingPackagesResp(rsp)
-}
-
-// CreateBillingPackageWithBodyWithResponse request with arbitrary body returning *CreateBillingPackageResp
-func (c *ClientWithResponses) CreateBillingPackageWithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateBillingPackageResp, error) {
-	rsp, err := c.CreateBillingPackageWithBody(ctx, organizationId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateBillingPackageResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateBillingPackageWithResponse(ctx context.Context, organizationId string, body CreateBillingPackageJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateBillingPackageResp, error) {
-	rsp, err := c.CreateBillingPackage(ctx, organizationId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateBillingPackageResp(rsp)
-}
-
-// DeleteBillingPackageWithResponse request returning *DeleteBillingPackageResp
-func (c *ClientWithResponses) DeleteBillingPackageWithResponse(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*DeleteBillingPackageResp, error) {
-	rsp, err := c.DeleteBillingPackage(ctx, organizationId, id, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteBillingPackageResp(rsp)
-}
-
-// GetBillingPackageByIDWithResponse request returning *GetBillingPackageByIDResp
-func (c *ClientWithResponses) GetBillingPackageByIDWithResponse(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*GetBillingPackageByIDResp, error) {
-	rsp, err := c.GetBillingPackageByID(ctx, organizationId, id, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetBillingPackageByIDResp(rsp)
-}
-
-// UpdateBillingPackageWithBodyWithResponse request with arbitrary body returning *UpdateBillingPackageResp
-func (c *ClientWithResponses) UpdateBillingPackageWithBodyWithResponse(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBillingPackageResp, error) {
-	rsp, err := c.UpdateBillingPackageWithBody(ctx, organizationId, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateBillingPackageResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateBillingPackageWithResponse(ctx context.Context, organizationId string, id string, body UpdateBillingPackageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBillingPackageResp, error) {
-	rsp, err := c.UpdateBillingPackage(ctx, organizationId, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateBillingPackageResp(rsp)
-}
-
-// CalculateBillingWithBodyWithResponse request with arbitrary body returning *CalculateBillingResp
-func (c *ClientWithResponses) CalculateBillingWithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CalculateBillingResp, error) {
-	rsp, err := c.CalculateBillingWithBody(ctx, organizationId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCalculateBillingResp(rsp)
-}
-
-func (c *ClientWithResponses) CalculateBillingWithResponse(ctx context.Context, organizationId string, body CalculateBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*CalculateBillingResp, error) {
-	rsp, err := c.CalculateBilling(ctx, organizationId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCalculateBillingResp(rsp)
-}
-
-// ProvisionEncryptionWithBodyWithResponse request with arbitrary body returning *ProvisionEncryptionResp
-func (c *ClientWithResponses) ProvisionEncryptionWithBodyWithResponse(ctx context.Context, organizationId string, params *ProvisionEncryptionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ProvisionEncryptionResp, error) {
-	rsp, err := c.ProvisionEncryptionWithBody(ctx, organizationId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseProvisionEncryptionResp(rsp)
-}
-
-func (c *ClientWithResponses) ProvisionEncryptionWithResponse(ctx context.Context, organizationId string, params *ProvisionEncryptionParams, body ProvisionEncryptionJSONRequestBody, reqEditors ...RequestEditorFn) (*ProvisionEncryptionResp, error) {
-	rsp, err := c.ProvisionEncryption(ctx, organizationId, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseProvisionEncryptionResp(rsp)
-}
-
-// GetProvisioningStatusWithResponse request returning *GetProvisioningStatusResp
-func (c *ClientWithResponses) GetProvisioningStatusWithResponse(ctx context.Context, organizationId string, params *GetProvisioningStatusParams, reqEditors ...RequestEditorFn) (*GetProvisioningStatusResp, error) {
-	rsp, err := c.GetProvisioningStatus(ctx, organizationId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetProvisioningStatusResp(rsp)
-}
-
-// EstimateFeeCalculationWithBodyWithResponse request with arbitrary body returning *EstimateFeeCalculationResp
-func (c *ClientWithResponses) EstimateFeeCalculationWithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationResp, error) {
-	rsp, err := c.EstimateFeeCalculationWithBody(ctx, organizationId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseEstimateFeeCalculationResp(rsp)
-}
-
-func (c *ClientWithResponses) EstimateFeeCalculationWithResponse(ctx context.Context, organizationId string, body EstimateFeeCalculationJSONRequestBody, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationResp, error) {
-	rsp, err := c.EstimateFeeCalculation(ctx, organizationId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseEstimateFeeCalculationResp(rsp)
-}
-
-// ListHoldersWithResponse request returning *ListHoldersResp
-func (c *ClientWithResponses) ListHoldersWithResponse(ctx context.Context, organizationId string, params *ListHoldersParams, reqEditors ...RequestEditorFn) (*ListHoldersResp, error) {
-	rsp, err := c.ListHolders(ctx, organizationId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListHoldersResp(rsp)
-}
-
-// CreateHolderWithBodyWithResponse request with arbitrary body returning *CreateHolderResp
-func (c *ClientWithResponses) CreateHolderWithBodyWithResponse(ctx context.Context, organizationId string, params *CreateHolderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderResp, error) {
-	rsp, err := c.CreateHolderWithBody(ctx, organizationId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateHolderResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateHolderWithResponse(ctx context.Context, organizationId string, params *CreateHolderParams, body CreateHolderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHolderResp, error) {
-	rsp, err := c.CreateHolder(ctx, organizationId, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateHolderResp(rsp)
-}
-
-// CreateInstrumentWithBodyWithResponse request with arbitrary body returning *CreateInstrumentResp
-func (c *ClientWithResponses) CreateInstrumentWithBodyWithResponse(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInstrumentResp, error) {
-	rsp, err := c.CreateInstrumentWithBody(ctx, organizationId, holderId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateInstrumentResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateInstrumentWithResponse(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentParams, body CreateInstrumentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInstrumentResp, error) {
-	rsp, err := c.CreateInstrument(ctx, organizationId, holderId, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateInstrumentResp(rsp)
-}
-
-// DeleteInstrumentWithResponse request returning *DeleteInstrumentResp
-func (c *ClientWithResponses) DeleteInstrumentWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentParams, reqEditors ...RequestEditorFn) (*DeleteInstrumentResp, error) {
-	rsp, err := c.DeleteInstrument(ctx, organizationId, holderId, instrumentId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteInstrumentResp(rsp)
-}
-
-// GetInstrumentByIDWithResponse request returning *GetInstrumentByIDResp
-func (c *ClientWithResponses) GetInstrumentByIDWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDParams, reqEditors ...RequestEditorFn) (*GetInstrumentByIDResp, error) {
-	rsp, err := c.GetInstrumentByID(ctx, organizationId, holderId, instrumentId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetInstrumentByIDResp(rsp)
-}
-
-// UpdateInstrumentWithBodyWithResponse request with arbitrary body returning *UpdateInstrumentResp
-func (c *ClientWithResponses) UpdateInstrumentWithBodyWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInstrumentResp, error) {
-	rsp, err := c.UpdateInstrumentWithBody(ctx, organizationId, holderId, instrumentId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateInstrumentResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateInstrumentWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, body UpdateInstrumentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInstrumentResp, error) {
-	rsp, err := c.UpdateInstrument(ctx, organizationId, holderId, instrumentId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateInstrumentResp(rsp)
-}
-
-// DeleteRelatedPartyWithResponse request returning *DeleteRelatedPartyResp
-func (c *ClientWithResponses) DeleteRelatedPartyWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, relatedPartyId string, reqEditors ...RequestEditorFn) (*DeleteRelatedPartyResp, error) {
-	rsp, err := c.DeleteRelatedParty(ctx, organizationId, holderId, instrumentId, relatedPartyId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteRelatedPartyResp(rsp)
-}
-
-// DeleteHolderWithResponse request returning *DeleteHolderResp
-func (c *ClientWithResponses) DeleteHolderWithResponse(ctx context.Context, organizationId string, id string, params *DeleteHolderParams, reqEditors ...RequestEditorFn) (*DeleteHolderResp, error) {
-	rsp, err := c.DeleteHolder(ctx, organizationId, id, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteHolderResp(rsp)
-}
-
-// GetHolderByIDWithResponse request returning *GetHolderByIDResp
-func (c *ClientWithResponses) GetHolderByIDWithResponse(ctx context.Context, organizationId string, id string, params *GetHolderByIDParams, reqEditors ...RequestEditorFn) (*GetHolderByIDResp, error) {
-	rsp, err := c.GetHolderByID(ctx, organizationId, id, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetHolderByIDResp(rsp)
-}
-
-// UpdateHolderWithBodyWithResponse request with arbitrary body returning *UpdateHolderResp
-func (c *ClientWithResponses) UpdateHolderWithBodyWithResponse(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateHolderResp, error) {
-	rsp, err := c.UpdateHolderWithBody(ctx, organizationId, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateHolderResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateHolderWithResponse(ctx context.Context, organizationId string, id string, body UpdateHolderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateHolderResp, error) {
-	rsp, err := c.UpdateHolder(ctx, organizationId, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateHolderResp(rsp)
-}
-
-// ListAccountsByHolderWithResponse request returning *ListAccountsByHolderResp
-func (c *ClientWithResponses) ListAccountsByHolderWithResponse(ctx context.Context, organizationId string, id string, params *ListAccountsByHolderParams, reqEditors ...RequestEditorFn) (*ListAccountsByHolderResp, error) {
-	rsp, err := c.ListAccountsByHolder(ctx, organizationId, id, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListAccountsByHolderResp(rsp)
-}
-
-// ListInstrumentsWithResponse request returning *ListInstrumentsResp
-func (c *ClientWithResponses) ListInstrumentsWithResponse(ctx context.Context, organizationId string, params *ListInstrumentsParams, reqEditors ...RequestEditorFn) (*ListInstrumentsResp, error) {
-	rsp, err := c.ListInstruments(ctx, organizationId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListInstrumentsResp(rsp)
 }
 
 // ListLedgersWithResponse request returning *ListLedgersResp
@@ -16003,23 +26647,6 @@ func (c *ClientWithResponses) GetBalanceAtTimestampWithResponse(ctx context.Cont
 	return ParseGetBalanceAtTimestampResp(rsp)
 }
 
-// CreateHolderAccountWithBodyWithResponse request with arbitrary body returning *CreateHolderAccountResp
-func (c *ClientWithResponses) CreateHolderAccountWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderAccountResp, error) {
-	rsp, err := c.CreateHolderAccountWithBody(ctx, organizationId, ledgerId, id, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateHolderAccountResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateHolderAccountWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountParams, body CreateHolderAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHolderAccountResp, error) {
-	rsp, err := c.CreateHolderAccount(ctx, organizationId, ledgerId, id, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateHolderAccountResp(rsp)
-}
-
 // ListOperationRoutesWithResponse request returning *ListOperationRoutesResp
 func (c *ClientWithResponses) ListOperationRoutesWithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesParams, reqEditors ...RequestEditorFn) (*ListOperationRoutesResp, error) {
 	rsp, err := c.ListOperationRoutes(ctx, organizationId, ledgerId, params, reqEditors...)
@@ -16334,6 +26961,23 @@ func (c *ClientWithResponses) CreateTransactionAnnotationWithResponse(ctx contex
 	return ParseCreateTransactionAnnotationResp(rsp)
 }
 
+// CreateTransactionBlockWithBodyWithResponse request with arbitrary body returning *CreateTransactionBlockResp
+func (c *ClientWithResponses) CreateTransactionBlockWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionBlockParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionBlockResp, error) {
+	rsp, err := c.CreateTransactionBlockWithBody(ctx, organizationId, ledgerId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionBlockResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateTransactionBlockWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionBlockParams, body CreateTransactionBlockJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionBlockResp, error) {
+	rsp, err := c.CreateTransactionBlock(ctx, organizationId, ledgerId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionBlockResp(rsp)
+}
+
 // CreateTransactionInflowWithBodyWithResponse request with arbitrary body returning *CreateTransactionInflowResp
 func (c *ClientWithResponses) CreateTransactionInflowWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionInflowParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionInflowResp, error) {
 	rsp, err := c.CreateTransactionInflowWithBody(ctx, organizationId, ledgerId, params, contentType, body, reqEditors...)
@@ -16392,6 +27036,23 @@ func (c *ClientWithResponses) CreateTransactionOutflowWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseCreateTransactionOutflowResp(rsp)
+}
+
+// CreateTransactionUnblockWithBodyWithResponse request with arbitrary body returning *CreateTransactionUnblockResp
+func (c *ClientWithResponses) CreateTransactionUnblockWithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionUnblockResp, error) {
+	rsp, err := c.CreateTransactionUnblockWithBody(ctx, organizationId, ledgerId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionUnblockResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateTransactionUnblockWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateTransactionUnblockParams, body CreateTransactionUnblockJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionUnblockResp, error) {
+	rsp, err := c.CreateTransactionUnblock(ctx, organizationId, ledgerId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionUnblockResp(rsp)
 }
 
 // GetTransactionWithResponse request returning *GetTransactionResp
@@ -16464,76 +27125,6 @@ func (c *ClientWithResponses) RevertTransactionWithResponse(ctx context.Context,
 	return ParseRevertTransactionResp(rsp)
 }
 
-// GetAllPackagesWithResponse request returning *GetAllPackagesResp
-func (c *ClientWithResponses) GetAllPackagesWithResponse(ctx context.Context, organizationId string, params *GetAllPackagesParams, reqEditors ...RequestEditorFn) (*GetAllPackagesResp, error) {
-	rsp, err := c.GetAllPackages(ctx, organizationId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetAllPackagesResp(rsp)
-}
-
-// CreatePackageWithBodyWithResponse request with arbitrary body returning *CreatePackageResp
-func (c *ClientWithResponses) CreatePackageWithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePackageResp, error) {
-	rsp, err := c.CreatePackageWithBody(ctx, organizationId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreatePackageResp(rsp)
-}
-
-func (c *ClientWithResponses) CreatePackageWithResponse(ctx context.Context, organizationId string, body CreatePackageJSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePackageResp, error) {
-	rsp, err := c.CreatePackage(ctx, organizationId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreatePackageResp(rsp)
-}
-
-// DeletePackageWithResponse request returning *DeletePackageResp
-func (c *ClientWithResponses) DeletePackageWithResponse(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*DeletePackageResp, error) {
-	rsp, err := c.DeletePackage(ctx, organizationId, id, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeletePackageResp(rsp)
-}
-
-// GetPackageByIDWithResponse request returning *GetPackageByIDResp
-func (c *ClientWithResponses) GetPackageByIDWithResponse(ctx context.Context, organizationId string, id string, reqEditors ...RequestEditorFn) (*GetPackageByIDResp, error) {
-	rsp, err := c.GetPackageByID(ctx, organizationId, id, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetPackageByIDResp(rsp)
-}
-
-// UpdatePackageWithBodyWithResponse request with arbitrary body returning *UpdatePackageResp
-func (c *ClientWithResponses) UpdatePackageWithBodyWithResponse(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePackageResp, error) {
-	rsp, err := c.UpdatePackageWithBody(ctx, organizationId, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdatePackageResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdatePackageWithResponse(ctx context.Context, organizationId string, id string, body UpdatePackageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePackageResp, error) {
-	rsp, err := c.UpdatePackage(ctx, organizationId, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdatePackageResp(rsp)
-}
-
-// GetAuditEventsWithResponse request returning *GetAuditEventsResp
-func (c *ClientWithResponses) GetAuditEventsWithResponse(ctx context.Context, organizationId string, params *GetAuditEventsParams, reqEditors ...RequestEditorFn) (*GetAuditEventsResp, error) {
-	rsp, err := c.GetAuditEvents(ctx, organizationId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetAuditEventsResp(rsp)
-}
-
 // GetAllMetadataIndexesWithResponse request returning *GetAllMetadataIndexesResp
 func (c *ClientWithResponses) GetAllMetadataIndexesWithResponse(ctx context.Context, params *GetAllMetadataIndexesParams, reqEditors ...RequestEditorFn) (*GetAllMetadataIndexesResp, error) {
 	rsp, err := c.GetAllMetadataIndexes(ctx, params, reqEditors...)
@@ -16569,6 +27160,1316 @@ func (c *ClientWithResponses) DeleteMetadataIndexWithResponse(ctx context.Contex
 	return ParseDeleteMetadataIndexResp(rsp)
 }
 
+// ListOrganizationsV2WithResponse request returning *ListOrganizationsV2Resp
+func (c *ClientWithResponses) ListOrganizationsV2WithResponse(ctx context.Context, params *ListOrganizationsV2Params, reqEditors ...RequestEditorFn) (*ListOrganizationsV2Resp, error) {
+	rsp, err := c.ListOrganizationsV2(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOrganizationsV2Resp(rsp)
+}
+
+// CreateOrganizationV2WithBodyWithResponse request with arbitrary body returning *CreateOrganizationV2Resp
+func (c *ClientWithResponses) CreateOrganizationV2WithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationV2Resp, error) {
+	rsp, err := c.CreateOrganizationV2WithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrganizationV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateOrganizationV2WithResponse(ctx context.Context, body CreateOrganizationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationV2Resp, error) {
+	rsp, err := c.CreateOrganizationV2(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrganizationV2Resp(rsp)
+}
+
+// CountOrganizationsV2WithResponse request returning *CountOrganizationsV2Resp
+func (c *ClientWithResponses) CountOrganizationsV2WithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CountOrganizationsV2Resp, error) {
+	rsp, err := c.CountOrganizationsV2(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCountOrganizationsV2Resp(rsp)
+}
+
+// DeleteOrganizationV2WithResponse request returning *DeleteOrganizationV2Resp
+func (c *ClientWithResponses) DeleteOrganizationV2WithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteOrganizationV2Resp, error) {
+	rsp, err := c.DeleteOrganizationV2(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteOrganizationV2Resp(rsp)
+}
+
+// GetOrganizationByIDV2WithResponse request returning *GetOrganizationByIDV2Resp
+func (c *ClientWithResponses) GetOrganizationByIDV2WithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetOrganizationByIDV2Resp, error) {
+	rsp, err := c.GetOrganizationByIDV2(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOrganizationByIDV2Resp(rsp)
+}
+
+// UpdateOrganizationV2WithBodyWithResponse request with arbitrary body returning *UpdateOrganizationV2Resp
+func (c *ClientWithResponses) UpdateOrganizationV2WithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrganizationV2Resp, error) {
+	rsp, err := c.UpdateOrganizationV2WithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrganizationV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateOrganizationV2WithResponse(ctx context.Context, id string, body UpdateOrganizationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrganizationV2Resp, error) {
+	rsp, err := c.UpdateOrganizationV2(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrganizationV2Resp(rsp)
+}
+
+// ProvisionEncryptionV2WithBodyWithResponse request with arbitrary body returning *ProvisionEncryptionV2Resp
+func (c *ClientWithResponses) ProvisionEncryptionV2WithBodyWithResponse(ctx context.Context, organizationId string, params *ProvisionEncryptionV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ProvisionEncryptionV2Resp, error) {
+	rsp, err := c.ProvisionEncryptionV2WithBody(ctx, organizationId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseProvisionEncryptionV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) ProvisionEncryptionV2WithResponse(ctx context.Context, organizationId string, params *ProvisionEncryptionV2Params, body ProvisionEncryptionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*ProvisionEncryptionV2Resp, error) {
+	rsp, err := c.ProvisionEncryptionV2(ctx, organizationId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseProvisionEncryptionV2Resp(rsp)
+}
+
+// GetProvisioningStatusV2WithResponse request returning *GetProvisioningStatusV2Resp
+func (c *ClientWithResponses) GetProvisioningStatusV2WithResponse(ctx context.Context, organizationId string, params *GetProvisioningStatusV2Params, reqEditors ...RequestEditorFn) (*GetProvisioningStatusV2Resp, error) {
+	rsp, err := c.GetProvisioningStatusV2(ctx, organizationId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProvisioningStatusV2Resp(rsp)
+}
+
+// ListHoldersV2WithResponse request returning *ListHoldersV2Resp
+func (c *ClientWithResponses) ListHoldersV2WithResponse(ctx context.Context, organizationId string, params *ListHoldersV2Params, reqEditors ...RequestEditorFn) (*ListHoldersV2Resp, error) {
+	rsp, err := c.ListHoldersV2(ctx, organizationId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListHoldersV2Resp(rsp)
+}
+
+// CreateHolderV2WithBodyWithResponse request with arbitrary body returning *CreateHolderV2Resp
+func (c *ClientWithResponses) CreateHolderV2WithBodyWithResponse(ctx context.Context, organizationId string, params *CreateHolderV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderV2Resp, error) {
+	rsp, err := c.CreateHolderV2WithBody(ctx, organizationId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHolderV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateHolderV2WithResponse(ctx context.Context, organizationId string, params *CreateHolderV2Params, body CreateHolderV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHolderV2Resp, error) {
+	rsp, err := c.CreateHolderV2(ctx, organizationId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHolderV2Resp(rsp)
+}
+
+// CreateInstrumentV2WithBodyWithResponse request with arbitrary body returning *CreateInstrumentV2Resp
+func (c *ClientWithResponses) CreateInstrumentV2WithBodyWithResponse(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInstrumentV2Resp, error) {
+	rsp, err := c.CreateInstrumentV2WithBody(ctx, organizationId, holderId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateInstrumentV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateInstrumentV2WithResponse(ctx context.Context, organizationId string, holderId string, params *CreateInstrumentV2Params, body CreateInstrumentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInstrumentV2Resp, error) {
+	rsp, err := c.CreateInstrumentV2(ctx, organizationId, holderId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateInstrumentV2Resp(rsp)
+}
+
+// DeleteInstrumentV2WithResponse request returning *DeleteInstrumentV2Resp
+func (c *ClientWithResponses) DeleteInstrumentV2WithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, params *DeleteInstrumentV2Params, reqEditors ...RequestEditorFn) (*DeleteInstrumentV2Resp, error) {
+	rsp, err := c.DeleteInstrumentV2(ctx, organizationId, holderId, instrumentId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteInstrumentV2Resp(rsp)
+}
+
+// GetInstrumentByIDV2WithResponse request returning *GetInstrumentByIDV2Resp
+func (c *ClientWithResponses) GetInstrumentByIDV2WithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, params *GetInstrumentByIDV2Params, reqEditors ...RequestEditorFn) (*GetInstrumentByIDV2Resp, error) {
+	rsp, err := c.GetInstrumentByIDV2(ctx, organizationId, holderId, instrumentId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetInstrumentByIDV2Resp(rsp)
+}
+
+// UpdateInstrumentV2WithBodyWithResponse request with arbitrary body returning *UpdateInstrumentV2Resp
+func (c *ClientWithResponses) UpdateInstrumentV2WithBodyWithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateInstrumentV2Resp, error) {
+	rsp, err := c.UpdateInstrumentV2WithBody(ctx, organizationId, holderId, instrumentId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateInstrumentV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateInstrumentV2WithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, body UpdateInstrumentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateInstrumentV2Resp, error) {
+	rsp, err := c.UpdateInstrumentV2(ctx, organizationId, holderId, instrumentId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateInstrumentV2Resp(rsp)
+}
+
+// DeleteRelatedPartyV2WithResponse request returning *DeleteRelatedPartyV2Resp
+func (c *ClientWithResponses) DeleteRelatedPartyV2WithResponse(ctx context.Context, organizationId string, holderId string, instrumentId string, relatedPartyId string, reqEditors ...RequestEditorFn) (*DeleteRelatedPartyV2Resp, error) {
+	rsp, err := c.DeleteRelatedPartyV2(ctx, organizationId, holderId, instrumentId, relatedPartyId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteRelatedPartyV2Resp(rsp)
+}
+
+// DeleteHolderV2WithResponse request returning *DeleteHolderV2Resp
+func (c *ClientWithResponses) DeleteHolderV2WithResponse(ctx context.Context, organizationId string, id string, params *DeleteHolderV2Params, reqEditors ...RequestEditorFn) (*DeleteHolderV2Resp, error) {
+	rsp, err := c.DeleteHolderV2(ctx, organizationId, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteHolderV2Resp(rsp)
+}
+
+// GetHolderByIDV2WithResponse request returning *GetHolderByIDV2Resp
+func (c *ClientWithResponses) GetHolderByIDV2WithResponse(ctx context.Context, organizationId string, id string, params *GetHolderByIDV2Params, reqEditors ...RequestEditorFn) (*GetHolderByIDV2Resp, error) {
+	rsp, err := c.GetHolderByIDV2(ctx, organizationId, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetHolderByIDV2Resp(rsp)
+}
+
+// UpdateHolderV2WithBodyWithResponse request with arbitrary body returning *UpdateHolderV2Resp
+func (c *ClientWithResponses) UpdateHolderV2WithBodyWithResponse(ctx context.Context, organizationId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateHolderV2Resp, error) {
+	rsp, err := c.UpdateHolderV2WithBody(ctx, organizationId, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateHolderV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateHolderV2WithResponse(ctx context.Context, organizationId string, id string, body UpdateHolderV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateHolderV2Resp, error) {
+	rsp, err := c.UpdateHolderV2(ctx, organizationId, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateHolderV2Resp(rsp)
+}
+
+// ListAccountsByHolderV2WithResponse request returning *ListAccountsByHolderV2Resp
+func (c *ClientWithResponses) ListAccountsByHolderV2WithResponse(ctx context.Context, organizationId string, id string, params *ListAccountsByHolderV2Params, reqEditors ...RequestEditorFn) (*ListAccountsByHolderV2Resp, error) {
+	rsp, err := c.ListAccountsByHolderV2(ctx, organizationId, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAccountsByHolderV2Resp(rsp)
+}
+
+// ListInstrumentsV2WithResponse request returning *ListInstrumentsV2Resp
+func (c *ClientWithResponses) ListInstrumentsV2WithResponse(ctx context.Context, organizationId string, params *ListInstrumentsV2Params, reqEditors ...RequestEditorFn) (*ListInstrumentsV2Resp, error) {
+	rsp, err := c.ListInstrumentsV2(ctx, organizationId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListInstrumentsV2Resp(rsp)
+}
+
+// ListLedgersV2WithResponse request returning *ListLedgersV2Resp
+func (c *ClientWithResponses) ListLedgersV2WithResponse(ctx context.Context, organizationId string, params *ListLedgersV2Params, reqEditors ...RequestEditorFn) (*ListLedgersV2Resp, error) {
+	rsp, err := c.ListLedgersV2(ctx, organizationId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListLedgersV2Resp(rsp)
+}
+
+// CreateLedgerV2WithBodyWithResponse request with arbitrary body returning *CreateLedgerV2Resp
+func (c *ClientWithResponses) CreateLedgerV2WithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateLedgerV2Resp, error) {
+	rsp, err := c.CreateLedgerV2WithBody(ctx, organizationId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateLedgerV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateLedgerV2WithResponse(ctx context.Context, organizationId string, body CreateLedgerV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLedgerV2Resp, error) {
+	rsp, err := c.CreateLedgerV2(ctx, organizationId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateLedgerV2Resp(rsp)
+}
+
+// CountLedgersV2WithResponse request returning *CountLedgersV2Resp
+func (c *ClientWithResponses) CountLedgersV2WithResponse(ctx context.Context, organizationId string, reqEditors ...RequestEditorFn) (*CountLedgersV2Resp, error) {
+	rsp, err := c.CountLedgersV2(ctx, organizationId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCountLedgersV2Resp(rsp)
+}
+
+// DeleteLedgerV2WithResponse request returning *DeleteLedgerV2Resp
+func (c *ClientWithResponses) DeleteLedgerV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*DeleteLedgerV2Resp, error) {
+	rsp, err := c.DeleteLedgerV2(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteLedgerV2Resp(rsp)
+}
+
+// GetLedgerByIDV2WithResponse request returning *GetLedgerByIDV2Resp
+func (c *ClientWithResponses) GetLedgerByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerByIDV2Resp, error) {
+	rsp, err := c.GetLedgerByIDV2(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLedgerByIDV2Resp(rsp)
+}
+
+// UpdateLedgerV2WithBodyWithResponse request with arbitrary body returning *UpdateLedgerV2Resp
+func (c *ClientWithResponses) UpdateLedgerV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLedgerV2Resp, error) {
+	rsp, err := c.UpdateLedgerV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLedgerV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateLedgerV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body UpdateLedgerV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLedgerV2Resp, error) {
+	rsp, err := c.UpdateLedgerV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLedgerV2Resp(rsp)
+}
+
+// ListAccountTypesV2WithResponse request returning *ListAccountTypesV2Resp
+func (c *ClientWithResponses) ListAccountTypesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListAccountTypesV2Params, reqEditors ...RequestEditorFn) (*ListAccountTypesV2Resp, error) {
+	rsp, err := c.ListAccountTypesV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAccountTypesV2Resp(rsp)
+}
+
+// CreateAccountTypeV2WithBodyWithResponse request with arbitrary body returning *CreateAccountTypeV2Resp
+func (c *ClientWithResponses) CreateAccountTypeV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAccountTypeV2Resp, error) {
+	rsp, err := c.CreateAccountTypeV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAccountTypeV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAccountTypeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateAccountTypeV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAccountTypeV2Resp, error) {
+	rsp, err := c.CreateAccountTypeV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAccountTypeV2Resp(rsp)
+}
+
+// DeleteAccountTypeV2WithResponse request returning *DeleteAccountTypeV2Resp
+func (c *ClientWithResponses) DeleteAccountTypeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeleteAccountTypeV2Resp, error) {
+	rsp, err := c.DeleteAccountTypeV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAccountTypeV2Resp(rsp)
+}
+
+// GetAccountTypeByIDV2WithResponse request returning *GetAccountTypeByIDV2Resp
+func (c *ClientWithResponses) GetAccountTypeByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetAccountTypeByIDV2Resp, error) {
+	rsp, err := c.GetAccountTypeByIDV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAccountTypeByIDV2Resp(rsp)
+}
+
+// UpdateAccountTypeV2WithBodyWithResponse request with arbitrary body returning *UpdateAccountTypeV2Resp
+func (c *ClientWithResponses) UpdateAccountTypeV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAccountTypeV2Resp, error) {
+	rsp, err := c.UpdateAccountTypeV2WithBody(ctx, organizationId, ledgerId, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAccountTypeV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAccountTypeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAccountTypeV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAccountTypeV2Resp, error) {
+	rsp, err := c.UpdateAccountTypeV2(ctx, organizationId, ledgerId, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAccountTypeV2Resp(rsp)
+}
+
+// ListAccountsV2WithResponse request returning *ListAccountsV2Resp
+func (c *ClientWithResponses) ListAccountsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListAccountsV2Params, reqEditors ...RequestEditorFn) (*ListAccountsV2Resp, error) {
+	rsp, err := c.ListAccountsV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAccountsV2Resp(rsp)
+}
+
+// CreateAccountV2WithBodyWithResponse request with arbitrary body returning *CreateAccountV2Resp
+func (c *ClientWithResponses) CreateAccountV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAccountV2Resp, error) {
+	rsp, err := c.CreateAccountV2WithBody(ctx, organizationId, ledgerId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAccountV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateAccountV2Params, body CreateAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAccountV2Resp, error) {
+	rsp, err := c.CreateAccountV2(ctx, organizationId, ledgerId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAccountV2Resp(rsp)
+}
+
+// GetAccountByAliasV2WithResponse request returning *GetAccountByAliasV2Resp
+func (c *ClientWithResponses) GetAccountByAliasV2WithResponse(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*GetAccountByAliasV2Resp, error) {
+	rsp, err := c.GetAccountByAliasV2(ctx, organizationId, ledgerId, alias, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAccountByAliasV2Resp(rsp)
+}
+
+// GetBalancesByAliasV2WithResponse request returning *GetBalancesByAliasV2Resp
+func (c *ClientWithResponses) GetBalancesByAliasV2WithResponse(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*GetBalancesByAliasV2Resp, error) {
+	rsp, err := c.GetBalancesByAliasV2(ctx, organizationId, ledgerId, alias, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBalancesByAliasV2Resp(rsp)
+}
+
+// GetAccountExternalByCodeV2WithResponse request returning *GetAccountExternalByCodeV2Resp
+func (c *ClientWithResponses) GetAccountExternalByCodeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*GetAccountExternalByCodeV2Resp, error) {
+	rsp, err := c.GetAccountExternalByCodeV2(ctx, organizationId, ledgerId, code, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAccountExternalByCodeV2Resp(rsp)
+}
+
+// GetBalancesExternalByCodeV2WithResponse request returning *GetBalancesExternalByCodeV2Resp
+func (c *ClientWithResponses) GetBalancesExternalByCodeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*GetBalancesExternalByCodeV2Resp, error) {
+	rsp, err := c.GetBalancesExternalByCodeV2(ctx, organizationId, ledgerId, code, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBalancesExternalByCodeV2Resp(rsp)
+}
+
+// CountAccountsV2WithResponse request returning *CountAccountsV2Resp
+func (c *ClientWithResponses) CountAccountsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountAccountsV2Resp, error) {
+	rsp, err := c.CountAccountsV2(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCountAccountsV2Resp(rsp)
+}
+
+// GetAllBalancesByAccountIDV2WithResponse request returning *GetAllBalancesByAccountIDV2Resp
+func (c *ClientWithResponses) GetAllBalancesByAccountIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllBalancesByAccountIDV2Params, reqEditors ...RequestEditorFn) (*GetAllBalancesByAccountIDV2Resp, error) {
+	rsp, err := c.GetAllBalancesByAccountIDV2(ctx, organizationId, ledgerId, accountId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAllBalancesByAccountIDV2Resp(rsp)
+}
+
+// CreateAdditionalBalanceV2WithBodyWithResponse request with arbitrary body returning *CreateAdditionalBalanceV2Resp
+func (c *ClientWithResponses) CreateAdditionalBalanceV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAdditionalBalanceV2Resp, error) {
+	rsp, err := c.CreateAdditionalBalanceV2WithBody(ctx, organizationId, ledgerId, accountId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAdditionalBalanceV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAdditionalBalanceV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, body CreateAdditionalBalanceV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAdditionalBalanceV2Resp, error) {
+	rsp, err := c.CreateAdditionalBalanceV2(ctx, organizationId, ledgerId, accountId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAdditionalBalanceV2Resp(rsp)
+}
+
+// GetAccountBalancesAtTimestampV2WithResponse request returning *GetAccountBalancesAtTimestampV2Resp
+func (c *ClientWithResponses) GetAccountBalancesAtTimestampV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountBalancesAtTimestampV2Params, reqEditors ...RequestEditorFn) (*GetAccountBalancesAtTimestampV2Resp, error) {
+	rsp, err := c.GetAccountBalancesAtTimestampV2(ctx, organizationId, ledgerId, accountId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAccountBalancesAtTimestampV2Resp(rsp)
+}
+
+// GetAllOperationsByAccountV2WithResponse request returning *GetAllOperationsByAccountV2Resp
+func (c *ClientWithResponses) GetAllOperationsByAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*GetAllOperationsByAccountV2Resp, error) {
+	rsp, err := c.GetAllOperationsByAccountV2(ctx, organizationId, ledgerId, accountId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAllOperationsByAccountV2Resp(rsp)
+}
+
+// GetOperationByAccountV2WithResponse request returning *GetOperationByAccountV2Resp
+func (c *ClientWithResponses) GetOperationByAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, operationId string, reqEditors ...RequestEditorFn) (*GetOperationByAccountV2Resp, error) {
+	rsp, err := c.GetOperationByAccountV2(ctx, organizationId, ledgerId, accountId, operationId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOperationByAccountV2Resp(rsp)
+}
+
+// DeleteAccountV2WithResponse request returning *DeleteAccountV2Resp
+func (c *ClientWithResponses) DeleteAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *DeleteAccountV2Params, reqEditors ...RequestEditorFn) (*DeleteAccountV2Resp, error) {
+	rsp, err := c.DeleteAccountV2(ctx, organizationId, ledgerId, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAccountV2Resp(rsp)
+}
+
+// GetAccountByIDV2WithResponse request returning *GetAccountByIDV2Resp
+func (c *ClientWithResponses) GetAccountByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetAccountByIDV2Resp, error) {
+	rsp, err := c.GetAccountByIDV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAccountByIDV2Resp(rsp)
+}
+
+// UpdateAccountV2WithBodyWithResponse request with arbitrary body returning *UpdateAccountV2Resp
+func (c *ClientWithResponses) UpdateAccountV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAccountV2Resp, error) {
+	rsp, err := c.UpdateAccountV2WithBody(ctx, organizationId, ledgerId, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAccountV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAccountV2Resp, error) {
+	rsp, err := c.UpdateAccountV2(ctx, organizationId, ledgerId, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAccountV2Resp(rsp)
+}
+
+// ListAssetsV2WithResponse request returning *ListAssetsV2Resp
+func (c *ClientWithResponses) ListAssetsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListAssetsV2Params, reqEditors ...RequestEditorFn) (*ListAssetsV2Resp, error) {
+	rsp, err := c.ListAssetsV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAssetsV2Resp(rsp)
+}
+
+// CreateAssetV2WithBodyWithResponse request with arbitrary body returning *CreateAssetV2Resp
+func (c *ClientWithResponses) CreateAssetV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateAssetV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAssetV2Resp, error) {
+	rsp, err := c.CreateAssetV2WithBody(ctx, organizationId, ledgerId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAssetV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAssetV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *CreateAssetV2Params, body CreateAssetV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAssetV2Resp, error) {
+	rsp, err := c.CreateAssetV2(ctx, organizationId, ledgerId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAssetV2Resp(rsp)
+}
+
+// CountAssetsV2WithResponse request returning *CountAssetsV2Resp
+func (c *ClientWithResponses) CountAssetsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountAssetsV2Resp, error) {
+	rsp, err := c.CountAssetsV2(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCountAssetsV2Resp(rsp)
+}
+
+// DeleteAssetV2WithResponse request returning *DeleteAssetV2Resp
+func (c *ClientWithResponses) DeleteAssetV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeleteAssetV2Resp, error) {
+	rsp, err := c.DeleteAssetV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAssetV2Resp(rsp)
+}
+
+// GetAssetByIDV2WithResponse request returning *GetAssetByIDV2Resp
+func (c *ClientWithResponses) GetAssetByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetAssetByIDV2Resp, error) {
+	rsp, err := c.GetAssetByIDV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAssetByIDV2Resp(rsp)
+}
+
+// UpdateAssetV2WithBodyWithResponse request with arbitrary body returning *UpdateAssetV2Resp
+func (c *ClientWithResponses) UpdateAssetV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAssetV2Resp, error) {
+	rsp, err := c.UpdateAssetV2WithBody(ctx, organizationId, ledgerId, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAssetV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateAssetV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateAssetV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAssetV2Resp, error) {
+	rsp, err := c.UpdateAssetV2(ctx, organizationId, ledgerId, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAssetV2Resp(rsp)
+}
+
+// GetAllBalancesV2WithResponse request returning *GetAllBalancesV2Resp
+func (c *ClientWithResponses) GetAllBalancesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesV2Params, reqEditors ...RequestEditorFn) (*GetAllBalancesV2Resp, error) {
+	rsp, err := c.GetAllBalancesV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAllBalancesV2Resp(rsp)
+}
+
+// DeleteBalanceV2WithResponse request returning *DeleteBalanceV2Resp
+func (c *ClientWithResponses) DeleteBalanceV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*DeleteBalanceV2Resp, error) {
+	rsp, err := c.DeleteBalanceV2(ctx, organizationId, ledgerId, balanceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteBalanceV2Resp(rsp)
+}
+
+// GetBalanceByIDV2WithResponse request returning *GetBalanceByIDV2Resp
+func (c *ClientWithResponses) GetBalanceByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*GetBalanceByIDV2Resp, error) {
+	rsp, err := c.GetBalanceByIDV2(ctx, organizationId, ledgerId, balanceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBalanceByIDV2Resp(rsp)
+}
+
+// UpdateBalanceV2WithBodyWithResponse request with arbitrary body returning *UpdateBalanceV2Resp
+func (c *ClientWithResponses) UpdateBalanceV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBalanceV2Resp, error) {
+	rsp, err := c.UpdateBalanceV2WithBody(ctx, organizationId, ledgerId, balanceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateBalanceV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateBalanceV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, body UpdateBalanceV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBalanceV2Resp, error) {
+	rsp, err := c.UpdateBalanceV2(ctx, organizationId, ledgerId, balanceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateBalanceV2Resp(rsp)
+}
+
+// GetBalanceAtTimestampV2WithResponse request returning *GetBalanceAtTimestampV2Resp
+func (c *ClientWithResponses) GetBalanceAtTimestampV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampV2Params, reqEditors ...RequestEditorFn) (*GetBalanceAtTimestampV2Resp, error) {
+	rsp, err := c.GetBalanceAtTimestampV2(ctx, organizationId, ledgerId, balanceId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBalanceAtTimestampV2Resp(rsp)
+}
+
+// GetAllBillingPackagesV2WithResponse request returning *GetAllBillingPackagesV2Resp
+func (c *ClientWithResponses) GetAllBillingPackagesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllBillingPackagesV2Params, reqEditors ...RequestEditorFn) (*GetAllBillingPackagesV2Resp, error) {
+	rsp, err := c.GetAllBillingPackagesV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAllBillingPackagesV2Resp(rsp)
+}
+
+// CreateBillingPackageV2WithBodyWithResponse request with arbitrary body returning *CreateBillingPackageV2Resp
+func (c *ClientWithResponses) CreateBillingPackageV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateBillingPackageV2Resp, error) {
+	rsp, err := c.CreateBillingPackageV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateBillingPackageV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateBillingPackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateBillingPackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateBillingPackageV2Resp, error) {
+	rsp, err := c.CreateBillingPackageV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateBillingPackageV2Resp(rsp)
+}
+
+// DeleteBillingPackageV2WithResponse request returning *DeleteBillingPackageV2Resp
+func (c *ClientWithResponses) DeleteBillingPackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeleteBillingPackageV2Resp, error) {
+	rsp, err := c.DeleteBillingPackageV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteBillingPackageV2Resp(rsp)
+}
+
+// GetBillingPackageByIDV2WithResponse request returning *GetBillingPackageByIDV2Resp
+func (c *ClientWithResponses) GetBillingPackageByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetBillingPackageByIDV2Resp, error) {
+	rsp, err := c.GetBillingPackageByIDV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBillingPackageByIDV2Resp(rsp)
+}
+
+// UpdateBillingPackageV2WithBodyWithResponse request with arbitrary body returning *UpdateBillingPackageV2Resp
+func (c *ClientWithResponses) UpdateBillingPackageV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBillingPackageV2Resp, error) {
+	rsp, err := c.UpdateBillingPackageV2WithBody(ctx, organizationId, ledgerId, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateBillingPackageV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateBillingPackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateBillingPackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBillingPackageV2Resp, error) {
+	rsp, err := c.UpdateBillingPackageV2(ctx, organizationId, ledgerId, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateBillingPackageV2Resp(rsp)
+}
+
+// CalculateBillingV2WithBodyWithResponse request with arbitrary body returning *CalculateBillingV2Resp
+func (c *ClientWithResponses) CalculateBillingV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CalculateBillingV2Resp, error) {
+	rsp, err := c.CalculateBillingV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCalculateBillingV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CalculateBillingV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CalculateBillingV2Resp, error) {
+	rsp, err := c.CalculateBillingV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCalculateBillingV2Resp(rsp)
+}
+
+// EstimateFeeCalculationV2WithBodyWithResponse request with arbitrary body returning *EstimateFeeCalculationV2Resp
+func (c *ClientWithResponses) EstimateFeeCalculationV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationV2Resp, error) {
+	rsp, err := c.EstimateFeeCalculationV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEstimateFeeCalculationV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) EstimateFeeCalculationV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body EstimateFeeCalculationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationV2Resp, error) {
+	rsp, err := c.EstimateFeeCalculationV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEstimateFeeCalculationV2Resp(rsp)
+}
+
+// CreateHolderAccountV2WithBodyWithResponse request with arbitrary body returning *CreateHolderAccountV2Resp
+func (c *ClientWithResponses) CreateHolderAccountV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderAccountV2Resp, error) {
+	rsp, err := c.CreateHolderAccountV2WithBody(ctx, organizationId, ledgerId, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHolderAccountV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateHolderAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, params *CreateHolderAccountV2Params, body CreateHolderAccountV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHolderAccountV2Resp, error) {
+	rsp, err := c.CreateHolderAccountV2(ctx, organizationId, ledgerId, id, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHolderAccountV2Resp(rsp)
+}
+
+// ListOperationRoutesV2WithResponse request returning *ListOperationRoutesV2Resp
+func (c *ClientWithResponses) ListOperationRoutesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesV2Params, reqEditors ...RequestEditorFn) (*ListOperationRoutesV2Resp, error) {
+	rsp, err := c.ListOperationRoutesV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOperationRoutesV2Resp(rsp)
+}
+
+// CreateOperationRouteV2WithBodyWithResponse request with arbitrary body returning *CreateOperationRouteV2Resp
+func (c *ClientWithResponses) CreateOperationRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOperationRouteV2Resp, error) {
+	rsp, err := c.CreateOperationRouteV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOperationRouteV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateOperationRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOperationRouteV2Resp, error) {
+	rsp, err := c.CreateOperationRouteV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOperationRouteV2Resp(rsp)
+}
+
+// DeleteOperationRouteV2WithResponse request returning *DeleteOperationRouteV2Resp
+func (c *ClientWithResponses) DeleteOperationRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, reqEditors ...RequestEditorFn) (*DeleteOperationRouteV2Resp, error) {
+	rsp, err := c.DeleteOperationRouteV2(ctx, organizationId, ledgerId, operationRouteId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteOperationRouteV2Resp(rsp)
+}
+
+// GetOperationRouteByIDV2WithResponse request returning *GetOperationRouteByIDV2Resp
+func (c *ClientWithResponses) GetOperationRouteByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, reqEditors ...RequestEditorFn) (*GetOperationRouteByIDV2Resp, error) {
+	rsp, err := c.GetOperationRouteByIDV2(ctx, organizationId, ledgerId, operationRouteId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOperationRouteByIDV2Resp(rsp)
+}
+
+// UpdateOperationRouteV2WithBodyWithResponse request with arbitrary body returning *UpdateOperationRouteV2Resp
+func (c *ClientWithResponses) UpdateOperationRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOperationRouteV2Resp, error) {
+	rsp, err := c.UpdateOperationRouteV2WithBody(ctx, organizationId, ledgerId, operationRouteId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOperationRouteV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateOperationRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, operationRouteId string, body UpdateOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOperationRouteV2Resp, error) {
+	rsp, err := c.UpdateOperationRouteV2(ctx, organizationId, ledgerId, operationRouteId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOperationRouteV2Resp(rsp)
+}
+
+// GetAllPackagesV2WithResponse request returning *GetAllPackagesV2Resp
+func (c *ClientWithResponses) GetAllPackagesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllPackagesV2Params, reqEditors ...RequestEditorFn) (*GetAllPackagesV2Resp, error) {
+	rsp, err := c.GetAllPackagesV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAllPackagesV2Resp(rsp)
+}
+
+// CreatePackageV2WithBodyWithResponse request with arbitrary body returning *CreatePackageV2Resp
+func (c *ClientWithResponses) CreatePackageV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePackageV2Resp, error) {
+	rsp, err := c.CreatePackageV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreatePackageV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreatePackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreatePackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePackageV2Resp, error) {
+	rsp, err := c.CreatePackageV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreatePackageV2Resp(rsp)
+}
+
+// DeletePackageV2WithResponse request returning *DeletePackageV2Resp
+func (c *ClientWithResponses) DeletePackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeletePackageV2Resp, error) {
+	rsp, err := c.DeletePackageV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePackageV2Resp(rsp)
+}
+
+// GetPackageByIDV2WithResponse request returning *GetPackageByIDV2Resp
+func (c *ClientWithResponses) GetPackageByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetPackageByIDV2Resp, error) {
+	rsp, err := c.GetPackageByIDV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPackageByIDV2Resp(rsp)
+}
+
+// UpdatePackageV2WithBodyWithResponse request with arbitrary body returning *UpdatePackageV2Resp
+func (c *ClientWithResponses) UpdatePackageV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePackageV2Resp, error) {
+	rsp, err := c.UpdatePackageV2WithBody(ctx, organizationId, ledgerId, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePackageV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdatePackageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdatePackageV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePackageV2Resp, error) {
+	rsp, err := c.UpdatePackageV2(ctx, organizationId, ledgerId, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePackageV2Resp(rsp)
+}
+
+// ListPortfoliosV2WithResponse request returning *ListPortfoliosV2Resp
+func (c *ClientWithResponses) ListPortfoliosV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListPortfoliosV2Params, reqEditors ...RequestEditorFn) (*ListPortfoliosV2Resp, error) {
+	rsp, err := c.ListPortfoliosV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListPortfoliosV2Resp(rsp)
+}
+
+// CreatePortfolioV2WithBodyWithResponse request with arbitrary body returning *CreatePortfolioV2Resp
+func (c *ClientWithResponses) CreatePortfolioV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePortfolioV2Resp, error) {
+	rsp, err := c.CreatePortfolioV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreatePortfolioV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreatePortfolioV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreatePortfolioV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePortfolioV2Resp, error) {
+	rsp, err := c.CreatePortfolioV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreatePortfolioV2Resp(rsp)
+}
+
+// CountPortfoliosV2WithResponse request returning *CountPortfoliosV2Resp
+func (c *ClientWithResponses) CountPortfoliosV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountPortfoliosV2Resp, error) {
+	rsp, err := c.CountPortfoliosV2(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCountPortfoliosV2Resp(rsp)
+}
+
+// DeletePortfolioV2WithResponse request returning *DeletePortfolioV2Resp
+func (c *ClientWithResponses) DeletePortfolioV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeletePortfolioV2Resp, error) {
+	rsp, err := c.DeletePortfolioV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePortfolioV2Resp(rsp)
+}
+
+// GetPortfolioByIDV2WithResponse request returning *GetPortfolioByIDV2Resp
+func (c *ClientWithResponses) GetPortfolioByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetPortfolioByIDV2Resp, error) {
+	rsp, err := c.GetPortfolioByIDV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPortfolioByIDV2Resp(rsp)
+}
+
+// UpdatePortfolioV2WithBodyWithResponse request with arbitrary body returning *UpdatePortfolioV2Resp
+func (c *ClientWithResponses) UpdatePortfolioV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePortfolioV2Resp, error) {
+	rsp, err := c.UpdatePortfolioV2WithBody(ctx, organizationId, ledgerId, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePortfolioV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdatePortfolioV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdatePortfolioV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePortfolioV2Resp, error) {
+	rsp, err := c.UpdatePortfolioV2(ctx, organizationId, ledgerId, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePortfolioV2Resp(rsp)
+}
+
+// ListSegmentsV2WithResponse request returning *ListSegmentsV2Resp
+func (c *ClientWithResponses) ListSegmentsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListSegmentsV2Params, reqEditors ...RequestEditorFn) (*ListSegmentsV2Resp, error) {
+	rsp, err := c.ListSegmentsV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListSegmentsV2Resp(rsp)
+}
+
+// CreateSegmentV2WithBodyWithResponse request with arbitrary body returning *CreateSegmentV2Resp
+func (c *ClientWithResponses) CreateSegmentV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSegmentV2Resp, error) {
+	rsp, err := c.CreateSegmentV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateSegmentV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateSegmentV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateSegmentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSegmentV2Resp, error) {
+	rsp, err := c.CreateSegmentV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateSegmentV2Resp(rsp)
+}
+
+// CountSegmentsV2WithResponse request returning *CountSegmentsV2Resp
+func (c *ClientWithResponses) CountSegmentsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountSegmentsV2Resp, error) {
+	rsp, err := c.CountSegmentsV2(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCountSegmentsV2Resp(rsp)
+}
+
+// DeleteSegmentV2WithResponse request returning *DeleteSegmentV2Resp
+func (c *ClientWithResponses) DeleteSegmentV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*DeleteSegmentV2Resp, error) {
+	rsp, err := c.DeleteSegmentV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteSegmentV2Resp(rsp)
+}
+
+// GetSegmentByIDV2WithResponse request returning *GetSegmentByIDV2Resp
+func (c *ClientWithResponses) GetSegmentByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, reqEditors ...RequestEditorFn) (*GetSegmentByIDV2Resp, error) {
+	rsp, err := c.GetSegmentByIDV2(ctx, organizationId, ledgerId, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSegmentByIDV2Resp(rsp)
+}
+
+// UpdateSegmentV2WithBodyWithResponse request with arbitrary body returning *UpdateSegmentV2Resp
+func (c *ClientWithResponses) UpdateSegmentV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSegmentV2Resp, error) {
+	rsp, err := c.UpdateSegmentV2WithBody(ctx, organizationId, ledgerId, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSegmentV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateSegmentV2WithResponse(ctx context.Context, organizationId string, ledgerId string, id string, body UpdateSegmentV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSegmentV2Resp, error) {
+	rsp, err := c.UpdateSegmentV2(ctx, organizationId, ledgerId, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSegmentV2Resp(rsp)
+}
+
+// GetLedgerSettingsV2WithResponse request returning *GetLedgerSettingsV2Resp
+func (c *ClientWithResponses) GetLedgerSettingsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerSettingsV2Resp, error) {
+	rsp, err := c.GetLedgerSettingsV2(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLedgerSettingsV2Resp(rsp)
+}
+
+// UpdateLedgerSettingsV2WithBodyWithResponse request with arbitrary body returning *UpdateLedgerSettingsV2Resp
+func (c *ClientWithResponses) UpdateLedgerSettingsV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLedgerSettingsV2Resp, error) {
+	rsp, err := c.UpdateLedgerSettingsV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLedgerSettingsV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateLedgerSettingsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body UpdateLedgerSettingsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLedgerSettingsV2Resp, error) {
+	rsp, err := c.UpdateLedgerSettingsV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLedgerSettingsV2Resp(rsp)
+}
+
+// ListTransactionRoutesV2WithResponse request returning *ListTransactionRoutesV2Resp
+func (c *ClientWithResponses) ListTransactionRoutesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListTransactionRoutesV2Params, reqEditors ...RequestEditorFn) (*ListTransactionRoutesV2Resp, error) {
+	rsp, err := c.ListTransactionRoutesV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListTransactionRoutesV2Resp(rsp)
+}
+
+// CreateTransactionRouteV2WithBodyWithResponse request with arbitrary body returning *CreateTransactionRouteV2Resp
+func (c *ClientWithResponses) CreateTransactionRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionRouteV2Resp, error) {
+	rsp, err := c.CreateTransactionRouteV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionRouteV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateTransactionRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionRouteV2Resp, error) {
+	rsp, err := c.CreateTransactionRouteV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionRouteV2Resp(rsp)
+}
+
+// DeleteTransactionRouteV2WithResponse request returning *DeleteTransactionRouteV2Resp
+func (c *ClientWithResponses) DeleteTransactionRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*DeleteTransactionRouteV2Resp, error) {
+	rsp, err := c.DeleteTransactionRouteV2(ctx, organizationId, ledgerId, transactionRouteId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteTransactionRouteV2Resp(rsp)
+}
+
+// GetTransactionRouteByIDV2WithResponse request returning *GetTransactionRouteByIDV2Resp
+func (c *ClientWithResponses) GetTransactionRouteByIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*GetTransactionRouteByIDV2Resp, error) {
+	rsp, err := c.GetTransactionRouteByIDV2(ctx, organizationId, ledgerId, transactionRouteId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTransactionRouteByIDV2Resp(rsp)
+}
+
+// UpdateTransactionRouteV2WithBodyWithResponse request with arbitrary body returning *UpdateTransactionRouteV2Resp
+func (c *ClientWithResponses) UpdateTransactionRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTransactionRouteV2Resp, error) {
+	rsp, err := c.UpdateTransactionRouteV2WithBody(ctx, organizationId, ledgerId, transactionRouteId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTransactionRouteV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateTransactionRouteV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionRouteId string, body UpdateTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTransactionRouteV2Resp, error) {
+	rsp, err := c.UpdateTransactionRouteV2(ctx, organizationId, ledgerId, transactionRouteId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTransactionRouteV2Resp(rsp)
+}
+
+// GetAllTransactionsV2WithResponse request returning *GetAllTransactionsV2Resp
+func (c *ClientWithResponses) GetAllTransactionsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllTransactionsV2Params, reqEditors ...RequestEditorFn) (*GetAllTransactionsV2Resp, error) {
+	rsp, err := c.GetAllTransactionsV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAllTransactionsV2Resp(rsp)
+}
+
+// CountTransactionsByFiltersV2WithResponse request returning *CountTransactionsByFiltersV2Resp
+func (c *ClientWithResponses) CountTransactionsByFiltersV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *CountTransactionsByFiltersV2Params, reqEditors ...RequestEditorFn) (*CountTransactionsByFiltersV2Resp, error) {
+	rsp, err := c.CountTransactionsByFiltersV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCountTransactionsByFiltersV2Resp(rsp)
+}
+
+// GetTransactionV2WithResponse request returning *GetTransactionV2Resp
+func (c *ClientWithResponses) GetTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*GetTransactionV2Resp, error) {
+	rsp, err := c.GetTransactionV2(ctx, organizationId, ledgerId, transactionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTransactionV2Resp(rsp)
+}
+
+// UpdateTransactionV2WithBodyWithResponse request with arbitrary body returning *UpdateTransactionV2Resp
+func (c *ClientWithResponses) UpdateTransactionV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTransactionV2Resp, error) {
+	rsp, err := c.UpdateTransactionV2WithBody(ctx, organizationId, ledgerId, transactionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTransactionV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, body UpdateTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTransactionV2Resp, error) {
+	rsp, err := c.UpdateTransactionV2(ctx, organizationId, ledgerId, transactionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTransactionV2Resp(rsp)
+}
+
+// CancelTransactionV2WithResponse request returning *CancelTransactionV2Resp
+func (c *ClientWithResponses) CancelTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*CancelTransactionV2Resp, error) {
+	rsp, err := c.CancelTransactionV2(ctx, organizationId, ledgerId, transactionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelTransactionV2Resp(rsp)
+}
+
+// CommitTransactionV2WithResponse request returning *CommitTransactionV2Resp
+func (c *ClientWithResponses) CommitTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error) {
+	rsp, err := c.CommitTransactionV2(ctx, organizationId, ledgerId, transactionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCommitTransactionV2Resp(rsp)
+}
+
+// UpdateOperationV2WithBodyWithResponse request with arbitrary body returning *UpdateOperationV2Resp
+func (c *ClientWithResponses) UpdateOperationV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOperationV2Resp, error) {
+	rsp, err := c.UpdateOperationV2WithBody(ctx, organizationId, ledgerId, transactionId, operationId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOperationV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateOperationV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, body UpdateOperationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOperationV2Resp, error) {
+	rsp, err := c.UpdateOperationV2(ctx, organizationId, ledgerId, transactionId, operationId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOperationV2Resp(rsp)
+}
+
+// RevertTransactionV2WithResponse request returning *RevertTransactionV2Resp
+func (c *ClientWithResponses) RevertTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*RevertTransactionV2Resp, error) {
+	rsp, err := c.RevertTransactionV2(ctx, organizationId, ledgerId, transactionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevertTransactionV2Resp(rsp)
+}
+
+// GetAuditEventsV2WithResponse request returning *GetAuditEventsV2Resp
+func (c *ClientWithResponses) GetAuditEventsV2WithResponse(ctx context.Context, organizationId string, params *GetAuditEventsV2Params, reqEditors ...RequestEditorFn) (*GetAuditEventsV2Resp, error) {
+	rsp, err := c.GetAuditEventsV2(ctx, organizationId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAuditEventsV2Resp(rsp)
+}
+
+// GetAllMetadataIndexesV2WithResponse request returning *GetAllMetadataIndexesV2Resp
+func (c *ClientWithResponses) GetAllMetadataIndexesV2WithResponse(ctx context.Context, params *GetAllMetadataIndexesV2Params, reqEditors ...RequestEditorFn) (*GetAllMetadataIndexesV2Resp, error) {
+	rsp, err := c.GetAllMetadataIndexesV2(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAllMetadataIndexesV2Resp(rsp)
+}
+
+// CreateMetadataIndexV2WithBodyWithResponse request with arbitrary body returning *CreateMetadataIndexV2Resp
+func (c *ClientWithResponses) CreateMetadataIndexV2WithBodyWithResponse(ctx context.Context, entityName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMetadataIndexV2Resp, error) {
+	rsp, err := c.CreateMetadataIndexV2WithBody(ctx, entityName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMetadataIndexV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateMetadataIndexV2WithResponse(ctx context.Context, entityName string, body CreateMetadataIndexV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMetadataIndexV2Resp, error) {
+	rsp, err := c.CreateMetadataIndexV2(ctx, entityName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMetadataIndexV2Resp(rsp)
+}
+
+// DeleteMetadataIndexV2WithResponse request returning *DeleteMetadataIndexV2Resp
+func (c *ClientWithResponses) DeleteMetadataIndexV2WithResponse(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*DeleteMetadataIndexV2Resp, error) {
+	rsp, err := c.DeleteMetadataIndexV2(ctx, entityName, indexKey, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteMetadataIndexV2Resp(rsp)
+}
+
+// CreateTransactionBlockV2WithBodyWithResponse request with arbitrary body returning *CreateTransactionBlockV2Resp
+func (c *ClientWithResponses) CreateTransactionBlockV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionBlockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionBlockV2Resp, error) {
+	rsp, err := c.CreateTransactionBlockV2WithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionBlockV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateTransactionBlockV2WithResponse(ctx context.Context, params *CreateTransactionBlockV2Params, body CreateTransactionBlockV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionBlockV2Resp, error) {
+	rsp, err := c.CreateTransactionBlockV2(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionBlockV2Resp(rsp)
+}
+
+// CreateTransactionDirectV2WithBodyWithResponse request with arbitrary body returning *CreateTransactionDirectV2Resp
+func (c *ClientWithResponses) CreateTransactionDirectV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionDirectV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionDirectV2Resp, error) {
+	rsp, err := c.CreateTransactionDirectV2WithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionDirectV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateTransactionDirectV2WithResponse(ctx context.Context, params *CreateTransactionDirectV2Params, body CreateTransactionDirectV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionDirectV2Resp, error) {
+	rsp, err := c.CreateTransactionDirectV2(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionDirectV2Resp(rsp)
+}
+
+// CreateTransactionHoldV2WithBodyWithResponse request with arbitrary body returning *CreateTransactionHoldV2Resp
+func (c *ClientWithResponses) CreateTransactionHoldV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionHoldV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionHoldV2Resp, error) {
+	rsp, err := c.CreateTransactionHoldV2WithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionHoldV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateTransactionHoldV2WithResponse(ctx context.Context, params *CreateTransactionHoldV2Params, body CreateTransactionHoldV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionHoldV2Resp, error) {
+	rsp, err := c.CreateTransactionHoldV2(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionHoldV2Resp(rsp)
+}
+
+// CreateTransactionUnblockV2WithBodyWithResponse request with arbitrary body returning *CreateTransactionUnblockV2Resp
+func (c *ClientWithResponses) CreateTransactionUnblockV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionUnblockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionUnblockV2Resp, error) {
+	rsp, err := c.CreateTransactionUnblockV2WithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionUnblockV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateTransactionUnblockV2WithResponse(ctx context.Context, params *CreateTransactionUnblockV2Params, body CreateTransactionUnblockV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTransactionUnblockV2Resp, error) {
+	rsp, err := c.CreateTransactionUnblockV2(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTransactionUnblockV2Resp(rsp)
+}
+
 // ParseListOrganizationsResp parses an HTTP response from a ListOrganizationsWithResponse call
 func ParseListOrganizationsResp(rsp *http.Response) (*ListOrganizationsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -16591,11 +28492,11 @@ func ParseListOrganizationsResp(rsp *http.Response) (*ListOrganizationsResp, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -16616,19 +28517,19 @@ func ParseCreateOrganizationResp(rsp *http.Response) (*CreateOrganizationResp, e
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Organization
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -16650,11 +28551,11 @@ func ParseCountOrganizationsResp(rsp *http.Response) (*CountOrganizationsResp, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -16676,11 +28577,11 @@ func ParseDeleteOrganizationResp(rsp *http.Response) (*DeleteOrganizationResp, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -16709,11 +28610,11 @@ func ParseGetOrganizationByIDResp(rsp *http.Response) (*GetOrganizationByIDResp,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -16742,676 +28643,11 @@ func ParseUpdateOrganizationResp(rsp *http.Response) (*UpdateOrganizationResp, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetAllBillingPackagesResp parses an HTTP response from a GetAllBillingPackagesWithResponse call
-func ParseGetAllBillingPackagesResp(rsp *http.Response) (*GetAllBillingPackagesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetAllBillingPackagesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeePagination
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateBillingPackageResp parses an HTTP response from a CreateBillingPackageWithResponse call
-func ParseCreateBillingPackageResp(rsp *http.Response) (*CreateBillingPackageResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateBillingPackageResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeeBillingPackage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteBillingPackageResp parses an HTTP response from a DeleteBillingPackageWithResponse call
-func ParseDeleteBillingPackageResp(rsp *http.Response) (*DeleteBillingPackageResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteBillingPackageResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetBillingPackageByIDResp parses an HTTP response from a GetBillingPackageByIDWithResponse call
-func ParseGetBillingPackageByIDResp(rsp *http.Response) (*GetBillingPackageByIDResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetBillingPackageByIDResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeeBillingPackage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateBillingPackageResp parses an HTTP response from a UpdateBillingPackageWithResponse call
-func ParseUpdateBillingPackageResp(rsp *http.Response) (*UpdateBillingPackageResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateBillingPackageResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeeBillingPackage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCalculateBillingResp parses an HTTP response from a CalculateBillingWithResponse call
-func ParseCalculateBillingResp(rsp *http.Response) (*CalculateBillingResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CalculateBillingResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeeBillingCalculateResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseProvisionEncryptionResp parses an HTTP response from a ProvisionEncryptionWithResponse call
-func ParseProvisionEncryptionResp(rsp *http.Response) (*ProvisionEncryptionResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ProvisionEncryptionResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ProvisionEncryptionResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetProvisioningStatusResp parses an HTTP response from a GetProvisioningStatusWithResponse call
-func ParseGetProvisioningStatusResp(rsp *http.Response) (*GetProvisioningStatusResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetProvisioningStatusResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ProvisioningStatusResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseEstimateFeeCalculationResp parses an HTTP response from a EstimateFeeCalculationWithResponse call
-func ParseEstimateFeeCalculationResp(rsp *http.Response) (*EstimateFeeCalculationResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &EstimateFeeCalculationResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []byte
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListHoldersResp parses an HTTP response from a ListHoldersWithResponse call
-func ParseListHoldersResp(rsp *http.Response) (*ListHoldersResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListHoldersResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Pagination
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateHolderResp parses an HTTP response from a CreateHolderWithResponse call
-func ParseCreateHolderResp(rsp *http.Response) (*CreateHolderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateHolderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Holder
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateInstrumentResp parses an HTTP response from a CreateInstrumentWithResponse call
-func ParseCreateInstrumentResp(rsp *http.Response) (*CreateInstrumentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateInstrumentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Instrument
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteInstrumentResp parses an HTTP response from a DeleteInstrumentWithResponse call
-func ParseDeleteInstrumentResp(rsp *http.Response) (*DeleteInstrumentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteInstrumentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetInstrumentByIDResp parses an HTTP response from a GetInstrumentByIDWithResponse call
-func ParseGetInstrumentByIDResp(rsp *http.Response) (*GetInstrumentByIDResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetInstrumentByIDResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Instrument
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateInstrumentResp parses an HTTP response from a UpdateInstrumentWithResponse call
-func ParseUpdateInstrumentResp(rsp *http.Response) (*UpdateInstrumentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateInstrumentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Instrument
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteRelatedPartyResp parses an HTTP response from a DeleteRelatedPartyWithResponse call
-func ParseDeleteRelatedPartyResp(rsp *http.Response) (*DeleteRelatedPartyResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteRelatedPartyResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteHolderResp parses an HTTP response from a DeleteHolderWithResponse call
-func ParseDeleteHolderResp(rsp *http.Response) (*DeleteHolderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteHolderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetHolderByIDResp parses an HTTP response from a GetHolderByIDWithResponse call
-func ParseGetHolderByIDResp(rsp *http.Response) (*GetHolderByIDResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetHolderByIDResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Holder
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateHolderResp parses an HTTP response from a UpdateHolderWithResponse call
-func ParseUpdateHolderResp(rsp *http.Response) (*UpdateHolderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateHolderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Holder
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListAccountsByHolderResp parses an HTTP response from a ListAccountsByHolderWithResponse call
-func ParseListAccountsByHolderResp(rsp *http.Response) (*ListAccountsByHolderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListAccountsByHolderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Pagination
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListInstrumentsResp parses an HTTP response from a ListInstrumentsWithResponse call
-func ParseListInstrumentsResp(rsp *http.Response) (*ListInstrumentsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListInstrumentsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Pagination
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17440,11 +28676,11 @@ func ParseListLedgersResp(rsp *http.Response) (*ListLedgersResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17465,19 +28701,19 @@ func ParseCreateLedgerResp(rsp *http.Response) (*CreateLedgerResp, error) {
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Ledger
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17499,11 +28735,11 @@ func ParseCountLedgersResp(rsp *http.Response) (*CountLedgersResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17525,11 +28761,11 @@ func ParseDeleteLedgerResp(rsp *http.Response) (*DeleteLedgerResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17558,11 +28794,11 @@ func ParseGetLedgerByIDResp(rsp *http.Response) (*GetLedgerByIDResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17591,11 +28827,11 @@ func ParseUpdateLedgerResp(rsp *http.Response) (*UpdateLedgerResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17624,11 +28860,11 @@ func ParseListAccountTypesResp(rsp *http.Response) (*ListAccountTypesResp, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17649,19 +28885,19 @@ func ParseCreateAccountTypeResp(rsp *http.Response) (*CreateAccountTypeResp, err
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest AccountType
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17683,11 +28919,11 @@ func ParseDeleteAccountTypeResp(rsp *http.Response) (*DeleteAccountTypeResp, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17716,11 +28952,11 @@ func ParseGetAccountTypeByIDResp(rsp *http.Response) (*GetAccountTypeByIDResp, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17749,11 +28985,11 @@ func ParseUpdateAccountTypeResp(rsp *http.Response) (*UpdateAccountTypeResp, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17782,11 +29018,11 @@ func ParseListAccountsResp(rsp *http.Response) (*ListAccountsResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17807,19 +29043,19 @@ func ParseCreateAccountResp(rsp *http.Response) (*CreateAccountResp, error) {
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Account
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17848,11 +29084,11 @@ func ParseGetAccountByAliasResp(rsp *http.Response) (*GetAccountByAliasResp, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17881,11 +29117,11 @@ func ParseGetBalancesByAliasResp(rsp *http.Response) (*GetBalancesByAliasResp, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17914,11 +29150,11 @@ func ParseGetAccountExternalByCodeResp(rsp *http.Response) (*GetAccountExternalB
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17947,11 +29183,11 @@ func ParseGetBalancesExternalByCodeResp(rsp *http.Response) (*GetBalancesExterna
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -17973,11 +29209,11 @@ func ParseCountAccountsResp(rsp *http.Response) (*CountAccountsResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18006,11 +29242,11 @@ func ParseGetAllBalancesByAccountIDResp(rsp *http.Response) (*GetAllBalancesByAc
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18031,19 +29267,19 @@ func ParseCreateAdditionalBalanceResp(rsp *http.Response) (*CreateAdditionalBala
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Balance
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18072,11 +29308,11 @@ func ParseGetAccountBalancesAtTimestampResp(rsp *http.Response) (*GetAccountBala
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18105,11 +29341,11 @@ func ParseGetAllOperationsByAccountResp(rsp *http.Response) (*GetAllOperationsBy
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18138,11 +29374,11 @@ func ParseGetOperationByAccountResp(rsp *http.Response) (*GetOperationByAccountR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18164,11 +29400,11 @@ func ParseDeleteAccountResp(rsp *http.Response) (*DeleteAccountResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18197,11 +29433,11 @@ func ParseGetAccountByIDResp(rsp *http.Response) (*GetAccountByIDResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18230,11 +29466,11 @@ func ParseUpdateAccountResp(rsp *http.Response) (*UpdateAccountResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18255,19 +29491,19 @@ func ParseCreateOrUpdateAssetRateResp(rsp *http.Response) (*CreateOrUpdateAssetR
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest AssetRate
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18296,11 +29532,11 @@ func ParseGetAllAssetRatesByAssetCodeResp(rsp *http.Response) (*GetAllAssetRates
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18329,11 +29565,11 @@ func ParseGetAssetRateByExternalIDResp(rsp *http.Response) (*GetAssetRateByExter
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18362,11 +29598,11 @@ func ParseListAssetsResp(rsp *http.Response) (*ListAssetsResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18387,19 +29623,19 @@ func ParseCreateAssetResp(rsp *http.Response) (*CreateAssetResp, error) {
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Asset
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18421,11 +29657,11 @@ func ParseCountAssetsResp(rsp *http.Response) (*CountAssetsResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18447,11 +29683,11 @@ func ParseDeleteAssetResp(rsp *http.Response) (*DeleteAssetResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18480,11 +29716,11 @@ func ParseGetAssetByIDResp(rsp *http.Response) (*GetAssetByIDResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18513,11 +29749,11 @@ func ParseUpdateAssetResp(rsp *http.Response) (*UpdateAssetResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18546,11 +29782,11 @@ func ParseGetAllBalancesResp(rsp *http.Response) (*GetAllBalancesResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18572,11 +29808,11 @@ func ParseDeleteBalanceResp(rsp *http.Response) (*DeleteBalanceResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18605,11 +29841,11 @@ func ParseGetBalanceByIDResp(rsp *http.Response) (*GetBalanceByIDResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18638,11 +29874,11 @@ func ParseUpdateBalanceResp(rsp *http.Response) (*UpdateBalanceResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18671,44 +29907,11 @@ func ParseGetBalanceAtTimestampResp(rsp *http.Response) (*GetBalanceAtTimestampR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateHolderAccountResp parses an HTTP response from a CreateHolderAccountWithResponse call
-func ParseCreateHolderAccountResp(rsp *http.Response) (*CreateHolderAccountResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateHolderAccountResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest HolderAccountResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18737,11 +29940,11 @@ func ParseListOperationRoutesResp(rsp *http.Response) (*ListOperationRoutesResp,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18762,19 +29965,19 @@ func ParseCreateOperationRouteResp(rsp *http.Response) (*CreateOperationRouteRes
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest OperationRoute
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18796,11 +29999,11 @@ func ParseDeleteOperationRouteResp(rsp *http.Response) (*DeleteOperationRouteRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18829,11 +30032,11 @@ func ParseGetOperationRouteByIDResp(rsp *http.Response) (*GetOperationRouteByIDR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18862,11 +30065,11 @@ func ParseUpdateOperationRouteResp(rsp *http.Response) (*UpdateOperationRouteRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18895,11 +30098,11 @@ func ParseListPortfoliosResp(rsp *http.Response) (*ListPortfoliosResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18920,19 +30123,19 @@ func ParseCreatePortfolioResp(rsp *http.Response) (*CreatePortfolioResp, error) 
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Portfolio
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18954,11 +30157,11 @@ func ParseCountPortfoliosResp(rsp *http.Response) (*CountPortfoliosResp, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -18980,11 +30183,11 @@ func ParseDeletePortfolioResp(rsp *http.Response) (*DeletePortfolioResp, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19013,11 +30216,11 @@ func ParseGetPortfolioByIDResp(rsp *http.Response) (*GetPortfolioByIDResp, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19046,11 +30249,11 @@ func ParseUpdatePortfolioResp(rsp *http.Response) (*UpdatePortfolioResp, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19079,11 +30282,11 @@ func ParseListSegmentsResp(rsp *http.Response) (*ListSegmentsResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19104,19 +30307,19 @@ func ParseCreateSegmentResp(rsp *http.Response) (*CreateSegmentResp, error) {
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Segment
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19138,11 +30341,11 @@ func ParseCountSegmentsResp(rsp *http.Response) (*CountSegmentsResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19164,11 +30367,11 @@ func ParseDeleteSegmentResp(rsp *http.Response) (*DeleteSegmentResp, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19197,11 +30400,11 @@ func ParseGetSegmentByIDResp(rsp *http.Response) (*GetSegmentByIDResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19230,11 +30433,11 @@ func ParseUpdateSegmentResp(rsp *http.Response) (*UpdateSegmentResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19263,11 +30466,11 @@ func ParseGetLedgerSettingsResp(rsp *http.Response) (*GetLedgerSettingsResp, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19296,11 +30499,11 @@ func ParseUpdateLedgerSettingsResp(rsp *http.Response) (*UpdateLedgerSettingsRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19329,11 +30532,11 @@ func ParseListTransactionRoutesResp(rsp *http.Response) (*ListTransactionRoutesR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19354,19 +30557,19 @@ func ParseCreateTransactionRouteResp(rsp *http.Response) (*CreateTransactionRout
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest TransactionRoute
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19388,11 +30591,11 @@ func ParseDeleteTransactionRouteResp(rsp *http.Response) (*DeleteTransactionRout
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19421,11 +30624,11 @@ func ParseGetTransactionRouteByIDResp(rsp *http.Response) (*GetTransactionRouteB
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19454,11 +30657,11 @@ func ParseUpdateTransactionRouteResp(rsp *http.Response) (*UpdateTransactionRout
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19487,11 +30690,11 @@ func ParseGetAllTransactionsResp(rsp *http.Response) (*GetAllTransactionsResp, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19512,19 +30715,52 @@ func ParseCreateTransactionAnnotationResp(rsp *http.Response) (*CreateTransactio
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Transaction
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateTransactionBlockResp parses an HTTP response from a CreateTransactionBlockWithResponse call
+func ParseCreateTransactionBlockResp(rsp *http.Response) (*CreateTransactionBlockResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTransactionBlockResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Transaction
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
 
 	}
 
@@ -19545,19 +30781,19 @@ func ParseCreateTransactionInflowResp(rsp *http.Response) (*CreateTransactionInf
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Transaction
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19578,19 +30814,19 @@ func ParseCreateTransactionJSONResp(rsp *http.Response) (*CreateTransactionJSONR
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Transaction
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19612,11 +30848,11 @@ func ParseCountTransactionsByFiltersResp(rsp *http.Response) (*CountTransactions
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19637,19 +30873,52 @@ func ParseCreateTransactionOutflowResp(rsp *http.Response) (*CreateTransactionOu
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Transaction
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateTransactionUnblockResp parses an HTTP response from a CreateTransactionUnblockWithResponse call
+func ParseCreateTransactionUnblockResp(rsp *http.Response) (*CreateTransactionUnblockResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTransactionUnblockResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Transaction
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
 
 	}
 
@@ -19678,11 +30947,11 @@ func ParseGetTransactionResp(rsp *http.Response) (*GetTransactionResp, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19711,11 +30980,11 @@ func ParseUpdateTransactionResp(rsp *http.Response) (*UpdateTransactionResp, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19744,11 +31013,11 @@ func ParseCancelTransactionResp(rsp *http.Response) (*CancelTransactionResp, err
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19777,11 +31046,11 @@ func ParseCommitTransactionResp(rsp *http.Response) (*CommitTransactionResp, err
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19810,11 +31079,11 @@ func ParseUpdateOperationResp(rsp *http.Response) (*UpdateOperationResp, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -19843,202 +31112,11 @@ func ParseRevertTransactionResp(rsp *http.Response) (*RevertTransactionResp, err
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetAllPackagesResp parses an HTTP response from a GetAllPackagesWithResponse call
-func ParseGetAllPackagesResp(rsp *http.Response) (*GetAllPackagesResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetAllPackagesResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeePagination
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreatePackageResp parses an HTTP response from a CreatePackageWithResponse call
-func ParseCreatePackageResp(rsp *http.Response) (*CreatePackageResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreatePackageResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeePackage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeletePackageResp parses an HTTP response from a DeletePackageWithResponse call
-func ParseDeletePackageResp(rsp *http.Response) (*DeletePackageResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeletePackageResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetPackageByIDResp parses an HTTP response from a GetPackageByIDWithResponse call
-func ParseGetPackageByIDResp(rsp *http.Response) (*GetPackageByIDResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetPackageByIDResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeePackage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdatePackageResp parses an HTTP response from a UpdatePackageWithResponse call
-func ParseUpdatePackageResp(rsp *http.Response) (*UpdatePackageResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdatePackageResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FeePackage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetAuditEventsResp parses an HTTP response from a GetAuditEventsWithResponse call
-func ParseGetAuditEventsResp(rsp *http.Response) (*GetAuditEventsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetAuditEventsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuditEventsEnvelope
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -20067,11 +31145,11 @@ func ParseGetAllMetadataIndexesResp(rsp *http.Response) (*GetAllMetadataIndexesR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -20092,19 +31170,19 @@ func ParseCreateMetadataIndexResp(rsp *http.Response) (*CreateMetadataIndexResp,
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest MetadataIndex
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
+		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.ApplicationproblemJSONDefault = &dest
+		response.JSONDefault = &dest
 
 	}
 
@@ -20125,6 +31203,3475 @@ func ParseDeleteMetadataIndexResp(rsp *http.Response) (*DeleteMetadataIndexResp,
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOrganizationsV2Resp parses an HTTP response from a ListOrganizationsV2WithResponse call
+func ParseListOrganizationsV2Resp(rsp *http.Response) (*ListOrganizationsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOrganizationsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateOrganizationV2Resp parses an HTTP response from a CreateOrganizationV2WithResponse call
+func ParseCreateOrganizationV2Resp(rsp *http.Response) (*CreateOrganizationV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateOrganizationV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Organization
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCountOrganizationsV2Resp parses an HTTP response from a CountOrganizationsV2WithResponse call
+func ParseCountOrganizationsV2Resp(rsp *http.Response) (*CountOrganizationsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CountOrganizationsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteOrganizationV2Resp parses an HTTP response from a DeleteOrganizationV2WithResponse call
+func ParseDeleteOrganizationV2Resp(rsp *http.Response) (*DeleteOrganizationV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteOrganizationV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOrganizationByIDV2Resp parses an HTTP response from a GetOrganizationByIDV2WithResponse call
+func ParseGetOrganizationByIDV2Resp(rsp *http.Response) (*GetOrganizationByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOrganizationByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Organization
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateOrganizationV2Resp parses an HTTP response from a UpdateOrganizationV2WithResponse call
+func ParseUpdateOrganizationV2Resp(rsp *http.Response) (*UpdateOrganizationV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateOrganizationV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Organization
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseProvisionEncryptionV2Resp parses an HTTP response from a ProvisionEncryptionV2WithResponse call
+func ParseProvisionEncryptionV2Resp(rsp *http.Response) (*ProvisionEncryptionV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ProvisionEncryptionV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ProvisionEncryptionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProvisioningStatusV2Resp parses an HTTP response from a GetProvisioningStatusV2WithResponse call
+func ParseGetProvisioningStatusV2Resp(rsp *http.Response) (*GetProvisioningStatusV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProvisioningStatusV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProvisioningStatusResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListHoldersV2Resp parses an HTTP response from a ListHoldersV2WithResponse call
+func ParseListHoldersV2Resp(rsp *http.Response) (*ListHoldersV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListHoldersV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateHolderV2Resp parses an HTTP response from a CreateHolderV2WithResponse call
+func ParseCreateHolderV2Resp(rsp *http.Response) (*CreateHolderV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateHolderV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Holder
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateInstrumentV2Resp parses an HTTP response from a CreateInstrumentV2WithResponse call
+func ParseCreateInstrumentV2Resp(rsp *http.Response) (*CreateInstrumentV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateInstrumentV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Instrument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteInstrumentV2Resp parses an HTTP response from a DeleteInstrumentV2WithResponse call
+func ParseDeleteInstrumentV2Resp(rsp *http.Response) (*DeleteInstrumentV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteInstrumentV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetInstrumentByIDV2Resp parses an HTTP response from a GetInstrumentByIDV2WithResponse call
+func ParseGetInstrumentByIDV2Resp(rsp *http.Response) (*GetInstrumentByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetInstrumentByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Instrument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateInstrumentV2Resp parses an HTTP response from a UpdateInstrumentV2WithResponse call
+func ParseUpdateInstrumentV2Resp(rsp *http.Response) (*UpdateInstrumentV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateInstrumentV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Instrument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteRelatedPartyV2Resp parses an HTTP response from a DeleteRelatedPartyV2WithResponse call
+func ParseDeleteRelatedPartyV2Resp(rsp *http.Response) (*DeleteRelatedPartyV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteRelatedPartyV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteHolderV2Resp parses an HTTP response from a DeleteHolderV2WithResponse call
+func ParseDeleteHolderV2Resp(rsp *http.Response) (*DeleteHolderV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteHolderV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetHolderByIDV2Resp parses an HTTP response from a GetHolderByIDV2WithResponse call
+func ParseGetHolderByIDV2Resp(rsp *http.Response) (*GetHolderByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetHolderByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Holder
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateHolderV2Resp parses an HTTP response from a UpdateHolderV2WithResponse call
+func ParseUpdateHolderV2Resp(rsp *http.Response) (*UpdateHolderV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateHolderV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Holder
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAccountsByHolderV2Resp parses an HTTP response from a ListAccountsByHolderV2WithResponse call
+func ParseListAccountsByHolderV2Resp(rsp *http.Response) (*ListAccountsByHolderV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAccountsByHolderV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListInstrumentsV2Resp parses an HTTP response from a ListInstrumentsV2WithResponse call
+func ParseListInstrumentsV2Resp(rsp *http.Response) (*ListInstrumentsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListInstrumentsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListLedgersV2Resp parses an HTTP response from a ListLedgersV2WithResponse call
+func ParseListLedgersV2Resp(rsp *http.Response) (*ListLedgersV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListLedgersV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateLedgerV2Resp parses an HTTP response from a CreateLedgerV2WithResponse call
+func ParseCreateLedgerV2Resp(rsp *http.Response) (*CreateLedgerV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateLedgerV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Ledger
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCountLedgersV2Resp parses an HTTP response from a CountLedgersV2WithResponse call
+func ParseCountLedgersV2Resp(rsp *http.Response) (*CountLedgersV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CountLedgersV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteLedgerV2Resp parses an HTTP response from a DeleteLedgerV2WithResponse call
+func ParseDeleteLedgerV2Resp(rsp *http.Response) (*DeleteLedgerV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteLedgerV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLedgerByIDV2Resp parses an HTTP response from a GetLedgerByIDV2WithResponse call
+func ParseGetLedgerByIDV2Resp(rsp *http.Response) (*GetLedgerByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLedgerByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Ledger
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateLedgerV2Resp parses an HTTP response from a UpdateLedgerV2WithResponse call
+func ParseUpdateLedgerV2Resp(rsp *http.Response) (*UpdateLedgerV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateLedgerV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Ledger
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAccountTypesV2Resp parses an HTTP response from a ListAccountTypesV2WithResponse call
+func ParseListAccountTypesV2Resp(rsp *http.Response) (*ListAccountTypesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAccountTypesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAccountTypeV2Resp parses an HTTP response from a CreateAccountTypeV2WithResponse call
+func ParseCreateAccountTypeV2Resp(rsp *http.Response) (*CreateAccountTypeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAccountTypeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AccountType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAccountTypeV2Resp parses an HTTP response from a DeleteAccountTypeV2WithResponse call
+func ParseDeleteAccountTypeV2Resp(rsp *http.Response) (*DeleteAccountTypeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAccountTypeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAccountTypeByIDV2Resp parses an HTTP response from a GetAccountTypeByIDV2WithResponse call
+func ParseGetAccountTypeByIDV2Resp(rsp *http.Response) (*GetAccountTypeByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAccountTypeByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AccountType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAccountTypeV2Resp parses an HTTP response from a UpdateAccountTypeV2WithResponse call
+func ParseUpdateAccountTypeV2Resp(rsp *http.Response) (*UpdateAccountTypeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAccountTypeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AccountType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAccountsV2Resp parses an HTTP response from a ListAccountsV2WithResponse call
+func ParseListAccountsV2Resp(rsp *http.Response) (*ListAccountsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAccountsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAccountV2Resp parses an HTTP response from a CreateAccountV2WithResponse call
+func ParseCreateAccountV2Resp(rsp *http.Response) (*CreateAccountV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAccountV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Account
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAccountByAliasV2Resp parses an HTTP response from a GetAccountByAliasV2WithResponse call
+func ParseGetAccountByAliasV2Resp(rsp *http.Response) (*GetAccountByAliasV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAccountByAliasV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Account
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBalancesByAliasV2Resp parses an HTTP response from a GetBalancesByAliasV2WithResponse call
+func ParseGetBalancesByAliasV2Resp(rsp *http.Response) (*GetBalancesByAliasV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBalancesByAliasV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAccountExternalByCodeV2Resp parses an HTTP response from a GetAccountExternalByCodeV2WithResponse call
+func ParseGetAccountExternalByCodeV2Resp(rsp *http.Response) (*GetAccountExternalByCodeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAccountExternalByCodeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Account
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBalancesExternalByCodeV2Resp parses an HTTP response from a GetBalancesExternalByCodeV2WithResponse call
+func ParseGetBalancesExternalByCodeV2Resp(rsp *http.Response) (*GetBalancesExternalByCodeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBalancesExternalByCodeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCountAccountsV2Resp parses an HTTP response from a CountAccountsV2WithResponse call
+func ParseCountAccountsV2Resp(rsp *http.Response) (*CountAccountsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CountAccountsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAllBalancesByAccountIDV2Resp parses an HTTP response from a GetAllBalancesByAccountIDV2WithResponse call
+func ParseGetAllBalancesByAccountIDV2Resp(rsp *http.Response) (*GetAllBalancesByAccountIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAllBalancesByAccountIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAdditionalBalanceV2Resp parses an HTTP response from a CreateAdditionalBalanceV2WithResponse call
+func ParseCreateAdditionalBalanceV2Resp(rsp *http.Response) (*CreateAdditionalBalanceV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAdditionalBalanceV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Balance
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAccountBalancesAtTimestampV2Resp parses an HTTP response from a GetAccountBalancesAtTimestampV2WithResponse call
+func ParseGetAccountBalancesAtTimestampV2Resp(rsp *http.Response) (*GetAccountBalancesAtTimestampV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAccountBalancesAtTimestampV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []BalanceHistory
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAllOperationsByAccountV2Resp parses an HTTP response from a GetAllOperationsByAccountV2WithResponse call
+func ParseGetAllOperationsByAccountV2Resp(rsp *http.Response) (*GetAllOperationsByAccountV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAllOperationsByAccountV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOperationByAccountV2Resp parses an HTTP response from a GetOperationByAccountV2WithResponse call
+func ParseGetOperationByAccountV2Resp(rsp *http.Response) (*GetOperationByAccountV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOperationByAccountV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Operation
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAccountV2Resp parses an HTTP response from a DeleteAccountV2WithResponse call
+func ParseDeleteAccountV2Resp(rsp *http.Response) (*DeleteAccountV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAccountV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAccountByIDV2Resp parses an HTTP response from a GetAccountByIDV2WithResponse call
+func ParseGetAccountByIDV2Resp(rsp *http.Response) (*GetAccountByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAccountByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Account
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAccountV2Resp parses an HTTP response from a UpdateAccountV2WithResponse call
+func ParseUpdateAccountV2Resp(rsp *http.Response) (*UpdateAccountV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAccountV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Account
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAssetsV2Resp parses an HTTP response from a ListAssetsV2WithResponse call
+func ParseListAssetsV2Resp(rsp *http.Response) (*ListAssetsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAssetsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAssetV2Resp parses an HTTP response from a CreateAssetV2WithResponse call
+func ParseCreateAssetV2Resp(rsp *http.Response) (*CreateAssetV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAssetV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Asset
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCountAssetsV2Resp parses an HTTP response from a CountAssetsV2WithResponse call
+func ParseCountAssetsV2Resp(rsp *http.Response) (*CountAssetsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CountAssetsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAssetV2Resp parses an HTTP response from a DeleteAssetV2WithResponse call
+func ParseDeleteAssetV2Resp(rsp *http.Response) (*DeleteAssetV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAssetV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAssetByIDV2Resp parses an HTTP response from a GetAssetByIDV2WithResponse call
+func ParseGetAssetByIDV2Resp(rsp *http.Response) (*GetAssetByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAssetByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Asset
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAssetV2Resp parses an HTTP response from a UpdateAssetV2WithResponse call
+func ParseUpdateAssetV2Resp(rsp *http.Response) (*UpdateAssetV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAssetV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Asset
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAllBalancesV2Resp parses an HTTP response from a GetAllBalancesV2WithResponse call
+func ParseGetAllBalancesV2Resp(rsp *http.Response) (*GetAllBalancesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAllBalancesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteBalanceV2Resp parses an HTTP response from a DeleteBalanceV2WithResponse call
+func ParseDeleteBalanceV2Resp(rsp *http.Response) (*DeleteBalanceV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteBalanceV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBalanceByIDV2Resp parses an HTTP response from a GetBalanceByIDV2WithResponse call
+func ParseGetBalanceByIDV2Resp(rsp *http.Response) (*GetBalanceByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBalanceByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Balance
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateBalanceV2Resp parses an HTTP response from a UpdateBalanceV2WithResponse call
+func ParseUpdateBalanceV2Resp(rsp *http.Response) (*UpdateBalanceV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateBalanceV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Balance
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBalanceAtTimestampV2Resp parses an HTTP response from a GetBalanceAtTimestampV2WithResponse call
+func ParseGetBalanceAtTimestampV2Resp(rsp *http.Response) (*GetBalanceAtTimestampV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBalanceAtTimestampV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BalanceHistory
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAllBillingPackagesV2Resp parses an HTTP response from a GetAllBillingPackagesV2WithResponse call
+func ParseGetAllBillingPackagesV2Resp(rsp *http.Response) (*GetAllBillingPackagesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAllBillingPackagesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeePagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateBillingPackageV2Resp parses an HTTP response from a CreateBillingPackageV2WithResponse call
+func ParseCreateBillingPackageV2Resp(rsp *http.Response) (*CreateBillingPackageV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateBillingPackageV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest FeeBillingPackage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteBillingPackageV2Resp parses an HTTP response from a DeleteBillingPackageV2WithResponse call
+func ParseDeleteBillingPackageV2Resp(rsp *http.Response) (*DeleteBillingPackageV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteBillingPackageV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBillingPackageByIDV2Resp parses an HTTP response from a GetBillingPackageByIDV2WithResponse call
+func ParseGetBillingPackageByIDV2Resp(rsp *http.Response) (*GetBillingPackageByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBillingPackageByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeBillingPackage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateBillingPackageV2Resp parses an HTTP response from a UpdateBillingPackageV2WithResponse call
+func ParseUpdateBillingPackageV2Resp(rsp *http.Response) (*UpdateBillingPackageV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateBillingPackageV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeBillingPackage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCalculateBillingV2Resp parses an HTTP response from a CalculateBillingV2WithResponse call
+func ParseCalculateBillingV2Resp(rsp *http.Response) (*CalculateBillingV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CalculateBillingV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeBillingCalculateResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEstimateFeeCalculationV2Resp parses an HTTP response from a EstimateFeeCalculationV2WithResponse call
+func ParseEstimateFeeCalculationV2Resp(rsp *http.Response) (*EstimateFeeCalculationV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EstimateFeeCalculationV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []byte
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateHolderAccountV2Resp parses an HTTP response from a CreateHolderAccountV2WithResponse call
+func ParseCreateHolderAccountV2Resp(rsp *http.Response) (*CreateHolderAccountV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateHolderAccountV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest HolderAccountResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOperationRoutesV2Resp parses an HTTP response from a ListOperationRoutesV2WithResponse call
+func ParseListOperationRoutesV2Resp(rsp *http.Response) (*ListOperationRoutesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOperationRoutesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateOperationRouteV2Resp parses an HTTP response from a CreateOperationRouteV2WithResponse call
+func ParseCreateOperationRouteV2Resp(rsp *http.Response) (*CreateOperationRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateOperationRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest OperationRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteOperationRouteV2Resp parses an HTTP response from a DeleteOperationRouteV2WithResponse call
+func ParseDeleteOperationRouteV2Resp(rsp *http.Response) (*DeleteOperationRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteOperationRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOperationRouteByIDV2Resp parses an HTTP response from a GetOperationRouteByIDV2WithResponse call
+func ParseGetOperationRouteByIDV2Resp(rsp *http.Response) (*GetOperationRouteByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOperationRouteByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OperationRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateOperationRouteV2Resp parses an HTTP response from a UpdateOperationRouteV2WithResponse call
+func ParseUpdateOperationRouteV2Resp(rsp *http.Response) (*UpdateOperationRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateOperationRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OperationRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAllPackagesV2Resp parses an HTTP response from a GetAllPackagesV2WithResponse call
+func ParseGetAllPackagesV2Resp(rsp *http.Response) (*GetAllPackagesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAllPackagesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeePagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreatePackageV2Resp parses an HTTP response from a CreatePackageV2WithResponse call
+func ParseCreatePackageV2Resp(rsp *http.Response) (*CreatePackageV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreatePackageV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest FeePackage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeletePackageV2Resp parses an HTTP response from a DeletePackageV2WithResponse call
+func ParseDeletePackageV2Resp(rsp *http.Response) (*DeletePackageV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePackageV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPackageByIDV2Resp parses an HTTP response from a GetPackageByIDV2WithResponse call
+func ParseGetPackageByIDV2Resp(rsp *http.Response) (*GetPackageByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPackageByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeePackage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdatePackageV2Resp parses an HTTP response from a UpdatePackageV2WithResponse call
+func ParseUpdatePackageV2Resp(rsp *http.Response) (*UpdatePackageV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdatePackageV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeePackage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListPortfoliosV2Resp parses an HTTP response from a ListPortfoliosV2WithResponse call
+func ParseListPortfoliosV2Resp(rsp *http.Response) (*ListPortfoliosV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListPortfoliosV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreatePortfolioV2Resp parses an HTTP response from a CreatePortfolioV2WithResponse call
+func ParseCreatePortfolioV2Resp(rsp *http.Response) (*CreatePortfolioV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreatePortfolioV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Portfolio
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCountPortfoliosV2Resp parses an HTTP response from a CountPortfoliosV2WithResponse call
+func ParseCountPortfoliosV2Resp(rsp *http.Response) (*CountPortfoliosV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CountPortfoliosV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeletePortfolioV2Resp parses an HTTP response from a DeletePortfolioV2WithResponse call
+func ParseDeletePortfolioV2Resp(rsp *http.Response) (*DeletePortfolioV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePortfolioV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPortfolioByIDV2Resp parses an HTTP response from a GetPortfolioByIDV2WithResponse call
+func ParseGetPortfolioByIDV2Resp(rsp *http.Response) (*GetPortfolioByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPortfolioByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Portfolio
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdatePortfolioV2Resp parses an HTTP response from a UpdatePortfolioV2WithResponse call
+func ParseUpdatePortfolioV2Resp(rsp *http.Response) (*UpdatePortfolioV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdatePortfolioV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Portfolio
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListSegmentsV2Resp parses an HTTP response from a ListSegmentsV2WithResponse call
+func ParseListSegmentsV2Resp(rsp *http.Response) (*ListSegmentsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListSegmentsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateSegmentV2Resp parses an HTTP response from a CreateSegmentV2WithResponse call
+func ParseCreateSegmentV2Resp(rsp *http.Response) (*CreateSegmentV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateSegmentV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Segment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCountSegmentsV2Resp parses an HTTP response from a CountSegmentsV2WithResponse call
+func ParseCountSegmentsV2Resp(rsp *http.Response) (*CountSegmentsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CountSegmentsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteSegmentV2Resp parses an HTTP response from a DeleteSegmentV2WithResponse call
+func ParseDeleteSegmentV2Resp(rsp *http.Response) (*DeleteSegmentV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteSegmentV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSegmentByIDV2Resp parses an HTTP response from a GetSegmentByIDV2WithResponse call
+func ParseGetSegmentByIDV2Resp(rsp *http.Response) (*GetSegmentByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSegmentByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Segment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSegmentV2Resp parses an HTTP response from a UpdateSegmentV2WithResponse call
+func ParseUpdateSegmentV2Resp(rsp *http.Response) (*UpdateSegmentV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSegmentV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Segment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLedgerSettingsV2Resp parses an HTTP response from a GetLedgerSettingsV2WithResponse call
+func ParseGetLedgerSettingsV2Resp(rsp *http.Response) (*GetLedgerSettingsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLedgerSettingsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LedgerSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateLedgerSettingsV2Resp parses an HTTP response from a UpdateLedgerSettingsV2WithResponse call
+func ParseUpdateLedgerSettingsV2Resp(rsp *http.Response) (*UpdateLedgerSettingsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateLedgerSettingsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LedgerSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListTransactionRoutesV2Resp parses an HTTP response from a ListTransactionRoutesV2WithResponse call
+func ParseListTransactionRoutesV2Resp(rsp *http.Response) (*ListTransactionRoutesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListTransactionRoutesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateTransactionRouteV2Resp parses an HTTP response from a CreateTransactionRouteV2WithResponse call
+func ParseCreateTransactionRouteV2Resp(rsp *http.Response) (*CreateTransactionRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTransactionRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteTransactionRouteV2Resp parses an HTTP response from a DeleteTransactionRouteV2WithResponse call
+func ParseDeleteTransactionRouteV2Resp(rsp *http.Response) (*DeleteTransactionRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteTransactionRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTransactionRouteByIDV2Resp parses an HTTP response from a GetTransactionRouteByIDV2WithResponse call
+func ParseGetTransactionRouteByIDV2Resp(rsp *http.Response) (*GetTransactionRouteByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTransactionRouteByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateTransactionRouteV2Resp parses an HTTP response from a UpdateTransactionRouteV2WithResponse call
+func ParseUpdateTransactionRouteV2Resp(rsp *http.Response) (*UpdateTransactionRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateTransactionRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAllTransactionsV2Resp parses an HTTP response from a GetAllTransactionsV2WithResponse call
+func ParseGetAllTransactionsV2Resp(rsp *http.Response) (*GetAllTransactionsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAllTransactionsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionV2ListBody
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCountTransactionsByFiltersV2Resp parses an HTTP response from a CountTransactionsByFiltersV2WithResponse call
+func ParseCountTransactionsByFiltersV2Resp(rsp *http.Response) (*CountTransactionsByFiltersV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CountTransactionsByFiltersV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTransactionV2Resp parses an HTTP response from a GetTransactionV2WithResponse call
+func ParseGetTransactionV2Resp(rsp *http.Response) (*GetTransactionV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTransactionV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateTransactionV2Resp parses an HTTP response from a UpdateTransactionV2WithResponse call
+func ParseUpdateTransactionV2Resp(rsp *http.Response) (*UpdateTransactionV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateTransactionV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelTransactionV2Resp parses an HTTP response from a CancelTransactionV2WithResponse call
+func ParseCancelTransactionV2Resp(rsp *http.Response) (*CancelTransactionV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelTransactionV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCommitTransactionV2Resp parses an HTTP response from a CommitTransactionV2WithResponse call
+func ParseCommitTransactionV2Resp(rsp *http.Response) (*CommitTransactionV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CommitTransactionV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateOperationV2Resp parses an HTTP response from a UpdateOperationV2WithResponse call
+func ParseUpdateOperationV2Resp(rsp *http.Response) (*UpdateOperationV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateOperationV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Operation
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevertTransactionV2Resp parses an HTTP response from a RevertTransactionV2WithResponse call
+func ParseRevertTransactionV2Resp(rsp *http.Response) (*RevertTransactionV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevertTransactionV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAuditEventsV2Resp parses an HTTP response from a GetAuditEventsV2WithResponse call
+func ParseGetAuditEventsV2Resp(rsp *http.Response) (*GetAuditEventsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAuditEventsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditEventsEnvelope
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAllMetadataIndexesV2Resp parses an HTTP response from a GetAllMetadataIndexesV2WithResponse call
+func ParseGetAllMetadataIndexesV2Resp(rsp *http.Response) (*GetAllMetadataIndexesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAllMetadataIndexesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []MetadataIndex
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateMetadataIndexV2Resp parses an HTTP response from a CreateMetadataIndexV2WithResponse call
+func ParseCreateMetadataIndexV2Resp(rsp *http.Response) (*CreateMetadataIndexV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateMetadataIndexV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest MetadataIndex
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteMetadataIndexV2Resp parses an HTTP response from a DeleteMetadataIndexV2WithResponse call
+func ParseDeleteMetadataIndexV2Resp(rsp *http.Response) (*DeleteMetadataIndexV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteMetadataIndexV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateTransactionBlockV2Resp parses an HTTP response from a CreateTransactionBlockV2WithResponse call
+func ParseCreateTransactionBlockV2Resp(rsp *http.Response) (*CreateTransactionBlockV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTransactionBlockV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateTransactionDirectV2Resp parses an HTTP response from a CreateTransactionDirectV2WithResponse call
+func ParseCreateTransactionDirectV2Resp(rsp *http.Response) (*CreateTransactionDirectV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTransactionDirectV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateTransactionHoldV2Resp parses an HTTP response from a CreateTransactionHoldV2WithResponse call
+func ParseCreateTransactionHoldV2Resp(rsp *http.Response) (*CreateTransactionHoldV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTransactionHoldV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateTransactionUnblockV2Resp parses an HTTP response from a CreateTransactionUnblockV2WithResponse call
+func ParseCreateTransactionUnblockV2Resp(rsp *http.Response) (*CreateTransactionUnblockV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTransactionUnblockV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

@@ -1,14 +1,14 @@
-// Package main demonstrates page-based pagination in the v3 SDK using
-// the iter.Seq2 trio: List, ListAll, ListPages.
+// Package main demonstrates page-based pagination using the accessor trio:
+// List, All, Pages.
 //
-// The v3 pagination contract:
+// The pagination contract — only two of the three are iterators:
 //
-//	List      — one page, you decide when to advance.
-//	ListAll   — iter.Seq2[T, error] — yields every item, hides paging.
-//	ListPages — iter.Seq2[*ListResponse[T], error] — yields full page
-//	            envelopes (with metadata, e.g., total, hasNext) so you
-//	            can short-circuit, log per-page progress, or implement
-//	            custom backpressure.
+//	List  — one *ListResponse[T]. You decide when to advance.
+//	All   — iter.Seq2[T, error] — yields every item, hides paging.
+//	Pages — iter.Seq2[*ListResponse[T], error] — yields full page
+//	        envelopes (with metadata, e.g., total, hasNext) so you
+//	        can short-circuit, log per-page progress, or implement
+//	        custom backpressure.
 //
 // Page-based endpoints (Organizations, Ledgers, Accounts, Assets, etc.)
 // support a Page field on the typed list-opts struct. Cursor-based
@@ -63,21 +63,21 @@ func main() {
 	demoEveryPage(ctx, c, orgID, ledgerID)
 }
 
-// demoOnePage uses ListAccounts: returns exactly one page. The caller
+// demoOnePage uses V2.Accounts.List: returns exactly one page. The caller
 // decides whether to fetch more by examining the response and re-calling
 // with an incremented Page. This is the right shape when the caller has
 // a UI 'next page' button or wants explicit per-page control.
 func demoOnePage(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
-	fmt.Println("--- ListAccounts (one page) ---")
+	fmt.Println("--- V2.Accounts.List (one page) ---")
 
-	page, err := c.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{
+	page, err := c.V2.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{
 			Limit: 5,
 			Page:  1,
 		},
 	})
 	if err != nil {
-		log.Printf("ListAccounts: %v", err)
+		log.Printf("V2.Accounts.List: %v", err)
 		return
 	}
 
@@ -87,15 +87,15 @@ func demoOnePage(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
 	}
 }
 
-// demoEveryItem uses ListAccountsAll: a single iter.Seq2 that walks
+// demoEveryItem uses V2.Accounts.All: a single iter.Seq2 that walks
 // every account across every page. The SDK handles paging internally.
 // This is the right shape for batch jobs, exports, or anything where
 // the caller wants to think 'collection,' not 'page.'
 func demoEveryItem(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
-	fmt.Println("--- ListAccountsAll (every item) ---")
+	fmt.Println("--- V2.Accounts.All (every item) ---")
 
 	count := 0
-	for acc, err := range c.Accounts.All(ctx, orgID, ledgerID, models.AccountsListOpts{
+	for acc, err := range c.V2.Accounts.All(ctx, orgID, ledgerID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 50},
 	}) {
 		if err != nil {
@@ -114,16 +114,16 @@ func demoEveryItem(ctx context.Context, c *midaz.Client, orgID, ledgerID string)
 	fmt.Printf("walked %d accounts total\n", count)
 }
 
-// demoEveryPage uses ListAccountsPages: yields *ListResponse envelopes,
+// demoEveryPage uses V2.Accounts.Pages: yields *ListResponse envelopes,
 // not individual items. Use when you need page-level metadata
 // (Pagination.NextPage, the count of items in this batch, etc.) — for
 // example, to log per-page checkpoints in a long-running export, or to
 // short-circuit before pulling the next page based on some condition.
 func demoEveryPage(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
-	fmt.Println("--- ListAccountsPages (every page envelope) ---")
+	fmt.Println("--- V2.Accounts.Pages (every page envelope) ---")
 
 	pageNum := 0
-	for batch, err := range c.Accounts.Pages(ctx, orgID, ledgerID, models.AccountsListOpts{
+	for batch, err := range c.V2.Accounts.Pages(ctx, orgID, ledgerID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 5},
 	}) {
 		if err != nil {
@@ -144,7 +144,7 @@ func demoEveryPage(ctx context.Context, c *midaz.Client, orgID, ledgerID string)
 // under. Real code reads these from configuration; this example just
 // grabs the first available pair to keep the demo self-contained.
 func resolveOrgAndLedger(ctx context.Context, c *midaz.Client) (orgID, ledgerID string, err error) {
-	orgs, err := c.Organizations.List(ctx, models.OrganizationsListOpts{
+	orgs, err := c.V2.Organizations.List(ctx, models.OrganizationsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	})
 	if err != nil {
@@ -155,7 +155,7 @@ func resolveOrgAndLedger(ctx context.Context, c *midaz.Client) (orgID, ledgerID 
 	}
 	orgID = orgs.Items[0].ID
 
-	ledgers, err := c.Ledgers.List(ctx, orgID, models.LedgersListOpts{
+	ledgers, err := c.V2.Ledgers.List(ctx, orgID, models.LedgersListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	})
 	if err != nil {

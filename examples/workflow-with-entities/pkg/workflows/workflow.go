@@ -121,7 +121,7 @@ type workflowAccounts struct {
 
 // initializeMidazClient initializes and configures the Midaz midaz.
 //
-// In v3 the auth flow is consolidated: config.FromEnvironment() reads the
+// The auth flow is consolidated: config.FromEnvironment() reads the
 // PLUGIN_AUTH_* + MIDAZ_CLIENT_ID + MIDAZ_CLIENT_SECRET env vars on its own,
 // and validateConfig enforces that exactly one of WithAccessManager or
 // WithAnonymous is configured. When PLUGIN_AUTH_ENABLED=true is set, the
@@ -142,7 +142,7 @@ func initializeMidazClient() (*midaz.Client, error) {
 
 	midazClient, err := midaz.New(
 		midaz.WithConfig(cfg),
-		// v3: WithObservability(t,m,l bool) was deleted. Compose explicitly
+		// WithObservability(t,m,l bool) was deleted in v3. Compose explicitly
 		// through WithObservabilityOptions for uniformity with every other
 		// observability.Option.
 		midaz.WithObservabilityOptions(
@@ -401,7 +401,7 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *midaz.Clien
 		"purpose": "deletion_test",
 	})
 
-	demoRoute, err := midazClient.OperationRoutes.Create(ctx, orgID, ledgerID, demoInput)
+	demoRoute, err := midazClient.V2.OperationRoutes.Create(ctx, orgID, ledgerID, demoInput)
 	if err != nil {
 		return fmt.Errorf("failed to create demo operation route: %w", err)
 	}

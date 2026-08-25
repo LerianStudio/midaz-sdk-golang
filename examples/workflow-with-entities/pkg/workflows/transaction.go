@@ -1,3 +1,14 @@
+// The transaction flows in this file deliberately stay on c.V1.Transactions
+// while the rest of this workflow runs on /v2.
+//
+// They demonstrate CreateJSON — the nested send/source/distribute envelope —
+// and that creation style exists ONLY on /v1. Midaz replaced the four /v1
+// styles (json, inflow, outflow, annotation) with two top-level actions,
+// /v2/transactions/direct and /hold, whose request is flat: an asset, a total,
+// and two leg arrays. There is no /v2 twin to swap these calls onto.
+//
+// For the /v2 creation path — which is the one to build against, since Midaz
+// deprecated all of /v1 — see examples/03-end-to-end.
 package workflows
 
 import (
@@ -103,7 +114,7 @@ func transactionRouteID(route *models.TransactionRoute) string {
 }
 
 func requireTransactionsClient(midazClient *midaz.Client) error {
-	if midazClient == nil || midazClient.Entity == nil || midazClient.Transactions == nil {
+	if midazClient == nil || midazClient.Entity == nil || midazClient.V1.Transactions == nil {
 		return errors.New("initialized client with transactions service is required")
 	}
 
@@ -158,7 +169,7 @@ func executeInitialDeposit(ctx context.Context, midazClient *midaz.Client, orgID
 		},
 	}
 
-	tx, err := midazClient.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create deposit transaction: %w", err)
 	}
@@ -217,7 +228,7 @@ func executeTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 		},
 	}
 
-	tx, err := midazClient.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create transfer transaction: %w", err)
 	}
@@ -353,7 +364,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *midaz.Cli
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
 
-	tx, err := midazClient.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create deposit transaction with routes: %w", err)
 	}
@@ -431,7 +442,7 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *midaz.Client, o
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
 
-	tx, err := midazClient.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create transfer transaction with routes: %w", err)
 	}
@@ -550,7 +561,7 @@ func createParallelTransactionProcessor(midazClient *midaz.Client, orgID, ledger
 		amount := amounts[index]
 		input := buildParallelTransactionInput(index, amount, customerAccountID, merchantAccountID, destinationOperationRoute, transactionRoute)
 
-		tx, err := midazClient.Transactions.CreateJSON(txCtx, orgID, ledgerID, input)
+		tx, err := midazClient.V1.Transactions.CreateJSON(txCtx, orgID, ledgerID, input)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create parallel transaction #%d: %w", index+1, err)
 		}
@@ -758,7 +769,7 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *midaz.Client, 
 			},
 		}
 
-		return midazClient.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+		return midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	}
 
 	startTime := time.Now()
@@ -839,7 +850,7 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *midaz.Client
 			},
 		}
 
-		return midazClient.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+		return midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	}
 
 	startTime := time.Now()
@@ -909,7 +920,7 @@ func demonstrateBatchProcessing(ctx context.Context, midazClient *midaz.Client, 
 		batchResults := concurrent.WorkerPool(
 			ctx, indices,
 			func(ctx context.Context, index int) (*models.Transaction, error) {
-				return midazClient.Transactions.CreateJSON(ctx, orgID, ledgerID, batch[index])
+				return midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, batch[index])
 			},
 			concurrent.WithWorkers(5), // 5 workers per batch
 			concurrent.WithUnorderedResults(),
@@ -999,7 +1010,7 @@ func demonstrateCombinedOptimizations(ctx context.Context, midazClient *midaz.Cl
 			},
 		}
 
-		return midazClient.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
+		return midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	}
 
 	startTime := time.Now()

@@ -950,40 +950,6 @@ func (c *HTTPClient) processResponse(result any, responseBody []byte) error {
 	return nil
 }
 
-// sendRequest bridges entity methods that already construct *http.Request into
-// the canonical raw-request execution path while preserving the original body bytes.
-func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
-	// Extract method and URL from the request
-	method := req.Method
-	requestURL := req.URL.String()
-
-	// Extract headers from the request
-	headers := make(map[string]string)
-
-	for key, values := range req.Header {
-		if len(values) > 0 {
-			headers[key] = values[0]
-		}
-	}
-
-	// Extract the raw body from the request so we can preserve the original payload
-	// without forcing a JSON decode/re-encode cycle.
-	body, err := c.extractRequestBody(req)
-	if err != nil {
-		return err
-	}
-
-	if len(body) > 0 && strings.TrimSpace(headers["Content-Type"]) == "" {
-		headers["Content-Type"] = "application/json"
-	}
-
-	// Use the context from the request
-	ctx := req.Context()
-
-	// Reuse the raw-request path to preserve the original body bytes.
-	return c.doRawRequest(ctx, method, requestURL, headers, body, v)
-}
-
 func cloneRetryOptions(options *retry.Options) *retry.Options {
 	if options == nil {
 		return nil
@@ -1072,41 +1038,6 @@ func removeHeaderCaseInsensitive(headers map[string]string, name string) {
 			delete(headers, key)
 		}
 	}
-}
-
-// extractRequestBody reads and returns the raw request body bytes.
-//
-// The reader is wrapped in an io.LimitReader bounded to
-// maxHTTPRequestBodyBytes+1 so an oversized body cannot pin arbitrary
-// memory before we get a chance to enforce the limit. After ReadAll
-// returns we compare the actual length against the cap; anything past it
-// surfaces the same "request body too large" error as the post-buffered
-// check did before, but without ever buffering the offending payload.
-func (c *HTTPClient) extractRequestBody(req *http.Request) ([]byte, error) {
-	if req.Body == nil {
-		return nil, nil
-	}
-
-	limited := io.LimitReader(req.Body, maxHTTPRequestBodyBytes+1)
-
-	bodyBytes, err := io.ReadAll(limited)
-	if err != nil {
-		return nil, err
-	}
-
-	if int64(len(bodyBytes)) > maxHTTPRequestBodyBytes {
-		return nil, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes)
-	}
-
-	if closeErr := req.Body.Close(); closeErr != nil && c.debug.Load() {
-		c.debugLog("Failed to close request body: %v", closeErr)
-	}
-
-	if len(bodyBytes) == 0 {
-		return nil, nil
-	}
-
-	return bodyBytes, nil
 }
 
 // sanitizeLogInput removes control characters from strings to prevent log injection attacks.

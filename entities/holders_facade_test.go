@@ -22,7 +22,7 @@ import (
 const holdersFacadeOrgID = "11111111-1111-1111-1111-111111111111"
 
 func holdersFacadeBase() string {
-	return "/v1/organizations/" + holdersFacadeOrgID + "/holders"
+	return "/v2/organizations/" + holdersFacadeOrgID + "/holders"
 }
 
 // TestHoldersFacade_ListAndPaginate exercises cursor List/Pages/All end-to-end

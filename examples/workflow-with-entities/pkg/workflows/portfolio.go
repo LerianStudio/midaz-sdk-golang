@@ -27,7 +27,7 @@ func CreatePortfolio(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 
 	fmt.Println("\nCreating portfolio...")
 
-	portfolio, err := midazClient.Portfolios.Create(
+	portfolio, err := midazClient.V2.Portfolios.Create(
 		ctx, orgID, ledgerID,
 		models.NewCreatePortfolioInput(ledgerID, "Main Portfolio"),
 	)

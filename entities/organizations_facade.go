@@ -7,10 +7,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
+	"fmt"
 	"io"
 	"iter"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
@@ -53,25 +56,15 @@ func (f *organizationsFacade) List(ctx context.Context, opts models.Organization
 
 	reqEditors := listOrganizationsReqEditors(opts)
 
-	resp, err := f.ledger.ListOrganizationsWithResponse(ctx, listOrganizationsParams(opts), reqEditors...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	// readList maps a non-2xx through DecodeProblemJSON, which reads the unified
+	// RFC 9457 envelope both planes emit into *errors.Error with retryability
+	// keyed on status + code suffix and the server's X-Request-ID threaded
+	// through, so a client-side failure correlates with the server-side
+	// log/trace.
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListOrganizations(ctx, listOrganizationsParams(opts), reqEditors...)
 
-	if resp.StatusCode() != http.StatusOK {
-		// DecodeProblemJSON maps the unified RFC 9457 envelope both planes emit
-		// into *errors.Error with retryability keyed on status + code suffix.
-		// The server's X-Request-ID is threaded through so a client-side
-		// failure correlates with the server-side log/trace.
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Organization]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Organization](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing page-by-page while the
@@ -124,17 +117,13 @@ func (f *organizationsFacade) All(ctx context.Context, opts models.Organizations
 func (f *organizationsFacade) Create(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
 	const operation = "Organizations.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.Organization](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateOrganizationWithBodyWithResponse(ctx, &genledger.CreateOrganizationParams{}, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateOrganizationWithBody(ctx, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -144,29 +133,31 @@ func (f *organizationsFacade) Create(ctx context.Context, input *models.CreateOr
 func (f *organizationsFacade) Get(ctx context.Context, id string) (*models.Organization, error) {
 	const operation = "Organizations.Get"
 
-	resp, err := f.ledger.GetOrganizationByIDWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.Organization](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetOrganizationByID(ctx, id)
+
+	return readOne[models.Organization](operation, resp, err)
 }
 
 // Update patches an organization by ID. Same write-facade pattern as Create.
 func (f *organizationsFacade) Update(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error) {
 	const operation = "Organizations.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.Organization](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateOrganizationWithBodyWithResponse(ctx, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateOrganizationWithBody(ctx, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -176,16 +167,14 @@ func (f *organizationsFacade) Update(ctx context.Context, id string, input *mode
 func (f *organizationsFacade) Delete(ctx context.Context, id string) error {
 	const operation = "Organizations.Delete"
 
-	resp, err := f.ledger.DeleteOrganizationWithResponse(ctx, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return err
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteOrganization(ctx, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // Count returns the total number of organizations via
@@ -261,6 +250,62 @@ func setQueryParam(key, value string) genledger.RequestEditorFn {
 	}
 }
 
+// reconcileBodyLedgerID reconciles the ledger that travels in the URL path with
+// the ledgerId the same request also carries in its body.
+//
+// Two server endpoints (billing calculation and fee estimation) are ledger-scoped
+// in the path AND require ledgerId in the request schema. Unreconciled, a caller
+// can send path ledger A with body ledger B and the request goes through — a
+// money-adjacent calculation attributed to a ledger the caller did not address.
+//
+// Empty body value inherits the path ledger (the path is the addressed ledger, so
+// there is nothing to disagree with). A body value that differs is a caller
+// mistake, rejected before the request leaves the SDK with both values named.
+func reconcileBodyLedgerID(operation, pathLedgerID string, bodyLedgerID *string) error {
+	if strings.TrimSpace(*bodyLedgerID) == "" {
+		*bodyLedgerID = pathLedgerID
+
+		return nil
+	}
+
+	if *bodyLedgerID != pathLedgerID {
+		return errors.NewValidationError(operation, fmt.Sprintf(
+			"ledgerId %q in the request body does not match ledger %q in the request path",
+			*bodyLedgerID, pathLedgerID,
+		), nil)
+	}
+
+	return nil
+}
+
+// validationErr normalizes a model's own Validate() failure into the SDK's
+// typed validation error. Every facade routes its input check through here, so
+// the classification is decided in one place rather than by whichever model
+// happened to be involved.
+//
+// Callers branch on [errors.IsValidationError] to separate "the payload you
+// sent is wrong" from "the ledger refused it": the first is fixable locally and
+// must not be retried unchanged, the second may be retryable. Models return
+// plain errors (validation.FieldErrors, errors.New(...)), so handing those
+// straight back left part of the write surface classified as neither — and on a
+// write path an unclassified failure is exactly the one a caller retries,
+// against a request that never left.
+//
+// An error that is already an *errors.Error passes through untouched, so a more
+// specific category is never flattened into "validation".
+func validationErr(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var sdkErr *errors.Error
+	if stderrors.As(err, &sdkErr) {
+		return err
+	}
+
+	return errors.NewValidationError(operation, "invalid input", err)
+}
+
 // writeJSON is the shared write path for the facade layer (the money-path
 // exemplar). It marshals a SDK-native input, hands it to send as a *bytes.Reader
 // (rewindable so the auth round tripper can replay after a 401), and decodes the
@@ -281,10 +326,31 @@ func writeJSON[T any](_ context.Context, operation string, input any, send func(
 	return decodeOne[T](operation, statusOf(httpResp), body, httpResp)
 }
 
+// errEmptySuccessBody is the cause behind a 2xx that carried no resource. It is
+// wrapped into a response-decode error rather than returned bare, so callers
+// match it with errors.IsResponseDecodeError like any other unreadable reply.
+var errEmptySuccessBody = stderrors.New("2xx response carried no resource (empty body, null, or {})")
+
 // decodeOne maps a single-object response: a non-2xx status decodes the unified
 // RFC 9457 error (threading X-Request-ID), otherwise the body unmarshals into T.
 // Shared by Get and the write path so the public surface is always models.T or
 // *errors.Error — the generated types never leak.
+//
+// A 2xx that carries NO resource is refused here, for every single-object read
+// and write on both surfaces. json.Unmarshal on "null" is a no-op and "{}" sets
+// nothing, so either one would hand back a zero-valued T with a nil error: a
+// caller who branches on err != nil books a settled transfer whose id is "" and
+// whose status is "". The refusal is a response-decode error precisely because
+// on a write the operation MAY have taken effect — errors.IsResponseDecodeError
+// documents that as "outcome unknown", which is the truth here and which a
+// zero-valued success destroys.
+//
+// The delete path never reaches this (deleteResource decides on the status
+// alone) and neither does the HEAD count (readCount), so a legitimately bodiless
+// 2xx is not caught by this guard. The one endpoint that answers a single-object
+// request with no body — the /v1 and /v2 transaction CANCEL — is handled before
+// decodeOne by its facade, which synthesizes the CANCELED transaction. See
+// transactionsV2Facade.Cancel for why cancel alone can do that.
 func decodeOne[T any](operation string, status int, body []byte, httpResp *http.Response) (*T, error) {
 	// isSuccess accepts any 2xx from the raw body rather than the generated
 	// status-exact resp.JSON200: onboarding creates are OAS-declared 200 (client
@@ -293,6 +359,10 @@ func decodeOne[T any](operation string, status int, body []byte, httpResp *http.
 	// money path gets from readRawResponse.
 	if !isSuccess(status) {
 		return nil, errors.DecodeProblemJSON(status, body, requestIDOf(httpResp))
+	}
+
+	if isEmptyBody(body) {
+		return nil, errors.NewResponseDecodeError(operation, status, errEmptySuccessBody)
 	}
 
 	var out T

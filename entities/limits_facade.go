@@ -32,15 +32,17 @@ func newLimitsFacade(tracer *gentracer.ClientWithResponses, enableIdempotency bo
 	return &limitsFacade{tracer: tracer, enableIdempotency: enableIdempotency}
 }
 
-// Create registers a new limit. The server returns 201, but the generated
-// CreateLimitResp parser only fills JSON200 on an exact 200 — so the write routes
-// through the raw ...WithBody call + readRawResponse + the 2xx success gate in
-// writeJSON, which decodes any 2xx (including 201) into models.Limit. The opaque
-// openapi_types.File body forces the WithBody variant regardless.
+// Create registers a new limit. The server returns 201, and the generated
+// CreateLimitResp parser is status-EXACT (it fills JSON201 on exactly 201 and
+// nothing else), so the write routes through the raw ...WithBody call +
+// readRawResponse + the 2xx success gate in writeJSON instead: the facade decodes
+// any 2xx into models.Limit and therefore does not break if the server ever
+// answers a different success status. The opaque openapi_types.File body forces
+// the WithBody variant regardless.
 func (f *limitsFacade) Create(ctx context.Context, input *models.CreateLimitInput) (*models.Limit, error) {
 	const operation = "Limits.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -53,20 +55,26 @@ func (f *limitsFacade) Create(ctx context.Context, input *models.CreateLimitInpu
 func (f *limitsFacade) Get(ctx context.Context, id string) (*models.Limit, error) {
 	const operation = "Limits.Get"
 
-	resp, err := f.tracer.GetLimitWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.Limit](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetLimit(ctx, id)
+
+	return readOne[models.Limit](operation, resp, err)
 }
 
-// Update patches a limit by ID (PATCH, 200). LimitType and Currency are immutable
+// Update patches a limit by ID (PATCH, 200). LimitType and Asset are immutable
 // and structurally absent from UpdateLimitInput, so the body never carries them.
 func (f *limitsFacade) Update(ctx context.Context, id string, input *models.UpdateLimitInput) (*models.Limit, error) {
 	const operation = "Limits.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -79,6 +87,10 @@ func (f *limitsFacade) Update(ctx context.Context, id string, input *models.Upda
 // nothing to decode — only a non-2xx maps into the unified error.
 func (f *limitsFacade) Delete(ctx context.Context, id string) error {
 	const operation = "Limits.Delete"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return err
+	}
 
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.tracer.DeleteLimit(ctx, id, idempotencyEditorsTracer(ctx, f.enableIdempotency)...))
@@ -113,12 +125,14 @@ func (f *limitsFacade) Draft(ctx context.Context, id string) (*models.Limit, err
 func (f *limitsFacade) GetUsage(ctx context.Context, id string) (*models.UsageSnapshot, error) {
 	const operation = "Limits.GetUsage"
 
-	resp, err := f.tracer.GetLimitUsageWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.UsageSnapshot](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetLimitUsage(ctx, id)
+
+	return readOne[models.UsageSnapshot](operation, resp, err)
 }
 
 // limitTransition runs a body-less lifecycle POST through the raw call so success
@@ -126,6 +140,10 @@ func (f *limitsFacade) GetUsage(ctx context.Context, id string) (*models.UsageSn
 // decodes into models.Limit. Lifecycle transitions are actions (autoGen=false):
 // no auto-gen key, but a caller-supplied ctx/explicit key still rides.
 func limitTransition(ctx context.Context, operation string, call func(context.Context, string, ...gentracer.RequestEditorFn) (*http.Response, error), id string) (*models.Limit, error) {
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(call(ctx, id, idempotencyEditorsTracer(ctx, false)...))
 	if err != nil {
@@ -150,21 +168,22 @@ func (f *limitsFacade) List(ctx context.Context, opts models.LimitsListOpts) (*m
 		return nil, err
 	}
 
-	resp, err := f.tracer.ListLimitsWithResponse(ctx, listLimitsParams(opts))
+	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
+	httpResp, body, err := readRawResponse(f.tracer.ListLimits(ctx, listLimitsParams(opts)))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
+		return nil, err
 	}
 
 	var env struct {
 		Limits     []models.Limit `json:"limits"`
 		NextCursor string         `json:"nextCursor"`
 	}
-	if err := json.Unmarshal(resp.Body, &env); err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, err)
 	}
 
 	return &models.ListResponse[models.Limit]{

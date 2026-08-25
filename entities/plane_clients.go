@@ -30,10 +30,17 @@ type PlaneClients struct {
 // value struct rather than a widening of the option chain because the builder
 // is called once, internally, from entity construction.
 type planeClientsConfig struct {
-	// ledgerURL / tracerURL are the per-plane base URLs, already carrying the
-	// "/v1" prefix (config normalizes them). The generated client appends the
-	// operation path relative to the base, so a base ending in "/v1" resolves
-	// operations under "/v1/...".
+	// ledgerURL / tracerURL are the per-plane base URLs as normalized by
+	// [normalizeBaseURLs]. The two planes version themselves differently and the
+	// difference is fixed by their OpenAPI contracts, not by preference:
+	//
+	//   - ledgerURL is BARE (host + optional subpath, no version). The Ledger
+	//     spec declares servers:[{url: "/"}] and carries the version inside every
+	//     operation path, so the generated client emits "/v1/..." and "/v2/..."
+	//     itself. A version on this base would double it ("/v1/v1/...") and is
+	//     rejected at normalization time.
+	//   - tracerURL CARRIES "/v1". The Tracer spec declares servers:[{url: "/v1"}]
+	//     with unversioned paths, so the version has to live on the base.
 	ledgerURL string
 	tracerURL string
 

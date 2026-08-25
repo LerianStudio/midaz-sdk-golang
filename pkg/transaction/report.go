@@ -26,6 +26,16 @@ type ReportEntityCounts struct {
 	Transactions  int `json:"transactions"`
 	Portfolios    int `json:"portfolios"`
 	Segments      int `json:"segments"`
+
+	// The V2-only families. They are counted apart from their /v1 siblings
+	// rather than folded in, because Transactions above is the /v1 batch total
+	// a run asserts against its configured target — adding /v2 transactions to
+	// it would break that assertion rather than enrich the report.
+	Holders         int `json:"holders,omitempty"`
+	Instruments     int `json:"instruments,omitempty"`
+	FeePackages     int `json:"feePackages,omitempty"`
+	BillingPackages int `json:"billingPackages,omitempty"`
+	V2Transactions  int `json:"v2Transactions,omitempty"`
 }
 
 // ReportEntityIDs lists the identifiers for traceability.
@@ -37,6 +47,14 @@ type ReportEntityIDs struct {
 	PortfolioIDs    []string `json:"portfolioIds,omitempty"`
 	SegmentIDs      []string `json:"segmentIds,omitempty"`
 	TransactionIDs  []string `json:"transactionIds,omitempty"`
+
+	// The V2-only families, kept in their own slices for the same reason the
+	// counts are: TransactionIDs is the /v1 batch record.
+	HolderIDs         []string `json:"holderIds,omitempty"`
+	InstrumentIDs     []string `json:"instrumentIds,omitempty"`
+	FeePackageIDs     []string `json:"feePackageIds,omitempty"`
+	BillingPackageIDs []string `json:"billingPackageIds,omitempty"`
+	V2TransactionIDs  []string `json:"v2TransactionIds,omitempty"`
 }
 
 // ReportAPIStats captures minimal API usage information.
@@ -168,17 +186,42 @@ func (r *GenerationReport) writeHTMLEntitiesSection(b *strings.Builder) {
 	_, _ = fmt.Fprintf(b, "<tr><th>Portfolios</th><td>%d</td></tr>", c.Portfolios)
 	_, _ = fmt.Fprintf(b, "<tr><th>Segments</th><td>%d</td></tr>", c.Segments)
 	_, _ = fmt.Fprintf(b, "<tr><th>Transactions</th><td>%d</td></tr>", c.Transactions)
+	writeHTMLV2EntityRows(b, c)
 	_, _ = fmt.Fprintf(b, "</tbody></table>")
 
 	ids := r.Entities.IDs
 	totalIDs := len(ids.OrganizationIDs) + len(ids.LedgerIDs) + len(ids.AssetIDs) +
-		len(ids.AccountIDs) + len(ids.PortfolioIDs) + len(ids.SegmentIDs) + len(ids.TransactionIDs)
+		len(ids.AccountIDs) + len(ids.PortfolioIDs) + len(ids.SegmentIDs) + len(ids.TransactionIDs) +
+		len(ids.HolderIDs) + len(ids.InstrumentIDs) + len(ids.FeePackageIDs) +
+		len(ids.BillingPackageIDs) + len(ids.V2TransactionIDs)
 
 	if totalIDs > 0 {
 		_, _ = fmt.Fprintf(b, "<p class=\"muted\">IDs captured (truncated for brevity).</p>")
 	}
 
 	_, _ = fmt.Fprintf(b, "</div>")
+}
+
+// writeHTMLV2EntityRows writes the V2-only family rows, each omitted when the
+// run created none. A run that never touched the /v2 surface reads the same as
+// it always did rather than growing five zero rows.
+func writeHTMLV2EntityRows(b *strings.Builder, c ReportEntityCounts) {
+	rows := []struct {
+		label string
+		count int
+	}{
+		{"Holders", c.Holders},
+		{"Instruments", c.Instruments},
+		{"Fee packages", c.FeePackages},
+		{"Billing packages", c.BillingPackages},
+		{"Transactions (v2)", c.V2Transactions},
+	}
+
+	for _, row := range rows {
+		if row.count > 0 {
+			_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%d</td></tr>", row.label, row.count)
+		}
+	}
 }
 
 // writeHTMLAPIStatsSection writes the API stats section.

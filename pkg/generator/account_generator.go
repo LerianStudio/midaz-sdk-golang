@@ -14,7 +14,7 @@ import (
 )
 
 // accountsAPI is the narrow slice of the accounts facade this generator needs.
-// Consumer-side interface (Epic 5.3 swap: client.Accounts is now a concrete
+// Consumer-side interface (Epic 5.3 swap: client.V1.Accounts is now a concrete
 // *entities.accountsFacade); tests inject a mock satisfying just this.
 type accountsAPI interface {
 	Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
@@ -37,8 +37,8 @@ func NewAccountGenerator(e *entities.Entity, obs observability.Provider) Account
 	}
 
 	g := &accountGenerator{obs: obs, mc: mc}
-	if e != nil && e.Accounts != nil {
-		g.accounts = e.Accounts
+	if e != nil && e.V1.Accounts != nil {
+		g.accounts = e.V1.Accounts
 	}
 
 	return g

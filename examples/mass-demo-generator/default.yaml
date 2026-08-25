@@ -9,6 +9,7 @@ mass_demo:
   assets: 3
   create_hierarchy: true
   run_batch: true
+  run_v2: true
   asset_code: USD
   chart_group: ""
   locale: us

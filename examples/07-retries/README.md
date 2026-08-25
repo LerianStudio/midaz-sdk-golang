@@ -1,6 +1,6 @@
 # 07-retries
 
-Demonstrates the v3 retry surface — three modes the SDK supports for
+Demonstrates the retry surface — three modes the SDK supports for
 HTTP-level retries.
 
 ## What this demonstrates

@@ -1,6 +1,6 @@
 # 10-observability-otel
 
-Demonstrates the v3 observability surface — OpenTelemetry tracing,
+Demonstrates the observability surface — OpenTelemetry tracing,
 metrics, and logging wired through the SDK's
 `pkg/observability.Provider`.
 

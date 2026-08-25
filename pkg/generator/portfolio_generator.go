@@ -28,8 +28,8 @@ type portfolioGenerator struct {
 // NewPortfolioGenerator creates a new portfolio generator.
 func NewPortfolioGenerator(e *entities.Entity, obs observability.Provider) PortfolioGenerator {
 	g := &portfolioGenerator{obs: obs}
-	if e != nil && e.Portfolios != nil {
-		g.portfolios = e.Portfolios
+	if e != nil && e.V1.Portfolios != nil {
+		g.portfolios = e.V1.Portfolios
 	}
 
 	return g

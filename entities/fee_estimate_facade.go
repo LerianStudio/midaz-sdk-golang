@@ -37,19 +37,41 @@ func newFeeEstimateFacade(ledger *genledger.ClientWithResponses) *feeEstimateFac
 	return &feeEstimateFacade{ledger: ledger}
 }
 
-// EstimateFee runs a dry-run fee estimation for a transaction under an
-// organization. A 2xx with feesApplied:null (no rules matched) returns
-// (resp, nil) with FeesApplied == nil — never an error. Same write-facade
-// pattern as the creates: a rewindable body so the auth round tripper can replay
-// after a 401.
-func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID string, input *models.FeeEstimateInput) (*models.FeeEstimateResponse, error) {
+// EstimateFee runs a dry-run fee estimation for a transaction under a LEDGER.
+// A 2xx with feesApplied:null (no rules matched) returns (resp, nil) with
+// FeesApplied == nil — never an error. Same write-facade pattern as the creates:
+// a rewindable body so the auth round tripper can replay after a 401.
+//
+// SCOPE: fee estimation is ledger-scoped on the server
+// (POST /v2/organizations/{org}/ledgers/{ledger}/estimates). The removed /v1
+// route was organization-scoped; ledgerID is not optional.
+//
+// The ledger travels in the path AND in the body (the server schema requires
+// ledgerId). An empty input.LedgerID inherits the path ledger; a different one is
+// rejected — see [reconcileBodyLedgerID]. The caller's input is never mutated.
+func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID, ledgerID string, input *models.FeeEstimateInput) (*models.FeeEstimateResponse, error) {
 	const operation = "FeeEstimate.EstimateFee"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
 		return nil, err
 	}
 
-	return writeJSON[models.FeeEstimateResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.EstimateFeeCalculationWithBody(ctx, orgID, jsonContentType, body))
+	payload := input
+
+	if input != nil {
+		reconciled := *input
+		if err := reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID); err != nil {
+			return nil, err
+		}
+
+		payload = &reconciled
+	}
+
+	if err := validationErr(operation, payload.Validate()); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.FeeEstimateResponse](ctx, operation, payload, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.EstimateFeeCalculationV2WithBody(ctx, orgID, ledgerID, jsonContentType, body))
 	})
 }

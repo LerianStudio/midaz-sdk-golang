@@ -59,17 +59,17 @@ orgInput := models.NewCreateOrganizationInput("Example Organization", "123456789
         "size":     "startup",
     })
 
-org, err := c.Organizations.Create(ctx, orgInput)
+org, err := c.V2.Organizations.Create(ctx, orgInput)
 if err != nil {
     return err
 }
 
-org, err = c.Organizations.Get(ctx, org.ID)
+org, err = c.V2.Organizations.Get(ctx, org.ID)
 if err != nil {
     return err
 }
 
-orgs, err := c.Organizations.List(ctx, models.OrganizationsListOpts{
+orgs, err := c.V2.Organizations.List(ctx, models.OrganizationsListOpts{
     PageListOpts: models.PageListOpts{Limit: 20},
     Filters:      models.OrganizationsFilters{Status: "ACTIVE"},
 })
@@ -84,7 +84,7 @@ assetInput := models.NewCreateAssetInputWithType("US Dollar", "USD", "currency")
         "country": "US",
     })
 
-asset, err := c.Assets.Create(ctx, orgID, ledgerID, assetInput)
+asset, err := c.V2.Assets.Create(ctx, orgID, ledgerID, assetInput)
 if err != nil {
     return err
 }
@@ -96,28 +96,97 @@ accountInput := models.NewCreateAccountInput("Customer Checking Account", asset.
         "tier":        "premium",
     })
 
-account, err := c.Accounts.Create(ctx, orgID, ledgerID, accountInput)
+account, err := c.V2.Accounts.Create(ctx, orgID, ledgerID, accountInput)
 if err != nil {
     return err
 }
 
 // Account balances are listed (cursor-paginated); pick the first for a single-asset account.
-balances, err := c.Accounts.ListBalances(ctx, orgID, ledgerID, account.ID, models.CursorListOpts{})
+balances, err := c.V2.Balances.ListAccountBalances(ctx, orgID, ledgerID, account.ID, models.BalancesListOpts{})
 if err != nil {
     return err
 }
 balance := balances.Items[0]
 ```
 
-Use `BalancesService` when you need balance records by balance ID, all balances for an account, history, alias lookup, or external-code lookup:
+The account-scoped balance read lives on `Balances`, not on `Accounts`. On /v1
+it is spelled on both (`c.V1.Accounts.ListBalances` and
+`c.V1.Balances.ListAccountBalances` are the same wire call); /v2 spells each
+endpoint exactly once, on the accessor named after what it returns.
+
+`Balances` also serves balance records by balance ID, point-in-time history,
+and the alias and external-code lookups:
 
 ```go
-balances, err := c.Balances.ListAccountBalances(ctx, orgID, ledgerID, account.ID, models.BalancesListOpts{})
+bal, err := c.V2.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
+
+// The history date names an INSTANT, so it must carry a time component: a
+// date-only "2026-06-30" is refused by the SDK before the request is built.
+hist, err := c.V2.Balances.GetBalanceHistory(ctx, orgID, ledgerID, balanceID, "2026-06-30T23:59:59Z")
+
+// The alias and external-code lookups take no options and are not paginated:
+// the endpoint accepts no query parameters and answers with a fixed page.
+byAlias, err := c.V2.Balances.ListBalancesByAccountAlias(ctx, orgID, ledgerID, "@customer-1")
 ```
 
 ## Transaction processing
 
-The current transaction contract uses a `send` payload. You can build it explicitly:
+The two surfaces have **different transaction contracts**, not different paths
+to one contract.
+
+On /v2 — the surface to build against — the request is flat: an asset, a total,
+and two leg arrays. The action lives in the URL, so the SDK spells it as a
+method: `CreateDirect` settles immediately, `CreateHold` reserves value for a
+later `Commit`.
+
+```go
+txInput := &models.CreateTransactionV2Input{
+    Asset:       "USD",
+    Amount:      "100.00",
+    Description: "Payment from customer to merchant",
+    Debits:      []models.TransactionV2Leg{{Alias: customerAccountAlias, Amount: "100.00"}},
+    Credits:     []models.TransactionV2Leg{{Alias: merchantAccountAlias, Amount: "100.00"}},
+    Metadata: map[string]any{
+        "payment_id":  "pay-123",
+        "customer_id": "cust-123",
+    },
+}
+txInput.IdempotencyKey = "payment-2026-05-03-0001"
+
+tx, err := c.V2.Transactions.CreateDirect(ctx, orgID, ledgerID, txInput)
+```
+
+Each leg names the organization and ledger its account belongs to; the facade
+stamps them from the pair passed to `CreateDirect`, into a copy, so one input
+can be reused against a second ledger. A leg naming a *different* pair is
+refused rather than posted into the wrong ledger.
+
+A leg carries **exactly one** value expression — an explicit `Amount`, or a
+`Share` of the total. Both, or neither, is refused before the request leaves.
+
+A structured split is simply more `Credits` entries:
+
+```go
+splitInput := &models.CreateTransactionV2Input{
+    Asset:       "USD",
+    Amount:      "100.00",
+    Description: "Split payment transaction",
+    Debits:      []models.TransactionV2Leg{{Alias: customerAccountAlias, Amount: "100.00"}},
+    Credits: []models.TransactionV2Leg{
+        {Alias: merchantAccountAlias, Amount: "85.00"},
+        {Alias: platformFeeAlias, Amount: "10.00"},
+        {Alias: processorFeeAlias, Amount: "5.00"},
+    },
+}
+
+tx, err := c.V2.Transactions.CreateDirect(ctx, orgID, ledgerID, splitInput)
+```
+
+### The /v1 creation styles
+
+/v1 nests a `send` envelope behind four endpoints — `CreateJSON`,
+`CreateInflow`, `CreateOutflow`, `CreateAnnotation`. **These have no /v2 twin**,
+so they stay reachable on `c.V1.Transactions` for as long as Midaz serves /v1:
 
 ```go
 txInput := models.NewCreateTransactionInput("USD", "100.00").
@@ -148,39 +217,15 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
 	})
 txInput.IdempotencyKey = "payment-2026-05-03-0001"
 
-tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, txInput)
+tx, err := c.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, txInput)
 ```
 
-Structured splits (one source funding several destinations) use the same
-send-based payload — add multiple entries to `Distribute.To`. A dedicated DSL
-entry point is not currently exposed on the `Transactions` facade:
-
-```go
-splitInput := models.NewCreateTransactionInput("USD", "100.00").
-    WithDescription("Split payment transaction").
-    WithSend(&models.SendInput{
-        Asset: "USD",
-        Value: "100.00",
-        Source: &models.SourceInput{
-            From: []models.FromToInput{
-                {AccountAlias: customerAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
-            },
-        },
-        Distribute: &models.DistributeInput{
-            To: []models.FromToInput{
-                {AccountAlias: merchantAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "85.00"}},
-                {AccountAlias: platformFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "10.00"}},
-                {AccountAlias: processorFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "5.00"}},
-            },
-        },
-    })
-
-tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, splitInput)
-```
+On /v1 a structured split adds multiple entries to `Distribute.To`, the same
+way /v2 adds `Credits` entries.
 
 ## Waiting for settlement
 
-A `201` from `CreateJSON` means the transaction was recorded, not that the
+A `201` from a create means the transaction was recorded, not that the
 ledger balance reflects it. Wait on the balance effect with
 `transaction.WaitForSettlement`, passing a predicate that decides what
 "settled" means for your case (here, the account's `USD` balance version
@@ -191,7 +236,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/transaction"
 
 settled, err := transaction.WaitForSettlement(
     ctx,
-    c.Balances, // satisfies the balance reader structurally
+    c.V2.Balances, // satisfies the balance reader structurally
     orgID, ledgerID, accountID,
     func(b models.Balance) bool {
         return b.AssetCode == "USD" && b.Version >= 2
@@ -210,15 +255,22 @@ log.Printf("settled: available=%s version=%d", settled.Available, settled.Versio
 
 ## Fee estimation and billing
 
-Fee, billing, and holder-account composition inputs use fluent builders. Feed a
-billing period into `NewBillingCalculateInput` and call the `BillingCalculations`
-accessor; an empty result set (no packages matched) is a success, not an error:
+Fee, billing, and holder-account composition are **/v2 only** — Midaz removed
+the fee and billing families from /v1 — and they are **ledger-scoped** there:
+the family moved from organization scope to ledger scope in /v2, so every
+method takes a ledger ID.
+
+Feed a billing period into `NewBillingCalculateInput` and call the
+`BillingCalculations` accessor; an empty result set (no packages matched) is a
+success, not an error. The ledger in the path and the `ledgerId` in the body
+are reconciled before the request leaves the SDK — filled when empty, refused
+when they contradict:
 
 ```go
 calcInput := models.NewBillingCalculateInput(ledgerID, "2026-06").
     WithType("volume")
 
-result, err := c.BillingCalculations.CalculateBilling(ctx, orgID, calcInput)
+result, err := c.V2.BillingCalculations.CalculateBilling(ctx, orgID, ledgerID, calcInput)
 if err != nil {
     return err
 }
@@ -234,7 +286,7 @@ write did not — a success, not an error:
 acctInput := models.NewCreateHolderAccountInput("USD", "deposit").
     WithName("Primary settlement account")
 
-resp, err := c.Composition.CreateHolderAccount(ctx, orgID, ledgerID, holderID, acctInput)
+resp, err := c.V2.Composition.CreateHolderAccount(ctx, orgID, ledgerID, holderID, acctInput)
 if err != nil {
     return err
 }
@@ -245,7 +297,7 @@ if resp.InstrumentError != nil {
 
 ## Using pagination
 
-The primary entity accessors ship every paginated list method in a trio: `List` (one page), `All` (every item across pages), and `Pages` (every page envelope). `MetadataIndexes.ListMetadataIndexes` is intentionally non-paginated. Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
+The primary entity accessors ship every paginated list method in a trio: `List` (one page), `All` (every item across pages), and `Pages` (every page envelope). `MetadataIndexes.List` is intentionally non-paginated. Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
 
 ```go
 opts := models.AccountsListOpts{
@@ -256,7 +308,7 @@ opts := models.AccountsListOpts{
     Filters: models.AccountsFilters{Status: "ACTIVE"},
 }
 
-for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
+for account, err := range c.V2.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list accounts: %w", err)
     }
@@ -267,7 +319,7 @@ for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
 When you need page-level metadata (cursor, total, page number) — for checkpointing, batching, or stopping mid-collection — use the `Pages` variant:
 
 ```go
-for page, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
+for page, err := range c.V2.Accounts.Pages(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return err
     }
@@ -282,7 +334,7 @@ for page, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
 For one-page-at-a-time control (UI pagination, manual replay), call `List` directly and inspect `page.Pagination.HasMore()`:
 
 ```go
-page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
+page, err := c.V2.Accounts.List(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }
@@ -320,7 +372,7 @@ Runnable examples live in `examples/`:
 
 **Testing & observability**
 
-- `09-testing-with-mocks/` - `go.uber.org/mock` for unit tests.
+- `09-testing-with-mocks/` - a consumer-declared narrow interface and a hand-written stub; no mock-generation library.
 - `10-observability-otel/` - OpenTelemetry tracing + metrics + logs.
 
 **Reference / advanced**
@@ -397,7 +449,8 @@ The generator also reads non-interactive defaults from `examples/mass-demo-gener
 - `DEMO_CREATE_HIERARCHY` - Enable account hierarchy generation.
 - `DEMO_RUN_FLOW` - Enable the organization/ledger/account generation flow.
 - `DEMO_RUN_BATCH` - Enable the send-based transfer batch demo.
-- `DEMO_ASSET_CODE` - Asset code used by the batch demo.
+- `DEMO_RUN_V2` - Enable the V2-only phase (default `true`). See below.
+- `DEMO_ASSET_CODE` - Asset code used by the batch demo and the V2 phase.
 - `DEMO_CHART_GROUP` - Chart of accounts group for transaction creation.
 - `DEMO_LOCALE` - Organization locale (`us` or `br`).
 - `DEMO_AUTH_MODE=anonymous-local` - Explicitly allow anonymous auth for an unsecured local Midaz stack when `PLUGIN_AUTH_ENABLED` is not `true`.
@@ -415,6 +468,19 @@ The generator creates:
 - Portfolio and segment hierarchy when enabled.
 - Operation routes and transaction routes.
 - Transactions using the current send-based transaction contract.
+- CRM holders and holder-owned accounts with instruments, fee and billing packages, and V2 transactions when the V2 phase is enabled.
+
+### V2-only phase
+
+`/v1` is deprecated server-side and several families exist only on `/v2`. When `DEMO_RUN_V2` is enabled (the default), the generator runs an additional phase after the `/v1` batch, per ledger, covering `V2.Holders`, `V2.Composition`, `V2.Instruments`, `V2.Accounts`, `V2.Transactions`, `V2.Balances`, `V2.FeePackages`, `V2.FeeEstimates`, `V2.BillingPackages`, `V2.BillingCalculations`, `V2.Encryption`, and `V2.ProtectionAudit`, plus one global `V2.MetadataIndexes` create/list/delete cycle per run.
+
+This phase is the SDK's live-integration proof for those families. One step in it is fatal: the transaction proof opens two dedicated accounts, funds both from `@external/<asset>`, posts a settled transfer, a committed hold and a canceled hold, then asserts the exact resulting balances. The canceled hold has to give its value back for the assertion to hold, which is what makes the release path load-bearing rather than merely exercised. A mismatch fails the run. Every other step logs and continues, matching how the rest of the generator treats a failed step.
+
+Instruments are written both ways: most through the composition endpoint, which links the instrument to the account it opens in the same call, and one directly through `V2.Instruments.Create` so that family's write side is covered too. The one deliberate limit left is encryption, exercised through its status read only — provisioning writes real key material into the deployment's KMS.
+
+The report artifacts are written when either phase ran, so a V2-only run still produces a manifest naming everything it created.
+
+Fee, billing, and CRM are served by the `ledger` binary itself, so a stock local stack needs no extra components for this phase.
 
 ### Reports and output
 
@@ -423,8 +489,12 @@ The generator writes report files in its working directory, including machine-re
 Generated artifacts can be removed with:
 
 ```bash
-rm -f examples/mass-demo-generator/mass-demo-report.* examples/mass-demo-generator/mass-demo-entities.json
+rm -f mass-demo-report.* mass-demo-entities.json \
+      examples/mass-demo-generator/mass-demo-report.* \
+      examples/mass-demo-generator/mass-demo-entities.json
 ```
+
+Both locations are listed because the files land in whichever directory the generator was run from: the repository root for `go run ./examples/mass-demo-generator`, the example directory for `go run .` inside it.
 
 ### Example scenarios
 

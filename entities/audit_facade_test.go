@@ -18,7 +18,7 @@ import (
 const auditOrgID = "11111111-1111-1111-1111-111111111111"
 
 func auditPath() string {
-	return "/v1/organizations/" + auditOrgID + "/protection/audit"
+	return "/v2/organizations/" + auditOrgID + "/protection/audit"
 }
 
 func newTestAuditFacade(t *testing.T, srv *httptest.Server) *auditFacade {
@@ -74,8 +74,12 @@ func TestAuditFacade_ListDecodes(t *testing.T) {
 // TestAuditFacade_ListMalformed2xxBody covers the malformed-2xx-body branch:
 // the server returns 200 but the body cannot unmarshal into
 // ListResponse[AuditEvent] (items is a string, not an array). The facade must
-// surface a non-nil *errors.Error (internal), NOT a silent empty page and NOT a
-// panic.
+// surface a non-nil *errors.Error, NOT a silent empty page and NOT a panic.
+//
+// The class is a RESPONSE DECODE error, not an internal one: the server
+// answered and the SDK could not read the answer, which is a different fact
+// from "the SDK is broken" and is what a caller needs in order to decide
+// whether to reconcile.
 func TestAuditFacade_ListMalformed2xxBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -93,8 +97,8 @@ func TestAuditFacade_ListMalformed2xxBody(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.Category != sdkerrors.CategoryInternal {
-		t.Fatalf("Category = %q, want internal for a malformed 2xx body", sdkErr.Category)
+	if sdkErr.Category != sdkerrors.CategoryResponseDecode {
+		t.Fatalf("Category = %q, want response_decode for a malformed 2xx body", sdkErr.Category)
 	}
 }
 

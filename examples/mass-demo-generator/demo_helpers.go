@@ -35,6 +35,7 @@ type demoConfig struct {
 	assetsCountVal       int
 	createHierarchyVal   bool
 	runBatchVal          bool
+	runV2Val             bool
 	assetCodeVal         string
 	chartGroupVal        string
 	orgLocaleVal         string
@@ -51,6 +52,7 @@ type demoFileDefaults struct {
 	Assets            *int    `yaml:"assets"`
 	CreateHierarchy   *bool   `yaml:"create_hierarchy"`
 	RunBatch          *bool   `yaml:"run_batch"`
+	RunV2             *bool   `yaml:"run_v2"`
 	AssetCode         *string `yaml:"asset_code"`
 	ChartGroup        *string `yaml:"chart_group"`
 	Locale            *string `yaml:"locale"`
@@ -175,6 +177,15 @@ func coalesceIntPtr(ptr *int, fallback int) int {
 	return fallback
 }
 
+// coalesceBoolPtr resolves an optional bool default, completing the trio with
+// coalesceIntPtr and coalesceStringPtr.
+//
+// Every DEMO_* toggle happens to default to true today, which is all unparam
+// sees in the fallback parameter. It stays because this is one of three sibling
+// helpers with the same shape, and folding the constant in would make the first
+// false-defaulting flag a signature change instead of a call-site edit.
+//
+//nolint:unparam // See above: kept for symmetry with its two sibling helpers.
 func coalesceBoolPtr(ptr *bool, fallback bool) bool {
 	if ptr != nil {
 		return *ptr
@@ -229,6 +240,7 @@ func defaultDemoConfig(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPer
 		assetsCountVal:       envInt("DEMO_ASSETS", coalesceIntPtr(fileDefaults.Assets, 3)),
 		createHierarchyVal:   envBool("DEMO_CREATE_HIERARCHY", coalesceBoolPtr(fileDefaults.CreateHierarchy, true)),
 		runBatchVal:          envBool("DEMO_RUN_BATCH", coalesceBoolPtr(fileDefaults.RunBatch, true)),
+		runV2Val:             envBool("DEMO_RUN_V2", coalesceBoolPtr(fileDefaults.RunV2, true)),
 		assetCodeVal:         envString("DEMO_ASSET_CODE", coalesceStringPtr(fileDefaults.AssetCode, "USD")),
 		chartGroupVal:        envString("DEMO_CHART_GROUP", coalesceStringPtr(fileDefaults.ChartGroup, "")),
 		orgLocaleVal:         locale,
@@ -264,6 +276,24 @@ func validateDemoConfig(cfg demoConfig) error {
 	for _, check := range checks {
 		if check.value < check.min || check.value > check.max {
 			return fmt.Errorf("%s must be between %d and %d", check.name, check.min, check.max)
+		}
+	}
+
+	// The V2 phase is the generator's live-integration proof — it is the part that
+	// FAILS the run when a balance does not land where double-entry says it
+	// should. Asking for it in a configuration that cannot produce a ledger is
+	// refused rather than honoured, because the alternative is the worst outcome
+	// available: the proof never runs, nothing says so, and the process exits 0.
+	// runV2Phases is driven by the ledger contexts the demo flow builds, so no
+	// flow, no organizations or no ledgers all mean no proof.
+	if cfg.runV2Val {
+		switch {
+		case !cfg.doDemoVal:
+			return errors.New("V2 phase requires the demo flow: set DEMO_RUN_FLOW=true or DEMO_RUN_V2=false")
+		case cfg.orgsVal < 1:
+			return errors.New("V2 phase requires at least one organization: set DEMO_ORGS>=1 or DEMO_RUN_V2=false")
+		case cfg.ledgersPerOrgVal < 1:
+			return errors.New("V2 phase requires at least one ledger per organization: set DEMO_LEDGERS_PER_ORG>=1 or DEMO_RUN_V2=false")
 		}
 	}
 
@@ -316,13 +346,18 @@ func runInteractiveConfiguration(defaults demoConfig) demoConfig {
 		cfg.assetsCountVal = askInt(reader, "How many assets to create (demo)", cfg.assetsCountVal)
 		cfg.createHierarchyVal = askBool(reader, "Create account hierarchy with Customer A/B?", cfg.createHierarchyVal)
 		cfg.runBatchVal = askBool(reader, "Run Send-based transfer batch demo?", cfg.runBatchVal)
+		cfg.runV2Val = askBool(reader, "Run the V2-only phase (CRM, fees, billing, v2 transactions)?", cfg.runV2Val)
+
+		if cfg.runBatchVal || cfg.runV2Val {
+			cfg.assetCodeVal = askString(reader, "Asset code", cfg.assetCodeVal)
+		}
 
 		if cfg.runBatchVal {
-			cfg.assetCodeVal = askString(reader, "Asset code", cfg.assetCodeVal)
 			cfg.chartGroupVal = askString(reader, "Chart of accounts group (leave blank for server default)", cfg.chartGroupVal)
 		}
 	} else {
 		cfg.runBatchVal = false
+		cfg.runV2Val = false
 	}
 
 	cfg.orgLocaleVal = strings.ToLower(askString(reader, "Organization locale (us|br)", cfg.orgLocaleVal))
@@ -347,8 +382,11 @@ func printDefaultsSummary(cfg demoConfig) {
 		fmt.Printf("  Assets to create: %d\n", cfg.assetsCountVal)
 		fmt.Printf("  Create hierarchy: %t\n", cfg.createHierarchyVal)
 		fmt.Printf("  Run batch demo: %t\n", cfg.runBatchVal)
-		if cfg.runBatchVal {
+		fmt.Printf("  Run V2-only phase: %t\n", cfg.runV2Val)
+		if cfg.runBatchVal || cfg.runV2Val {
 			fmt.Printf("    Asset code: %s\n", cfg.assetCodeVal)
+		}
+		if cfg.runBatchVal {
 			fmt.Printf("    Chart group: %s\n", cfg.chartGroupVal)
 		}
 	}
@@ -392,7 +430,7 @@ func createSDKConfig() (*config.Config, error) {
 		config.WithIdempotency(true),
 	}
 
-	// v3 requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset or
+	// The SDK requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset or
 	// false, require an explicit demo-only anonymous mode instead of silently
 	// removing auth from a production-shaped run.
 	if os.Getenv("PLUGIN_AUTH_ENABLED") != "true" {
@@ -490,7 +528,6 @@ func printBootstrapInfo(cfg *config.Config, gcfg gen.GeneratorConfig) {
 	fmt.Println("Mass Demo Generator - Bootstrap")
 	fmt.Println("Environment:", cfg.Environment)
 	fmt.Println("Onboarding API:", cfg.ServiceURLs[config.ServiceOnboarding])
-	fmt.Println("Transaction API:", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Printf("Config: orgs=%d ledgers/org=%d accounts/ledger=%d tx/account=%d concurrency=%d batch=%d\n",
 		gcfg.Organizations,
 		gcfg.LedgersPerOrg,

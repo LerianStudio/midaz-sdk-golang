@@ -156,6 +156,9 @@ components:
             - https://example.com/errors/example
           format: uri
           type: string
+        upstream:
+          $ref: "#/components/schemas/Upstream"
+          description: "RFC 9457 extension member: the error a proxied third-party provider reported. Absent unless the emitting service explicitly surfaced one."
       type: object
     ErrorDetail:
       additionalProperties: false
@@ -206,14 +209,14 @@ components:
           examples:
             - "09:00"
           type: string
+        asset:
+          examples:
+            - USD
+          type: string
         createdAt:
           examples:
             - "2021-01-01T00:00:00Z"
           format: date-time
-          type: string
-        currency:
-          examples:
-            - USD
           type: string
         customEndDate:
           examples:
@@ -277,7 +280,7 @@ components:
         - name
         - limitType
         - maxAmount
-        - currency
+        - asset
         - scopes
         - status
         - createdAt
@@ -646,14 +649,14 @@ components:
           examples:
             - "100.00"
           type: string
+        asset:
+          examples:
+            - USD
+          type: string
         createdAt:
           examples:
             - "2021-01-01T00:00:00Z"
           format: date-time
-          type: string
-        currency:
-          examples:
-            - USD
           type: string
         decision:
           examples:
@@ -735,7 +738,7 @@ components:
         - requestId
         - transactionType
         - amount
-        - currency
+        - asset
         - transactionTimestamp
         - account
         - limitUsageDetails
@@ -747,6 +750,20 @@ components:
         - reason
         - totalRulesLoaded
         - truncated
+      type: object
+    Upstream:
+      additionalProperties: false
+      properties:
+        code:
+          description: The upstream provider's own error code, verbatim.
+          examples:
+            - E4001
+          type: string
+        message:
+          description: The upstream provider's own error message, verbatim (bounded, never its raw response body).
+          examples:
+            - account not found at provider
+          type: string
       type: object
     UsageSnapshot:
       additionalProperties: false
@@ -864,12 +881,12 @@ components:
           examples:
             - "100.00"
           type: string
-        createdAt:
-          format: date-time
-          type: string
-        currency:
+        asset:
           examples:
             - USD
+          type: string
+        createdAt:
+          format: date-time
           type: string
         decision:
           examples:
@@ -916,7 +933,7 @@ components:
         - decision
         - reason
         - amount
-        - currency
+        - asset
         - transactionType
         - accountId
         - matchedRuleIds
@@ -1274,12 +1291,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Limit"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -1516,12 +1533,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReserveResponse"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -1779,12 +1796,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Rule"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:

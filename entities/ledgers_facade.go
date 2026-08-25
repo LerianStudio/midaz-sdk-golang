@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // ledgersFacade is the Phase 2 (Task 2.1.a) hand-written facade over the
@@ -42,25 +40,18 @@ func newLedgersFacade(ledger *genledger.ClientWithResponses, enableIdempotency b
 func (f *ledgersFacade) List(ctx context.Context, orgID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 	const operation = "Ledgers.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListLedgersWithResponse(ctx, orgID, listLedgersParams(opts), listLedgersReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListLedgers(ctx, orgID, listLedgersParams(opts), listLedgersReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.Ledger]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.Ledger](operation, resp, err)
 }
 
 // Pages yields one full page per iteration, advancing while the response reports
@@ -107,17 +98,17 @@ func (f *ledgersFacade) All(ctx context.Context, orgID string, opts models.Ledge
 func (f *ledgersFacade) Create(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 	const operation = "Ledgers.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.Ledger](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateLedgerWithBodyWithResponse(ctx, orgID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateLedgerWithBody(ctx, orgID, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -126,12 +117,14 @@ func (f *ledgersFacade) Create(ctx context.Context, orgID string, input *models.
 func (f *ledgersFacade) Get(ctx context.Context, orgID, id string) (*models.Ledger, error) {
 	const operation = "Ledgers.Get"
 
-	resp, err := f.ledger.GetLedgerByIDWithResponse(ctx, orgID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.Ledger](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetLedgerByID(ctx, orgID, id)
+
+	return readOne[models.Ledger](operation, resp, err)
 }
 
 // Update patches a ledger by ID under an organization. Same write-facade
@@ -139,17 +132,17 @@ func (f *ledgersFacade) Get(ctx context.Context, orgID, id string) (*models.Ledg
 func (f *ledgersFacade) Update(ctx context.Context, orgID, id string, input *models.UpdateLedgerInput) (*models.Ledger, error) {
 	const operation = "Ledgers.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.Ledger](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateLedgerWithBodyWithResponse(ctx, orgID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateLedgerWithBody(ctx, orgID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -158,16 +151,14 @@ func (f *ledgersFacade) Update(ctx context.Context, orgID, id string, input *mod
 func (f *ledgersFacade) Delete(ctx context.Context, orgID, id string) error {
 	const operation = "Ledgers.Delete"
 
-	resp, err := f.ledger.DeleteLedgerWithResponse(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return err
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteLedger(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // GetSettings retrieves the tri-block settings for a ledger (accounting,
@@ -175,12 +166,14 @@ func (f *ledgersFacade) Delete(ctx context.Context, orgID, id string) error {
 func (f *ledgersFacade) GetSettings(ctx context.Context, orgID, id string) (*models.LedgerSettings, error) {
 	const operation = "Ledgers.GetSettings"
 
-	resp, err := f.ledger.GetLedgerSettingsWithResponse(ctx, orgID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.LedgerSettings](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetLedgerSettings(ctx, orgID, id)
+
+	return readOne[models.LedgerSettings](operation, resp, err)
 }
 
 // UpdateSettings patches the tri-block settings for a ledger. Same write-facade
@@ -190,17 +183,17 @@ func (f *ledgersFacade) GetSettings(ctx context.Context, orgID, id string) (*mod
 func (f *ledgersFacade) UpdateSettings(ctx context.Context, orgID, id string, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
 	const operation = "Ledgers.UpdateSettings"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
 	return writeJSON[models.LedgerSettings](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateLedgerSettingsWithBodyWithResponse(ctx, orgID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateLedgerSettingsWithBody(ctx, orgID, id, jsonContentType, body,
+			idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -209,6 +202,10 @@ func (f *ledgersFacade) UpdateSettings(ctx context.Context, orgID, id string, in
 // through the raw CountLedgers + readCount so a headers-only error reply (empty
 // body) maps to the real status rather than an internal error.
 func (f *ledgersFacade) Count(ctx context.Context, orgID string) (int, error) {
+	if err := requirePathIDs("Ledgers.Count", "orgID", orgID); err != nil {
+		return 0, err
+	}
+
 	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
 	return readCount(f.ledger.CountLedgers(ctx, orgID))
 }

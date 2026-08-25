@@ -30,9 +30,6 @@ type PackagesFilters struct {
 	// SegmentID narrows by segment UUID.
 	SegmentID string
 
-	// LedgerID narrows by ledger UUID.
-	LedgerID string
-
 	// TransactionRoute narrows by transaction route.
 	TransactionRoute string
 
@@ -54,10 +51,6 @@ func (o PackagesListOpts) ToQueryParams() map[string]string {
 
 	if o.Filters.SegmentID != "" {
 		params["segmentId"] = o.Filters.SegmentID
-	}
-
-	if o.Filters.LedgerID != "" {
-		params["ledgerId"] = o.Filters.LedgerID
 	}
 
 	if o.Filters.TransactionRoute != "" {

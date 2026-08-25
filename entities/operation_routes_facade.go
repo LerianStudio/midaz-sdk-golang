@@ -5,7 +5,6 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"iter"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // operationRoutesFacade is the Phase 2 (Task 2.3.1) hand-written facade over the
@@ -54,25 +52,18 @@ func newOperationRoutesFacade(ledger *genledger.ClientWithResponses, enableIdemp
 func (f *operationRoutesFacade) List(ctx context.Context, orgID, ledgerID string, opts models.OperationRoutesListOpts) (*models.ListResponse[models.OperationRoute], error) {
 	const operation = "OperationRoutes.List"
 
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListOperationRoutesWithResponse(ctx, orgID, ledgerID, listOperationRoutesParams(opts), listOperationRoutesReqEditors(opts)...)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.ListOperationRoutes(ctx, orgID, ledgerID, listOperationRoutesParams(opts), listOperationRoutesReqEditors(opts)...)
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.OperationRoute]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.OperationRoute](operation, resp, err)
 }
 
 // Pages yields one cursor page per iteration, advancing by the response
@@ -122,7 +113,11 @@ func (f *operationRoutesFacade) All(ctx context.Context, orgID, ledgerID string,
 func (f *operationRoutesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	const operation = "OperationRoutes.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -135,12 +130,14 @@ func (f *operationRoutesFacade) Create(ctx context.Context, orgID, ledgerID stri
 func (f *operationRoutesFacade) Get(ctx context.Context, orgID, ledgerID, id string) (*models.OperationRoute, error) {
 	const operation = "OperationRoutes.Get"
 
-	resp, err := f.ledger.GetOperationRouteByIDWithResponse(ctx, orgID, ledgerID, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.OperationRoute](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetOperationRouteByID(ctx, orgID, ledgerID, id)
+
+	return readOne[models.OperationRoute](operation, resp, err)
 }
 
 // Update patches an operation route by ID under an org+ledger. Same write-facade
@@ -148,7 +145,11 @@ func (f *operationRoutesFacade) Get(ctx context.Context, orgID, ledgerID, id str
 func (f *operationRoutesFacade) Update(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateOperationRouteInput) (*models.OperationRoute, error) {
 	const operation = "OperationRoutes.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -162,16 +163,14 @@ func (f *operationRoutesFacade) Update(ctx context.Context, orgID, ledgerID, id 
 func (f *operationRoutesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "OperationRoutes.Delete"
 
-	resp, err := f.ledger.DeleteOperationRouteWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
-	if err != nil {
-		return errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "id", id); err != nil {
+		return err
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
+	//nolint:bodyclose // deleteResource drains and closes the body via readRawResponse.
+	resp, err := f.ledger.DeleteOperationRoute(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 
-	return nil
+	return deleteResource(operation, resp, err)
 }
 
 // listOperationRoutesParams renders the cursor/sort/date fields that have a slot

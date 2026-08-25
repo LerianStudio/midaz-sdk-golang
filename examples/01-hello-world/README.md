@@ -6,7 +6,7 @@ print them. ~17 body lines (40 with imports + doc comment).
 ## What this demonstrates
 
 - `midaz.New` with the two minimum-viable options: `WithEnvironment` + `WithAnonymous`
-- One API call: `c.Organizations.ListOrganizations(ctx, opts)`
+- One API call: `c.V2.Organizations.List(ctx, opts)`
 - Reading the typed page response
 
 ## When to use this pattern

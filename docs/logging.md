@@ -41,7 +41,7 @@ func main() {
     if err != nil { return }
     defer c.Shutdown(context.Background())
 
-    // ...c.Accounts.Get(...) etc. Retry attempts emit DEBUG/WARN lines
+    // ...c.V2.Accounts.Get(...) etc. Retry attempts emit DEBUG/WARN lines
     // through `logger`. Calls slower than 2s emit a WARN line.
 }
 ```

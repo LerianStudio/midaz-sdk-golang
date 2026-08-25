@@ -19,8 +19,13 @@ func TestGeneratedSurface(_ *testing.T) {
 	// ...and its response wrapper carries the collision-avoiding Resp suffix.
 	var _ *ListOrganizationsResp
 
+	// The spec serves BOTH server versions off one unversioned base: v1 operation
+	// ids are bare, v2 ids carry the V2 suffix. Pin one of each so a regen that
+	// collapsed the two surfaces into one would fail this build.
+	var _ *ListOrganizationsV2Resp
+
 	// The schema that collided with a client wrapper survived as its own type,
 	// distinct from the renamed wrapper.
 	var _ ProvisionEncryptionResponse // schema
-	var _ ProvisionEncryptionResp     // renamed client wrapper
+	var _ ProvisionEncryptionV2Resp   // renamed client wrapper
 }

@@ -32,15 +32,17 @@ func newRulesFacade(tracer *gentracer.ClientWithResponses, enableIdempotency boo
 	return &rulesFacade{tracer: tracer, enableIdempotency: enableIdempotency}
 }
 
-// Create registers a new rule. The server returns 201, but the generated
-// CreateRuleResp parser only fills JSON200 on an exact 200 — so the write routes
-// through the raw ...WithBody call + readRawResponse + the 2xx success gate in
-// writeJSON, which decodes any 2xx (including 201) into models.Rule. The opaque
-// openapi_types.File body forces the WithBody variant regardless.
+// Create registers a new rule. The server returns 201, and the generated
+// CreateRuleResp parser is status-EXACT (it fills JSON201 on exactly 201 and
+// nothing else), so the write routes through the raw ...WithBody call +
+// readRawResponse + the 2xx success gate in writeJSON instead: the facade decodes
+// any 2xx into models.Rule and therefore does not break if the server ever
+// answers a different success status. The opaque openapi_types.File body forces
+// the WithBody variant regardless.
 func (f *rulesFacade) Create(ctx context.Context, input *models.CreateRuleInput) (*models.Rule, error) {
 	const operation = "Rules.Create"
 
-	if err := input.Validate(); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -53,19 +55,25 @@ func (f *rulesFacade) Create(ctx context.Context, input *models.CreateRuleInput)
 func (f *rulesFacade) Get(ctx context.Context, id string) (*models.Rule, error) {
 	const operation = "Rules.Get"
 
-	resp, err := f.tracer.GetRuleWithResponse(ctx, id)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
 	}
 
-	return decodeOne[models.Rule](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.tracer.GetRule(ctx, id)
+
+	return readOne[models.Rule](operation, resp, err)
 }
 
 // Update patches a rule by ID (PATCH, 200).
 func (f *rulesFacade) Update(ctx context.Context, id string, input *models.UpdateRuleInput) (*models.Rule, error) {
 	const operation = "Rules.Update"
 
-	if err := input.Validate(); err != nil {
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
@@ -78,6 +86,10 @@ func (f *rulesFacade) Update(ctx context.Context, id string, input *models.Updat
 // nothing to decode — only a non-2xx maps into the unified error.
 func (f *rulesFacade) Delete(ctx context.Context, id string) error {
 	const operation = "Rules.Delete"
+
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return err
+	}
 
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.tracer.DeleteRule(ctx, id, idempotencyEditorsTracer(ctx, f.enableIdempotency)...))
@@ -112,6 +124,10 @@ func (f *rulesFacade) Draft(ctx context.Context, id string) (*models.Rule, error
 // decodes into models.Rule. Lifecycle transitions are actions (autoGen=false):
 // no auto-gen key, but a caller-supplied ctx/explicit key still rides.
 func ruleTransition(ctx context.Context, operation string, call func(context.Context, string, ...gentracer.RequestEditorFn) (*http.Response, error), id string) (*models.Rule, error) {
+	if err := requirePathIDs(operation, "id", id); err != nil {
+		return nil, err
+	}
+
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(call(ctx, id, idempotencyEditorsTracer(ctx, false)...))
 	if err != nil {
@@ -136,21 +152,22 @@ func (f *rulesFacade) List(ctx context.Context, opts models.RulesListOpts) (*mod
 		return nil, err
 	}
 
-	resp, err := f.tracer.ListRulesWithResponse(ctx, listRulesParams(opts))
+	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
+	httpResp, body, err := readRawResponse(f.tracer.ListRules(ctx, listRulesParams(opts)))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
+		return nil, err
 	}
 
 	var env struct {
 		Rules      []models.Rule `json:"rules"`
 		NextCursor string        `json:"nextCursor"`
 	}
-	if err := json.Unmarshal(resp.Body, &env); err != nil {
-		return nil, errors.NewInternalError(operation, err)
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, errors.NewResponseDecodeError(operation, httpResp.StatusCode, err)
 	}
 
 	return &models.ListResponse[models.Rule]{

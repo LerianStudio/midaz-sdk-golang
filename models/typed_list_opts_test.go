@@ -384,19 +384,9 @@ func TestPageListOpts_TypedShape_AllPageBased(t *testing.T) {
 			overMax: AccountsListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
 		},
 		{
-			name:    "AliasesListOpts",
-			atMax:   AliasesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
-			overMax: AliasesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
-		},
-		{
 			name:    "AssetsListOpts",
 			atMax:   AssetsListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
 			overMax: AssetsListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
-		},
-		{
-			name:    "BalancesListOpts",
-			atMax:   BalancesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
-			overMax: BalancesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
 		},
 		{
 			name:    "LedgersListOpts",
@@ -464,20 +454,14 @@ func TestCursorListOpts_TypedShape_AllCursorBased(t *testing.T) {
 			overMax: InstrumentsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
 		},
 		{
-			name:    "OperationsListOpts",
-			atMax:   OperationsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
-			overMax: OperationsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
-		},
-		{
 			name:    "OperationRoutesListOpts",
 			atMax:   OperationRoutesListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
 			overMax: OperationRoutesListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
 		},
-		{
-			name:    "TransactionsListOpts",
-			atMax:   TransactionsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
-			overMax: TransactionsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
-		},
+		// TransactionsListOpts is absent: it renders no query map of its own.
+		// Its wire shape is built in package entities (listTransactionsParams),
+		// where both surfaces are pinned together, so a renderer here could only
+		// describe a request the SDK never sends.
 		{
 			name:    "TransactionRoutesListOpts",
 			atMax:   TransactionRoutesListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
@@ -551,19 +535,6 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		assert.Equal(t, "true", params["include_deleted"])
 	})
 
-	t.Run("AliasesListOpts filters", func(t *testing.T) {
-		opts := AliasesListOpts{
-			Filters: AliasesFilters{
-				HolderID:  "h-123",
-				AccountID: "a-456",
-			},
-		}
-		require.NoError(t, opts.Validate())
-		params := opts.ToQueryParams()
-		assert.Equal(t, "h-123", params["holder_id"])
-		assert.Equal(t, "a-456", params["account_id"])
-	})
-
 	t.Run("AssetsListOpts filters", func(t *testing.T) {
 		opts := AssetsListOpts{
 			PageListOpts: PageListOpts{Limit: 30},
@@ -578,21 +549,6 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		assert.Equal(t, "30", params["limit"])
 		assert.Equal(t, "USD", params["code"])
 		assert.Equal(t, "currency", params["type"])
-		assert.Equal(t, "ACTIVE", params["status"])
-	})
-
-	t.Run("BalancesListOpts filters", func(t *testing.T) {
-		opts := BalancesListOpts{
-			Filters: BalancesFilters{
-				AssetCode: "BRL",
-				AccountID: "acc-1",
-				Status:    "ACTIVE",
-			},
-		}
-		require.NoError(t, opts.Validate())
-		params := opts.ToQueryParams()
-		assert.Equal(t, "BRL", params["asset_code"])
-		assert.Equal(t, "acc-1", params["account_id"])
 		assert.Equal(t, "ACTIVE", params["status"])
 	})
 
@@ -660,24 +616,6 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		assert.Equal(t, "true", params["include_deleted"])
 	})
 
-	t.Run("OperationsListOpts filters", func(t *testing.T) {
-		opts := OperationsListOpts{
-			CursorListOpts: CursorListOpts{Limit: 20, Cursor: "c1"},
-			Filters: OperationsFilters{
-				Type:      "DEBIT",
-				AssetCode: "USD",
-				Status:    "ACTIVE",
-			},
-		}
-		require.NoError(t, opts.Validate())
-		params := opts.ToQueryParams()
-		assert.Equal(t, "20", params["limit"])
-		assert.Equal(t, "c1", params["cursor"])
-		assert.Equal(t, "DEBIT", params["type"])
-		assert.Equal(t, "USD", params["asset_code"])
-		assert.Equal(t, "ACTIVE", params["status"])
-	})
-
 	t.Run("OperationRoutesListOpts filters", func(t *testing.T) {
 		opts := OperationRoutesListOpts{
 			CursorListOpts: CursorListOpts{Limit: 20},
@@ -695,30 +633,12 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		assert.Equal(t, "DEBIT", params["operation_type"])
 	})
 
-	t.Run("TransactionsListOpts filters", func(t *testing.T) {
-		opts := TransactionsListOpts{
-			CursorListOpts: CursorListOpts{Limit: 50},
-			Filters: TransactionsFilters{
-				AssetCode:          "EUR",
-				Status:             "APPROVED",
-				Reference:          "ref-9",
-				DestinationAccount: "dst",
-				SourceAccount:      "src",
-				Route:              "cashout",
-				MetadataKey:        "transferId",
-				MetadataValue:      "f403e2d7-1b09-52d7-b58e-5d955442f812",
-			},
-		}
-		require.NoError(t, opts.Validate())
-		params := opts.ToQueryParams()
-		assert.Equal(t, "EUR", params["asset_code"])
-		assert.Equal(t, "APPROVED", params["status"])
-		assert.Equal(t, "ref-9", params["reference"])
-		assert.Equal(t, "dst", params["destination_account"])
-		assert.Equal(t, "src", params["source_account"])
-		assert.Equal(t, "cashout", params["route"])
-		assert.Equal(t, "f403e2d7-1b09-52d7-b58e-5d955442f812", params["metadata.transferId"])
-	})
+	// There is no TransactionsListOpts case here. It used to assert that all six
+	// of AssetCode/Status/Reference/DestinationAccount/SourceAccount/Route
+	// rendered onto the wire — the exact request the SDK now REFUSES to send,
+	// because no transaction list narrows by any of them. What the list can
+	// still express is pinned against both live surfaces in
+	// entities/transactions_list_filters_test.go.
 
 	t.Run("TransactionRoutesListOpts filters", func(t *testing.T) {
 		opts := TransactionRoutesListOpts{
@@ -740,12 +660,12 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 
 // TestUpdateInputMarshalJSON_NilPointersReturnNull is the M31 nil-safety
 // smoke test for the four Update*Input types whose MarshalJSON receivers
-// were migrated from value to pointer (account, alias, holder,
+// were migrated from value to pointer (account, instrument, holder,
 // operation_route). Marshaling a nil pointer must round-trip as JSON
 // "null" instead of panicking.
 func TestUpdateInputMarshalJSON_NilPointersReturnNull(t *testing.T) {
-	t.Run("UpdateAliasInput nil pointer", func(t *testing.T) {
-		var input *UpdateAliasInput
+	t.Run("UpdateInstrumentInput nil pointer", func(t *testing.T) {
+		var input *UpdateInstrumentInput
 
 		got, err := json.Marshal(input)
 		require.NoError(t, err)
@@ -773,25 +693,26 @@ func TestUpdateInputMarshalJSON_NilPointersReturnNull(t *testing.T) {
 }
 
 // TestTransactionsListOpts_MetadataFilter pins the metadata list-filter
-// contract: the SDK exposes a SINGLE metadata key/value pair (the server
-// honors one metadata.* predicate, not AND-combinable), rendered as the
-// query param metadata.<key>=<value>. Both sides must be set together, and
-// the key must obey the storage-layer key rules (no '.', no '$' prefix).
+// contract: the SDK exposes a SINGLE metadata key/value pair (the server honors
+// one metadata.* predicate, not AND-combinable). Both sides must be set
+// together, and the key must obey the storage-layer key rules (no '.', no '$'
+// prefix).
+//
+// This covers ACCEPTANCE only. Whether the pair reaches the wire as
+// metadata.<key>=<value> is asserted against both live surfaces in
+// entities/transactions_list_filters_test.go, which is the only place that can
+// observe the request the SDK actually sends.
 func TestTransactionsListOpts_MetadataFilter(t *testing.T) {
-	t.Run("both set emits metadata.<key>", func(t *testing.T) {
+	t.Run("both set is accepted", func(t *testing.T) {
 		opts := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "transferId", MetadataValue: "abc-123"}}
 		require.NoError(t, opts.Validate())
-		assert.Equal(t, "abc-123", opts.ToQueryParams()["metadata.transferId"])
 	})
 
-	t.Run("half-set is omitted and rejected", func(t *testing.T) {
+	t.Run("half-set is rejected", func(t *testing.T) {
 		keyOnly := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "transferId"}}
-		_, hasKey := keyOnly.ToQueryParams()["metadata.transferId"]
-		assert.False(t, hasKey, "key without value must not emit a param")
 		require.Error(t, keyOnly.Validate(), "key without value must fail validation")
 
 		valOnly := TransactionsListOpts{Filters: TransactionsFilters{MetadataValue: "abc-123"}}
-		assert.NotContains(t, valOnly.ToQueryParams(), "metadata.", "value without key must not emit a param")
 		assert.Error(t, valOnly.Validate(), "value without key must fail validation")
 	})
 
@@ -803,9 +724,7 @@ func TestTransactionsListOpts_MetadataFilter(t *testing.T) {
 		assert.Error(t, dollar.Validate(), "metadata key starting with '$' must be rejected")
 	})
 
-	t.Run("unset is valid and emits nothing", func(t *testing.T) {
-		opts := TransactionsListOpts{}
-		require.NoError(t, opts.Validate())
-		assert.NotContains(t, opts.ToQueryParams(), "metadata.transferId")
+	t.Run("unset is valid", func(t *testing.T) {
+		require.NoError(t, TransactionsListOpts{}.Validate())
 	})
 }

@@ -1,6 +1,6 @@
 # 08-logging-slog
 
-Demonstrates the canonical v3 logging surface: an injected
+Demonstrates the canonical logging surface: an injected
 `*slog.Logger` via `midaz.WithLogger`.
 
 ## What this demonstrates
@@ -15,9 +15,9 @@ Demonstrates the canonical v3 logging surface: an injected
 ## When to use this pattern
 
 Always when you want SDK logs visible. `slog` is the Go 1.21+ standard
-logging API and is the only canonical surface in v3. Adapters for zap,
+logging API and is the SDK's only logging surface. Adapters for zap,
 zerolog, logrus, and others go through `slog.Handler` — there is no
-custom Logger interface in v3.
+custom Logger interface.
 
 ## How to run
 

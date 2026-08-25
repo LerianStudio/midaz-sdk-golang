@@ -1,3 +1,7 @@
+// This flow stays on c.V1.Transactions for the same reason transaction.go
+// does: it creates through CreateJSON, and the nested send/source/distribute
+// creation style exists only on /v1. See the note at the top of transaction.go,
+// and examples/03-end-to-end for the /v2 creation path.
 package workflows
 
 import (
@@ -129,7 +133,7 @@ func runInsufficientFundsTest(ctx context.Context, midazClient *midaz.Client, or
 	}
 
 	startTime := time.Now()
-	_, err = midazClient.Transactions.CreateJSON(testCtx, orgID, ledgerID, transferInput)
+	_, err = midazClient.V1.Transactions.CreateJSON(testCtx, orgID, ledgerID, transferInput)
 	duration := time.Since(startTime)
 
 	observability.RecordSpanMetric(testCtx, "test_duration_ms", float64(duration.Milliseconds()))

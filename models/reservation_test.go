@@ -29,7 +29,7 @@ func validReserveInput() *models.ReserveInput {
 }
 
 // TestReserveInput_ValidateRelaxed proves the reserve validation mirrors the
-// server's RELAXED ValidateForReserve: transactionId/requestId/amount>0/currency/
+// server's RELAXED ValidateForReserve: transactionId/requestId/amount>0/asset/
 // timestamp are required, but transactionType and account are OPTIONAL. The
 // minimal input (no account, no transactionType) MUST pass.
 func TestReserveInput_ValidateRelaxed(t *testing.T) {
@@ -77,7 +77,7 @@ func TestReserveInput_ValidateRejects(t *testing.T) {
 		{"empty requestId", func(i *models.ReserveInput) { i.RequestID = "" }},
 		{"zero amount", func(i *models.ReserveInput) { i.Amount = decimal.Zero }},
 		{"negative amount", func(i *models.ReserveInput) { i.Amount = decimal.RequireFromString("-1") }},
-		{"bad currency", func(i *models.ReserveInput) { i.Currency = "US" }},
+		{"bad asset", func(i *models.ReserveInput) { i.Asset = "US" }},
 		{"empty timestamp", func(i *models.ReserveInput) { i.TransactionTimestamp = "" }},
 	}
 	for _, tc := range cases {

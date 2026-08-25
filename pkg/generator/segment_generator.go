@@ -28,8 +28,8 @@ type segmentGenerator struct {
 // NewSegmentGenerator creates a new segment generator.
 func NewSegmentGenerator(e *entities.Entity, obs observability.Provider) SegmentGenerator {
 	g := &segmentGenerator{obs: obs}
-	if e != nil && e.Segments != nil {
-		g.segments = e.Segments
+	if e != nil && e.V1.Segments != nil {
+		g.segments = e.V1.Segments
 	}
 
 	return g

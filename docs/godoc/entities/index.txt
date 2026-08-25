@@ -2,30 +2,41 @@ package entities // import "github.com/LerianStudio/midaz-sdk-golang/v5/entities
 
 Package entities provides the service interfaces for interacting with the Midaz
 API resources — organizations, ledgers, accounts, assets, balances, portfolios,
-segments, transactions, and CRM resources.
+segments, transactions, and CRM resources (holders, instruments).
 
-The package entry point is Entity, constructed via NewEntityWithConfig
-(or NewEntityWithConfigContext for explicit context propagation). Each
-service is exposed as an interface on Entity (for example Entity.Accounts,
-Entity.Transactions), letting callers depend on the interface and mock it in
-tests.
+The package entry point is Entity, constructed via NewEntityWithConfig (or
+NewEntityWithConfigContext for explicit context propagation). Ledger services
+are reached through the version group that serves them (Entity.V1.Accounts,
+Entity.V2.Holders — see V1Services and V2Services); Tracer services stay flat
+on Entity (Entity.Rules, Entity.Limits). Each accessor is a concrete facade,
+so callers who want to mock the SDK declare the narrow interface they actually
+call and let the facade satisfy it structurally.
 
 All HTTP traffic flows through a shared HTTPClient that handles auth injection,
 retries, idempotency keys, and observability hooks. Service implementations
 share a small embedded helper (serviceEntity) so that per-service files stay
 focused on per-service business logic.
 
-const HeaderTotalCount = "X-Total-Count"
+The business-event surface below has NO caller: every resource accessor
+now routes over a generated plane client, and re-homing midaz.*
+business-event emission onto that path is the deferred Task 5.2.6
+(docs/plans/2026-06-30-sdk-v4-remodel.md:621). The emitter, its field allow-list
+and its error classifier are kept here — together with the skipped tests in
+business_observability_test.go that specify which events fire and which payload
+values must never be logged — because that pair IS the specification 5.2.6
+re-homes. Deleting them would leave the task to reinvent the contract from
+scratch.
+
+const HeaderTotalCount = "X-Total-Count" ...
 func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error)
 func CollectAll[T any](seq iter.Seq2[T, error]) ([]T, error)
 func HTTPPhase(err error) (string, bool)
-type AliasesService interface{ ... }
-type BalancesService interface{ ... }
 type Config interface{ ... }
 type Entity struct{ ... }
     func NewEntityWithConfig(config Config) (*Entity, error)
     func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, error)
 type HTTPClient struct{ ... }
     func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient
-type OperationsService interface{ ... }
 type PlaneClients struct{ ... }
+type V1Services struct{ ... }
+type V2Services struct{ ... }

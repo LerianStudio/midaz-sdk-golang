@@ -25,7 +25,7 @@ const (
 )
 
 func feeEstimateBase() string {
-	return "/v1/organizations/" + feeEstimateOrgID + "/estimates"
+	return "/v2/organizations/" + feeEstimateOrgID + "/ledgers/" + feeEstimateLedgerID + "/estimates"
 }
 
 func feeEstimateInput() *models.FeeEstimateInput {
@@ -78,7 +78,7 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	if err != nil {
 		t.Fatalf("EstimateFee: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestFeeEstimateFacade_GoldenRequestBody(t *testing.T) {
 	defer srv.Close()
 
 	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(
-		context.Background(), feeEstimateOrgID, feeEstimateInput()); err != nil {
+		context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput()); err != nil {
 		t.Fatalf("EstimateFee: %v", err)
 	}
 
@@ -244,7 +244,7 @@ func TestFeeEstimateFacade_GoldenRequestBodyNumericValueAndShareLeg(t *testing.T
 	defer srv.Close()
 
 	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(
-		context.Background(), feeEstimateOrgID, input); err != nil {
+		context.Background(), feeEstimateOrgID, feeEstimateLedgerID, input); err != nil {
 		t.Fatalf("EstimateFee: %v", err)
 	}
 
@@ -274,7 +274,7 @@ func TestFeeEstimateFacade_NoRules(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	if err != nil {
 		t.Fatalf("EstimateFee no-rules must NOT error: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestFeeEstimateFacade_AppliedNilSend(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	if err != nil {
 		t.Fatalf("EstimateFee with null send must NOT error: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestFeeEstimateFacade_ErrorDecodes(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	var sdkErr *sdkerrors.Error
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
@@ -357,7 +357,7 @@ func TestFeeEstimateFacade_WriteReplaySafe(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput())
 	if err != nil {
 		t.Fatalf("EstimateFee with one 401 refresh: %v", err)
 	}
@@ -378,9 +378,64 @@ func TestFeeEstimateFacade_Validation(t *testing.T) {
 
 	facade := newTestFeeEstimateFacade(t, srv)
 
-	if _, err := facade.EstimateFee(context.Background(), feeEstimateOrgID, &models.FeeEstimateInput{}); err == nil {
+	if _, err := facade.EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, &models.FeeEstimateInput{}); err == nil {
 		t.Fatal("EstimateFee with empty input must fail validation")
 	}
+}
+
+// TestFeeEstimateFacade_LedgerReconciliation covers the path-vs-body ledger: the
+// server takes the ledger from the URL AND requires ledgerId in the body, so an
+// empty body value must inherit the addressed ledger and a contradicting one must
+// never reach the wire (it would estimate fees against a ledger the caller did
+// not address).
+func TestFeeEstimateFacade_LedgerReconciliation(t *testing.T) {
+	t.Run("empty body ledgerId inherits the path ledger", func(t *testing.T) {
+		var body string
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, _ := io.ReadAll(r.Body)
+			body = string(b)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"message":"no rules matched"}`))
+		}))
+		defer srv.Close()
+
+		input := feeEstimateInput()
+		input.LedgerID = ""
+
+		if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, input); err != nil {
+			t.Fatalf("EstimateFee: %v", err)
+		}
+
+		if !strings.Contains(body, `"ledgerId":"`+feeEstimateLedgerID+`"`) {
+			t.Fatalf("body = %q, want the path ledger filled into ledgerId", body)
+		}
+
+		if input.LedgerID != "" {
+			t.Fatalf("caller input mutated: LedgerID = %q, want it left empty", input.LedgerID)
+		}
+	})
+
+	t.Run("mismatched body ledgerId is rejected before transport", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			t.Fatal("no request may reach the server when the ledgers disagree")
+		}))
+		defer srv.Close()
+
+		const otherLedger = "66666666-6666-6666-6666-666666666666"
+
+		input := feeEstimateInput()
+		input.LedgerID = otherLedger
+
+		_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, input)
+		if err == nil {
+			t.Fatal("EstimateFee must reject a body ledgerId that differs from the path ledger")
+		}
+
+		if !strings.Contains(err.Error(), otherLedger) || !strings.Contains(err.Error(), feeEstimateLedgerID) {
+			t.Fatalf("error = %v, want both ledger IDs named", err)
+		}
+	})
 }
 
 func newTestFeeEstimateFacade(t *testing.T, srv *httptest.Server) *feeEstimateFacade {

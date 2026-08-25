@@ -32,21 +32,16 @@ type ServiceType string
 
 // Service types constants define the available Midaz services.
 //
-// The consolidated Midaz server exposes exactly two planes: the Ledger
-// (onboarding + transaction + CRM/fees/billing endpoints, all under one host)
-// and the Tracer. ServiceOnboarding and ServiceTransaction are internal
-// routing labels that both resolve to [Config.LedgerURL]; ServiceTracer
-// resolves to [Config.TracerURL].
+// The consolidated Midaz server exposes exactly two planes: the Ledger (every
+// onboarding, transaction, CRM, fee and billing endpoint, all under one host)
+// and the Tracer. ServiceOnboarding is the internal routing label for the
+// Ledger and resolves to [Config.LedgerURL]; ServiceTracer resolves to
+// [Config.TracerURL].
 const (
-	// ServiceOnboarding is the internal routing label for the onboarding subset
-	// of Ledger endpoints. It shares its base URL with [ServiceTransaction];
-	// both are populated from [WithLedgerURL].
+	// ServiceOnboarding is the internal routing label for the Ledger plane. It
+	// is populated from [WithLedgerURL] and addresses every Ledger endpoint,
+	// not only the onboarding subset its name suggests.
 	ServiceOnboarding ServiceType = "onboarding"
-
-	// ServiceTransaction is the internal routing label for the transaction
-	// subset of Ledger endpoints. See [ServiceOnboarding] for the
-	// shared-base-URL note.
-	ServiceTransaction ServiceType = "transaction"
 
 	// ServiceTracer is the internal routing label for the Tracer plane.
 	// It is populated from [WithTracerURL] (or the shared base URL) and is
@@ -79,7 +74,19 @@ const (
 	DefaultLocalTracerBaseURL       = "http://localhost:4020"
 	DefaultDevelopmentLedgerBaseURL = "https://api.dev.midaz.io"
 	DefaultProductionLedgerBaseURL  = "https://api.midaz.io"
-	DefaultLedgerAPIVersionPath     = "/v1"
+
+	// DefaultTracerAPIVersionPath is the version segment stamped onto the Tracer
+	// plane base URL.
+	//
+	// Only the Tracer plane carries its version in the base URL. Its OpenAPI spec
+	// declares servers:[{url: "/v1"}] with unversioned paths ("/validations",
+	// "/limits"), because the server mounts Huma on a Fiber "/v1" group.
+	//
+	// The Ledger plane deliberately has no equivalent: its spec declares
+	// servers:[{url: "/"}] and carries the version inside every path
+	// ("/v1/organizations", "/v2/organizations"), so the Ledger base URL stays
+	// bare. Stamping "/v1" there would produce "/v1/v1/...".
+	DefaultTracerAPIVersionPath = "/v1"
 
 	// Default retry configuration
 	DefaultMaxRetries   = 3
@@ -101,10 +108,10 @@ type Config struct {
 	// This affects the default URLs used if not explicitly overridden.
 	Environment Environment
 
-	// LedgerURL is the base URL of the Ledger plane (onboarding + transaction
-	// + CRM/fees/billing endpoints). It is the user-facing knob; the internal
-	// ServiceURLs[ServiceOnboarding]/[ServiceTransaction] entries are derived
-	// from it. Set via [WithLedgerURL].
+	// LedgerURL is the base URL of the Ledger plane (onboarding, transaction,
+	// CRM, fee and billing endpoints). It is the user-facing knob; the internal
+	// ServiceURLs[ServiceOnboarding] entry is derived from it. Set via
+	// [WithLedgerURL].
 	LedgerURL string
 
 	// TracerURL is the base URL of the Tracer plane. Set via [WithTracerURL].
@@ -268,7 +275,6 @@ func WithLedgerURL(ledgerURL string) Option {
 		trimmed := strings.TrimRight(ledgerURL, "/")
 		c.LedgerURL = trimmed
 		c.ServiceURLs[ServiceOnboarding] = trimmed
-		c.ServiceURLs[ServiceTransaction] = trimmed
 		c.ledgerURLSet = true
 
 		return nil
@@ -347,14 +353,23 @@ func WithTracerAPIKey(apiKey string) Option {
 }
 
 // WithBaseURL sets a common base URL used as the default for BOTH consolidated
-// planes (Ledger and Tracer). The base URL is normalized to a "/v1" path and
-// fanned out to whichever plane a more-specific setter ([WithLedgerURL] /
-// [WithTracerURL]) has not already pinned.
+// planes (Ledger and Tracer), fanned out to whichever plane a more-specific
+// setter ([WithLedgerURL] / [WithTracerURL]) has not already pinned.
+//
+// The two planes normalize the shared base differently, because their OpenAPI
+// contracts version themselves differently:
+//
+//   - Ledger keeps the base bare. Its spec declares servers:[{url: "/"}] and
+//     carries the version inside every path ("/v1/organizations",
+//     "/v2/organizations"), so the SDK serves both the v1 and v2 surfaces off
+//     one unversioned base.
+//   - Tracer gets [DefaultTracerAPIVersionPath] ("/v1") stamped on. Its spec
+//     declares servers:[{url: "/v1"}] with unversioned paths.
 //
 // Decision (v4 two-plane remodel): the pre-v4 CRM fan-out is gone — CRM is no
-// longer a separate host. Since both planes share the same "/v1" shape, a
-// single base URL applied to both is the ergonomic default for a stack served
-// under one origin. For a split deployment, set the planes explicitly.
+// longer a separate host. A single base URL applied to both planes remains the
+// ergonomic default for a stack served under one origin. For a split
+// deployment, set the planes explicitly.
 //
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
@@ -395,12 +410,17 @@ func WithBaseURL(baseURL string) Option {
 		if !c.ledgerURLSet {
 			c.LedgerURL = planeURL
 			c.ServiceURLs[ServiceOnboarding] = planeURL
-			c.ServiceURLs[ServiceTransaction] = planeURL
 		}
 
 		if !c.tracerURLSet {
-			c.TracerURL = planeURL
-			c.ServiceURLs[ServiceTracer] = planeURL
+			// The Tracer cannot reuse the bare Ledger string: it needs "/v1".
+			tracerURL, err := tracerURLFromSharedOrigin(planeURL)
+			if err != nil {
+				return fmt.Errorf("invalid base URL: %w", err)
+			}
+
+			c.TracerURL = tracerURL
+			c.ServiceURLs[ServiceTracer] = tracerURL
 		}
 
 		c.baseURLSet = true
@@ -529,9 +549,10 @@ func WithDebug(enabled bool) Option {
 // exposure on SDK errors. When enabled, upstream 4xx/5xx response bodies are
 // attached without redaction and only truncated.
 //
-// This affects ONLY the legacy *HTTPClient path (Balances, Operations,
-// Aliases). The two-plane facades decode errors via errors.DecodeProblemJSON,
-// which never attaches the raw upstream body, so the flag is a no-op for them.
+// The flag no longer changes anything an SDK call returns. Every accessor
+// routes over the two generated plane clients, which decode errors via
+// errors.DecodeProblemJSON and never attach the raw upstream body; the legacy
+// *HTTPClient path this flag reached serves no resource any more.
 func WithErrorBodyExposure(enabled bool) Option {
 	return func(c *Config) error {
 		if c == nil {
@@ -1195,14 +1216,35 @@ func defaultLedgerBackedServiceURLs(baseURL string) (defaultServiceURLs, error) 
 		return defaultServiceURLs{}, err
 	}
 
-	return defaultServiceURLs{ledgerURL: ledgerURL, tracerURL: ledgerURL}, nil
+	tracerURL, err := tracerURLFromSharedOrigin(ledgerURL)
+	if err != nil {
+		return defaultServiceURLs{}, err
+	}
+
+	return defaultServiceURLs{ledgerURL: ledgerURL, tracerURL: tracerURL}, nil
+}
+
+// tracerURLFromSharedOrigin derives the Tracer base from an already-built
+// (bare) Ledger base serving the same origin. It keeps the Ledger's host and
+// path and stamps the Tracer's "/v1" on top.
+//
+// The two planes cannot share one string: the Ledger base must stay bare (its
+// spec versions the paths) while the Tracer base must carry "/v1" (its spec
+// declares servers:[{url: "/v1"}]). Handing the bare Ledger URL straight to the
+// Tracer sends every Tracer call one segment short of its route.
+func tracerURLFromSharedOrigin(ledgerURL string) (string, error) {
+	parsedURL, err := url.Parse(ledgerURL)
+	if err != nil {
+		return "", err
+	}
+
+	return ensureTracerAPIVersionPath(parsedURL), nil
 }
 
 func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 	if !config.ledgerURLSet {
 		config.LedgerURL = serviceURLs.ledgerURL
 		config.ServiceURLs[ServiceOnboarding] = serviceURLs.ledgerURL
-		config.ServiceURLs[ServiceTransaction] = serviceURLs.ledgerURL
 	}
 
 	if !config.tracerURLSet {
@@ -1224,9 +1266,8 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 // v4 Track 8).
 //
 // Validation rules:
-//   - ServiceURLs[ServiceOnboarding] and ServiceURLs[ServiceTransaction] must
-//     both be set — these are populated from LedgerURL (the single user-facing
-//     knob) and used internally to route onboarding vs transaction endpoints.
+//   - ServiceURLs[ServiceOnboarding] must be set — it is populated from
+//     LedgerURL (the single user-facing knob) and addresses the Ledger plane.
 //   - Exactly one auth source must be configured: either WithAccessManager
 //     (enables AccessManager and requires Address) or WithAnonymous (explicit
 //     auth-less mode). Construction without either fails.
@@ -1257,17 +1298,11 @@ func validateConfig(config *Config) error {
 }
 
 // validateServiceURLs enforces that the Ledger service URL is configured.
-// The onboarding and transaction internal routes both resolve to LedgerURL,
-// so both map entries must be populated for the entity layer to function.
 // It also refuses the AllowInsecureHTTP opt-in in the production
 // environment, mirroring the Access Manager equivalent — the flag is for
 // in-cluster or controlled-network deployments, never the public internet.
 func validateServiceURLs(config *Config) error {
 	if onboardingURL, ok := config.ServiceURLs[ServiceOnboarding]; !ok || strings.TrimSpace(onboardingURL) == "" {
-		return errors.New("ledger URL is required")
-	}
-
-	if transactionURL, ok := config.ServiceURLs[ServiceTransaction]; !ok || strings.TrimSpace(transactionURL) == "" {
 		return errors.New("ledger URL is required")
 	}
 
@@ -1546,7 +1581,10 @@ func buildLedgerServiceURL(baseURL string) (string, error) {
 		parsedURL.Host = withPort(parsedURL.Hostname(), "3002")
 	}
 
-	return ensureAPIVersionPath(parsedURL), nil
+	// No version segment: the Ledger spec puts /v1 and /v2 inside the paths.
+	parsedURL.Path = strings.TrimSuffix(parsedURL.Path, "/")
+
+	return parsedURL.String(), nil
 }
 
 func buildTracerServiceURL(baseURL string) (string, error) {
@@ -1563,22 +1601,24 @@ func buildTracerServiceURL(baseURL string) (string, error) {
 		parsedURL.Host = withPort(parsedURL.Hostname(), "4020")
 	}
 
-	return ensureAPIVersionPath(parsedURL), nil
+	return ensureTracerAPIVersionPath(parsedURL), nil
 }
 
-func ensureAPIVersionPath(parsedURL *url.URL) string {
+// ensureTracerAPIVersionPath stamps the Tracer plane's "/v1" onto a base URL,
+// leaving a base URL that already ends in it untouched.
+func ensureTracerAPIVersionPath(parsedURL *url.URL) string {
 	cleanPath := strings.TrimSuffix(parsedURL.Path, "/")
 	if cleanPath == "" {
-		parsedURL.Path = DefaultLedgerAPIVersionPath
+		parsedURL.Path = DefaultTracerAPIVersionPath
 		return parsedURL.String()
 	}
 
-	if cleanPath == DefaultLedgerAPIVersionPath {
+	if strings.HasSuffix(cleanPath, DefaultTracerAPIVersionPath) {
 		parsedURL.Path = cleanPath
 		return parsedURL.String()
 	}
 
-	parsedURL.Path = cleanPath + DefaultLedgerAPIVersionPath
+	parsedURL.Path = cleanPath + DefaultTracerAPIVersionPath
 
 	return parsedURL.String()
 }

@@ -5,14 +5,11 @@ package entities
 
 import (
 	"context"
-	"encoding/json"
 	"iter"
-	"net/http"
 	"strconv"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // auditFacade is the Epic 3.3 (Task 3.3.2) hand-written facade over the
@@ -48,25 +45,18 @@ func newAuditFacade(ledger *genledger.ClientWithResponses) *auditFacade {
 func (f *auditFacade) ListAuditEvents(ctx context.Context, orgID string, opts models.AuditEventsListOpts) (*models.ListResponse[models.AuditEvent], error) {
 	const operation = "Audit.ListAuditEvents"
 
+	if err := requirePathIDs(operation, "orgID", orgID); err != nil {
+		return nil, err
+	}
+
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetAuditEventsWithResponse(ctx, orgID, listAuditEventsParams(opts))
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetAuditEventsV2(ctx, orgID, listAuditEventsParams(opts))
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
-	}
-
-	var page models.ListResponse[models.AuditEvent]
-	if err := json.Unmarshal(resp.Body, &page); err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	return &page, nil
+	return readList[models.AuditEvent](operation, resp, err)
 }
 
 // ListAuditEventsPages yields one cursor page per iteration, advancing by the
@@ -111,10 +101,10 @@ func (f *auditFacade) ListAuditEventsAll(ctx context.Context, orgID string, opts
 }
 
 // listAuditEventsParams renders the cursor/sort/date fields plus the
-// action/actor/outcome filters into the generated GetAuditEventsParams. Every
+// action/actor/outcome filters into the generated GetAuditEventsV2Params. Every
 // field has a native *string slot, so no request editor is needed.
-func listAuditEventsParams(opts models.AuditEventsListOpts) *genledger.GetAuditEventsParams {
-	params := &genledger.GetAuditEventsParams{}
+func listAuditEventsParams(opts models.AuditEventsListOpts) *genledger.GetAuditEventsV2Params {
+	params := &genledger.GetAuditEventsV2Params{}
 
 	if opts.Limit > 0 {
 		params.Limit = strPtr(strconv.Itoa(opts.Limit))

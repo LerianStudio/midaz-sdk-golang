@@ -95,7 +95,7 @@ func TestValidateTransactionInput_Builders(t *testing.T) {
 }
 
 // TestValidateTransactionInput_Validate covers the required-field preconditions:
-// RequestID non-empty, Amount > 0, Currency exactly 3, timestamp non-empty,
+// RequestID non-empty, Amount > 0, Asset exactly 3, timestamp non-empty,
 // Account present.
 func TestValidateTransactionInput_Validate(t *testing.T) {
 	acct := testAccount()
@@ -110,7 +110,7 @@ func TestValidateTransactionInput_Validate(t *testing.T) {
 		{"empty requestId", NewValidateTransactionInput("  ", pos, "USD", "2026-01-01T00:00:00Z", acct), true},
 		{"zero amount", NewValidateTransactionInput("req-1", decimal.Zero, "USD", "2026-01-01T00:00:00Z", acct), true},
 		{"negative amount", NewValidateTransactionInput("req-1", decimal.RequireFromString("-1"), "USD", "2026-01-01T00:00:00Z", acct), true},
-		{"two-char currency", NewValidateTransactionInput("req-1", pos, "US", "2026-01-01T00:00:00Z", acct), true},
+		{"two-char asset", NewValidateTransactionInput("req-1", pos, "US", "2026-01-01T00:00:00Z", acct), true},
 		{"empty timestamp", NewValidateTransactionInput("req-1", pos, "USD", "  ", acct), true},
 		{"missing account", NewValidateTransactionInput("req-1", pos, "USD", "2026-01-01T00:00:00Z", AccountContext{}), true},
 	}

@@ -1,4 +1,4 @@
-// Package main demonstrates the v3 idempotency surface — the three modes
+// Package main demonstrates the idempotency surface — the three modes
 // the SDK supports for the X-Idempotency request header on unsafe (POST,
 // PUT, PATCH, DELETE) requests:
 //
@@ -73,7 +73,7 @@ func demoAutoKey(c *midaz.Client) {
 		LegalName:     "Idempotency Demo Auto",
 		LegalDocument: "00000000000191",
 	}
-	if _, err := c.Organizations.Create(context.Background(), input); err != nil {
+	if _, err := c.V2.Organizations.Create(context.Background(), input); err != nil {
 		log.Printf("CreateOrganization (auto-key): %v", err)
 		return
 	}
@@ -95,7 +95,7 @@ func demoExplicitKey(c *midaz.Client) {
 		LegalName:     "Idempotency Demo Explicit",
 		LegalDocument: "00000000000191",
 	}
-	if _, err := c.Organizations.Create(ctx, input); err != nil {
+	if _, err := c.V2.Organizations.Create(ctx, input); err != nil {
 		log.Printf("CreateOrganization (explicit key): %v", err)
 		return
 	}
@@ -114,7 +114,7 @@ func demoSuppressedKey(c *midaz.Client) {
 		LegalName:     "Idempotency Demo Suppressed",
 		LegalDocument: "00000000000191",
 	}
-	if _, err := c.Organizations.Create(ctx, input); err != nil {
+	if _, err := c.V2.Organizations.Create(ctx, input); err != nil {
 		log.Printf("CreateOrganization (suppressed): %v", err)
 		return
 	}
@@ -136,7 +136,7 @@ func demoExplicitWinsOverSuppression(c *midaz.Client) {
 		LegalName:     "Idempotency Demo Override",
 		LegalDocument: "00000000000191",
 	}
-	if _, err := c.Organizations.Create(ctx, input); err != nil {
+	if _, err := c.V2.Organizations.Create(ctx, input); err != nil {
 		log.Printf("CreateOrganization (override): %v", err)
 		return
 	}

@@ -28,7 +28,7 @@ func CreateOrganization(ctx context.Context, midazClient *midaz.Client) (string,
 
 	// Get plugin auth configuration from environment variables
 
-	organization, err := midazClient.Organizations.Create(ctx,
+	organization, err := midazClient.V2.Organizations.Create(ctx,
 		models.NewCreateOrganizationInput("Example Corp", "123456789").
 			WithDoingBusinessAs("Example Corp DBA").
 			WithAddress(models.Address{
@@ -73,7 +73,7 @@ func UpdateOrganization(ctx context.Context, midazClient *midaz.Client, orgID st
 	fmt.Println("\nUpdating organization...")
 
 	// Get the organization first
-	org, err := midazClient.Organizations.Get(ctx, orgID)
+	org, err := midazClient.V2.Organizations.Get(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
@@ -84,7 +84,7 @@ func UpdateOrganization(ctx context.Context, midazClient *midaz.Client, orgID st
 		dbaValue = *org.DoingBusinessAs
 	}
 
-	updatedOrg, err := midazClient.Organizations.Update(ctx, orgID,
+	updatedOrg, err := midazClient.V2.Organizations.Update(ctx, orgID,
 		models.NewUpdateOrganizationInput().
 			WithLegalName(org.LegalName).
 			WithDoingBusinessAs(dbaValue).
@@ -123,7 +123,7 @@ func RetrieveOrganization(ctx context.Context, midazClient *midaz.Client, orgID 
 
 	fmt.Println("\nRetrieving organization...")
 
-	org, err := midazClient.Organizations.Get(ctx, orgID)
+	org, err := midazClient.V2.Organizations.Get(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
