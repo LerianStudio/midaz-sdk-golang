@@ -24,7 +24,8 @@ since Midaz deprecated all of /v1.
 Accessors whose resource has exactly one list share the bare
 `List` / `All` / `Pages` trio: `Organizations`, `Ledgers`, `Accounts`,
 `AccountTypes`, `Assets`, `Portfolios`, `Segments`, `OperationRoutes`,
-`TransactionRoutes`, `Transactions`, and `Holders` (V2 only).
+`TransactionRoutes`, `Transactions`, and — V2 only — `Holders` and
+`FeePackages`.
 
 Accessors serving **more than one** list use a prefixed form instead, because a
 bare `List` would not say which:
@@ -35,6 +36,7 @@ bare `List` would not say which:
 | `Operations` | `ListOperations{,All,Pages}` |
 | `AssetRates` (V1 only) | `ListAssetRatesByAssetCode{,All,Pages}` |
 | `Instruments` (V2 only) | `List` / `ListAll` / `ListPages` for instruments, `ListAccountsByHolder{,All,Pages}` for the holder's accounts |
+| `BillingPackages` (V2 only) | `List` / `ListAll` / `ListPages` — one list, but spelled with the prefix its facade was written with |
 
 Two lists have **no `All` or `Pages` variant at all**, because the endpoints
 are not paginated: `Balances.ListBalancesByAccountAlias` and

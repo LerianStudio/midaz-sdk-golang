@@ -146,9 +146,12 @@ type Client struct {
 	// mutated c.config — see WithConfig godoc for the rationale.
 	configMutated bool
 
-	// Embedded Entity. Promoted fields expose every service directly on Client:
+	// Embedded Entity. Promoted fields expose the Ledger accessors through the
+	// version group that serves them and the Tracer accessors flat:
 	//   c.V2.Accounts, c.V2.Transactions, c.V1.AssetRates, c.Rules, etc.
-	// The embedded pointer is also accessible as c.Entity.
+	// There are no top-level per-resource fields — a Ledger accessor is always
+	// reached through c.V1 or c.V2. The embedded pointer is also accessible as
+	// c.Entity.
 	*entities.Entity
 
 	// pendingObservability is the observability provider accumulated by

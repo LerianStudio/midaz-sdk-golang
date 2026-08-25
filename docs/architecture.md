@@ -67,7 +67,7 @@ The SDK is designed with a clean, layered architecture to provide different leve
 
 **Interface**:
 
-- `Client` struct with access to all service interfaces
+- `Client` struct exposing every accessor as a concrete facade — version-grouped for the Ledger (`c.V1.*`, `c.V2.*`) and flat for the Tracer (`c.Rules`, `c.Limits`, ...)
 - Configuration options through functional options pattern
 - Context management through `WithContext` method
 

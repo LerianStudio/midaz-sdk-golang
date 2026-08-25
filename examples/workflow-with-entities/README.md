@@ -13,8 +13,11 @@ creation style exists only on /v1, so there is no /v2 twin to swap onto.
 
 The nine **V2-only** services — `Holders`, `Instruments`, `Encryption`,
 `Composition`, `ProtectionAudit`, `FeePackages`, `FeeEstimates`,
-`BillingPackages`, `BillingCalculations` — are **not** walked here. They
-have no runnable example anywhere yet.
+`BillingPackages`, `BillingCalculations` — are **not** walked here. For a
+runnable pass over them, use
+[`../mass-demo-generator/`](../mass-demo-generator/): its V2 phase exercises all
+nine against a live stack, alongside the /v2 transaction cycle and its balance
+proof. Set `DEMO_RUN_V2=true` (the default).
 
 ## What this demonstrates
 

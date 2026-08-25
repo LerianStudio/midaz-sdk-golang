@@ -13,9 +13,9 @@ Application code
   -> midaz.Client
   -> config.Config
   -> entities.Entity
-  -> private entity implementations
-  -> entities.HTTPClient
-  -> Midaz Ledger API / Midaz CRM API
+  -> concrete accessor facades (c.V1.*, c.V2.*, c.Rules, ...)
+  -> generated plane clients (internal/genledger, internal/gentracer)
+  -> Midaz Ledger plane / Midaz Tracer plane
 ```
 
 ```mermaid
@@ -25,24 +25,30 @@ flowchart LR
     Client --> Entity[entities.Entity]
 
     Config --> Entity
-    Entity --> Services[Entity service interfaces]
-    Services --> Impl[Private entity implementations]
-    Impl --> HTTP[entities.HTTPClient]
+    Entity --> Groups[Version groups: V1, V2, flat Tracer]
+    Groups --> Facades[Concrete accessor facades]
+    Facades --> GenLedger[internal/genledger]
+    Facades --> GenTracer[internal/gentracer]
 
-    HTTP --> Ledger[Midaz Ledger API]
-    HTTP --> CRM[Midaz CRM API]
-    HTTP --> Access[Access Manager token endpoint]
+    GenLedger --> Ledger[Midaz Ledger plane]
+    GenTracer --> Tracer[Midaz Tracer plane]
+    Entity --> Access[Access Manager token endpoint]
 
     Client --> Obs[observability.Provider]
-    HTTP --> Obs
+    Facades --> Obs
 ```
+
+There is no CRM plane in this picture, and no leg through `entities.HTTPClient`.
+Midaz folded the CRM resources into the Ledger and serves them on /v2 only, and
+every accessor now reaches its plane through a generated client — see
+[Two-plane architecture](#two-plane-architecture).
 
 The major layers are:
 
 - **Root client layer**: Owns top-level configuration, context, observability, retry settings, and service initialization.
 - **Config layer**: Resolves URLs, HTTP client settings, retry settings, Access Manager settings, idempotency, and environment-based options.
-- **Entity layer**: Exposes the 16 service interfaces through `c.Entity`.
-- **Private entity implementations**: Build resource-specific URLs, validate required inputs, call the HTTP layer, and map responses into SDK models.
+- **Entity layer**: Exposes the Ledger accessors through the version group that serves them (`c.V1`, `c.V2`) and the Tracer accessors flat on the client.
+- **Accessor facades**: Concrete unexported `*xFacade` structs. They validate inputs, call one generated plane operation, and map the raw response into SDK models.
 - **HTTP layer**: Handles JSON encoding, request construction, headers, authorization, retries, idempotency, response decoding, error mapping, and trace propagation.
 - **Model layer**: Provides public request and response types, fluent builders, list options, list responses, aliases, and validation helpers.
 - **Utility packages**: Provide configuration, structured errors, observability, retry, pagination, validation, security, formatting, concurrency, generation, and transaction helpers.
@@ -133,7 +139,7 @@ Default config values include:
 | Retries enabled | `true` |
 | Idempotency enabled | `true` |
 | Local Ledger base URL | `http://localhost:3002` |
-| Local Tracer base URL | `http://localhost:4020` (the SDK stamps `/v1`) |
+| Local Tracer base URL | `http://localhost:4020/v1` (the SDK stamps `/v1` onto a bare base) |
 
 The HTTP retry engine has its own default options in `pkg/retry`:
 
@@ -362,29 +368,30 @@ sequenceDiagram
     participant App as Application
     participant Client as midaz.Client
     participant Entity as entities.Entity
-    participant Service as private service implementation
-    participant HTTP as entities.HTTPClient
-    participant API as Midaz API
+    participant Facade as accessor facade
+    participant Gen as generated plane client
+    participant API as Midaz plane
 
     App->>Client: midaz.New(options...)
     Client->>Entity: setupEntity()
-    Entity->>Service: initServices()
+    Entity->>Facade: initServices()
 
-    App->>Service: c.V2.Accounts.Get(ctx, orgID, ledgerID, accountID)
-    Service->>Service: validate required parameters
-    Service->>Service: build resource URL
-    Service->>HTTP: doRequest(ctx, method, url, headers, body, result)
-    HTTP->>HTTP: start span when observability is enabled
-    HTTP->>HTTP: encode JSON body
-    HTTP->>HTTP: add headers
-    HTTP->>HTTP: inject trace context
-    HTTP->>HTTP: execute with retry policy
-    HTTP->>API: HTTP request
-    API-->>HTTP: HTTP response
-    HTTP->>HTTP: map errors or decode JSON
-    HTTP-->>Service: result or error
-    Service-->>App: SDK model or error
+    App->>Facade: c.V2.Accounts.Get(ctx, orgID, ledgerID, accountID)
+    Facade->>Facade: requirePathIDs on every path value
+    Facade->>Facade: opts.Validate / input.Validate via validationErr
+    Facade->>Gen: GetAccountByIDV2(ctx, orgID, ledgerID, accountID)
+    Gen->>Gen: format the versioned operation path
+    Gen->>Gen: apply request editors (auth, idempotency, query params)
+    Gen->>API: HTTP request via the auth + retry round trippers
+    API-->>Gen: HTTP response
+    Gen-->>Facade: raw *http.Response + body
+    Facade->>Facade: decode the success body, or map RFC 9457 problem JSON
+    Facade-->>App: SDK model or *errors.Error
 ```
+
+The facades read the RAW response rather than a generated `*WithResponse`
+parser, which is what keeps a gateway's 403 or 404 with an empty body from being
+destroyed by a failed unmarshal. A structural test enforces it.
 
 The HTTP layer adds these standard headers:
 
@@ -395,7 +402,7 @@ The HTTP layer adds these standard headers:
 | `User-Agent` | Uses config user agent or version default. |
 | `Authorization: Bearer <token>` | Added only when an Access Manager token is available or an entity has an auth token. |
 | `X-Idempotency` | Added for unsafe methods from an explicit input/header value, from context, or from automatic UUID generation when enabled. |
-| `X-Organization-Id` | Added by CRM alias requests. Holders use organization-in-path on the Ledger plane and send no such header. |
+| `X-Organization-Id` | Never sent. It belonged to the deleted CRM alias service; every surviving CRM accessor (Holders, Instruments, Composition) carries the organization as a path segment on the Ledger plane. |
 
 Tenant scope is derived from Access Manager/JWT claims. The SDK does not expose tenant configuration and does not send `X-Tenant-ID`.
 

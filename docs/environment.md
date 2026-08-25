@@ -96,7 +96,10 @@ Access Manager URLs are strict by default. Use `https://` for remote targets. Pl
 
 The consolidated server exposes two planes: the **Ledger plane** (port `3002`,
 serving what used to be split as onboarding + transactions) and the **Tracer
-plane** (port `4020`). Both are served under `/v1`.
+plane** (port `4020`). The two version themselves differently, which is why only
+one of the base URLs carries a version segment: the Ledger versions each request
+path (`/v1/...` and `/v2/...`) and its base URL stays bare, while `/v1` is the
+Tracer's base-path version and lives in the base URL itself.
 
 `config.FromEnvironment()` applies URL variables in this order:
 

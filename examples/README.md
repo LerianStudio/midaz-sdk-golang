@@ -54,7 +54,7 @@ demonstrate exist only there:
 
 | Example | Demonstrates |
 |---|---|
-| [`09-testing-with-mocks/`](09-testing-with-mocks/) | `go.uber.org/mock` for unit testing your code against the SDK |
+| [`09-testing-with-mocks/`](09-testing-with-mocks/) | A consumer-defined narrow interface plus a hand-written mock — no generated mocks, no SDK test dependency |
 | [`10-observability-otel/`](10-observability-otel/) | Full OpenTelemetry surface (tracing + metrics + logs) |
 
 ## Reference / advanced

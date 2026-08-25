@@ -20,8 +20,9 @@ against, since Midaz deprecated all of /v1.
 ## When to use this pattern
 
 For page-based endpoints: Organizations, Ledgers, Accounts, Assets,
-Portfolios, Segments, AccountTypes. For cursor-only endpoints —
-Transactions, Operations, Balances, AssetRates, Holders, OperationRoutes,
+Portfolios, Segments, AccountTypes, and the V2-only FeePackages and
+BillingPackages. For cursor-only endpoints — Transactions, Operations,
+Balances, AssetRates, Holders, Instruments, OperationRoutes,
 TransactionRoutes — see [`04-listing-cursor/`](../04-listing-cursor/).
 
 The trio gives you three control points for the same data:

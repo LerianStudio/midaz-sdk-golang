@@ -120,11 +120,6 @@ docs/architecture.md
 docs/comprehensive-architecture.md
 ```
 
-Note: `entities/mockgen_smoke_test.go` verifies mock generation for the surviving legacy resources and is reviewed here alongside codegen tooling.
-
-```text
-```
-
 ## Slice 3: Shared Transport Runtime Safety
 
 Review goal: HTTP execution, auth header propagation via round-tripper, token refresh, retry round-tripper, idempotency stamping/gating/TTL, error mapping, security validation, observability, logging, request/URL helpers, Entity facade wiring.

@@ -1,14 +1,14 @@
-// Package main demonstrates page-based pagination using
-// the iter.Seq2 trio: List, ListAll, ListPages.
+// Package main demonstrates page-based pagination using the accessor trio:
+// List, All, Pages.
 //
-// The pagination contract:
+// The pagination contract — only two of the three are iterators:
 //
-//	List      — one page, you decide when to advance.
-//	ListAll   — iter.Seq2[T, error] — yields every item, hides paging.
-//	ListPages — iter.Seq2[*ListResponse[T], error] — yields full page
-//	            envelopes (with metadata, e.g., total, hasNext) so you
-//	            can short-circuit, log per-page progress, or implement
-//	            custom backpressure.
+//	List  — one *ListResponse[T]. You decide when to advance.
+//	All   — iter.Seq2[T, error] — yields every item, hides paging.
+//	Pages — iter.Seq2[*ListResponse[T], error] — yields full page
+//	        envelopes (with metadata, e.g., total, hasNext) so you
+//	        can short-circuit, log per-page progress, or implement
+//	        custom backpressure.
 //
 // Page-based endpoints (Organizations, Ledgers, Accounts, Assets, etc.)
 // support a Page field on the typed list-opts struct. Cursor-based

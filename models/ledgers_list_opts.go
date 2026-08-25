@@ -3,8 +3,9 @@
 
 package models
 
-// LedgersListOpts is the typed options struct for the ledger list surface:
-// V1.Ledgers.List and the All / Pages iterators.
+// LedgersListOpts is the typed options struct for the ledger list surface on
+// BOTH server versions: V1.Ledgers and V2.Ledgers each take it on List and on
+// the All / Pages iterators.
 //
 // Embeds PageListOpts for the shared pagination/sort/date-range
 // fields; attaches a LedgersFilters sub-struct carrying only the

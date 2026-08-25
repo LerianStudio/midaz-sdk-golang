@@ -501,39 +501,39 @@ Ledger plane. Opens a holder-owned account and, when instrument fields are prese
 
 #### FeePackages
 
-Ledger plane, organization-scoped, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
+Ledger plane, **ledger-scoped**, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
 
-- `List(ctx, organizationID, opts)`
-- `Pages(ctx, organizationID, opts)`
-- `All(ctx, organizationID, opts)`
-- `Create(ctx, organizationID, input)`
-- `Get(ctx, organizationID, id)`
-- `Update(ctx, organizationID, id, input)`
-- `Delete(ctx, organizationID, id)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
 
 #### FeeEstimates
 
-Ledger plane, organization-scoped. Dry-run fee estimation; a 2xx with `feesApplied:null` (no rules matched) is a success, not an error.
+Ledger plane, **ledger-scoped**. Dry-run fee estimation; a 2xx with `feesApplied:null` (no rules matched) is a success, not an error.
 
-- `EstimateFee(ctx, organizationID, input)`
+- `EstimateFee(ctx, organizationID, ledgerID, input)`
 
 #### BillingPackages
 
-Ledger plane, organization-scoped, page-mode paginated (`ListPages` advances `Page++` and stops on `!HasMore()`).
+Ledger plane, **ledger-scoped**, page-mode paginated (`ListPages` advances `Page++` and stops on `!HasMore()`).
 
-- `List(ctx, organizationID, opts)`
-- `ListPages(ctx, organizationID, opts)`
-- `ListAll(ctx, organizationID, opts)`
-- `Create(ctx, organizationID, input)`
-- `Get(ctx, organizationID, id)`
-- `Update(ctx, organizationID, id, input)`
-- `Delete(ctx, organizationID, id)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `ListPages(ctx, organizationID, ledgerID, opts)`
+- `ListAll(ctx, organizationID, ledgerID, opts)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
 
 #### BillingCalculations
 
-Ledger plane, organization-scoped. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error.
+Ledger plane, **ledger-scoped**. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error. The ledger travels in the path AND in the body: an empty `input.LedgerID` inherits the path ledger, and a different one is rejected locally.
 
-- `CalculateBilling(ctx, organizationID, input)`
+- `CalculateBilling(ctx, organizationID, ledgerID, input)`
 
 ## Transaction helpers package
 

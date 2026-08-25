@@ -4,7 +4,8 @@
 package models
 
 // OperationRoutesListOpts is the typed options struct for the operation-route
-// list surface: V1.OperationRoutes.List and the All / Pages iterators.
+// list surface on BOTH server versions: V1.OperationRoutes and
+// V2.OperationRoutes each take it on List and on the All / Pages iterators.
 //
 // Embeds CursorListOpts for the shared cursor/sort/date-range fields;
 // attaches a OperationRoutesFilters sub-struct carrying only the filter
