@@ -495,8 +495,8 @@ func pathArgumentsOf(call *ast.CallExpr, names []string, wanted map[string]bool)
 // the names are labels for the error message and prove nothing about what was
 // checked.
 //
-// Two placement requirements separate a guard from something that merely looks
-// like one, and each came from a compiling facade that passed without them:
+// Three requirements separate a guard from something that merely looks like one,
+// and each came from a compiling facade that passed without it:
 //
 //   - The statement carrying the guard must be at depth 1 of the function body
 //     and the call must run UNCONDITIONALLY within it. The idiomatic
@@ -506,6 +506,9 @@ func pathArgumentsOf(call *ast.CallExpr, names []string, wanted map[string]bool)
 //     not, because the call it guards has a way around it.
 //   - It must appear BEFORE the generated call. A guard below the call returns a
 //     validation error about a request that has already reached the wire.
+//   - Its ERROR must be acted on — see guardCallsActedOn. Running the guard and
+//     dropping its verdict is not a guard, and it was the shape that passed every
+//     other requirement here.
 func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 	values := map[string]bool{}
 
@@ -514,7 +517,7 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 			break
 		}
 
-		for _, call := range unconditionalCalls(stmt, "requirePathIDs") {
+		for _, call := range guardCallsActedOn(stmt, "requirePathIDs") {
 			// args[0] is the operation label; the pairs start at 1, values at 2.
 			for i := 2; i < len(call.Args); i += 2 {
 				values[types.ExprString(call.Args[i])] = true
@@ -523,6 +526,60 @@ func guardedValues(fn *ast.FuncDecl, before token.Pos) map[string]bool {
 	}
 
 	return values
+}
+
+// guardCallsActedOn returns the guard calls in one statement whose error the
+// statement actually ACTS ON, which is a strictly narrower question than whether
+// the call runs.
+//
+// Every earlier version of this scan asked only whether the guard EXECUTED. That
+// accepted a facade which ran the guard, named every pair correctly, and then
+// threw the verdict away:
+//
+//	if err := requirePathIDs(op, "orgID", orgID, "id", id); err != nil {
+//		_ = err
+//	}
+//	resp, err := f.ledger.GetSegmentByID(ctx, orgID, ledgerID, id)
+//
+// That compiles, passes a cold golangci-lint run, sends id=".." to the wire with
+// a nil error, and is the diff someone writes at the end of a long day to make a
+// test stop complaining. It reopens the scope escalation two fix rounds closed —
+// ".." pops a path segment, so deleting a ledger deletes the organization.
+//
+// So exactly one spelling counts, the one all 202 live call sites already use:
+// the guard sits in an IF STATEMENT'S INITIALISER, and that if's body returns.
+// Everything else is refused by construction rather than by a list of banned
+// shapes — `_ = requirePathIDs(...)`, `err := requirePathIDs(...)` with no check,
+// and `defer requirePathIDs(...)` are all simply not this spelling.
+//
+// The return must be a direct statement of the body. That is stricter than the
+// language requires — a return nested inside a further condition would also
+// propagate — and it stays strict on purpose: every live site is the flat
+// spelling, and loosening the rule to "a return somewhere in there" reopens the
+// question of whether the guarded path can be reached anyway, which is the exact
+// reasoning the reachability requirement above exists to stop making.
+func guardCallsActedOn(stmt ast.Stmt, name string) []*ast.CallExpr {
+	ifStmt, ok := stmt.(*ast.IfStmt)
+	if !ok || ifStmt.Init == nil || !returnsDirectly(ifStmt.Body) {
+		return nil
+	}
+
+	return unconditionalCalls(ifStmt.Init, name)
+}
+
+// returnsDirectly reports whether a block's own statements include a return.
+func returnsDirectly(body *ast.BlockStmt) bool {
+	if body == nil {
+		return false
+	}
+
+	for _, stmt := range body.List {
+		if _, ok := stmt.(*ast.ReturnStmt); ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // unconditionalCalls returns the calls to name inside one statement that run
