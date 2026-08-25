@@ -11,7 +11,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // operationsFacade serves the operation surface over the generated
@@ -114,12 +113,10 @@ func (f *operationsFacade) GetOperation(ctx context.Context, organizationID, led
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetOperationByAccountWithResponse(ctx, organizationID, ledgerID, accountID, operationID)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetOperationByAccount(ctx, organizationID, ledgerID, accountID, operationID)
 
-	return decodeOne[models.Operation](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Operation](operation, resp, err)
 }
 
 // UpdateTransactionOperation patches an operation through the transaction that
@@ -137,11 +134,7 @@ func (f *operationsFacade) UpdateTransactionOperation(ctx context.Context, organ
 	}
 
 	return writeJSON[models.Operation](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateOperationWithBodyWithResponse(ctx, organizationID, ledgerID, transactionID, operationID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateOperationWithBody(ctx, organizationID, ledgerID, transactionID,
+			operationID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }

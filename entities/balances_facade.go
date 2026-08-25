@@ -120,12 +120,10 @@ func (f *balancesFacade) GetBalance(ctx context.Context, organizationID, ledgerI
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetBalanceByIDWithResponse(ctx, organizationID, ledgerID, balanceID)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
 
-	return decodeOne[models.Balance](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.Balance](operation, resp, err)
 }
 
 // GetBalanceHistory returns a balance as it stood at a point in time.
@@ -144,13 +142,11 @@ func (f *balancesFacade) GetBalanceHistory(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	resp, err := f.ledger.GetBalanceAtTimestampWithResponse(ctx, organizationID, ledgerID, balanceID,
+	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	resp, err := f.ledger.GetBalanceAtTimestamp(ctx, organizationID, ledgerID, balanceID,
 		&genledger.GetBalanceAtTimestampParams{Date: strPtr(date)})
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
 
-	return decodeOne[models.BalanceHistory](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return readOne[models.BalanceHistory](operation, resp, err)
 }
 
 // GetAccountBalancesHistory returns every balance of an account as it stood at a
@@ -190,12 +186,8 @@ func (f *balancesFacade) UpdateBalance(ctx context.Context, organizationID, ledg
 	}
 
 	return writeJSON[models.Balance](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateBalanceWithBodyWithResponse(ctx, organizationID, ledgerID, balanceID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateBalanceWithBody(ctx, organizationID, ledgerID, balanceID,
+			jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -227,12 +219,8 @@ func (f *balancesFacade) CreateBalance(ctx context.Context, organizationID, ledg
 	}
 
 	return writeJSON[models.Balance](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateAdditionalBalanceWithBodyWithResponse(ctx, organizationID, ledgerID, accountID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateAdditionalBalanceWithBody(ctx, organizationID, ledgerID, accountID,
+			jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
