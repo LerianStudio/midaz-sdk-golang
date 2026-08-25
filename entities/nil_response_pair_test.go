@@ -10,6 +10,7 @@ import (
 	"go/types"
 	"io"
 	"net/http"
+	"slices"
 	"sort"
 	"testing"
 
@@ -96,13 +97,19 @@ func TestNoRawPairHelperPanicsOnANilResponse(t *testing.T) {
 
 // nilPairProbe is one member of the class: the name the enumeration reports for
 // it, and the call that hands it a nil response with no error.
+//
+// check takes require.TestingT rather than *testing.T because it is an assertion
+// closure, not a subtest body — the distinction the thelper linter draws, and
+// the shape that has tripped the COLD linter in this package once per fix round.
 type nilPairProbe struct {
 	name  string
-	check func(*testing.T)
+	check func(require.TestingT)
 }
 
 // nilTracerCall stands in for a generated tracer method that returned nothing at
 // all — the shape the three transition helpers receive their pair through.
+//
+//nolint:nilnil // returning the nil pair is the entire point of this stub.
 func nilTracerCall(context.Context, string, ...gentracer.RequestEditorFn) (*http.Response, error) {
 	return nil, nil
 }
@@ -113,58 +120,69 @@ func nilTracerCall(context.Context, string, ...gentracer.RequestEditorFn) (*http
 func nilPairProbes(t *testing.T) []nilPairProbe {
 	t.Helper()
 
-	ctx := context.Background()
-	client := NewHTTPClient(&http.Client{}, "", nil)
+	return slices.Concat(
+		responseHelperProbes(recordingSpanContext(t)),
+		httpClientLogProbes(NewHTTPClient(&http.Client{}, "", nil)),
+	)
+}
 
-	probes := []nilPairProbe{
-		{"deleteResource", func(t *testing.T) {
+// responseHelperProbes covers the facade layer's response helpers. spanCtx
+// carries a RECORDING span, which only the enrichHTTPSpan row needs and which
+// has to be built where a *testing.T is in scope.
+func responseHelperProbes(spanCtx context.Context) []nilPairProbe {
+	ctx := context.Background()
+
+	return []nilPairProbe{
+		{"deleteResource", func(t require.TestingT) {
 			require.ErrorIs(t, deleteResource("op", nil, nil), errNoResponse)
 		}},
-		{"readOne", func(t *testing.T) {
+		{"readOne", func(t require.TestingT) {
 			_, err := readOne[models.Account]("op", nil, nil)
 			require.ErrorIs(t, err, errNoResponse)
 		}},
-		{"readList", func(t *testing.T) {
+		{"readList", func(t require.TestingT) {
 			_, err := readList[models.Account]("op", nil, nil)
 			require.ErrorIs(t, err, errNoResponse)
 		}},
-		{"readSlice", func(t *testing.T) {
+		{"readSlice", func(t require.TestingT) {
 			_, err := readSlice[models.Balance]("op", nil, nil)
 			require.ErrorIs(t, err, errNoResponse)
 		}},
-		{"readRawResponse", func(t *testing.T) {
+		{"readRawResponse", func(t require.TestingT) {
+			//nolint:bodyclose // the probe hands it no response at all; there is nothing to close.
 			_, _, err := readRawResponse(nil, nil)
 			require.ErrorIs(t, err, errNoResponse)
 		}},
-		{"readCount", func(t *testing.T) {
+		{"readCount", func(t require.TestingT) {
 			count, err := readCount(nil, nil)
 			require.ErrorIs(t, err, errNoResponse)
 			require.Zero(t, count, "a refused count must not read as zero results")
 		}},
-		{"writeJSON", func(t *testing.T) {
-			_, err := writeJSON[models.Account](ctx, "op", map[string]string{}, func(io.Reader) (*http.Response, []byte, error) {
-				return nil, nil, nil
-			})
+		{"writeJSON", func(t require.TestingT) {
+			_, err := writeJSON[models.Account](ctx, "op", map[string]string{}, nilSend)
 			require.Error(t, err)
 		}},
-		{"ruleTransition", func(t *testing.T) {
+		{"ruleTransition", func(t require.TestingT) {
 			_, err := ruleTransition(ctx, "op", nilTracerCall, "id")
 			require.ErrorIs(t, err, errNoResponse)
 		}},
-		{"limitTransition", func(t *testing.T) {
+		{"limitTransition", func(t require.TestingT) {
 			_, err := limitTransition(ctx, "op", nilTracerCall, "id")
 			require.ErrorIs(t, err, errNoResponse)
 		}},
-		{"reservationTransition", func(t *testing.T) {
+		{"reservationTransition", func(t require.TestingT) {
 			_, err := reservationTransition[models.ReservationActionResponse](ctx, "op", "id", nilTracerCall, "id")
 			require.ErrorIs(t, err, errNoResponse)
 		}},
-		{"enrichHTTPSpan", func(t *testing.T) {
-			enrichHTTPSpan(recordingSpanContext(t), http.MethodGet, "https://example.test/v1/x", nil, nil)
+		{"enrichHTTPSpan", func(require.TestingT) {
+			enrichHTTPSpan(spanCtx, http.MethodGet, "https://example.test/v1/x", nil, nil)
 		}},
 	}
+}
 
-	return append(probes, httpClientLogProbes(client)...)
+// nilSend is writeJSON's send parameter, returning the pair with nothing in it.
+func nilSend(io.Reader) (*http.Response, []byte, error) {
+	return nil, nil, nil
 }
 
 // httpClientLogProbes covers the legacy client's terminal log lines, which take
@@ -181,19 +199,19 @@ func httpClientLogProbes(client *HTTPClient) []nilPairProbe {
 	ctx := context.Background()
 
 	return []nilPairProbe{
-		{"HTTPClient.logHTTPPhaseFailure", func(*testing.T) {
+		{"HTTPClient.logHTTPPhaseFailure", func(require.TestingT) {
 			client.logHTTPPhaseFailure(ctx, method, url, nil, nil)
 		}},
-		{"HTTPClient.logHTTPTerminalFailure", func(*testing.T) {
+		{"HTTPClient.logHTTPTerminalFailure", func(require.TestingT) {
 			client.logHTTPTerminalFailure(ctx, method, url, nil, nil, 0)
 		}},
-		{"HTTPClient.logAuthRefresh", func(*testing.T) {
+		{"HTTPClient.logAuthRefresh", func(require.TestingT) {
 			client.logAuthRefresh(ctx, "failed", method, url, nil, nil)
 		}},
-		{"HTTPClient.logRetryExhausted", func(*testing.T) {
+		{"HTTPClient.logRetryExhausted", func(require.TestingT) {
 			client.logRetryExhausted(ctx, method, url, nil, nil, 0)
 		}},
-		{"HTTPClient.recordRequestFailure", func(*testing.T) {
+		{"HTTPClient.recordRequestFailure", func(require.TestingT) {
 			client.recordRequestFailure(ctx, method, url, nil, 0, nil)
 		}},
 	}
