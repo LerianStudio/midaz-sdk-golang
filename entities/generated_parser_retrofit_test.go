@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
@@ -36,13 +37,30 @@ import (
 //
 // The rows span the SHAPES the one path is reached through, not the resources it
 // returns: a plain retrofitted read, a money-path retrofitted read, the tracer
-// plane's separate client, both spellings of a dual-family read (so the v1 and
-// v2 twins are shown to agree, which they did not before), and the two v1
-// lifecycle transitions — which the retrofit did NOT touch. Those last two are
-// the point of the rule this epic learned in fix round 2: a central fix is
-// proven from a site the fix did not touch. Commit and Revert reach decodeOne
-// through readRawResponse directly rather than through readOne, and they hold
-// the property just the same.
+// plane's separate client, both SURFACES of a dual family (V1 and V2
+// Accounts.Get, shown to agree, which they did not before), both SPELLINGS of a
+// single endpoint, and the two v1 lifecycle transitions — which the retrofit did
+// NOT touch. Those last two are the point of the rule this epic learned in fix
+// round 2: a central fix is proven from a site the fix did not touch. Commit and
+// Revert reach decodeOne through readRawResponse directly rather than through
+// readOne, and they hold the property just the same.
+//
+// # Dual SURFACE and dual SPELLING are not the same row
+//
+// The retrofit's commit message and the plan claimed this table covered the dual
+// spelling — the transaction-scoped operation update, which /v1 reaches under
+// two facade names over ONE generated operation, and which answered differently
+// depending on the name until the retrofit. It did not: it carried the dual
+// FAMILY, V1 and V2 Accounts.Get, which is two endpoints on two surfaces. A
+// review caught the substitution. The real pair is here now —
+// V1.Transactions.UpdateOperation and V1.Operations.UpdateTransactionOperation —
+// so the claim is true rather than reworded.
+//
+// It also buys a shape nothing else in the table had: those two are WRITES.
+// Every other row reaches decodeOne through readOne; a write reaches it through
+// writeJSON, which marshals a payload, sends it through the same
+// readRawResponse and then decodes. Same three properties, different half of the
+// funnel.
 //
 // Each row carries its OWN success body. The tracer's Limit keys its identity on
 // "limitId" where every ledger resource uses "id", so a shared ledger-shaped
@@ -108,6 +126,38 @@ var retrofittedReads = []struct {
 			t.Helper()
 
 			got, err := newLimitsFacade(newTestTracerClient(t, srv), true).Get(context.Background(), txID)
+
+			return idOrEmpty(err, func() string { return got.ID })
+		},
+	},
+	{
+		// One generated operation, UpdateOperation, spelled twice on /v1. Until
+		// the retrofit these two answered differently: V1.Transactions read it
+		// raw, V1.Operations read it through the parser. Both rows exist so a
+		// regression on either name is visible on its own.
+		name:   "V1.Transactions.UpdateOperation",
+		okBody: `{"id":"` + txID + `"}`,
+		call: func(t *testing.T, srv *httptest.Server) (string, error) {
+			t.Helper()
+
+			got, err := newTestTransactionsFacade(t, srv).UpdateOperation(
+				context.Background(), txOrgID, txLedgerID, txID, txID, &models.UpdateOperationInput{
+					Description: "retrofit pin",
+				})
+
+			return idOrEmpty(err, func() string { return got.ID })
+		},
+	},
+	{
+		name:   "V1.Operations.UpdateTransactionOperation",
+		okBody: `{"id":"` + txID + `"}`,
+		call: func(t *testing.T, srv *httptest.Server) (string, error) {
+			t.Helper()
+
+			got, err := newOperationsFacade(newTestLedgerClient(t, srv), true).UpdateTransactionOperation(
+				context.Background(), txOrgID, txLedgerID, txID, txID, &models.UpdateOperationInput{
+					Description: "retrofit pin",
+				})
 
 			return idOrEmpty(err, func() string { return got.ID })
 		},
