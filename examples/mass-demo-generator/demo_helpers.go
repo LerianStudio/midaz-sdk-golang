@@ -279,6 +279,24 @@ func validateDemoConfig(cfg demoConfig) error {
 		}
 	}
 
+	// The V2 phase is the generator's live-integration proof — it is the part that
+	// FAILS the run when a balance does not land where double-entry says it
+	// should. Asking for it in a configuration that cannot produce a ledger is
+	// refused rather than honoured, because the alternative is the worst outcome
+	// available: the proof never runs, nothing says so, and the process exits 0.
+	// runV2Phases is driven by the ledger contexts the demo flow builds, so no
+	// flow, no organizations or no ledgers all mean no proof.
+	if cfg.runV2Val {
+		switch {
+		case !cfg.doDemoVal:
+			return errors.New("V2 phase requires the demo flow: set DEMO_RUN_FLOW=true or DEMO_RUN_V2=false")
+		case cfg.orgsVal < 1:
+			return errors.New("V2 phase requires at least one organization: set DEMO_ORGS>=1 or DEMO_RUN_V2=false")
+		case cfg.ledgersPerOrgVal < 1:
+			return errors.New("V2 phase requires at least one ledger per organization: set DEMO_LEDGERS_PER_ORG>=1 or DEMO_RUN_V2=false")
+		}
+	}
+
 	switch cfg.orgLocaleVal {
 	case "us", "br":
 		return nil

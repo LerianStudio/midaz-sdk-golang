@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v5"
@@ -224,13 +225,28 @@ func earlyTermination(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 // plausible-looking number a caller reading it as the ledger total will
 // misread. The dates take the same YYYY-MM-DD spelling List takes, and both
 // bounds name a whole, inclusive day.
+//
+// The window is RELATIVE to now (the last 30 UTC days) rather than a fixed
+// calendar month. The seed flows create transactions when they run, so a hard
+// date range demonstrates status filtering only for as long as that range
+// happens to contain the seed data — after which the example prints a confident
+// 0 and teaches the opposite of its own lesson. Override the span with
+// DEMO_COUNT_DAYS.
 func countByStatus(ctx context.Context, c *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n[5] V2.Transactions.Count — where Status and Route do narrow")
 
+	days := 30
+	if parsed, err := strconv.Atoi(getEnv("DEMO_COUNT_DAYS", "30")); err == nil && parsed > 0 {
+		days = parsed
+	}
+
+	end := time.Now().UTC()
+	start := end.AddDate(0, 0, -days)
+
 	opts := models.TransactionsListOpts{
 		CursorListOpts: models.CursorListOpts{
-			StartDate: "2026-01-01",
-			EndDate:   "2026-01-31",
+			StartDate: start.Format(time.DateOnly),
+			EndDate:   end.Format(time.DateOnly),
 		},
 		Filters: models.TransactionsFilters{
 			Status: string(models.TransactionStatusApproved),
@@ -242,7 +258,7 @@ func countByStatus(ctx context.Context, c *midaz.Client, orgID, ledgerID string)
 		return fmt.Errorf("count transactions: %w", err)
 	}
 
-	fmt.Printf("  approved in January 2026: %d\n", n)
+	fmt.Printf("  approved between %s and %s: %d\n", opts.StartDate, opts.EndDate, n)
 
 	return nil
 }

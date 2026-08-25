@@ -19,12 +19,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
-
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	gen "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/generator"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	gen "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/generator"
 )
 
 const (
