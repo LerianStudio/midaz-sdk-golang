@@ -900,14 +900,41 @@ func pathOperationsNamedBy(node ast.Node, pathOps map[string]bool) []string {
 	return ops
 }
 
-// generatedOperation strips the suffixes oapi-codegen appends to the four
-// spellings it emits per operation: Op, OpWithBody, OpWithResponse and
-// OpWithBodyWithResponse.
+// generatedOperation strips the wrappers oapi-codegen puts around an operation
+// name in the FIVE spellings it emits: Op and OpWithBody on the raw *Client,
+// OpWithResponse and OpWithBodyWithResponse on *ClientWithResponses, and the
+// exported free function ParseOpResp that the last two delegate to.
+//
+// The free function is not a curiosity, and leaving it out was a real hole:
+// genledger exports 197 of them and gentracer 28, and
+// GetSegmentByIDWithResponse IS the raw call followed by
+// ParseGetSegmentByIDResp. A facade doing those two steps by hand reproduces
+// the banned parser byte for byte under a name no WithResponse suffix match
+// would ever see.
+//
+// The Parse/Resp pair is unambiguous here because no generated operation is
+// itself named Parse* — checked against both clients' request builders, which
+// are the only place an operation name is minted.
 func generatedOperation(name string) (string, bool) {
+	if parsed, ok := strings.CutPrefix(name, "Parse"); ok {
+		op, ok := strings.CutSuffix(parsed, "Resp")
+
+		return op, ok && op != ""
+	}
+
 	op := strings.TrimSuffix(name, "WithResponse")
 	op = strings.TrimSuffix(op, "WithBody")
 
 	return op, op != ""
+}
+
+// isParserSpelling reports whether a name reaches oapi-codegen's response
+// parser — the *ClientWithResponses method, or the free function it delegates
+// to. Both unmarshal the body before any facade logic runs, which is the failure
+// this package bans; the two spellings are one behaviour and are judged as one.
+func isParserSpelling(name string) bool {
+	return strings.HasSuffix(name, "WithResponse") ||
+		(strings.HasPrefix(name, "Parse") && strings.HasSuffix(name, "Resp"))
 }
 
 // callsAny reports whether the function calls a package-local function whose

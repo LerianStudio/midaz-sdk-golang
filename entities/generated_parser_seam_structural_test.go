@@ -59,6 +59,27 @@ import (
 // whole file, package-level declarations included, and asks one question: does
 // this name a generated operation's parser spelling?
 //
+// # The parser has TWO spellings, and banning one banned nothing
+//
+// The first version of this scan refused only the *WithResponse METHOD. But
+// oapi-codegen exports the same parser as a free function beside it —
+// ParseGetSegmentByIDResp, 197 of them in genledger and 28 in gentracer — and
+// GetSegmentByIDWithResponse is nothing more than the raw call followed by that
+// function. A facade making the raw call and handing the response to
+// ParseGetSegmentByIDResp reproduced the banned behaviour byte for byte and this
+// scan reported zero offenders; it was written as a compiling facade and
+// confirmed to pass before the match was widened. Both spellings are now
+// refused, through the shared isParserSpelling, so the delete-seam scan that
+// makes the same distinction moves with it.
+//
+// # The sibling scan depends on this one
+//
+// The path-id scan (TestEveryPathParameterOperationIsGuarded) resolves path
+// argument positions from the raw *Client signatures, so a call reached through
+// any other spelling has no resolvable positions there. It reports such a call
+// rather than crediting it, but keeping those spellings out of the package
+// altogether is THIS scan's job, and that is the direction the dependency runs.
+//
 // There is no exemption list, because no site needs one. A site that genuinely
 // cannot route through a shared helper belongs here, named, with the reason it
 // cannot — never skipped silently, and never by loosening the match.
@@ -89,7 +110,7 @@ func TestNoFacadeCallsAGeneratedParser(t *testing.T) {
 				return true
 			}
 
-			if !strings.HasSuffix(sel.Sel.Name, "WithResponse") {
+			if !isParserSpelling(sel.Sel.Name) {
 				rawOps[op] = true
 				return true
 			}

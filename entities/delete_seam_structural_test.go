@@ -24,8 +24,10 @@ import (
 // it once only stays fixed if no facade re-opens the private copy.
 //
 // The rule: a facade function that names a generated Delete* operation must hand
-// the response to deleteResource. Reaching for the generated *WithResponse
-// spelling is refused outright, because that spelling IS the broken parser.
+// the response to deleteResource. Reaching for a generated PARSER spelling is
+// refused outright, because that spelling IS the broken parser. Both spellings
+// count — the *WithResponse method and the ParseDelete*Resp free function it
+// delegates to — through the shared isParserSpelling.
 //
 // Derived from the source at test time rather than from a checked-in list, so a
 // delete added tomorrow is covered when it lands rather than when someone
@@ -258,7 +260,7 @@ func deleteOperationsNamedBy(node ast.Node, deleteOps map[string]bool) (parsed, 
 			return true
 		}
 
-		if strings.HasSuffix(sel.Sel.Name, "WithResponse") {
+		if isParserSpelling(sel.Sel.Name) {
 			seenParsed[op] = true
 		} else {
 			seenRaw[op] = true
