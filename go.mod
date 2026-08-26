@@ -3,7 +3,7 @@ module github.com/LerianStudio/midaz-sdk-golang/v5
 go 1.26.3
 
 require (
-	github.com/LerianStudio/lib-observability/v3 v3.1.0
+	github.com/LerianStudio/lib-observability/v3 v3.2.0
 	github.com/brianvoe/gofakeit/v7 v7.16.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
