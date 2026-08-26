@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
 )
 
 // EnhancedValidateAssetCode checks if an asset code is valid and returns field-level errors
@@ -379,25 +379,6 @@ func EnhancedValidateExternalAccountWithTransactionAsset(account string, transac
 			)
 	}
 
-	return nil
-}
-
-// EnhancedValidateAccountReference checks if an account reference is valid
-// with enhanced error information, for both internal and external accounts
-func EnhancedValidateAccountReference(account string, transactionAsset string) *FieldError {
-	if account == "" {
-		return BuildFieldError("account", account, "Account reference cannot be empty").
-			WithConstraint("required").
-			WithSuggestions(GetCommonSuggestions("account", account, Required)...)
-	}
-
-	// Check if it's an external account reference
-	if strings.HasPrefix(account, "@external/") {
-		return EnhancedValidateExternalAccountWithTransactionAsset(account, transactionAsset)
-	}
-
-	// For internal accounts, we could add additional validation here
-	// For now, we just ensure it's not empty
 	return nil
 }
 
@@ -947,134 +928,5 @@ func validateTransactionStructureEnhanced(errors *FieldErrors, debitCount, credi
 				fmt.Sprintf("Expected transaction amount: %d", totalDebits),
 				"Or adjust operation amounts to match the transaction amount",
 			)
-	}
-}
-
-// EnhancedValidateTransactionDSL performs validation of transaction DSL input
-// with enhanced error information.
-func EnhancedValidateTransactionDSL(input TransactionDSLValidator) *FieldErrors {
-	errors := NewFieldErrors()
-
-	if input == nil {
-		errors.Add("transaction", nil, "Transaction input cannot be nil").
-			WithConstraint("required").
-			WithSuggestions(GetCommonSuggestions("transaction", nil, Required)...)
-
-		return errors
-	}
-
-	// Validate asset code
-	asset := input.GetAsset()
-	if asset == "" {
-		errors.Add("asset", asset, "Asset code is required").
-			WithConstraint("required").
-			WithSuggestions(GetCommonSuggestions("asset", asset, Required)...)
-	} else if !assetCodePattern.MatchString(asset) {
-		errors.Add("asset", asset, "Invalid asset code format").
-			WithConstraint("format").
-			WithSuggestions(GetCommonSuggestions("asset", asset, Format)...)
-	}
-
-	// Validate amount without converting exact decimal strings to float64.
-	value := input.GetValue()
-	if !isPositiveDecimalString(value) {
-		errors.Add("value", value, "Transaction amount must be greater than zero").
-			WithConstraint("min").
-			WithSuggestions(GetCommonSuggestions("amount", value, Range)...)
-	}
-
-	// Validate source accounts
-	validateTransactionDSLSourceAccounts(errors, input)
-
-	// Validate destination accounts
-	validateTransactionDSLDestinationAccounts(errors, input)
-
-	// Validate metadata if present
-	metadata := input.GetMetadata()
-	if metadata != nil {
-		metadataErrors := EnhancedValidateMetadata(metadata)
-		for _, err := range metadataErrors.Errors {
-			errors.AddError(err)
-		}
-	}
-
-	if !errors.HasErrors() {
-		return nil
-	}
-
-	return errors
-}
-
-// validateTransactionDSLSourceAccounts validates source accounts in transaction DSL.
-func validateTransactionDSLSourceAccounts(errors *FieldErrors, input TransactionDSLValidator) {
-	sourceAccounts := input.GetSourceAccounts()
-	if len(sourceAccounts) == 0 {
-		errors.Add("sourceAccounts", nil, "At least one source account is required").
-			WithConstraint("required").
-			WithSuggestions(GetCommonSuggestions("sourceAccounts", nil, Required)...)
-
-		return
-	}
-
-	asset := input.GetAsset()
-
-	for i, account := range sourceAccounts {
-		if account == nil {
-			errors.Add(fmt.Sprintf("sourceAccounts[%d]", i), nil, "Source account cannot be nil").
-				WithConstraint("required").
-				WithSuggestions(GetCommonSuggestions("account", nil, Required)...)
-
-			continue
-		}
-
-		if account.GetAccount() == "" {
-			errors.Add(fmt.Sprintf("sourceAccounts[%d]", i), account.GetAccount(), "Source account cannot be empty").
-				WithConstraint("required").
-				WithSuggestions(GetCommonSuggestions("account", account.GetAccount(), Required)...)
-
-			continue
-		}
-
-		if err := EnhancedValidateAccountReference(account.GetAccount(), asset); err != nil {
-			err.Field = fmt.Sprintf("sourceAccounts[%d]", i)
-			errors.AddError(err)
-		}
-	}
-}
-
-// validateTransactionDSLDestinationAccounts validates destination accounts in transaction DSL.
-func validateTransactionDSLDestinationAccounts(errors *FieldErrors, input TransactionDSLValidator) {
-	destAccounts := input.GetDestinationAccounts()
-	if len(destAccounts) == 0 {
-		errors.Add("destinationAccounts", nil, "At least one destination account is required").
-			WithConstraint("required").
-			WithSuggestions(GetCommonSuggestions("destinationAccounts", nil, Required)...)
-
-		return
-	}
-
-	asset := input.GetAsset()
-
-	for i, account := range destAccounts {
-		if account == nil {
-			errors.Add(fmt.Sprintf("destinationAccounts[%d]", i), nil, "Destination account cannot be nil").
-				WithConstraint("required").
-				WithSuggestions(GetCommonSuggestions("account", nil, Required)...)
-
-			continue
-		}
-
-		if account.GetAccount() == "" {
-			errors.Add(fmt.Sprintf("destinationAccounts[%d]", i), account.GetAccount(), "Destination account cannot be empty").
-				WithConstraint("required").
-				WithSuggestions(GetCommonSuggestions("account", account.GetAccount(), Required)...)
-
-			continue
-		}
-
-		if err := EnhancedValidateAccountReference(account.GetAccount(), asset); err != nil {
-			err.Field = fmt.Sprintf("destinationAccounts[%d]", i)
-			errors.AddError(err)
-		}
 	}
 }

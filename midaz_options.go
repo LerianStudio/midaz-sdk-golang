@@ -9,10 +9,10 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/reflectutil"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 )
 
 // markConfigMutated records that a config-mutating option has run. WithConfig
@@ -24,7 +24,7 @@ func (c *Client) markConfigMutated() {
 
 // WithBaseURL sets the base URL for API requests.
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithBaseURL], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithBaseURL], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
@@ -36,7 +36,7 @@ func (c *Client) markConfigMutated() {
 //
 // See also:
 //   - [WithEnvironment] — preferred for production stacks.
-//   - [WithLedgerURL], [WithCRMURL] — per-service overrides.
+//   - [WithLedgerURL], [WithTracerURL] — per-plane overrides.
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) error {
 		// Validate URL
@@ -53,7 +53,7 @@ func WithBaseURL(baseURL string) Option {
 
 // WithTimeout sets the request timeout for API requests.
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithTimeout], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithTimeout], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
@@ -72,7 +72,7 @@ func WithTimeout(timeout time.Duration) Option {
 
 // WithUserAgent sets the user agent for API requests.
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithUserAgent], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithUserAgent], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 func WithUserAgent(userAgent string) Option {
@@ -123,7 +123,7 @@ func WithUserAgent(userAgent string) Option {
 // See also:
 //   - [WithCustomRetryPolicy] — replace the policy with an arbitrary predicate.
 //   - [WithoutRetries] — disable retries for this client.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry] — option catalog.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry] — option catalog.
 //   - examples/07-retries — runnable demo.
 func WithRetryOptions(opts ...retry.Option) Option {
 	return func(c *Client) error {
@@ -153,6 +153,20 @@ func validateRetryOptions(opts ...retry.Option) error {
 
 // WithCustomRetryPolicy sets a custom retry policy for the client.
 // This allows for more fine-grained control over when to retry requests.
+//
+// The policy is SUBSTITUTIVE, not additive: once set, it fully decides
+// retryability on a failed response (status >= 400) or a transport error, and
+// the default retryable-status set is IGNORED. Returning false suppresses the
+// retry even for a status the default policy would retry (e.g. a 503) — the
+// intended "don't replay, I can't tell if the write landed" escape hatch. A
+// 2xx is never passed to the policy and is never retried.
+//
+// Layer note: on the two-plane path the policy runs at the transport layer,
+// BELOW the facade's error parsing. So the error argument carries only the HTTP
+// status (via a StatusCode() int method) on a >=400 response, or the raw
+// transport error — not the fully parsed *pkg/errors.Error the legacy
+// per-service path passes. Key your policy off the *http.Response (available on
+// both paths) rather than the error's concrete type.
 //
 // Parameters:
 //   - shouldRetry: A function that decides whether to retry a request based on response and error
@@ -233,11 +247,16 @@ func WithoutRetries() Option {
 //	client, _ := midaz.New(
 //	    midaz.WithObservabilityOptions(
 //	        observability.WithServiceName("my-service"),
+//	        observability.WithEnvironment("development"),
 //	        observability.WithCollectorEndpoint("localhost:4317"),
 //	        observability.WithComponentEnabled(true, true, true),
 //	        observability.WithFullTracingSampling(),
 //	    ),
 //	)
+//
+// The environment matters here: a scheme-less endpoint like the one above is
+// exported as plaintext, which is refused in the default "production"
+// environment. Production deployments pass "https://host:port" instead.
 //
 // Example — install a known set of dev defaults then tweak one knob:
 //
@@ -257,7 +276,7 @@ func WithoutRetries() Option {
 //
 // See also:
 //   - [WithObservabilityProvider] — pass a pre-built provider.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability] — option catalog.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability] — option catalog.
 //   - examples/10-observability-otel — runnable demo.
 func WithObservabilityOptions(options ...observability.Option) Option {
 	return func(c *Client) error {
@@ -292,7 +311,7 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 // application's bootstrap.
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithObservabilityProvider],
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithObservabilityProvider],
 // which most callers should not invoke directly. Prefer this option when
 // constructing the client via [New].
 //
@@ -312,7 +331,7 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 //
 // See also:
 //   - [WithObservabilityOptions] — build a provider inline.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability.Provider]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability.Provider]
 //   - examples/10-observability-otel — runnable demo.
 func WithObservabilityProvider(provider observability.Provider) Option {
 	return func(c *Client) error {
@@ -345,7 +364,7 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 
 // WithEnvironment sets the environment for the client.
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithEnvironment], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithEnvironment], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
@@ -446,7 +465,7 @@ func WithConfig(cfg *config.Config) Option {
 
 // WithHTTPClient sets a custom HTTP client for the Client.
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithHTTPClient], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithHTTPClient], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
@@ -468,7 +487,7 @@ func WithHTTPClient(client *http.Client) Option {
 // both onboarding and transaction endpoints under the same plane.
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithLedgerURL], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithLedgerURL], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
@@ -486,23 +505,52 @@ func WithLedgerURL(ledgerURL string) Option {
 	}
 }
 
-// WithCRMURL sets the URL for the CRM API.
+// WithTracerURL sets the URL for the Tracer plane — the second of the two
+// consolidated server planes (Ledger being the first).
+//
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithCRMURL], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithTracerURL], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
 // This overrides any URL derived from the Environment setting.
-func WithCRMURL(crmURL string) Option {
+//
+// Parameters:
+//   - tracerURL: The URL for the Tracer plane
+//
+// Returns:
+//   - Option: A function that sets the Tracer URL on the Client
+func WithTracerURL(tracerURL string) Option {
 	return func(c *Client) error {
 		c.markConfigMutated()
-		return config.WithCRMURL(crmURL)(c.config)
+		return config.WithTracerURL(tracerURL)(c.config)
+	}
+}
+
+// WithTracerAPIKey configures the Tracer plane to authenticate with an
+// "X-API-Key" header carrying the supplied value, instead of sharing the
+// Ledger's Access Manager Bearer token. When absent (the default), the Tracer
+// plane reuses the same Bearer token as the Ledger.
+//
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithTracerAPIKey],
+// which most callers should not invoke directly.
+//
+// Parameters:
+//   - apiKey: The X-API-Key value for the Tracer plane. Empty is a no-op.
+//
+// Returns:
+//   - Option: A function that sets the Tracer API key on the Client
+func WithTracerAPIKey(apiKey string) Option {
+	return func(c *Client) error {
+		c.markConfigMutated()
+		return config.WithTracerAPIKey(apiKey)(c.config)
 	}
 }
 
 // WithDebug enables or disables debug mode.
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithDebug], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithDebug], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
@@ -533,11 +581,11 @@ func WithErrorBodyExposure(enabled bool) Option {
 // WithIdempotency enables or disables automatic idempotency-key generation
 // for unsafe HTTP methods (POST, PUT, PATCH, DELETE). When enabled, the SDK
 // attaches an X-Idempotency header derived from a UUID to each unsafe
-// request unless [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey] was used to set an explicit
+// request unless [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey] was used to set an explicit
 // key on the per-request context.
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithIdempotency],
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithIdempotency],
 // which most callers should not invoke directly. Prefer this option when
 // constructing the client via [New].
 //
@@ -552,8 +600,8 @@ func WithErrorBodyExposure(enabled bool) Option {
 //   - Option: A function that sets the idempotency flag on the Client
 //
 // See also:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey] — caller-supplied key for one request.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithoutAutoIdempotency] — per-call suppression.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey] — caller-supplied key for one request.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithoutAutoIdempotency] — per-call suppression.
 //   - examples/06-idempotency — runnable demo.
 func WithIdempotency(enabled bool) Option {
 	return func(c *Client) error {
@@ -568,7 +616,7 @@ func WithIdempotency(enabled bool) Option {
 // true (the act of calling this option is the opt-in).
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithAccessManager],
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithAccessManager],
 // which most callers should not invoke directly. Prefer this option when
 // constructing the client via [New].
 //
@@ -617,7 +665,7 @@ func WithAccessManager(am AccessManager) Option {
 //	"no auth source configured; use WithAccessManager or WithAnonymous"
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithAnonymous],
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithAnonymous],
 // which most callers should not invoke directly. Prefer this option when
 // constructing the client via [New].
 //
@@ -648,7 +696,7 @@ func WithAnonymous() Option {
 // security on the credential-bearing token-exchange request.
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithAllowInsecureAccessManagerHTTP],
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithAllowInsecureAccessManagerHTTP],
 // which most callers should not invoke directly.
 //
 // SECURITY: this disables a deliberate construction-time security gate.
@@ -666,7 +714,7 @@ func WithAnonymous() Option {
 //	 in-cluster networks. Production deployments must use HTTPS."
 //
 // Equivalent env var: MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP=true (consumed
-// via [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.FromEnvironment]).
+// via [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.FromEnvironment]).
 //
 // Parameters:
 //   - allow: Whether to permit plain http:// for non-loopback Access
@@ -684,16 +732,16 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 	}
 }
 
-// WithAllowInsecureHTTP opts the configured Ledger and CRM service URLs
+// WithAllowInsecureHTTP opts the configured Ledger and Tracer plane URLs
 // out of the SDK's "http:// only for localhost" gate. DEFAULT IS FALSE
 // (strict). Set this for the canonical Kubernetes cluster-internal
-// pattern where the SDK reaches midaz-ledger / midaz-crm via Service DNS
+// pattern where the SDK reaches midaz-ledger / midaz-tracer via Service DNS
 // (e.g. http://midaz-ledger.midaz-mt.svc.cluster.local:3000) over a
 // service-mesh-protected network. Also valid for dev/test deployments
 // behind a controlled network boundary.
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithAllowInsecureHTTP],
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithAllowInsecureHTTP],
 // which most callers should not invoke directly.
 //
 // SECURITY: this disables a deliberate transport-security gate. Production
@@ -704,7 +752,7 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 // ([pkg/security.ValidateOutboundRequestWithInsecureHTTP]).
 //
 // ORDERING NOTE: this option mutates a flag read by [WithLedgerURL],
-// [WithCRMURL], and [WithBaseURL] when those options run. Apply
+// [WithTracerURL], and [WithBaseURL] when those options run. Apply
 // WithAllowInsecureHTTP BEFORE the URL setters in your option chain:
 //
 //	client, err := midaz.New(
@@ -713,25 +761,25 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 //	    midaz.WithAccessManager(am),
 //	)
 //
-// Env-loaded callers (MIDAZ_LEDGER_URL / MIDAZ_CRM_URL / MIDAZ_BASE_URL via
+// Env-loaded callers (MIDAZ_LEDGER_URL / MIDAZ_TRACER_URL / MIDAZ_BASE_URL via
 // FromEnvironment) get the right ordering automatically — FromEnvironment
 // loads MIDAZ_ALLOW_INSECURE_HTTP before processing URLs.
 //
 // Equivalent env var: MIDAZ_ALLOW_INSECURE_HTTP=true (consumed via
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.FromEnvironment]).
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.FromEnvironment]).
 //
 // This flag is independent of [WithAllowInsecureAccessManagerHTTP], which
 // gates the Access Manager (auth) URL. Set both when both the Access
 // Manager and the Ledger live behind the cluster mesh.
 //
 // Parameters:
-//   - allow: Whether to permit plain http:// for non-loopback Ledger/CRM hosts.
+//   - allow: Whether to permit plain http:// for non-loopback Ledger/Tracer hosts.
 //
 // Returns:
 //   - Option: A function that wires the flag onto the underlying Config.
 //
 // See also:
-//   - [WithLedgerURL], [WithCRMURL], [WithBaseURL] — URL setters this flag relaxes.
+//   - [WithLedgerURL], [WithTracerURL], [WithBaseURL] — URL setters this flag relaxes.
 //   - [WithAllowInsecureAccessManagerHTTP] — the auth-plane equivalent.
 func WithAllowInsecureHTTP(allow bool) Option {
 	return func(c *Client) error {

@@ -3,8 +3,8 @@
 
 package models
 
-// AccountTypesListOpts is the typed options struct for ListAccountTypes and
-// the ListAccountTypesAll / ListAccountTypesPages iterators.
+// AccountTypesListOpts is the typed options struct for the account-type list
+// surface: V1.AccountTypes.List and the All / Pages iterators.
 //
 // Embeds PageListOpts for the shared pagination/sort/date-range
 // fields; attaches a AccountTypesFilters sub-struct carrying only the

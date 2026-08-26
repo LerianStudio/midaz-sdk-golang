@@ -3,50 +3,26 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// mockTransactionRoutesService satisfies the generator's narrow transactionRoutesAPI (Create only).
 type mockTransactionRoutesService struct {
 	createFunc func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error)
 }
 
-func (m *mockTransactionRoutesService) CreateTransactionRoute(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+func (m *mockTransactionRoutesService) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
 
 	return &models.TransactionRoute{Title: input.Title}, nil
-}
-
-func (*mockTransactionRoutesService) GetTransactionRoute(_ context.Context, _, _, _ string) (*models.TransactionRoute, error) {
-	return nil, errors.New("mock: GetTransactionRoute not implemented")
-}
-
-func (*mockTransactionRoutesService) ListTransactionRoutes(_ context.Context, _, _ string, _ models.TransactionRoutesListOpts) (*models.ListResponse[models.TransactionRoute], error) {
-	return nil, errors.New("mock: ListTransactionRoutes not implemented")
-}
-
-func (*mockTransactionRoutesService) ListTransactionRoutesAll(_ context.Context, _, _ string, _ models.TransactionRoutesListOpts) iter.Seq2[models.TransactionRoute, error] {
-	return func(_ func(models.TransactionRoute, error) bool) {}
-}
-
-func (*mockTransactionRoutesService) ListTransactionRoutesPages(_ context.Context, _, _ string, _ models.TransactionRoutesListOpts) iter.Seq2[*models.ListResponse[models.TransactionRoute], error] {
-	return func(_ func(*models.ListResponse[models.TransactionRoute], error) bool) {}
-}
-
-func (*mockTransactionRoutesService) UpdateTransactionRoute(_ context.Context, _, _, _ string, _ *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error) {
-	return nil, errors.New("mock: UpdateTransactionRoute not implemented")
-}
-
-func (*mockTransactionRoutesService) DeleteTransactionRoute(_ context.Context, _, _, _ string) error {
-	return nil
 }
 
 func TestNewTransactionRouteGenerator(t *testing.T) {
@@ -100,11 +76,7 @@ func TestTransactionRouteGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	input := models.NewCreateTransactionRouteInput(
 		"Payment Flow",
@@ -124,11 +96,7 @@ func TestTransactionRouteGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	input := models.NewCreateTransactionRouteInput(
 		"Test Route",
@@ -145,11 +113,7 @@ func TestTransactionRouteGenerator_Generate_Error(t *testing.T) {
 func TestTransactionRouteGenerator_GenerateDefaults_EmptyOpRoutes(t *testing.T) {
 	mockSvc := &mockTransactionRoutesService{}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123", []*models.OperationRoute{})
 	require.NoError(t, err)
@@ -169,11 +133,7 @@ func TestTransactionRouteGenerator_GenerateDefaults_WithValidOpRoutes(t *testing
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	opRoutes := []*models.OperationRoute{
 		{ID: uuid.New(), Title: "Source: Customer (CHECKING)"},
@@ -203,11 +163,7 @@ func TestTransactionRouteGenerator_GenerateDefaults_PaymentFlowOnly(t *testing.T
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	opRoutes := []*models.OperationRoute{
 		{ID: uuid.New(), Title: "Source: Customer (CHECKING)"},
@@ -227,11 +183,7 @@ func TestTransactionRouteGenerator_GenerateDefaults_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	opRoutes := []*models.OperationRoute{
 		{ID: uuid.New(), Title: "Source: Customer (CHECKING)"},
@@ -256,11 +208,7 @@ func TestTransactionRouteGenerator_Generate_VerifyIDs(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	input := models.NewCreateTransactionRouteInput(
 		"Test Route",
@@ -282,11 +230,7 @@ func TestTransactionRouteGenerator_GenerateDefaults_MissingRoutes(t *testing.T) 
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	opRoutes := []*models.OperationRoute{
 		{ID: uuid.New(), Title: "Unknown Route"},
@@ -308,11 +252,7 @@ func TestTransactionRouteGenerator_GenerateDefaults_RefundFlow(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	opRoutes := []*models.OperationRoute{
 		{ID: uuid.New(), Title: "Source: Merchant (CHECKING)"},
@@ -336,11 +276,7 @@ func TestTransactionRouteGenerator_GenerateDefaults_TransferFlow(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		TransactionRoutes: mockSvc,
-	}
-
-	gen := NewTransactionRouteGenerator(e, nil)
+	gen := &transactionRouteGenerator{transactionRoutes: mockSvc}
 
 	opRoutes := []*models.OperationRoute{
 		{ID: uuid.New(), Title: "Source: Customer (CHECKING)"},

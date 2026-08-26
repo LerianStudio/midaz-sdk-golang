@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	obsredaction "github.com/LerianStudio/lib-observability/redaction"
+	obsredaction "github.com/LerianStudio/lib-observability/v3/redaction"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"

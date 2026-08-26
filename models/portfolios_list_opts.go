@@ -3,8 +3,8 @@
 
 package models
 
-// PortfoliosListOpts is the typed options struct for ListPortfolios and
-// the ListPortfoliosAll / ListPortfoliosPages iterators.
+// PortfoliosListOpts is the typed options struct for the portfolio list
+// surface: V1.Portfolios.List and the All / Pages iterators.
 //
 // Embeds PageListOpts for the shared pagination/sort/date-range
 // fields; attaches a PortfoliosFilters sub-struct carrying only the

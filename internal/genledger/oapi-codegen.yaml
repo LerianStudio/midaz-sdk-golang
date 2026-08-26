@@ -1,0 +1,18 @@
+# oapi-codegen config for the ledger plane.
+#
+# Consumes the 3.0.3 spec produced by `specdowngrade` from api/ledger.openapi.yaml
+# (native OAS 3.1). Generates low-level types + net/http client into one package.
+#
+# response-type-suffix renames the client response wrappers from {Op}Response to
+# {Op}Resp so they never collide with schema types named *Response (the ledger
+# spec has one such clash: the ProvisionEncryptionResponse schema vs. the
+# provisionEncryption operation's wrapper).
+#
+# Do not hand-edit the generated .gen.go; run `make generate` instead.
+package: genledger
+output: ledger.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  response-type-suffix: Resp

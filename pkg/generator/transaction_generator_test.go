@@ -3,28 +3,39 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/data"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// validDSLTemplate is a template in the pkg/data grammar that dslTemplateToInput
+// can parse (single source, single 100% destination).
+const validDSLTemplate = `send [USD 100] (
+  source = @a
+)
+distribute [USD 100] (
+  destination = {
+    100% to @b
+  }
+)`
+
+// mockTransactionsService satisfies the narrow transactionsAPI (CreateJSON /
+// Commit / Revert) used by the generator and lifecycle.
 type mockTransactionsService struct {
-	createFunc        func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
-	createWithDSLFunc func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error)
-	commitFunc        func(ctx context.Context, orgID, ledgerID, txID string) (*models.Transaction, error)
-	revertFunc        func(ctx context.Context, orgID, ledgerID, txID string) (*models.Transaction, error)
+	createFunc func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
+	commitFunc func(ctx context.Context, orgID, ledgerID, txID string) (*models.Transaction, error)
+	revertFunc func(ctx context.Context, orgID, ledgerID, txID string) (*models.Transaction, error)
 }
 
-func (m *mockTransactionsService) CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
+func (m *mockTransactionsService) CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
@@ -32,39 +43,7 @@ func (m *mockTransactionsService) CreateTransaction(ctx context.Context, orgID, 
 	return &models.Transaction{ID: "tx-123"}, nil
 }
 
-func (m *mockTransactionsService) CreateTransactionWithDSLFile(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
-	if m.createWithDSLFunc != nil {
-		return m.createWithDSLFunc(ctx, orgID, ledgerID, dslContent)
-	}
-
-	return &models.Transaction{ID: "tx-dsl-123"}, nil
-}
-
-func (*mockTransactionsService) GetTransaction(_ context.Context, _, _, _ string) (*models.Transaction, error) {
-	return nil, errors.New("mock: GetTransaction not implemented")
-}
-
-func (*mockTransactionsService) ListTransactions(_ context.Context, _, _ string, _ models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
-	return nil, errors.New("mock: ListTransactions not implemented")
-}
-
-func (*mockTransactionsService) ListTransactionsAll(_ context.Context, _, _ string, _ models.TransactionsListOpts) iter.Seq2[models.Transaction, error] {
-	return func(_ func(models.Transaction, error) bool) {}
-}
-
-func (*mockTransactionsService) ListTransactionsPages(_ context.Context, _, _ string, _ models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error] {
-	return func(_ func(*models.ListResponse[models.Transaction], error) bool) {}
-}
-
-func (*mockTransactionsService) GetTransactionsMetricsCount(_ context.Context, _, _ string, _ models.TransactionsListOpts) (*models.MetricsCount, error) {
-	return nil, errors.New("mock: GetTransactionsMetricsCount not implemented")
-}
-
-func (*mockTransactionsService) UpdateTransaction(_ context.Context, _, _, _ string, _ *models.UpdateTransactionInput) (*models.Transaction, error) {
-	return nil, errors.New("mock: UpdateTransaction not implemented")
-}
-
-func (m *mockTransactionsService) CommitTransaction(ctx context.Context, orgID, ledgerID, id string) (*models.Transaction, error) {
+func (m *mockTransactionsService) Commit(ctx context.Context, orgID, ledgerID, id string) (*models.Transaction, error) {
 	if m.commitFunc != nil {
 		return m.commitFunc(ctx, orgID, ledgerID, id)
 	}
@@ -72,36 +51,12 @@ func (m *mockTransactionsService) CommitTransaction(ctx context.Context, orgID, 
 	return &models.Transaction{ID: id}, nil
 }
 
-func (m *mockTransactionsService) RevertTransaction(ctx context.Context, orgID, ledgerID, id string) (*models.Transaction, error) {
+func (m *mockTransactionsService) Revert(ctx context.Context, orgID, ledgerID, id string) (*models.Transaction, error) {
 	if m.revertFunc != nil {
 		return m.revertFunc(ctx, orgID, ledgerID, id)
 	}
 
 	return &models.Transaction{ID: id}, nil
-}
-
-func (*mockTransactionsService) CancelTransaction(_ context.Context, _, _, _ string) error {
-	return nil
-}
-
-func (*mockTransactionsService) CancelTransactionWithResponse(_ context.Context, _, _, _ string) (*models.Transaction, error) {
-	return &models.Transaction{}, nil
-}
-
-func (*mockTransactionsService) CreateTransactionWithDSL(_ context.Context, _, _ string, _ *models.TransactionDSLInput) (*models.Transaction, error) {
-	return &models.Transaction{ID: "tx-dsl"}, nil
-}
-
-func (*mockTransactionsService) CreateInflowTransaction(_ context.Context, _, _ string, _ *models.CreateInflowInput) (*models.Transaction, error) {
-	return &models.Transaction{ID: "tx-inflow"}, nil
-}
-
-func (*mockTransactionsService) CreateOutflowTransaction(_ context.Context, _, _ string, _ *models.CreateOutflowInput) (*models.Transaction, error) {
-	return &models.Transaction{ID: "tx-outflow"}, nil
-}
-
-func (*mockTransactionsService) CreateAnnotationTransaction(_ context.Context, _, _ string, _ *models.CreateAnnotationInput) (*models.Transaction, error) {
-	return &models.Transaction{ID: "tx-annotation"}, nil
 }
 
 func TestNewTransactionGenerator(t *testing.T) {
@@ -121,7 +76,7 @@ func TestTransactionGenerator_GenerateWithDSL_NilEntity(t *testing.T) {
 	gen := NewTransactionGenerator(nil, nil)
 	pattern := data.TransactionPattern{
 		ChartOfAccountsGroupName: "test",
-		DSLTemplate:              "send 100 USD from @source to @dest",
+		DSLTemplate:              validDSLTemplate,
 		IdempotencyKey:           "key-123",
 	}
 
@@ -131,11 +86,10 @@ func TestTransactionGenerator_GenerateWithDSL_NilEntity(t *testing.T) {
 }
 
 func TestTransactionGenerator_GenerateWithDSL_NilTransactionsService(t *testing.T) {
-	e := &entities.Entity{}
-	gen := NewTransactionGenerator(e, nil)
+	gen := NewTransactionGenerator(&entities.Entity{}, nil)
 	pattern := data.TransactionPattern{
 		ChartOfAccountsGroupName: "test",
-		DSLTemplate:              "send 100 USD from @source to @dest",
+		DSLTemplate:              validDSLTemplate,
 		IdempotencyKey:           "key-123",
 	}
 
@@ -145,11 +99,7 @@ func TestTransactionGenerator_GenerateWithDSL_NilTransactionsService(t *testing.
 }
 
 func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyDSL(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: &mockTransactionsService{}}
 	pattern := data.TransactionPattern{
 		ChartOfAccountsGroupName: "test",
 		DSLTemplate:              "",
@@ -162,14 +112,10 @@ func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyDSL(t *testing
 }
 
 func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyChartOfAccounts(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: &mockTransactionsService{}}
 	pattern := data.TransactionPattern{
 		ChartOfAccountsGroupName: "",
-		DSLTemplate:              "send 100 USD from @source to @dest",
+		DSLTemplate:              validDSLTemplate,
 		IdempotencyKey:           "key-123",
 	}
 
@@ -179,14 +125,10 @@ func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyChartOfAccount
 }
 
 func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyIdempotencyKey(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: &mockTransactionsService{}}
 	pattern := data.TransactionPattern{
 		ChartOfAccountsGroupName: "test",
-		DSLTemplate:              "send 100 USD from @source to @dest",
+		DSLTemplate:              validDSLTemplate,
 		IdempotencyKey:           "",
 	}
 
@@ -197,22 +139,16 @@ func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyIdempotencyKey
 
 func TestTransactionGenerator_GenerateWithDSL_Success(t *testing.T) {
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
-			return &models.Transaction{
-				ID: "tx-success",
-			}, nil
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionInput) (*models.Transaction, error) {
+			return &models.Transaction{ID: "tx-success"}, nil
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: mockSvc}
 	pattern := data.TransactionPattern{
 		ChartOfAccountsGroupName: "test",
 		Description:              "Test payment",
-		DSLTemplate:              "send 100 USD from @source to @dest",
+		DSLTemplate:              validDSLTemplate,
 		IdempotencyKey:           "key-123",
 	}
 
@@ -223,47 +159,39 @@ func TestTransactionGenerator_GenerateWithDSL_Success(t *testing.T) {
 
 func TestTransactionGenerator_GenerateWithDSL_Error(t *testing.T) {
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
-			return nil, errors.New("DSL parsing failed")
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionInput) (*models.Transaction, error) {
+			return nil, errors.New("transaction create failed")
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: mockSvc}
 	pattern := data.TransactionPattern{
 		ChartOfAccountsGroupName: "test",
-		DSLTemplate:              "invalid dsl",
+		DSLTemplate:              validDSLTemplate,
 		IdempotencyKey:           "key-123",
 	}
 
 	result, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "DSL parsing failed")
+	assert.Contains(t, err.Error(), "transaction create failed")
 }
 
 func TestTransactionGenerator_GenerateWithDSL_WithIdempotencyKey(t *testing.T) {
 	var capturedCtx context.Context
 
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
+		createFunc: func(ctx context.Context, _, _ string, _ *models.CreateTransactionInput) (*models.Transaction, error) {
 			capturedCtx = ctx
 
 			return &models.Transaction{ID: "tx-123"}, nil
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: mockSvc}
 	pattern := data.TransactionPattern{
 		ChartOfAccountsGroupName: "test",
-		DSLTemplate:              "send 100 USD from @source to @dest",
+		DSLTemplate:              validDSLTemplate,
 		IdempotencyKey:           "unique-key-456",
 	}
 
@@ -272,6 +200,39 @@ func TestTransactionGenerator_GenerateWithDSL_WithIdempotencyKey(t *testing.T) {
 	require.NotNil(t, capturedCtx)
 	assert.Equal(t, "unique-key-456", sdkctx.IdempotencyKeyFromContext(capturedCtx),
 		"idempotency key from pattern must be propagated into request context")
+}
+
+// TestTransactionGenerator_GenerateWithDSL_ConvertsTemplate verifies the DSL
+// template is converted into a structured CreateTransactionInput (replacing the
+// old raw-DSL-bytes path).
+func TestTransactionGenerator_GenerateWithDSL_ConvertsTemplate(t *testing.T) {
+	var captured *models.CreateTransactionInput
+
+	mockSvc := &mockTransactionsService{
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateTransactionInput) (*models.Transaction, error) {
+			captured = input
+
+			return &models.Transaction{ID: "tx-123"}, nil
+		},
+	}
+
+	gen := &transactionGenerator{transactions: mockSvc}
+	pattern := data.TransactionPattern{
+		ChartOfAccountsGroupName: "brazilian-payments",
+		DSLTemplate:              data.TransferPattern("BRL", 500, "@customer", "@merchant", "br-pay-123", "ext").DSLTemplate,
+		IdempotencyKey:           "br-pay-123",
+	}
+
+	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	require.NotNil(t, captured.Send)
+	assert.Equal(t, "BRL", captured.Send.Asset)
+	assert.Equal(t, "500", captured.Send.Value)
+	require.Len(t, captured.Send.Source.From, 1)
+	assert.Equal(t, "@customer", captured.Send.Source.From[0].AccountAlias)
+	require.Len(t, captured.Send.Distribute.To, 1)
+	assert.Equal(t, "@merchant", captured.Send.Distribute.To[0].AccountAlias)
 }
 
 func TestTransactionGenerator_GenerateBatch_EmptyPatterns(t *testing.T) {
@@ -286,8 +247,8 @@ func TestTransactionGenerator_GenerateBatch_NilEntity(t *testing.T) {
 	gen := NewTransactionGenerator(nil, nil)
 
 	patterns := []data.TransactionPattern{
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 100 USD", IdempotencyKey: "key-1"},
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 200 USD", IdempotencyKey: "key-2"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-1"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-2"},
 	}
 
 	results, err := gen.GenerateBatch(context.Background(), "org-123", "ledger-123", patterns, 0)
@@ -299,26 +260,20 @@ func TestTransactionGenerator_GenerateBatch_Success(t *testing.T) {
 	var callCount atomic.Int32
 
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionInput) (*models.Transaction, error) {
 			count := callCount.Add(1)
 
-			return &models.Transaction{
-				ID: "tx-" + strconv.Itoa(int(count)),
-			}, nil
+			return &models.Transaction{ID: "tx-" + strconv.Itoa(int(count))}, nil
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: mockSvc}
 	ctx := WithWorkers(context.Background(), 2)
 
 	patterns := []data.TransactionPattern{
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 100 USD from @a to @b", IdempotencyKey: "key-1"},
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 200 USD from @a to @b", IdempotencyKey: "key-2"},
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 300 USD from @a to @b", IdempotencyKey: "key-3"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-1"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-2"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-3"},
 	}
 
 	results, err := gen.GenerateBatch(ctx, "org-123", "ledger-123", patterns, 0)
@@ -330,7 +285,7 @@ func TestTransactionGenerator_GenerateBatch_PartialError(t *testing.T) {
 	var callCount atomic.Int32
 
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionInput) (*models.Transaction, error) {
 			count := callCount.Add(1)
 			if count == 2 {
 				return nil, errors.New("partial failure")
@@ -340,17 +295,13 @@ func TestTransactionGenerator_GenerateBatch_PartialError(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: mockSvc}
 	ctx := WithWorkers(context.Background(), 1)
 
 	patterns := []data.TransactionPattern{
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 100 USD from @a to @b", IdempotencyKey: "key-1"},
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 200 USD from @a to @b", IdempotencyKey: "key-2"},
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 300 USD from @a to @b", IdempotencyKey: "key-3"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-1"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-2"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-3"},
 	}
 
 	results, err := gen.GenerateBatch(ctx, "org-123", "ledger-123", patterns, 0)
@@ -365,7 +316,7 @@ func TestTransactionGenerator_GenerateBatch_WithTPS(t *testing.T) {
 	var callTimes []time.Time
 
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionInput) (*models.Transaction, error) {
 			callCount++
 
 			callTimes = append(callTimes, time.Now())
@@ -374,16 +325,12 @@ func TestTransactionGenerator_GenerateBatch_WithTPS(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: mockSvc}
 	ctx := WithWorkers(context.Background(), 1)
 
 	patterns := []data.TransactionPattern{
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 100 USD from @a to @b", IdempotencyKey: "key-1"},
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 200 USD from @a to @b", IdempotencyKey: "key-2"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-1"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-2"},
 	}
 
 	results, err := gen.GenerateBatch(ctx, "org-123", "ledger-123", patterns, 100)
@@ -392,30 +339,43 @@ func TestTransactionGenerator_GenerateBatch_WithTPS(t *testing.T) {
 }
 
 func TestTransactionGenerator_GenerateBatch_CancelledContext(_ *testing.T) {
-	// When context is already cancelled, the batch may still succeed because
-	// the cancellation check happens asynchronously in the worker pool
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionInput) (*models.Transaction, error) {
 			return &models.Transaction{ID: "tx-123"}, nil
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
+	gen := &transactionGenerator{transactions: mockSvc}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	ctx = WithWorkers(ctx, 1)
 
 	patterns := []data.TransactionPattern{
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 100 USD from @a to @b", IdempotencyKey: "key-1"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-1"},
 	}
 
-	// The call may or may not return an error depending on timing
 	_, _ = gen.GenerateBatch(ctx, "org-123", "ledger-123", patterns, 10)
+}
+
+func TestTransactionGenerator_GenerateBatch_AllErrors(t *testing.T) {
+	mockSvc := &mockTransactionsService{
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionInput) (*models.Transaction, error) {
+			return nil, errors.New("all failed")
+		},
+	}
+
+	gen := &transactionGenerator{transactions: mockSvc}
+	ctx := WithWorkers(context.Background(), 1)
+
+	patterns := []data.TransactionPattern{
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-1"},
+		{ChartOfAccountsGroupName: "test", DSLTemplate: validDSLTemplate, IdempotencyKey: "key-2"},
+	}
+
+	results, err := gen.GenerateBatch(ctx, "org-123", "ledger-123", patterns, 0)
+	require.Error(t, err)
+	assert.Empty(t, results)
 }
 
 func TestTransactionPattern_Fields(t *testing.T) {
@@ -423,12 +383,10 @@ func TestTransactionPattern_Fields(t *testing.T) {
 		pattern := data.TransactionPattern{
 			ChartOfAccountsGroupName: "payments",
 			Description:              "Customer payment",
-			DSLTemplate:              "send 100 USD from @customer to @merchant",
+			DSLTemplate:              validDSLTemplate,
 			IdempotencyKey:           "idem-123",
 			ExternalID:               "ext-456",
-			Metadata: map[string]any{
-				"type": "payment",
-			},
+			Metadata:                 map[string]any{"type": "payment"},
 		}
 
 		assert.Equal(t, "payments", pattern.ChartOfAccountsGroupName)
@@ -442,7 +400,7 @@ func TestTransactionPattern_Fields(t *testing.T) {
 	t.Run("Minimal pattern", func(t *testing.T) {
 		pattern := data.TransactionPattern{
 			ChartOfAccountsGroupName: "test",
-			DSLTemplate:              "send 100 USD from @a to @b",
+			DSLTemplate:              validDSLTemplate,
 			IdempotencyKey:           "key",
 		}
 
@@ -451,58 +409,6 @@ func TestTransactionPattern_Fields(t *testing.T) {
 		assert.Equal(t, "key", pattern.IdempotencyKey)
 		assert.Nil(t, pattern.Metadata)
 	})
-}
-
-func TestTransactionGenerator_GenerateWithDSL_VerifyDSLContent(t *testing.T) {
-	var capturedDSL []byte
-
-	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(_ context.Context, _, _ string, dslContent []byte) (*models.Transaction, error) {
-			capturedDSL = dslContent
-
-			return &models.Transaction{ID: "tx-123"}, nil
-		},
-	}
-
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
-	expectedDSL := "send 500 BRL from @customer/checking to @merchant/checking"
-	pattern := data.TransactionPattern{
-		ChartOfAccountsGroupName: "brazilian-payments",
-		DSLTemplate:              expectedDSL,
-		IdempotencyKey:           "br-pay-123",
-	}
-
-	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
-	require.NoError(t, err)
-	assert.Equal(t, expectedDSL, string(capturedDSL))
-}
-
-func TestTransactionGenerator_GenerateBatch_AllErrors(t *testing.T) {
-	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
-			return nil, errors.New("all failed")
-		},
-	}
-
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	gen := NewTransactionGenerator(e, nil)
-	ctx := WithWorkers(context.Background(), 1)
-
-	patterns := []data.TransactionPattern{
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 100 USD from @a to @b", IdempotencyKey: "key-1"},
-		{ChartOfAccountsGroupName: "test", DSLTemplate: "send 200 USD from @a to @b", IdempotencyKey: "key-2"},
-	}
-
-	results, err := gen.GenerateBatch(ctx, "org-123", "ledger-123", patterns, 0)
-	require.Error(t, err)
-	assert.Empty(t, results)
 }
 
 func TestNewTransactionLifecycle(t *testing.T) {
@@ -530,12 +436,7 @@ func TestTransactionLifecycle_CreatePending_NilEntity(t *testing.T) {
 }
 
 func TestTransactionLifecycle_CreatePending_NilInput(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: &mockTransactionsService{}}
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	ctx = WithLedgerID(ctx, "ledger-123")
@@ -546,12 +447,7 @@ func TestTransactionLifecycle_CreatePending_NilInput(t *testing.T) {
 }
 
 func TestTransactionLifecycle_CreatePending_MissingIDs(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: &mockTransactionsService{}}
 
 	_, err := lc.CreatePending(context.Background(), &models.CreateTransactionInput{})
 	require.Error(t, err)
@@ -569,11 +465,7 @@ func TestTransactionLifecycle_CreatePending_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: mockSvc}
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	ctx = WithLedgerID(ctx, "ledger-123")
@@ -596,12 +488,7 @@ func TestTransactionLifecycle_Commit_NilEntity(t *testing.T) {
 }
 
 func TestTransactionLifecycle_Commit_EmptyTxID(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: &mockTransactionsService{}}
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	ctx = WithLedgerID(ctx, "ledger-123")
@@ -612,12 +499,7 @@ func TestTransactionLifecycle_Commit_EmptyTxID(t *testing.T) {
 }
 
 func TestTransactionLifecycle_Commit_MissingIDs(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: &mockTransactionsService{}}
 
 	err := lc.Commit(context.Background(), "tx-123")
 	require.Error(t, err)
@@ -631,11 +513,7 @@ func TestTransactionLifecycle_Commit_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: mockSvc}
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	ctx = WithLedgerID(ctx, "ledger-123")
@@ -656,12 +534,7 @@ func TestTransactionLifecycle_Revert_NilEntity(t *testing.T) {
 }
 
 func TestTransactionLifecycle_Revert_EmptyTxID(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: &mockTransactionsService{}}
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	ctx = WithLedgerID(ctx, "ledger-123")
@@ -672,12 +545,7 @@ func TestTransactionLifecycle_Revert_EmptyTxID(t *testing.T) {
 }
 
 func TestTransactionLifecycle_Revert_MissingIDs(t *testing.T) {
-	mockSvc := &mockTransactionsService{}
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: &mockTransactionsService{}}
 
 	err := lc.Revert(context.Background(), "tx-123")
 	require.Error(t, err)
@@ -691,11 +559,7 @@ func TestTransactionLifecycle_Revert_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Transactions: mockSvc,
-	}
-
-	lc := NewTransactionLifecycle(e, nil)
+	lc := &lifecycle{transactions: mockSvc}
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	ctx = WithLedgerID(ctx, "ledger-123")
@@ -714,11 +578,6 @@ func TestTransactionLifecycle_HandleInsufficientFunds_NilError(t *testing.T) {
 func TestTransactionLifecycle_HandleInsufficientFunds_RegularError(t *testing.T) {
 	lc := NewTransactionLifecycle(nil, nil)
 
-	// Note: Due to the current implementation of sdkerrors.IsInsufficientBalanceError,
-	// which has a fallback that checks errors.Is(err, ValueOfOriginalType(err, code)),
-	// and ValueOfOriginalType returns err itself for non-MidazError types,
-	// most non-nil errors will be treated as "insufficient balance" errors.
-	// Using the special "unknown error" string which is explicitly excluded.
 	regularErr := errors.New("unknown error")
 	err := lc.HandleInsufficientFunds(context.Background(), regularErr)
 	assert.NoError(t, err, "Errors with message 'unknown error' should return nil")

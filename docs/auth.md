@@ -21,7 +21,7 @@ import (
     "log"
     "os"
 
-    "github.com/LerianStudio/midaz-sdk-golang/v4"
+    "github.com/LerianStudio/midaz-sdk-golang/v5"
 )
 
 func main() {
@@ -82,7 +82,7 @@ When `PLUGIN_AUTH_ENABLED=true` is in the environment, the resulting config has 
 import (
     "log"
 
-    "github.com/LerianStudio/midaz-sdk-golang/v4"
+    "github.com/LerianStudio/midaz-sdk-golang/v5"
 )
 
 func main() {
@@ -102,6 +102,22 @@ func main() {
 The SDK emits no `Authorization` header in this mode. Treat this as a caller-owned unsafe mode: if you point it at non-local or production URLs, you are asserting that authentication is enforced outside the SDK (for example by a trusted private gateway) and accepting the operational risk. Do not use it as a shortcut for missing credentials. Production applications should use Access Manager.
 
 The HTTP client otherwise behaves identically — retries, idempotency, slow-call logging, and observability all work.
+
+## Tracer plane authentication
+
+The two paths above choose credentials for `midaz.New` as a whole. Within that, the Tracer plane has an independent per-plane override.
+
+By default the Tracer plane shares the Ledger's Access Manager Bearer token (or sends no `Authorization` header in anonymous mode). Setting `midaz.WithTracerAPIKey(...)`, or the `MIDAZ_TRACER_API_KEY` environment variable, makes Tracer-plane calls authenticate with an `X-API-Key` header carrying that value instead of the shared Bearer token:
+
+```go
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvironmentProduction),
+    midaz.WithAccessManager(midaz.AccessManager{ /* ... */ }),
+    midaz.WithTracerAPIKey(os.Getenv("MIDAZ_TRACER_API_KEY")),
+)
+```
+
+This is a per-plane override, not a third construction-time auth gate: it does not satisfy the auth-required gate on its own, and an empty key is a no-op that leaves the Tracer plane on the shared Bearer token.
 
 ## Retry and idempotency boundaries
 
@@ -125,8 +141,8 @@ SDK alias:
 import (
     "errors"
 
-    "github.com/LerianStudio/midaz-sdk-golang/v4"
-    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+    "github.com/LerianStudio/midaz-sdk-golang/v5"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 c, err := midaz.New(midaz.WithEnvironment(midaz.EnvironmentLocal))

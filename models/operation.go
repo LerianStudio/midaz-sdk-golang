@@ -6,8 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
 
@@ -279,131 +279,6 @@ type Destination struct {
 
 	// Source indicates if this destination is also a source
 	Source bool `json:"source"`
-}
-
-// CreateOperationInput is the input for creating an operation.
-// This structure contains all the fields needed to create a new operation
-// as part of a transaction.
-type CreateOperationInput struct {
-	// Type indicates whether this is a debit or credit operation.
-	// Must be either "DEBIT" or "CREDIT" (canonical uppercase per the
-	// Midaz API contract; see OperationTypeDebit / OperationTypeCredit).
-	Type string `json:"type"`
-
-	// AccountID is the identifier of the account to be affected
-	// This must be a valid account ID in the ledger
-	AccountID string `json:"accountId"`
-
-	// Amount is the exact decimal value of the operation. Use Amount or *Amount
-	// when decimal scaling is required, or pass an already-formatted decimal
-	// string. Raw numeric types such as int and float are treated as literal
-	// decimal strings by normalizedOperationAmount through decimalStringFromAny.
-	Amount any `json:"amount"`
-
-	// AssetCode identifies the currency or asset type for this operation
-	// Common examples include "USD", "EUR", "BTC", etc.
-	AssetCode string `json:"assetCode,omitempty"`
-
-	// AccountAlias is an optional human-readable name for the account
-	// This can be used to reference accounts by their alias instead of ID
-	// Format is typically "<type>:<identifier>[:subtype]", e.g., "customer:john.doe"
-	AccountAlias *string `json:"accountAlias,omitempty"`
-
-	// Route is the operation route identifier to use for this operation
-	// This links the operation to a specific routing rule that determines
-	// how the operation should be processed and what account rules to apply
-	Route string `json:"route,omitempty"`
-}
-
-// Validate checks that the CreateOperationInput meets all validation requirements.
-// It ensures that required fields are present and that all fields meet their
-// validation constraints as defined in the API specification.
-//
-// Returns:
-//   - error: An error if validation fails, nil otherwise
-func (input *CreateOperationInput) Validate() error {
-	if input == nil {
-		return errors.New("input cannot be nil")
-	}
-
-	var errs validation.FieldErrors
-
-	switch {
-	case input.Type == "":
-		errs.Append("type", "is required")
-	case input.Type != string(OperationTypeDebit) && input.Type != string(OperationTypeCredit):
-		errs.Append("type", fmt.Sprintf("must be either %s or %s, got %s", OperationTypeDebit, OperationTypeCredit, input.Type))
-	}
-
-	if input.AccountID == "" {
-		errs.Append("accountId", "is required")
-	}
-
-	if input.Amount == nil {
-		errs.Append("amount", "is required")
-	} else if err := validatePositiveDecimalString(input.Amount, "amount"); err != nil {
-		errs.Append("amount", "invalid: "+err.Error())
-	}
-
-	if input.AssetCode == "" {
-		errs.Append("assetCode", "is required")
-	}
-
-	return errs.OrNil()
-}
-
-// NewCreateOperationInput creates a new CreateOperationInput with the required fields.
-// Use the With* methods to set optional fields fluently.
-//
-// Parameters:
-//   - operationType: One of OperationTypeDebit ("DEBIT") or OperationTypeCredit ("CREDIT").
-//   - accountID:     The unique identifier of the account to be affected.
-//   - amount:        The exact decimal value of the operation. Use *decimal.Decimal,
-//     models.Amount, or a pre-formatted decimal string.
-//   - assetCode:     The currency or asset code (e.g. "USD", "EUR", "BTC").
-//
-// Returns:
-//   - A pointer to the newly created CreateOperationInput.
-//
-// Example:
-//
-//	input := models.NewCreateOperationInput(
-//	    string(models.OperationTypeDebit),
-//	    "00000000-0000-0000-0000-000000000000",
-//	    "150.00",
-//	    "USD",
-//	).WithRoute("payment-route").WithAccountAlias("@customer.john")
-func NewCreateOperationInput(operationType, accountID string, amount any, assetCode string) *CreateOperationInput {
-	return &CreateOperationInput{
-		Type:      operationType,
-		AccountID: accountID,
-		Amount:    amount,
-		AssetCode: assetCode,
-	}
-}
-
-// WithAccountAlias sets the optional human-readable alias for the account.
-// Returns the modified input for chaining.
-func (input *CreateOperationInput) WithAccountAlias(alias string) *CreateOperationInput {
-	if input == nil {
-		return nil
-	}
-
-	input.AccountAlias = &alias
-
-	return input
-}
-
-// WithRoute sets the optional operation-route identifier.
-// Returns the modified input for chaining.
-func (input *CreateOperationInput) WithRoute(route string) *CreateOperationInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Route = route
-
-	return input
 }
 
 // NewUpdateOperationInput creates a new empty UpdateOperationInput.

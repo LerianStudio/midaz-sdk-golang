@@ -29,7 +29,7 @@
 // You can set these variables in a .env file:
 //
 //	MIDAZ_ENVIRONMENT=local  # Can be local, development, or production
-//	MIDAZ_LEDGER_URL=http://localhost:3002/v1 # Optional override
+//	MIDAZ_LEDGER_URL=http://localhost:3002 # Optional override
 //	MIDAZ_DEBUG=true # Optional, enables detailed API logging
 //
 // # Workflow Steps
@@ -61,11 +61,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/examples/workflow-with-entities/pkg/workflows"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/examples/workflow-with-entities/pkg/workflows"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 	"github.com/joho/godotenv"
 )
 

@@ -1,6 +1,6 @@
 # Error handling in the Midaz Go SDK
 
-The SDK uses structured errors from `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`. Most SDK failures are represented as `*errors.Error`, which preserves SDK category/code, raw Midaz envelope fields, operation/resource context, HTTP status, request ID, and the wrapped underlying error.
+The SDK uses structured errors from `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors`. Most SDK failures are represented as `*errors.Error`, which preserves SDK category/code, raw Midaz envelope fields, operation/resource context, HTTP status, request ID, and the wrapped underlying error.
 
 ## Core error type
 
@@ -108,9 +108,9 @@ Common constructors include `NewValidationError`, `NewInvalidInputError`, `NewNo
 Prefer SDK helper functions when branching on operational behavior:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 
-account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+account, err := c.V2.Accounts.Get(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -146,6 +146,33 @@ Common checkers include:
 - `IsAssetMismatchError(err)`
 - `IsUnprocessableError(err)`
 
+## Domain-specific error predicates
+
+Beyond the category checkers above, `pkg/errors` exposes predicates that branch on specific server business conditions. They mirror the server error codes in `github.com/LerianStudio/midaz/v3/pkg/constant` and let callers react to a named condition instead of hardcoding raw `APICode` strings at call sites.
+
+| Predicate | Server code | HTTP status | Condition |
+| --- | --- | --- | --- |
+| `IsSkipNotPermitted(err)` | `0490` | 422 | A per-call skip was requested without the enabling ledger override. |
+| `IsHolderRequired(err)` | `0491` | 422 | Account creation requires a holder (KYC). |
+| `IsHolderNotFound(err)` | `CRM-0006` | 404 | The referenced CRM holder does not exist. |
+| `IsFeeError(err)` | `0179`–`0233` | mixed | The fee/billing engine rejected the operation. Family predicate over the whole fee-code block. |
+
+`IsHolderNotFound` is distinct from the generic `IsNotFoundError`: it pins the CRM holder resource specifically, so a caller can tell "the holder you referenced is missing" apart from any other 404.
+
+`IsFeeError` is a family predicate — it returns `true` when the server code suffix falls in the fee/billing block `0179`–`0233`. Callers branch on "fee/billing problem" rather than each of the ~55 internal fee codes.
+
+Retryability note: these predicates need no retryability override. `0490`/`0491` (422) and `CRM-0006` (404) are already classified non-retryable by the SDK's HTTP-status→category mapping. The predicates are ergonomic — they let callers branch on the specific business condition — not a money-path concern.
+
+### Feature-availability sentinel
+
+Envelope encryption in legacy mode (no KMS vendor configured) surfaces as a 404 because its routes are never registered. Three symbols model that condition:
+
+- `ErrFeatureNotAvailable` — the sentinel value.
+- `MarkFeatureNotAvailable(err) error` — joins the sentinel onto a not-found error, preserving the underlying `*errors.Error` (404). A nil or non-not-found error is returned unchanged; the encryption facade uses it to tag its legacy-mode 404s.
+- `IsFeatureNotAvailable(err) bool` — reports whether the error carries the sentinel marker.
+
+`IsFeatureNotAvailable` keys on the marker, not the 404 status: a generic not-found does not match. The underlying `*errors.Error{StatusCode: 404}` remains reachable via `errors.As` and `IsNotFoundError`.
+
 ## Reading error details
 
 Use accessors instead of type-specific concrete error names:
@@ -176,7 +203,7 @@ import (
     stderrors "errors"
     "log"
 
-    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 var sdkErr *sdkerrors.Error
@@ -199,7 +226,7 @@ import (
     stderrors "errors"
     "log"
 
-    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 var sdkErr *sdkerrors.Error
@@ -219,7 +246,7 @@ if stderrors.As(err, &sdkErr) {
 Model validation can return regular errors or `pkg/validation.FieldErrors` depending on the validator used. Field-level errors live in the validation package, not `pkg/errors`:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
 
 if fieldErrors, ok := err.(*validation.FieldErrors); ok {
     for _, fieldErr := range fieldErrors.GetFieldErrors() {
@@ -230,7 +257,7 @@ if fieldErrors, ok := err.(*validation.FieldErrors); ok {
 
 ## Retry behavior
 
-Retry policies live in `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry`, not `pkg/errors`.
+Retry policies live in `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry`, not `pkg/errors`.
 
 The SDK HTTP layer retries transient failures by default. Retryable HTTP status codes are:
 
@@ -259,7 +286,7 @@ ctx = sdkctx.WithIdempotencyKey(ctx, "request-unique-key")
 Configure client retries with `pkg/retry` options:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 
 c, err := midaz.New(
     midaz.WithAnonymous(),

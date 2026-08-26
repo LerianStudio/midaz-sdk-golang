@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,34 +69,52 @@ func TestZeroValueEntityExportedMethods_AreSafe(t *testing.T) {
 	require.NotPanics(t, func() { e.SetHTTPClient(&http.Client{Timeout: time.Second}) })
 }
 
-// Default-CRM-to-onboarding behavior is covered in entity_test.go via
-// TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding (Batch 1E refactor).
-
-func TestEntityURLs_NormalizeV1AndRejectUnsafeDirectURLs(t *testing.T) {
+// TestEntityURLs_NormalizePerPlaneAndRejectUnsafeDirectURLs pins the per-plane
+// version contract. The Ledger keys (onboarding/transaction) keep a BARE
+// base because the Ledger spec carries the version inside every path
+// ("/v1/organizations", "/v2/organizations") — stamping "/v1" here would produce
+// "/v1/v1/..." and 404 the whole plane. The Tracer key keeps "/v1" because its
+// spec declares servers:[{url: "/v1"}] with unversioned paths.
+func TestEntityURLs_NormalizePerPlaneAndRejectUnsafeDirectURLs(t *testing.T) {
 	normalized, err := normalizeBaseURLs(map[string]string{
-		"onboarding":  "http://localhost:3002///",
-		"transaction": "http://localhost:3002/api",
-		"crm":         "http://localhost:4003",
+		"onboarding": "http://localhost:3002///",
 	}, false)
 	require.NoError(t, err)
-	require.Equal(t, "http://localhost:3002/v1", normalized["onboarding"])
-	require.Equal(t, "http://localhost:3002/api/v1", normalized["transaction"])
-	require.Equal(t, "http://localhost:4003/v1", normalized["crm"])
+	require.Equal(t, "http://localhost:3002", normalized["onboarding"])
 
-	_, err = normalizeServiceURL("https://user:pass@example.com", false)
+	// Tracer is absent from the input map, so it inherits the Ledger base — and
+	// must still come back carrying "/v1".
+	require.Equal(t, "http://localhost:3002/v1", normalized["tracer"])
+
+	// A Ledger base carrying a subpath keeps it, and the Tracer stamps "/v1"
+	// after that subpath rather than replacing it.
+	normalized, err = normalizeBaseURLs(map[string]string{
+		"onboarding": "http://localhost:3002/api",
+	}, false)
+	require.NoError(t, err)
+	require.Equal(t, "http://localhost:3002/api", normalized["onboarding"])
+	require.Equal(t, "http://localhost:3002/api/v1", normalized["tracer"])
+
+	// An explicit Tracer base that already carries "/v1" must not be doubled.
+	normalized, err = normalizeBaseURLs(map[string]string{
+		"onboarding": "http://localhost:3002",
+		"tracer":     "http://localhost:4020/v1",
+	}, false)
+	require.NoError(t, err)
+	require.Equal(t, "http://localhost:4020/v1", normalized["tracer"])
+
+	_, err = normalizeServiceURL("https://user:pass@example.com", "", false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "user information")
 
-	_, err = normalizeServiceURL("http://api.example.com", false)
+	_, err = normalizeServiceURL("http://api.example.com", "", false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "insecure HTTP")
 }
 
 func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: 30 * time.Second}, "", map[string]string{
-		"onboarding":  "http://localhost:3002",
-		"transaction": "http://localhost:3002",
-		"crm":         "http://localhost:3002",
+		"onboarding": "http://localhost:3002",
 	}, nil)
 	entity.GetEntityHTTPClient().SetDebug(true)
 	entity.GetEntityHTTPClient().SetUserAgent("entity-http-client-agent")

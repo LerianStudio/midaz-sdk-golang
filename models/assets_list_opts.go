@@ -3,8 +3,8 @@
 
 package models
 
-// AssetsListOpts is the typed options struct for ListAssets and
-// the ListAssetsAll / ListAssetsPages iterators.
+// AssetsListOpts is the typed options struct for the asset list surface:
+// V1.Assets.List and the All / Pages iterators.
 //
 // Embeds PageListOpts for the shared pagination/sort/date-range
 // fields; attaches a AssetsFilters sub-struct carrying only the

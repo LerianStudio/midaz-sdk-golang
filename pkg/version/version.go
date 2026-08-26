@@ -5,9 +5,10 @@ package version
 // Version constants for the Midaz SDK.
 // These should be updated when releasing new versions.
 const (
-	// Version is the current version of the SDK.
-	// This is automatically updated during the release process.
-	Version = "3.0.0-beta.1"
+	// Version is the current version of the SDK. The release pipeline
+	// (semantic-release prepare step) rewrites this string on each release; it
+	// is the single source of truth for both version.Version and midaz.Version.
+	Version = "5.0.0-beta.5"
 
 	// SDKName is the name identifier for the SDK.
 	SDKName = "midaz-go-sdk"

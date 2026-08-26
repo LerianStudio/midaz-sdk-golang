@@ -6,17 +6,28 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"go.uber.org/mock/gomock"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
-// TestCountAccounts_Success demonstrates the canonical mock-based test:
-// expect a method call, return canned data, assert the result.
-func TestCountAccounts_Success(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockSvc := mocks.NewMockAccountsService(ctrl)
+// mockAccountSource is a hand-written test double for the consumer-defined
+// accountSource interface. The idiomatic pattern is a tiny local mock
+// over your own narrow interface — no generated mocks, no SDK test deps.
+type mockAccountSource struct {
+	allFn        func(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error]
+	getByAliasFn func(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
+}
 
+func (m *mockAccountSource) All(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error] {
+	return m.allFn(ctx, orgID, ledgerID, opts)
+}
+
+func (m *mockAccountSource) GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
+	return m.getByAliasFn(ctx, orgID, ledgerID, alias)
+}
+
+// TestCountAccounts_Success demonstrates the canonical mock-based test:
+// stub the interface method, return canned data, assert the result.
+func TestCountAccounts_Success(t *testing.T) {
 	// Build a synthetic iter.Seq2 yielding three accounts. In real tests
 	// you'd often build this from a slice via a helper.
 	accounts := []models.Account{
@@ -32,16 +43,13 @@ func TestCountAccounts_Success(t *testing.T) {
 		}
 	}
 
-	mockSvc.EXPECT().
-		ListAccountsAll(
-			gomock.Any(),
-			"org_test",
-			"ledger_test",
-			gomock.Any(),
-		).
-		Return(iter.Seq2[models.Account, error](stream))
+	svc := &mockAccountSource{
+		allFn: func(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[models.Account, error] {
+			return stream
+		},
+	}
 
-	r := NewAccountReporter(mockSvc)
+	r := NewAccountReporter(svc)
 	got, err := r.CountAccounts(context.Background(), "org_test", "ledger_test")
 	if err != nil {
 		t.Fatalf("CountAccounts: %v", err)
@@ -55,20 +63,19 @@ func TestCountAccounts_Success(t *testing.T) {
 // iter.Seq2 yields a non-nil error mid-stream and our reporter wraps
 // it. The test asserts the wrap is correct.
 func TestCountAccounts_StreamError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockSvc := mocks.NewMockAccountsService(ctrl)
-
 	wantErr := errors.New("transport blew up")
 	stream := func(yield func(models.Account, error) bool) {
 		yield(models.Account{ID: "acc_1"}, nil)
 		yield(models.Account{}, wantErr)
 	}
 
-	mockSvc.EXPECT().
-		ListAccountsAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(iter.Seq2[models.Account, error](stream))
+	svc := &mockAccountSource{
+		allFn: func(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[models.Account, error] {
+			return stream
+		},
+	}
 
-	r := NewAccountReporter(mockSvc)
+	r := NewAccountReporter(svc)
 	count, err := r.CountAccounts(context.Background(), "org_test", "ledger_test")
 
 	if err == nil || !errors.Is(err, wantErr) {
@@ -82,9 +89,6 @@ func TestCountAccounts_StreamError(t *testing.T) {
 // TestFindByAlias_Success demonstrates testing a method that calls the
 // SDK once with specific arguments and returns a typed model.
 func TestFindByAlias_Success(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockSvc := mocks.NewMockAccountsService(ctrl)
-
 	alias := "treasury"
 	expected := &models.Account{
 		ID:    "acc_42",
@@ -92,16 +96,16 @@ func TestFindByAlias_Success(t *testing.T) {
 		Alias: &alias,
 	}
 
-	mockSvc.EXPECT().
-		GetAccountByAlias(
-			gomock.Any(),
-			"org_test",
-			"ledger_test",
-			"treasury",
-		).
-		Return(expected, nil)
+	svc := &mockAccountSource{
+		getByAliasFn: func(_ context.Context, orgID, ledgerID, gotAlias string) (*models.Account, error) {
+			if orgID != "org_test" || ledgerID != "ledger_test" || gotAlias != "treasury" {
+				t.Errorf("GetByAlias args = %q/%q/%q", orgID, ledgerID, gotAlias)
+			}
+			return expected, nil
+		},
+	}
 
-	r := NewAccountReporter(mockSvc)
+	r := NewAccountReporter(svc)
 	got, err := r.FindByAlias(context.Background(), "org_test", "ledger_test", "treasury")
 	if err != nil {
 		t.Fatalf("FindByAlias: %v", err)
@@ -115,15 +119,15 @@ func TestFindByAlias_Success(t *testing.T) {
 // the mock returns an error, our reporter wraps it with context, and
 // the wrap preserves the original via errors.Is.
 func TestFindByAlias_NotFound(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockSvc := mocks.NewMockAccountsService(ctrl)
-
 	wantErr := errors.New("not found")
-	mockSvc.EXPECT().
-		GetAccountByAlias(gomock.Any(), gomock.Any(), gomock.Any(), "missing").
-		Return(nil, wantErr)
 
-	r := NewAccountReporter(mockSvc)
+	svc := &mockAccountSource{
+		getByAliasFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
+			return nil, wantErr
+		},
+	}
+
+	r := NewAccountReporter(svc)
 	got, err := r.FindByAlias(context.Background(), "org_test", "ledger_test", "missing")
 	if got != nil {
 		t.Errorf("FindByAlias returned non-nil account on error: %+v", got)

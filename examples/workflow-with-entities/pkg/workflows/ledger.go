@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
 // CreateLedger creates a ledger in the organization
@@ -28,7 +28,7 @@ func CreateLedger(ctx context.Context, midazClient *midaz.Client, orgID string) 
 	fmt.Println("\nCreating ledger...")
 
 	// Create a ledger with the organization ID
-	ledger, err := midazClient.Ledgers.CreateLedger(ctx, orgID,
+	ledger, err := midazClient.V2.Ledgers.Create(ctx, orgID,
 		models.NewCreateLedgerInput("Main Ledger").
 			WithMetadata(map[string]any{
 				"purpose": "example",

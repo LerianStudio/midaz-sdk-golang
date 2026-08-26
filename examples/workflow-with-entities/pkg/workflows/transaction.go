@@ -1,3 +1,14 @@
+// The transaction flows in this file deliberately stay on c.V1.Transactions
+// while the rest of this workflow runs on /v2.
+//
+// They demonstrate CreateJSON — the nested send/source/distribute envelope —
+// and that creation style exists ONLY on /v1. Midaz replaced the four /v1
+// styles (json, inflow, outflow, annotation) with two top-level actions,
+// /v2/transactions/direct and /hold, whose request is flat: an asset, a total,
+// and two leg arrays. There is no /v2 twin to swap these calls onto.
+//
+// For the /v2 creation path — which is the one to build against, since Midaz
+// deprecated all of /v1 — see examples/03-end-to-end.
 package workflows
 
 import (
@@ -6,12 +17,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/format"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/format"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/performance"
 	"github.com/shopspring/decimal"
 )
 
@@ -103,7 +114,7 @@ func transactionRouteID(route *models.TransactionRoute) string {
 }
 
 func requireTransactionsClient(midazClient *midaz.Client) error {
-	if midazClient == nil || midazClient.Entity == nil || midazClient.Transactions == nil {
+	if midazClient == nil || midazClient.Entity == nil || midazClient.V1.Transactions == nil {
 		return errors.New("initialized client with transactions service is required")
 	}
 
@@ -136,7 +147,6 @@ func executeInitialDeposit(ctx context.Context, midazClient *midaz.Client, orgID
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      externalAccountID,
 						AccountAlias: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -148,7 +158,6 @@ func executeInitialDeposit(ctx context.Context, midazClient *midaz.Client, orgID
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -160,7 +169,7 @@ func executeInitialDeposit(ctx context.Context, midazClient *midaz.Client, orgID
 		},
 	}
 
-	tx, err := midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create deposit transaction: %w", err)
 	}
@@ -197,7 +206,6 @@ func executeTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -209,7 +217,6 @@ func executeTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      merchantAccountID,
 						AccountAlias: merchantAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -221,7 +228,7 @@ func executeTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 		},
 	}
 
-	tx, err := midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create transfer transaction: %w", err)
 	}
@@ -326,7 +333,6 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *midaz.Cli
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      externalAccountID,
 						AccountAlias: externalAccountID,
 						Route:        operationRouteID(sourceOperationRoute),
 						Amount: models.AmountInput{
@@ -339,7 +345,6 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *midaz.Cli
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Route:        operationRouteID(destinationOperationRoute),
 						Amount: models.AmountInput{
@@ -359,7 +364,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *midaz.Cli
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
 
-	tx, err := midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create deposit transaction with routes: %w", err)
 	}
@@ -406,7 +411,6 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *midaz.Client, o
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Route:        operationRouteID(destinationOperationRoute), // Customer account uses destination route
 						Amount: models.AmountInput{
@@ -419,7 +423,6 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *midaz.Client, o
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      merchantAccountID,
 						AccountAlias: merchantAccountID,
 						Route:        operationRouteID(destinationOperationRoute), // Merchant account also uses destination route
 						Amount: models.AmountInput{
@@ -439,7 +442,7 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *midaz.Client, o
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
 
-	tx, err := midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create transfer transaction with routes: %w", err)
 	}
@@ -475,7 +478,6 @@ func CreateTransferInput(description string, amount float64, fromAccountID, toAc
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      fromAccountID,
 						AccountAlias: fromAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -487,7 +489,6 @@ func CreateTransferInput(description string, amount float64, fromAccountID, toAc
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      toAccountID,
 						AccountAlias: toAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -560,7 +561,7 @@ func createParallelTransactionProcessor(midazClient *midaz.Client, orgID, ledger
 		amount := amounts[index]
 		input := buildParallelTransactionInput(index, amount, customerAccountID, merchantAccountID, destinationOperationRoute, transactionRoute)
 
-		tx, err := midazClient.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
+		tx, err := midazClient.V1.Transactions.CreateJSON(txCtx, orgID, ledgerID, input)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create parallel transaction #%d: %w", index+1, err)
 		}
@@ -596,7 +597,6 @@ func buildParallelTransactionInput(index int, amount float64, customerAccountID,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Route:        destRouteID,
 						Amount:       models.AmountInput{Asset: "USD", Value: amount},
@@ -606,7 +606,6 @@ func buildParallelTransactionInput(index int, amount float64, customerAccountID,
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      merchantAccountID,
 						AccountAlias: merchantAccountID,
 						Route:        destRouteID,
 						Amount:       models.AmountInput{Asset: "USD", Value: amount},
@@ -626,16 +625,16 @@ func buildOptimizedTransferInput(chartGroup, description, routeID, customerAccou
 			Asset: "USD", Value: amount,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{{
-					Account: customerAccountID, AccountAlias: customerAccountID,
-					Route:  destinationRouteID,
-					Amount: models.AmountInput{Asset: "USD", Value: amount},
+					AccountAlias: customerAccountID,
+					Route:        destinationRouteID,
+					Amount:       models.AmountInput{Asset: "USD", Value: amount},
 				}},
 			},
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{{
-					Account: merchantAccountID, AccountAlias: merchantAccountID,
-					Route:  destinationRouteID,
-					Amount: models.AmountInput{Asset: "USD", Value: amount},
+					AccountAlias: merchantAccountID,
+					Route:        destinationRouteID,
+					Amount:       models.AmountInput{Asset: "USD", Value: amount},
 				}},
 			},
 		},
@@ -755,22 +754,22 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *midaz.Client, 
 				Value: amounts[index],
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
-						Account: customerAccountID, AccountAlias: customerAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amounts[index]},
+						AccountAlias: customerAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amounts[index]},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
-						Account: merchantAccountID, AccountAlias: merchantAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amounts[index]},
+						AccountAlias: merchantAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amounts[index]},
 					}},
 				},
 			},
 		}
 
-		return midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+		return midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	}
 
 	startTime := time.Now()
@@ -836,22 +835,22 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *midaz.Client
 				Asset: "USD", Value: amount,
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
-						Account: customerAccountID, AccountAlias: customerAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amount},
+						AccountAlias: customerAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
-						Account: merchantAccountID, AccountAlias: merchantAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amount},
+						AccountAlias: merchantAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					}},
 				},
 			},
 		}
 
-		return midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+		return midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	}
 
 	startTime := time.Now()
@@ -921,7 +920,7 @@ func demonstrateBatchProcessing(ctx context.Context, midazClient *midaz.Client, 
 		batchResults := concurrent.WorkerPool(
 			ctx, indices,
 			func(ctx context.Context, index int) (*models.Transaction, error) {
-				return midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, batch[index])
+				return midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, batch[index])
 			},
 			concurrent.WithWorkers(5), // 5 workers per batch
 			concurrent.WithUnorderedResults(),
@@ -996,22 +995,22 @@ func demonstrateCombinedOptimizations(ctx context.Context, midazClient *midaz.Cl
 				Asset: "USD", Value: amount,
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
-						Account: customerAccountID, AccountAlias: customerAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amount},
+						AccountAlias: customerAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
-						Account: merchantAccountID, AccountAlias: merchantAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amount},
+						AccountAlias: merchantAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					}},
 				},
 			},
 		}
 
-		return midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+		return midazClient.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	}
 
 	startTime := time.Now()

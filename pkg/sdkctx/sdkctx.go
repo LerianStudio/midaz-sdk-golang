@@ -9,6 +9,9 @@
 //   - [WithIdempotencyKey] / [IdempotencyKeyFromContext] — explicit idempotency
 //     key for unsafe HTTP requests (POST/PUT/PATCH/DELETE). Takes precedence
 //     over auto-generated keys.
+//   - [WithIdempotencyTTL] / [IdempotencyTTLFromContext] — idempotency-slot
+//     TTL (seconds) emitted as the X-TTL header on the next create; omitted
+//     when unset so the server default (300s) applies.
 //   - [WithoutAutoIdempotency] / [AutoIdempotencySuppressed] — suppress
 //     auto-idempotency for a single call when client-level idempotency is on.
 //   - [WithoutHTTPRetries] / [HTTPRetriesSuppressed] — suppress the SDK HTTP
@@ -32,7 +35,10 @@
 // in v3.
 package sdkctx
 
-import "context"
+import (
+	"context"
+	"strconv"
+)
 
 // ----- Idempotency key -----
 
@@ -45,7 +51,7 @@ type idempotencyKeyType struct{}
 // Precedence (first non-empty source wins):
 //  1. Caller-supplied input field — for service methods whose input struct
 //     carries an IdempotencyKey field (e.g.,
-//     [github.com/LerianStudio/midaz-sdk-golang/v4/models.CreateTransactionInput]),
+//     [github.com/LerianStudio/midaz-sdk-golang/v5/models.CreateTransactionInput]),
 //     the input-level value is the most explicit caller assertion and wins
 //     over a ctx-supplied key.
 //  2. ctx-supplied via WithIdempotencyKey — request-scoped, useful when the
@@ -82,6 +88,46 @@ func IdempotencyKeyFromContext(ctx context.Context) string {
 	}
 
 	return ""
+}
+
+// ----- Idempotency slot TTL -----
+
+type idempotencyTTLType struct{}
+
+// WithIdempotencyTTL attaches an idempotency-slot TTL (in seconds) to the
+// request context. The HTTP write path emits it as the X-TTL header alongside
+// the X-Idempotency key on the next create. A non-positive value is a no-op —
+// the header is omitted and the server applies its default (300s).
+//
+// This is the per-request counterpart to [WithIdempotencyKey]: the key names
+// the slot, the TTL bounds how long the server remembers it.
+//
+// See also [IdempotencyTTLFromContext], [WithIdempotencyKey].
+func WithIdempotencyTTL(ctx context.Context, seconds int) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if seconds <= 0 {
+		return ctx
+	}
+
+	return context.WithValue(ctx, idempotencyTTLType{}, strconv.Itoa(seconds))
+}
+
+// IdempotencyTTLFromContext returns the idempotency-slot TTL (seconds, as a
+// string) previously stored via [WithIdempotencyTTL], and whether one was set.
+// When ok is false the caller must omit X-TTL so the server default applies.
+func IdempotencyTTLFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+
+	if v, ok := ctx.Value(idempotencyTTLType{}).(string); ok {
+		return v, true
+	}
+
+	return "", false
 }
 
 // ----- Auto-idempotency suppression -----

@@ -4,27 +4,37 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 )
 
+// operationRoutesAPI is the narrow slice of the operation-routes facade this generator needs.
+type operationRoutesAPI interface {
+	Create(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)
+}
+
 type operationRouteGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
+	operationRoutes operationRoutesAPI
+	obs             observability.Provider
 }
 
 // NewOperationRouteGenerator creates a new generator for operation routes.
 func NewOperationRouteGenerator(e *entities.Entity, obs observability.Provider) OperationRouteGenerator {
-	return &operationRouteGenerator{e: e, obs: obs}
+	g := &operationRouteGenerator{obs: obs}
+	if e != nil && e.V1.OperationRoutes != nil {
+		g.operationRoutes = e.V1.OperationRoutes
+	}
+
+	return g
 }
 
 // Generate creates a single operation route from the provided input.
 func (g *operationRouteGenerator) Generate(ctx context.Context, organizationID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.OperationRoutes == nil {
+	if g.operationRoutes == nil {
 		return nil, errors.New("entity operation routes service not initialized")
 	}
 
@@ -42,7 +52,7 @@ func (g *operationRouteGenerator) Generate(ctx context.Context, organizationID, 
 	err := observability.WithSpan(ctx, g.obs, "GenerateOperationRoute", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, organizationID, ledgerID, input)
+				or, err := g.operationRoutes.Create(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}

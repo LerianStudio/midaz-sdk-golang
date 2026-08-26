@@ -14,10 +14,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 )
 
 func main() {
@@ -51,7 +51,7 @@ func defaultRetryExample() error {
 	fmt.Println("-------------------------------------")
 
 	// Create a client with default retry settings.
-	// WithAnonymous satisfies v3's "exactly one auth source" invariant for local stacks.
+	// WithAnonymous satisfies the SDK's "exactly one auth source" invariant for local stacks.
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
 		midaz.WithAnonymous(),
@@ -79,7 +79,7 @@ func defaultRetryExample() error {
 	// Example call that would be retried if it failed with a retryable error
 	fmt.Println("\nExample call that would be retried if it failed:")
 
-	_, err = c.Organizations.GetOrganization(context.Background(), "org-id")
+	_, err = c.V2.Organizations.Get(context.Background(), "org-id")
 	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
@@ -94,7 +94,7 @@ func customRetryConfigExample() error {
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
 		midaz.WithAnonymous(),
-		// Configure a more aggressive retry strategy via the v3 surface.
+		// Configure a more aggressive retry strategy.
 		// WithRetryOptions threads pkg/retry knobs onto the entity HTTPClient;
 		// the override-on-conflict semantic means anything passed here wins
 		// over the config-seeded defaults (3 retries, 1s..30s).
@@ -117,7 +117,7 @@ func customRetryConfigExample() error {
 	// Example call with custom retry settings
 	fmt.Println("\nExample call with custom retry settings:")
 
-	_, err = c.Organizations.GetOrganization(context.Background(), "org-id")
+	_, err = c.V2.Organizations.Get(context.Background(), "org-id")
 	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
@@ -173,7 +173,7 @@ func customRetryPolicyExample() error {
 	// Example call with custom retry policy
 	fmt.Println("\nExample call with custom retry policy:")
 
-	_, err = c.Organizations.GetOrganization(context.Background(), "org-id")
+	_, err = c.V2.Organizations.Get(context.Background(), "org-id")
 	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
@@ -202,7 +202,7 @@ func disableRetriesExample() error {
 	// Example call with retries disabled
 	fmt.Println("\nExample call with retries disabled:")
 
-	_, err = c.Organizations.GetOrganization(context.Background(), "org-id")
+	_, err = c.V2.Organizations.Get(context.Background(), "org-id")
 
 	// Handle the error without retries
 	if err == nil {

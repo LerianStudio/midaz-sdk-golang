@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
 
@@ -140,12 +140,25 @@ type Transaction struct {
 	Description string `json:"description,omitempty"`
 }
 
-func validatePositiveDecimalString(value any, field string) error {
+// validatePositiveDecimalString rejects anything that is not a positive decimal
+// money value. Every caller validates a field named "value" — send.value or a
+// leg amount's value — so the name is fixed here instead of threaded through.
+//
+// It judges the string EXACTLY as it will be sent, whitespace included. An
+// earlier version trimmed before parsing, which let "  100  " pass here and then
+// travel to the ledger verbatim, where it fails as a malformed decimal: local
+// validation said one thing and the wire carried another. The SDK does not
+// rewrite money text — a caller's amount reaches the ledger byte for byte — so
+// the only way to keep those two answers in agreement is to validate the bytes
+// that leave.
+func validatePositiveDecimalString(value any) error {
+	const field = "value"
+
 	if err := validateDecimalInputBound(value, field); err != nil {
 		return err
 	}
 
-	parsed, err := decimal.NewFromString(strings.TrimSpace(decimalStringFromAny(value)))
+	parsed, err := decimal.NewFromString(decimalStringFromAny(value))
 	if err != nil {
 		return fmt.Errorf("%s must be a valid decimal", field)
 	}
@@ -162,7 +175,9 @@ func validateDecimalInputBound(value any, field string) error {
 		return fmt.Errorf("%s must be a finite decimal", field)
 	}
 
-	if decimalText := strings.TrimSpace(decimalStringFromAny(value)); len(decimalText) > maxDecimalInputLength {
+	// Untrimmed, for the same reason the parse below is: the bound applies to
+	// what goes on the wire.
+	if decimalText := decimalStringFromAny(value); len(decimalText) > maxDecimalInputLength {
 		return fmt.Errorf("%s exceeds maximum length of %d characters", field, maxDecimalInputLength)
 	}
 
@@ -229,10 +244,9 @@ func DecimalStringFromAny(value any) string {
 // CreateTransactionInput is the input for creating a transaction.
 // This structure contains all the fields needed to create a new transaction.
 //
-// CreateTransactionInput is used with the TransactionsService.CreateTransaction method
-// to create new transactions in the standard format (as opposed to the DSL format).
-// It allows for specifying the transaction details including operations, metadata,
-// and other properties.
+// CreateTransactionInput is used with the Transactions accessor's CreateJSON method
+// to create new transactions in the standard format. The money movement lives in
+// Send; the rest of the fields carry presentation, routing, and metadata.
 //
 // When creating a transaction, the send payload must include a source and a
 // distribution whose values balance for each asset. Set IdempotencyKey or use
@@ -244,10 +258,10 @@ func DecimalStringFromAny(value any) string {
 //	    Asset: "USD",
 //	    Value: "100.00",
 //	    Source: &models.SourceInput{From: []models.FromToInput{
-//	        {Account: "customer_john_doe", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+//	        {AccountAlias: "customer_john_doe", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
 //	    }},
 //	    Distribute: &models.DistributeInput{To: []models.FromToInput{
-//	        {Account: "merchant_primary", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+//	        {AccountAlias: "merchant_primary", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
 //	    }},
 //	}).WithMetadata(map[string]any{"invoice_id": "inv-123"})
 //	input.IdempotencyKey = "payment-inv123-20230401"
@@ -258,19 +272,8 @@ func DecimalStringFromAny(value any) string {
 //	input = input.WithSend(&models.SendInput{/* source and distribute omitted for brevity */})
 //
 //	// Later, after approval:
-//	// c.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
+//	// c.Transactions.Commit(ctx, orgID, ledgerID, tx.ID)
 type CreateTransactionInput struct {
-	// Template is retained for backwards compatibility with the pre-send API.
-	Template string `json:"template,omitempty"`
-
-	// Amount is retained for backwards compatibility with operation-based callers.
-	// Prefer Send.Value for new integrations.
-	Amount string `json:"amount,omitempty"`
-
-	// AssetCode is retained for backwards compatibility with operation-based callers.
-	// Prefer Send.Asset for new integrations.
-	AssetCode string `json:"assetCode,omitempty"`
-
 	// ChartOfAccountsGroupName optionally categorizes the transaction under a chart of accounts group.
 	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
 
@@ -281,14 +284,26 @@ type CreateTransactionInput struct {
 	// Pending transactions require explicit commitment before affecting account balances
 	Pending bool `json:"pending,omitempty"`
 
-	// Code is a transaction reference code.
+	// Code is an optional caller-supplied label (at most 100 characters). It is
+	// WRITE-ONLY: the ledger stores it inside the transaction body but the
+	// Transaction response schema has no code field, so nothing reads it back —
+	// not this SDK, not the API. It is also not a query handle (no code filter on
+	// the list endpoint, Get addresses a transaction only by its Midaz UUID) and
+	// the ledger does not enforce uniqueness on it.
+	//
+	// For a correlation handle that survives and can be searched, put the
+	// identifier in Metadata — that is the only field the transactions endpoint
+	// can filter on (see models/correlation for the canonical shape).
 	Code string `json:"code,omitempty"`
 
 	// Route is the transaction route identifier (optional)
-	// This defines the overall flow of the transaction structure
+	// This defines the overall flow of the transaction structure.
+	// Prefer RouteID (UUID); Route is retained for server-side alias
+	// compatibility. Setting both is rejected by Validate.
 	Route string `json:"route,omitempty"`
 
-	// RouteID is the UUID transaction route identifier.
+	// RouteID is the UUID transaction route identifier and the preferred way to
+	// address a transaction route. Mutually exclusive with Route.
 	RouteID string `json:"routeId,omitempty"`
 
 	// TransactionDate is the effective date/time for the transaction.
@@ -299,23 +314,44 @@ type CreateTransactionInput struct {
 	// such as references to external systems, tags, or other contextual data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// ExternalID is retained for backward compatibility only. It is not part of
-	// the current Midaz CreateTransaction contract, is never serialized, and does
-	// not provide deduplication. Use X-Idempotency via sdkctx.WithIdempotencyKey
-	// or IdempotencyKey for duplicate protection.
-	ExternalID string `json:"-"`
-
-	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
-	// If a transaction with the same idempotency key already exists, that transaction
-	// will be returned instead of creating a new one
-	// Note: This is sent as a header (X-Idempotency), not in the request body
+	// IdempotencyKey is a client-generated key that makes a retry of THIS create
+	// safe. It is a short-lived retry guard, not a durable correlation handle:
+	// it is never persisted on the transaction, never returned in a response,
+	// and never queryable. Use Metadata for correlation that has to survive.
+	//
+	// Behavior by case, as the vendored ledger contract states it
+	// (api/ledger.openapi.yaml, createTransactionJSON: X-Idempotency, X-TTL
+	// "default 300" seconds, and the X-Idempotency-Replayed response header):
+	//
+	//   - Retry with the same key AND the same payload inside the TTL, after
+	//     the first create finished: the ledger returns the ORIGINAL
+	//     transaction and marks the response X-Idempotency-Replayed: true. It
+	//     is a success, not an error. This SDK discards that header, so a
+	//     replay is indistinguishable from a fresh create in the returned
+	//     model; compare the returned ID with the one already recorded when the
+	//     difference matters.
+	//   - Same key, DIFFERENT payload, inside the TTL: HTTP 409 (wire code
+	//     0084), surfaced as pkg/errors.IsIdempotencyError. The slot stores the
+	//     hash of the original body and refuses a mismatched reuse. Never reuse
+	//     a key across different money movements.
+	//   - A concurrent request with the same key, while the first is still in
+	//     flight: also HTTP 409, pkg/errors.IsIdempotencyError
+	//     (code idempotency_error), non-retryable.
+	//   - After the TTL expires: the key is forgotten and a NEW transaction is
+	//     created. A key is not a uniqueness constraint over time.
+	//
+	// Never read pkg/errors.IsIdempotencyError as "the original succeeded"; it
+	// says the server refused this request, either because another one held the
+	// slot or because the payload did not match the original.
+	//
+	// Note: This is sent as a header (X-Idempotency), not in the request body;
+	// the TTL rides X-TTL (sdkctx.WithIdempotencyTTL).
 	IdempotencyKey string `json:"-"`
 
 	// Send contains the source and distribution information for the transaction.
+	// It is the only way to describe the money movement of a create; the legacy
+	// Operations list was removed in v4.2.
 	Send *SendInput `json:"send"`
-
-	// Operations is retained for backwards compatibility with the pre-send API.
-	Operations []CreateOperationInput `json:"operations,omitempty"`
 }
 
 // SendInput represents the send information for a transaction.
@@ -351,18 +387,31 @@ type DistributeInput struct {
 // FromToInput represents a single source or destination account in a transaction.
 // This structure contains the account and amount details.
 type FromToInput struct {
-	// Account identifies the account affected by this operation. It is mapped to
-	// accountAlias for Midaz transaction requests.
-	Account string `json:"account"`
+	// AccountAlias identifies the account affected by this operation. It is the
+	// leg's only account identity and is sent as accountAlias.
+	//
+	// The ledger resolves it as an ALIAS: the balance lookup matches the alias
+	// column for exact equality. A raw account UUID does not resolve unless that
+	// UUID literally is the account's alias — passing an account ID here is a
+	// failed lookup, not an alternative way to address the account.
+	//
+	// Balance selection is BalanceKey's job and only BalanceKey's: the server
+	// discards anything after a "#" in the alias and resolves the account's
+	// default balance, so embedding "alias#key" here silently moves the money on
+	// the default balance instead of the one named after the "#".
+	AccountAlias string `json:"accountAlias"`
 
 	// Amount specifies the amount details for this operation
 	Amount AmountInput `json:"amount"`
 
-	// Route is the operation route identifier for this operation (optional)
-	// This links the operation to a specific routing rule
+	// Route is the operation route identifier for this operation (optional).
+	// Prefer RouteID (UUID); Route is retained for server-side alias
+	// compatibility. Setting both is rejected by Validate.
 	Route string `json:"route,omitempty"`
 
-	// RouteID is the operation route UUID used by canonical Midaz route validation.
+	// RouteID is the operation route UUID used by canonical Midaz route
+	// validation and the preferred way to address an operation route.
+	// Mutually exclusive with Route.
 	RouteID *string `json:"routeId,omitempty"`
 
 	// BalanceKey targets a non-default balance for this entry.
@@ -383,9 +432,6 @@ type FromToInput struct {
 	// ChartOfAccounts specifies the chart of accounts for this operation (optional)
 	ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
 
-	// AccountAlias provides an alternative account identifier (optional)
-	AccountAlias string `json:"accountAlias,omitempty"`
-
 	// Metadata contains additional custom data for this operation
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
@@ -400,7 +446,28 @@ type AmountInput struct {
 	Value any `json:"value"`
 }
 
+// Share specifies proportional (percentage) distribution on a transaction leg.
+// It is a live money-path type used by FromToInput.Share (share-based distribute);
+// relocated here from the removed transaction_dsl.go in Task 5.5.3.
+type Share struct {
+	Percentage             int64 `json:"percentage"`
+	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty"`
+}
+
+// Rate specifies exchange-rate information on a transaction leg. It is a live
+// money-path type used by FromToInput.Rate; relocated here from the removed
+// transaction_dsl.go in Task 5.5.3.
+type Rate struct {
+	From       string `json:"from"`
+	To         string `json:"to"`
+	Value      any    `json:"value"`
+	ExternalID string `json:"externalId"`
+}
+
 const (
+	// maxTransactionDescriptionLength bounds a transaction description. Both
+	// surfaces update through one server-side struct carrying a single "max=256"
+	// validator, so /v1 and /v2 share this bound rather than spelling it twice.
 	maxTransactionDescriptionLength = 256
 	maxTransactionCodeLength        = 100
 )
@@ -420,15 +487,13 @@ func (input *CreateTransactionInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	input.ensureSendFromLegacyOperations()
-
 	var errs validation.FieldErrors
 
 	appendTransactionCreateCommon(&errs, input.Description, input.Code, input.Metadata,
 		input.Route, input.RouteID, input.TransactionDate, input.Pending)
 
 	if input.Send == nil {
-		errs.Append("send", "is required")
+		errs.Append("send", "is required; legacy Operations input was removed in v4.2")
 	} else if err := input.Send.Validate(); err != nil {
 		errs.Append("send", "invalid: "+err.Error())
 	}
@@ -455,6 +520,12 @@ func appendTransactionCreateCommon(errs *validation.FieldErrors, description, co
 
 	if routeID != "" && !validation.IsValidUUID(routeID) {
 		errs.Append("routeId", "must be a valid UUID")
+	}
+
+	// The serializers emit whichever of route/routeId is non-empty, so a payload
+	// carrying both hands the routing decision to the ledger. Reject the pair.
+	if route != "" && routeID != "" {
+		errs.Append("route", "transaction-level route and routeId are mutually exclusive; keep routeId")
 	}
 
 	if transactionDate != "" {
@@ -528,8 +599,6 @@ func NewCreateTransactionInput(assetCode string, amount any) *CreateTransactionI
 	amountValue := decimalStringFromAny(amount)
 
 	return &CreateTransactionInput{
-		AssetCode: assetCode,
-		Amount:    amountValue,
 		Send: &SendInput{
 			Asset: assetCode,
 			Value: amountValue,
@@ -557,20 +626,6 @@ func (input *CreateTransactionInput) WithMetadata(metadata map[string]any) *Crea
 	}
 
 	input.Metadata = cloneAnyMap(metadata)
-
-	return input
-}
-
-// WithExternalID stores a legacy client-side external ID value.
-// Deprecated: externalId is unsupported by the current Midaz CreateTransaction
-// contract. The value is not sent in JSON and does not deduplicate requests;
-// use X-Idempotency via sdkctx.WithIdempotencyKey or IdempotencyKey instead.
-func (input *CreateTransactionInput) WithExternalID(externalID string) *CreateTransactionInput {
-	if input == nil {
-		return nil
-	}
-
-	input.ExternalID = externalID
 
 	return input
 }
@@ -620,19 +675,6 @@ func (input *CreateTransactionInput) WithSend(send *SendInput) *CreateTransactio
 	return input
 }
 
-// WithOperations sets legacy operation inputs and adapts them to the canonical send payload.
-func (input *CreateTransactionInput) WithOperations(operations []CreateOperationInput) *CreateTransactionInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Operations = append([]CreateOperationInput(nil), operations...)
-	input.Send = nil
-	input.ensureSendFromLegacyOperations()
-
-	return input
-}
-
 // Validate checks that the SendInput meets all validation requirements.
 // It returns an error if any of the validation checks fail. Field-level
 // violations are accumulated.
@@ -647,7 +689,7 @@ func (input *SendInput) Validate() error {
 		errs.Append("asset", "is required")
 	}
 
-	if err := validatePositiveDecimalString(input.Value, "value"); err != nil {
+	if err := validatePositiveDecimalString(input.Value); err != nil {
 		errs.Append("value", err.Error())
 	}
 
@@ -808,18 +850,30 @@ func (input *FromToInput) Validate() error {
 
 	var errs validation.FieldErrors
 
-	if input.Account == "" && input.AccountAlias == "" {
-		errs.Append("account", "is required")
+	// The ledger discards anything after a "#" in the alias and resolves the
+	// account's DEFAULT balance, so "alias#key" would silently move money on the
+	// wrong balance. Balance selection belongs to BalanceKey alone.
+	switch accountAlias := strings.TrimSpace(input.AccountAlias); {
+	case accountAlias == "":
+		errs.Append("accountAlias", "is required")
+	case strings.Contains(accountAlias, "#"):
+		errs.Append("accountAlias", `must not contain "#"; use balanceKey to select a balance`)
 	}
 
-	if err := input.Amount.Validate(); err != nil {
-		errs.Append("amount", "invalid: "+err.Error())
-	}
+	input.appendValueErrors(&errs)
 
-	if input.RouteID != nil && strings.TrimSpace(*input.RouteID) != "" {
+	// Any non-empty raw value must be a UUID: ToMap serializes *RouteID verbatim,
+	// so a value that only trims to empty (" ") would otherwise skip validation
+	// and still be sent as routeId.
+	if input.RouteID != nil && *input.RouteID != "" {
 		if !validation.IsValidUUID(*input.RouteID) {
 			errs.Append("routeId", "must be a valid UUID")
 		}
+	}
+
+	if input.Route != "" && input.RouteID != nil && *input.RouteID != "" {
+		errs.Append("route", fmt.Sprintf(
+			"leg accountAlias=%s: route and routeId are mutually exclusive; keep routeId", input.AccountAlias))
 	}
 
 	if len(input.Metadata) > 0 {
@@ -829,6 +883,47 @@ func (input *FromToInput) Validate() error {
 	}
 
 	return errs.OrNil()
+}
+
+// appendValueErrors validates the leg's value mechanism: exactly one of a fixed
+// amount, a percentage share, a remaining-balance token, or an exchange rate.
+// Share/remaining/rate legs are resolved server-side (see sumFixedAmountEntries,
+// which skips the client balance check when any is present), so only a
+// fixed-amount leg is amount-validated here. Validating amount unconditionally
+// rejected every share leg and made GenerateWithDSL/GenerateBatch ship zero
+// transactions.
+func (input *FromToInput) appendValueErrors(errs *validation.FieldErrors) {
+	amountValue := strings.TrimSpace(decimalStringFromAny(input.Amount.Value))
+	hasAmount := input.Amount.Asset != "" || amountValue != ""
+
+	// A leg specifies exactly ONE value mechanism. The /transactions/json server
+	// rejects a leg carrying more than one of amount/share/remaining/rate with a
+	// 422; enforce it client-side so the two agree (there is no valid amount+share
+	// combination).
+	if hasAmount && (input.Share != nil || strings.TrimSpace(input.Remaining) != "" || input.Rate != nil) {
+		errs.Append("amount", "cannot be combined with share, remaining, or rate")
+
+		return
+	}
+
+	switch {
+	case hasAmount:
+		if err := input.Amount.Validate(); err != nil {
+			errs.Append("amount", "invalid: "+err.Error())
+		}
+	case input.Share != nil:
+		if input.Share.Percentage < 1 || input.Share.Percentage > 100 {
+			errs.Append("share.percentage", "must be between 1 and 100")
+		}
+
+		if input.Share.PercentageOfPercentage < 0 || input.Share.PercentageOfPercentage > 100 {
+			errs.Append("share.percentageOfPercentage", "must be between 0 and 100")
+		}
+	case strings.TrimSpace(input.Remaining) != "", input.Rate != nil:
+		// remaining/rate legs carry no client-checkable amount; the server resolves them.
+	default:
+		errs.Append("amount", "one of amount, share, remaining, or rate is required")
+	}
 }
 
 // Validate checks that the AmountInput meets all validation requirements.
@@ -843,7 +938,7 @@ func (input *AmountInput) Validate() error {
 		errs.Append("asset", "is required")
 	}
 
-	if err := validatePositiveDecimalString(input.Value, "value"); err != nil {
+	if err := validatePositiveDecimalString(input.Value); err != nil {
 		errs.Append("value", err.Error())
 	}
 
@@ -864,8 +959,6 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	if input == nil {
 		return nil
 	}
-
-	input.ensureSendFromLegacyOperations()
 
 	// Create a map to hold the transaction data
 	tx := map[string]any{}
@@ -913,77 +1006,6 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	}
 
 	return tx
-}
-
-func (input *CreateTransactionInput) ensureSendFromLegacyOperations() {
-	if input == nil || input.Send != nil || len(input.Operations) == 0 {
-		return
-	}
-
-	asset := input.AssetCode
-	if asset == "" && len(input.Operations) > 0 {
-		asset = input.Operations[0].AssetCode
-	}
-
-	send := &SendInput{
-		Asset:      asset,
-		Value:      normalizedOperationAmount(input.Amount),
-		Source:     &SourceInput{},
-		Distribute: &DistributeInput{},
-	}
-
-	for _, operation := range input.Operations {
-		entry := FromToInput{
-			Account: operation.AccountID,
-			Amount: AmountInput{
-				Asset: operation.AssetCode,
-				Value: normalizedOperationAmount(operation.Amount),
-			},
-			Route: operation.Route,
-		}
-		if entry.Amount.Asset == "" {
-			entry.Amount.Asset = asset
-		}
-
-		if operation.AccountAlias != nil && *operation.AccountAlias != "" {
-			entry.Account = *operation.AccountAlias
-			entry.AccountAlias = *operation.AccountAlias
-		}
-
-		switch strings.ToLower(operation.Type) {
-		case "debit", "source":
-			send.Source.From = append(send.Source.From, entry)
-		case "credit", "destination":
-			send.Distribute.To = append(send.Distribute.To, entry)
-		}
-	}
-
-	input.Send = send
-}
-
-func normalizedOperationAmount(amount any) string {
-	switch value := amount.(type) {
-	case Amount:
-		if value.Value == nil {
-			return ""
-		}
-
-		return value.Value.String()
-	case *Amount:
-		if value == nil || value.Value == nil {
-			return ""
-		}
-
-		return value.Value.String()
-	case *decimal.Decimal:
-		if value == nil {
-			return ""
-		}
-
-		return value.String()
-	default:
-		return decimalStringFromAny(amount)
-	}
 }
 
 // ToMap converts a SendInput to a map.
@@ -1058,13 +1080,11 @@ func (input *DistributeInput) ToMap() map[string]any {
 // ToMap converts a FromToInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input FromToInput) ToMap() map[string]any {
-	accountAlias := input.AccountAlias
-	if accountAlias == "" {
-		accountAlias = input.Account
-	}
-
+	// Trim the alias on the way out. Validate only trims to decide presence, so a
+	// padded alias passes SDK validation and then fails the ledger's exact-equality
+	// balance lookup — same emitter-side trim the correlation metadata takes.
 	fromTo := map[string]any{
-		"accountAlias": accountAlias,
+		"accountAlias": strings.TrimSpace(input.AccountAlias),
 	}
 
 	if input.BalanceKey != "" {
@@ -1113,14 +1133,64 @@ func (input FromToInput) ToMap() map[string]any {
 // ToMap converts an AmountInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input *AmountInput) ToMap() map[string]any {
-	if input == nil || (input.Asset == "" && input.Value == "") {
+	if input == nil {
+		return nil
+	}
+
+	// Value is `any`, so the old `input.Value == ""` guard never fired for a
+	// nil Value (nil != ""). Render through decimalStringFromAny, which returns
+	// "" for both nil and "": an empty amount then omits the map entirely so a
+	// share/remaining/rate leg does not ship amount:{"asset":"","value":""}
+	// beside its share (which the /transactions/json contract rejects).
+	value := decimalStringFromAny(input.Value)
+	if input.Asset == "" && value == "" {
 		return nil
 	}
 
 	return map[string]any{
 		"asset": input.Asset,
-		"value": decimalStringFromAny(input.Value),
+		"value": value,
 	}
+}
+
+// The transaction create inputs are wire-authoritative: MarshalJSON routes each
+// of them through its endpoint mapper (ToLibTransaction for /json, ToMap for the
+// nested nodes), so json.Marshal(input) IS the body the SDK sends. Struct tags
+// cannot drift from the wire because nothing serializes through them any more —
+// anyone logging, diffing, or persisting a marshaled input sees exactly what the
+// ledger received. Receivers are values so a leg copied out of a slice marshals
+// identically to a pointer to it.
+
+// MarshalJSON emits the /transactions/json request body (ToLibTransaction).
+func (input CreateTransactionInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToLibTransaction())
+}
+
+// MarshalJSON emits the send envelope as the transaction endpoints accept it.
+func (input SendInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
+// MarshalJSON emits the source envelope as the transaction endpoints accept it.
+func (input SourceInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
+// MarshalJSON emits the distribute envelope as the transaction endpoints accept it.
+func (input DistributeInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
+// MarshalJSON emits a transaction leg as the transaction endpoints accept it:
+// one account identity (accountAlias), never the Account/AccountAlias pair.
+func (input FromToInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
+// MarshalJSON emits a leg amount, or null when the leg carries no amount (a
+// share, remaining, or rate leg — the endpoints reject an empty amount object).
+func (input AmountInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
 }
 
 // ToTransactionMap converts an SDK Transaction to a map for API requests.
@@ -1196,7 +1266,7 @@ func (t *Transaction) ToTransactionMap() map[string]any {
 // UpdateTransactionInput represents the input for updating a transaction.
 // This structure contains the fields that can be updated on an existing transaction.
 //
-// UpdateTransactionInput is used with the TransactionsService.UpdateTransaction method
+// UpdateTransactionInput is used with the Transactions accessor's UpdateTransaction method
 // to update existing transactions. It allows for updating metadata and other mutable
 // properties of a transaction.
 //
@@ -1249,8 +1319,8 @@ func (input *UpdateTransactionInput) Validate() error {
 
 	var errs validation.FieldErrors
 
-	if input.Description != "" && len(input.Description) > 256 {
-		errs.Append("description", "must not exceed 256 characters")
+	if len(input.Description) > maxTransactionDescriptionLength {
+		errs.Append("description", fmt.Sprintf("must not exceed %d characters", maxTransactionDescriptionLength))
 	}
 
 	if input.Metadata != nil {

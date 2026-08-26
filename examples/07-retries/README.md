@@ -1,6 +1,6 @@
 # 07-retries
 
-Demonstrates the v3 retry surface — three modes the SDK supports for
+Demonstrates the retry surface — three modes the SDK supports for
 HTTP-level retries.
 
 ## What this demonstrates
@@ -53,5 +53,5 @@ request failed fast: ...
 
 ## Related
 
-- [`pkg/retry` godoc](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry)
+- [`pkg/retry` godoc](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry)
 - `midaz.WithRetryOptions`, `midaz.WithCustomRetryPolicy`, `midaz.WithoutRetries`

@@ -1,4 +1,4 @@
-package config // import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+package config // import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 
 Package config provides configuration management for the Midaz SDK.
 
@@ -20,9 +20,9 @@ type Option func(*Config) error
     func FromEnvironment() Option
     func WithAccessManager(accessManager auth.AccessManager) Option
     func WithAllowInsecureAccessManagerHTTP(allow bool) Option
+    func WithAllowInsecureHTTP(allow bool) Option
     func WithAnonymous() Option
     func WithBaseURL(baseURL string) Option
-    func WithCRMURL(crmURL string) Option
     func WithDebug(enabled bool) Option
     func WithEnvironment(env Environment) Option
     func WithErrorBodyExposure(enabled bool) Option
@@ -34,6 +34,8 @@ type Option func(*Config) error
     func WithRetryWaitMax(waitTime time.Duration) Option
     func WithRetryWaitMin(waitTime time.Duration) Option
     func WithTimeout(timeout time.Duration) Option
+    func WithTracerAPIKey(apiKey string) Option
+    func WithTracerURL(tracerURL string) Option
     func WithUserAgent(userAgent string) Option
 type ServiceType string
     const ServiceOnboarding ServiceType = "onboarding" ...

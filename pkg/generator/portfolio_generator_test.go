@@ -3,11 +3,10 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,40 +15,12 @@ type mockPortfoliosService struct {
 	createFunc func(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error)
 }
 
-func (m *mockPortfoliosService) CreatePortfolio(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
+func (m *mockPortfoliosService) Create(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
 
 	return &models.Portfolio{ID: "port-123", Name: input.Name}, nil
-}
-
-func (*mockPortfoliosService) GetPortfolio(_ context.Context, _, _, _ string) (*models.Portfolio, error) {
-	return nil, errors.New("mock: GetPortfolio not implemented")
-}
-
-func (*mockPortfoliosService) ListPortfolios(_ context.Context, _, _ string, _ models.PortfoliosListOpts) (*models.ListResponse[models.Portfolio], error) {
-	return nil, errors.New("mock: ListPortfolios not implemented")
-}
-
-func (*mockPortfoliosService) ListPortfoliosAll(_ context.Context, _, _ string, _ models.PortfoliosListOpts) iter.Seq2[models.Portfolio, error] {
-	return func(_ func(models.Portfolio, error) bool) {}
-}
-
-func (*mockPortfoliosService) ListPortfoliosPages(_ context.Context, _, _ string, _ models.PortfoliosListOpts) iter.Seq2[*models.ListResponse[models.Portfolio], error] {
-	return func(_ func(*models.ListResponse[models.Portfolio], error) bool) {}
-}
-
-func (*mockPortfoliosService) UpdatePortfolio(_ context.Context, _, _, _ string, _ *models.UpdatePortfolioInput) (*models.Portfolio, error) {
-	return nil, errors.New("mock: UpdatePortfolio not implemented")
-}
-
-func (*mockPortfoliosService) DeletePortfolio(_ context.Context, _, _, _ string) error {
-	return nil
-}
-
-func (*mockPortfoliosService) GetPortfoliosMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
-	return nil, errors.New("mock: GetPortfoliosMetricsCount not implemented")
 }
 
 func TestNewPortfolioGenerator(t *testing.T) {
@@ -93,11 +64,7 @@ func TestPortfolioGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Portfolios: mockSvc,
-	}
-
-	gen := NewPortfolioGenerator(e, nil)
+	gen := &portfolioGenerator{portfolios: mockSvc}
 	metadata := map[string]any{
 		"strategy":   "growth",
 		"risk_level": "moderate",
@@ -117,11 +84,7 @@ func TestPortfolioGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Portfolios: mockSvc,
-	}
-
-	gen := NewPortfolioGenerator(e, nil)
+	gen := &portfolioGenerator{portfolios: mockSvc}
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Portfolio", "entity-456", nil)
 	require.Error(t, err)
@@ -140,11 +103,7 @@ func TestPortfolioGenerator_Generate_NilMetadata(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Portfolios: mockSvc,
-	}
-
-	gen := NewPortfolioGenerator(e, nil)
+	gen := &portfolioGenerator{portfolios: mockSvc}
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Portfolio", "entity-456", nil)
 	require.NoError(t, err)
@@ -165,11 +124,7 @@ func TestPortfolioGenerator_Generate_VerifyIDs(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Portfolios: mockSvc,
-	}
-
-	gen := NewPortfolioGenerator(e, nil)
+	gen := &portfolioGenerator{portfolios: mockSvc}
 
 	_, err := gen.Generate(context.Background(), "test-org", "test-ledger", "Test", "entity-123", nil)
 	require.NoError(t, err)
@@ -189,11 +144,7 @@ func TestPortfolioGenerator_Generate_WithMetadata(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Portfolios: mockSvc,
-	}
-
-	gen := NewPortfolioGenerator(e, nil)
+	gen := &portfolioGenerator{portfolios: mockSvc}
 	metadata := map[string]any{
 		"category": "investment",
 		"manager":  "AI Bot",
@@ -216,11 +167,7 @@ func TestPortfolioGenerator_Generate_VerifyEntityID(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Portfolios: mockSvc,
-	}
-
-	gen := NewPortfolioGenerator(e, nil)
+	gen := &portfolioGenerator{portfolios: mockSvc}
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Portfolio", "custom-entity-id", nil)
 	require.NoError(t, err)

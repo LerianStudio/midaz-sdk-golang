@@ -1,4 +1,4 @@
-package models // import "github.com/LerianStudio/midaz-sdk-golang/v4/models"
+package models // import "github.com/LerianStudio/midaz-sdk-golang/v5/models"
 
 Package models defines the SDK-owned data models for the Midaz API.
 
@@ -40,12 +40,17 @@ Each type ships with constructors, fluent With* builders for optional fields,
 and dedicated Create*Input / Update*Input shapes for the request side of each
 resource.
 
+const AuditOutcomeSuccess = "success" ...
+const AuditResultSuccess = "SUCCESS" ...
 const BalanceScopeTransactional = "transactional" ...
-const TransactionStatusPending = "pending" ...
+const BillingPackageTypeVolume = "volume" ...
 const StatusActive = "ACTIVE" ...
 const DefaultLimit = 10 ...
 const QueryParamLimit = "limit" ...
 const HolderTypeNaturalPerson = "NATURAL_PERSON" ...
+const LimitTypeDaily = "DAILY" ...
+const RuleActionAllow = "ALLOW" ...
+const DecisionAllow = "ALLOW" ...
 const RelatedPartyRoleLegalRepresentative = "LEGAL_REPRESENTATIVE"
 const RelatedPartyRolePrimaryHolder = "PRIMARY_HOLDER"
 const RelatedPartyRoleResponsibleParty = "RESPONSIBLE_PARTY"
@@ -57,9 +62,15 @@ func IsStatusEmpty(status Status) bool
 func IsValidMetadataIndexEntity(entityName string) bool
 func PageQueryParams(o PageListOpts) map[string]string
 func ValidateCursorListOpts(operation string, o CursorListOpts) error
+func ValidateCursorListOptsNoDates(operation string, o CursorListOpts) error
+func ValidateCursorListOptsRFC3339Dates(operation string, o CursorListOpts) error
 func ValidatePageListOpts(operation string, o PageListOpts) error
 type Account struct{ ... }
+type AccountContext struct{ ... }
+type AccountOperationsFilters struct{ ... }
+type AccountOperationsListOpts struct{ ... }
 type AccountRule struct{ ... }
+type AccountSkip struct{ ... }
 type AccountType struct{ ... }
 type AccountTypesFilters struct{ ... }
 type AccountTypesListOpts struct{ ... }
@@ -69,12 +80,10 @@ type AccountingRubric struct{ ... }
 type AccountingValidation struct{ ... }
 type AccountsFilters struct{ ... }
 type AccountsListOpts struct{ ... }
+type Actor struct{ ... }
 type Address struct{ ... }
     func NewAddress(line1, zipCode, city, state, country string) Address
 type Addresses struct{ ... }
-type Alias struct{ ... }
-type AliasesFilters struct{ ... }
-type AliasesListOpts struct{ ... }
 type Amount struct{ ... }
 type AmountInput struct{ ... }
 type Asset struct{ ... }
@@ -83,21 +92,36 @@ type AssetRatesFilters struct{ ... }
 type AssetRatesListOpts struct{ ... }
 type AssetsFilters struct{ ... }
 type AssetsListOpts struct{ ... }
+type AuditEvent struct{ ... }
+type AuditEventRecord struct{ ... }
+type AuditEventRecordFilters struct{ ... }
+type AuditEventRecordsListOpts struct{ ... }
+type AuditEventsListOpts struct{ ... }
 type Balance struct{ ... }
 type BalanceHistory struct{ ... }
 type BalanceSettings struct{ ... }
     func NewDefaultBalanceSettings() *BalanceSettings
-type BalancesFilters struct{ ... }
 type BalancesListOpts struct{ ... }
 type BankingDetails struct{ ... }
 type BaseResponse struct{ ... }
+type BillingAccountTarget struct{ ... }
+type BillingCalculateInput struct{ ... }
+    func NewBillingCalculateInput(ledgerID, period string) *BillingCalculateInput
+type BillingCalculateResponse struct{ ... }
+type BillingCalculateSummary struct{ ... }
+type BillingCalculationResult struct{ ... }
+type BillingDiscountTier struct{ ... }
+type BillingEventFilter struct{ ... }
+type BillingPackage struct{ ... }
+type BillingPackagesFilters struct{ ... }
+type BillingPackagesListOpts struct{ ... }
+type BillingPricingTier struct{ ... }
+type Calculation struct{ ... }
 type Contact struct{ ... }
 type CreateAccountInput struct{ ... }
     func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput
 type CreateAccountTypeInput struct{ ... }
     func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput
-type CreateAliasInput struct{ ... }
-    func NewCreateAliasInput(ledgerID, accountID string) *CreateAliasInput
 type CreateAnnotationInput struct{ ... }
     func NewCreateAnnotationInput(description string, send ...*SendInput) *CreateAnnotationInput
 type CreateAssetInput struct{ ... }
@@ -107,50 +131,81 @@ type CreateAssetRateInput struct{ ... }
     func NewCreateAssetRateInput(from, to string, rate int) *CreateAssetRateInput
 type CreateBalanceInput struct{ ... }
     func NewCreateBalanceInput(key string) *CreateBalanceInput
+type CreateBillingPackageInput struct{ ... }
+    func NewCreateMaintenanceBillingPackageInput(label, ledgerID, assetCode, feeAmount, maintenanceCreditAccount string) *CreateBillingPackageInput
+    func NewCreateVolumeBillingPackageInput(label, ledgerID, assetCode, debitAlias, creditAlias string) *CreateBillingPackageInput
+type CreateHolderAccountInput struct{ ... }
+    func NewCreateHolderAccountInput(assetCode, accountType string) *CreateHolderAccountInput
 type CreateHolderInput struct{ ... }
     func NewCreateHolderInput(holderType, name, document string) *CreateHolderInput
 type CreateInflowInput struct{ ... }
     func NewCreateInflowInput(asset string, value any, distribute *DistributeInput) *CreateInflowInput
+type CreateInstrumentInput struct{ ... }
+    func NewCreateInstrumentInput(ledgerID, accountID string) *CreateInstrumentInput
 type CreateLedgerInput struct{ ... }
     func NewCreateLedgerInput(name string) *CreateLedgerInput
+type CreateLimitInput struct{ ... }
+    func NewCreateLimitInput(name, limitType string, maxAmount decimal.Decimal, asset string) *CreateLimitInput
 type CreateMetadataIndexInput struct{ ... }
     func NewCreateMetadataIndexInput(metadataKey string) *CreateMetadataIndexInput
-type CreateOperationInput struct{ ... }
-    func NewCreateOperationInput(operationType, accountID string, amount any, assetCode string) *CreateOperationInput
 type CreateOperationRouteInput struct{ ... }
     func NewCreateOperationRouteInput(title, description, operationType string) *CreateOperationRouteInput
 type CreateOrganizationInput struct{ ... }
     func NewCreateOrganizationInput(legalName, legalDocument string) *CreateOrganizationInput
 type CreateOutflowInput struct{ ... }
     func NewCreateOutflowInput(asset string, value any, source *SourceInput) *CreateOutflowInput
+type CreatePackageInput struct{ ... }
+    func NewCreatePackageInput(feeGroupLabel, ledgerID, minAmount, maxAmount string, fees map[string]Fee) *CreatePackageInput
 type CreatePortfolioInput struct{ ... }
     func NewCreatePortfolioInput(entityID, name string) *CreatePortfolioInput
+type CreateRuleInput struct{ ... }
+    func NewCreateRuleInput(name, expression, action string) *CreateRuleInput
 type CreateSegmentInput struct{ ... }
     func NewCreateSegmentInput(name string) *CreateSegmentInput
 type CreateTransactionInput struct{ ... }
     func NewCreateTransactionInput(assetCode string, amount any) *CreateTransactionInput
 type CreateTransactionRouteInput struct{ ... }
     func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput
+type CreateTransactionV2Input struct{ ... }
 type CursorListOpts struct{ ... }
-type DSLAccountRef struct{ ... }
-type DSLAmount struct{ ... }
-type DSLDistribute struct{ ... }
-type DSLFromTo struct{ ... }
-type DSLSend struct{ ... }
-type DSLSource struct{ ... }
 type Destination struct{ ... }
 type DistributeInput struct{ ... }
+type Fee struct{ ... }
+type FeeAdjustedAmount struct{ ... }
+type FeeAdjustedDistribute struct{ ... }
+type FeeAdjustedFromTo struct{ ... }
+type FeeAdjustedSend struct{ ... }
+type FeeAdjustedSource struct{ ... }
+type FeeAdjustedTransaction struct{ ... }
+type FeeCalculationModel struct{ ... }
+type FeeEstimateInput struct{ ... }
+    func NewFeeEstimateInput(packageID, ledgerID string, send *SendInput) *FeeEstimateInput
+type FeeEstimateResponse struct{ ... }
+type FeeEstimateResult struct{ ... }
+type FeeEstimateTransactionInput struct{ ... }
+type FeePackage struct{ ... }
 type FromToInput struct{ ... }
+type HashChainVerificationResult struct{ ... }
 type Holder struct{ ... }
+type HolderAccountResponse struct{ ... }
 type HoldersFilters struct{ ... }
 type HoldersListOpts struct{ ... }
 type IndexStats struct{ ... }
+type Instrument struct{ ... }
+type InstrumentFailure struct{ ... }
+type InstrumentFilters struct{ ... }
+type InstrumentsListOpts struct{ ... }
 type Ledger struct{ ... }
 type LedgerSettings struct{ ... }
 type LedgersFilters struct{ ... }
 type LedgersListOpts struct{ ... }
 type LegalPerson struct{ ... }
+type Limit struct{ ... }
+type LimitUsageDetail struct{ ... }
+type LimitsFilters struct{ ... }
+type LimitsListOpts struct{ ... }
 type ListResponse[T any] struct{ ... }
+type MerchantContext struct{ ... }
 type Metadata map[string]any
 type MetadataIndex struct{ ... }
 type MetricsCount struct{ ... }
@@ -168,21 +223,39 @@ type OperationRoutesFilters struct{ ... }
 type OperationRoutesListOpts struct{ ... }
 type OperationType string
     const OperationTypeDebit OperationType = "DEBIT" ...
-type OperationsFilters struct{ ... }
-type OperationsListOpts struct{ ... }
+type OperationV2 struct{ ... }
+type OperationsFilters = AccountOperationsFilters
+type OperationsListOpts = AccountOperationsListOpts
 type Organization struct{ ... }
 type OrganizationsFilters struct{ ... }
 type OrganizationsListOpts struct{ ... }
+type OverridePolicy struct{ ... }
+type PackagesFilters struct{ ... }
+type PackagesListOpts struct{ ... }
 type PageListOpts struct{ ... }
 type Pagination struct{ ... }
 type Portfolio struct{ ... }
+type PortfolioContext struct{ ... }
 type PortfoliosFilters struct{ ... }
 type PortfoliosListOpts struct{ ... }
+type ProvisionEncryptionInput struct{ ... }
+    func NewProvisionEncryptionInput(actor, reason string) *ProvisionEncryptionInput
+type ProvisionEncryptionResponse struct{ ... }
+type ProvisioningStatusResponse struct{ ... }
 type Rate struct{ ... }
 type RegulatoryFields struct{ ... }
 type RelatedParty struct{ ... }
 type Representative struct{ ... }
+type ReservationActionResponse struct{ ... }
+type ReserveInput struct{ ... }
+    func NewReserveInput(transactionID, requestID string, amount decimal.Decimal, ...) *ReserveInput
+type ReserveResponse struct{ ... }
+type Rule struct{ ... }
+type RulesFilters struct{ ... }
+type RulesListOpts struct{ ... }
+type Scope struct{ ... }
 type Segment struct{ ... }
+type SegmentContext struct{ ... }
 type SegmentsFilters struct{ ... }
 type SegmentsListOpts struct{ ... }
 type SendInflowInput struct{ ... }
@@ -196,42 +269,66 @@ type SourceInput struct{ ... }
 type Status struct{ ... }
     func NewStatus(code string) Status
     func WithStatusDescription(status Status, description string) Status
+type TracerSettings struct{ ... }
 type Transaction struct{ ... }
-type TransactionDSLInput struct{ ... }
-    func FromTransactionMap(data map[string]any) *TransactionDSLInput
+type TransactionActionResponse struct{ ... }
 type TransactionRoute struct{ ... }
 type TransactionRoutesFilters struct{ ... }
 type TransactionRoutesListOpts struct{ ... }
+type TransactionStatusCode string
+    const TransactionStatusCreated TransactionStatusCode = "CREATED" ...
+type TransactionV2 struct{ ... }
+type TransactionV2Leg struct{ ... }
+type TransactionV2Share struct{ ... }
+type TransactionValidation struct{ ... }
 type TransactionsFilters struct{ ... }
 type TransactionsListOpts struct{ ... }
 type UpdateAccountInput struct{ ... }
     func NewUpdateAccountInput() *UpdateAccountInput
 type UpdateAccountTypeInput struct{ ... }
     func NewUpdateAccountTypeInput() *UpdateAccountTypeInput
-type UpdateAliasInput struct{ ... }
-    func NewUpdateAliasInput() *UpdateAliasInput
 type UpdateAssetInput struct{ ... }
     func NewUpdateAssetInput() *UpdateAssetInput
 type UpdateBalanceInput struct{ ... }
     func NewUpdateBalanceInput() *UpdateBalanceInput
+type UpdateBillingPackageInput struct{ ... }
+    func NewUpdateBillingPackageInput() *UpdateBillingPackageInput
 type UpdateHolderInput struct{ ... }
     func NewUpdateHolderInput() *UpdateHolderInput
+type UpdateInstrumentInput struct{ ... }
+    func NewUpdateInstrumentInput() *UpdateInstrumentInput
 type UpdateLedgerInput struct{ ... }
     func NewUpdateLedgerInput() *UpdateLedgerInput
 type UpdateLedgerSettingsAccountingInput struct{ ... }
 type UpdateLedgerSettingsInput struct{ ... }
     func NewUpdateLedgerSettingsInput() *UpdateLedgerSettingsInput
+type UpdateLedgerSettingsOverridesInput struct{ ... }
+type UpdateLedgerSettingsTracerInput struct{ ... }
+type UpdateLimitInput struct{ ... }
+    func NewUpdateLimitInput() *UpdateLimitInput
 type UpdateOperationInput struct{ ... }
     func NewUpdateOperationInput() *UpdateOperationInput
 type UpdateOperationRouteInput struct{ ... }
     func NewUpdateOperationRouteInput() *UpdateOperationRouteInput
 type UpdateOrganizationInput struct{ ... }
     func NewUpdateOrganizationInput() *UpdateOrganizationInput
+type UpdatePackageInput struct{ ... }
+    func NewUpdatePackageInput() *UpdatePackageInput
 type UpdatePortfolioInput struct{ ... }
     func NewUpdatePortfolioInput() *UpdatePortfolioInput
+type UpdateRuleInput struct{ ... }
+    func NewUpdateRuleInput() *UpdateRuleInput
 type UpdateSegmentInput struct{ ... }
     func NewUpdateSegmentInput() *UpdateSegmentInput
 type UpdateTransactionInput struct{ ... }
     func NewUpdateTransactionInput() *UpdateTransactionInput
 type UpdateTransactionRouteInput struct{ ... }
     func NewUpdateTransactionRouteInput() *UpdateTransactionRouteInput
+type UpdateTransactionV2Input struct{ ... }
+type UsageSnapshot struct{ ... }
+type ValidateTransactionInput struct{ ... }
+    func NewValidateTransactionInput(requestID string, amount decimal.Decimal, asset, transactionTimestamp string, ...) *ValidateTransactionInput
+type ValidationResponse struct{ ... }
+type ValidationSummary struct{ ... }
+type ValidationsFilters struct{ ... }
+type ValidationsListOpts struct{ ... }

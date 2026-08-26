@@ -20,30 +20,33 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/reflectutil"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
 )
 
 // ServiceType represents a type of service in the Midaz API ecosystem.
 type ServiceType string
 
 // Service types constants define the available Midaz services.
+//
+// The consolidated Midaz server exposes exactly two planes: the Ledger (every
+// onboarding, transaction, CRM, fee and billing endpoint, all under one host)
+// and the Tracer. ServiceOnboarding is the internal routing label for the
+// Ledger and resolves to [Config.LedgerURL]; ServiceTracer resolves to
+// [Config.TracerURL].
 const (
-	// ServiceOnboarding is the internal routing label for the onboarding subset
-	// of Ledger endpoints. It shares its base URL with [ServiceTransaction];
-	// both are populated from [WithLedgerURL].
+	// ServiceOnboarding is the internal routing label for the Ledger plane. It
+	// is populated from [WithLedgerURL] and addresses every Ledger endpoint,
+	// not only the onboarding subset its name suggests.
 	ServiceOnboarding ServiceType = "onboarding"
 
-	// ServiceTransaction is the internal routing label for the transaction
-	// subset of Ledger endpoints. See [ServiceOnboarding] for the
-	// shared-base-URL note.
-	ServiceTransaction ServiceType = "transaction"
-
-	// ServiceCRM represents the CRM service.
-	ServiceCRM ServiceType = "crm"
+	// ServiceTracer is the internal routing label for the Tracer plane.
+	// It is populated from [WithTracerURL] (or the shared base URL) and is
+	// the second of the two consolidated server planes.
+	ServiceTracer ServiceType = "tracer"
 )
 
 // Environment represents a deployment environment for the Midaz API.
@@ -68,10 +71,22 @@ const (
 
 	// Default URLs for each environment
 	DefaultLocalLedgerBaseURL       = "http://localhost:3002"
-	DefaultLocalCRMBaseURL          = "http://localhost:4003"
+	DefaultLocalTracerBaseURL       = "http://localhost:4020"
 	DefaultDevelopmentLedgerBaseURL = "https://api.dev.midaz.io"
 	DefaultProductionLedgerBaseURL  = "https://api.midaz.io"
-	DefaultLedgerAPIVersionPath     = "/v1"
+
+	// DefaultTracerAPIVersionPath is the version segment stamped onto the Tracer
+	// plane base URL.
+	//
+	// Only the Tracer plane carries its version in the base URL. Its OpenAPI spec
+	// declares servers:[{url: "/v1"}] with unversioned paths ("/validations",
+	// "/limits"), because the server mounts Huma on a Fiber "/v1" group.
+	//
+	// The Ledger plane deliberately has no equivalent: its spec declares
+	// servers:[{url: "/"}] and carries the version inside every path
+	// ("/v1/organizations", "/v2/organizations"), so the Ledger base URL stays
+	// bare. Stamping "/v1" there would produce "/v1/v1/...".
+	DefaultTracerAPIVersionPath = "/v1"
 
 	// Default retry configuration
 	DefaultMaxRetries   = 3
@@ -93,8 +108,26 @@ type Config struct {
 	// This affects the default URLs used if not explicitly overridden.
 	Environment Environment
 
-	// ServiceURLs maps service types to their base URLs.
-	// These take precedence over Environment-based URLs.
+	// LedgerURL is the base URL of the Ledger plane (onboarding, transaction,
+	// CRM, fee and billing endpoints). It is the user-facing knob; the internal
+	// ServiceURLs[ServiceOnboarding] entry is derived from it. Set via
+	// [WithLedgerURL].
+	LedgerURL string
+
+	// TracerURL is the base URL of the Tracer plane. Set via [WithTracerURL].
+	// The internal ServiceURLs[ServiceTracer] entry is derived from it.
+	TracerURL string
+
+	// TracerAPIKey, when non-empty, makes the Tracer plane authenticate with
+	// an "X-API-Key" header carrying this value instead of sharing the Ledger
+	// Bearer token. Empty (the default) means the Tracer reuses the same
+	// Access Manager Bearer token as the Ledger. Set via [WithTracerAPIKey].
+	TracerAPIKey string
+
+	// ServiceURLs maps internal service-routing labels to their base URLs.
+	// It is a derivation of LedgerURL/TracerURL kept for the entity layer's
+	// per-label lookup; callers configure the planes via LedgerURL/TracerURL,
+	// not this map. These take precedence over Environment-based URLs.
 	ServiceURLs map[ServiceType]string
 
 	// HTTPClient is the HTTP client to use for requests.
@@ -109,7 +142,7 @@ type Config struct {
 
 	// Retry configuration for failed requests.
 	// Retries are off when MaxRetries == 0; there is no separate enable flag.
-	// Use [github.com/LerianStudio/midaz-sdk-golang/v4.WithoutRetries] (canonical
+	// Use [github.com/LerianStudio/midaz-sdk-golang/v5.WithoutRetries] (canonical
 	// off-switch) or [WithMaxRetries](0) to disable.
 	MaxRetries   int
 	RetryWaitMin time.Duration
@@ -126,11 +159,16 @@ type Config struct {
 
 	// ExposeErrorBody controls whether upstream 4xx/5xx response bodies are
 	// attached to SDK errors. The attached body is raw and only truncated.
+	//
+	// Scope: this affects ONLY the legacy *HTTPClient path (Balances,
+	// Operations, Aliases). The two-plane facades decode errors via
+	// errors.DecodeProblemJSON, which parses the RFC 9457 problem document and
+	// never attaches the raw upstream body — so this flag has no effect on them.
 	ExposeErrorBody bool
 
 	baseURLSet      bool
 	ledgerURLSet    bool
-	crmURLSet       bool
+	tracerURLSet    bool
 	environmentSet  bool
 	httpClientOwned bool
 
@@ -140,16 +178,16 @@ type Config struct {
 
 	// Anonymous is the explicit acknowledgment that the client is being
 	// constructed without any authentication source. Programmatic callers set
-	// this via [github.com/LerianStudio/midaz-sdk-golang/v4.WithAnonymous] (the
+	// this via [github.com/LerianStudio/midaz-sdk-golang/v5.WithAnonymous] (the
 	// midaz package re-export) to prove that omitting AccessManager was
 	// intentional — typically for local development against an unsecured
-	// midaz-onboarding/midaz-transaction stack, or for tests. v3 rejects
+	// midaz-onboarding/midaz-transaction stack, or for tests. v4 rejects
 	// construction with no auth source AND no Anonymous=true via validateConfig.
 	Anonymous bool
 
-	// AllowInsecureHTTP opts the configured Ledger and CRM service URLs out
+	// AllowInsecureHTTP opts the configured Ledger and Tracer plane URLs out
 	// of the SDK's "http:// only for localhost" gate. Default is false
-	// (strict). Set this BEFORE applying [WithLedgerURL], [WithCRMURL], or
+	// (strict). Set this BEFORE applying [WithLedgerURL], [WithTracerURL], or
 	// [WithBaseURL] — those option setters validate their input via
 	// [parseURL], which honors the flag value at the time it runs.
 	//
@@ -173,8 +211,8 @@ type Option func(*Config) error
 // WithEnvironment sets the environment for the Config.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithEnvironment] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithEnvironment] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // This determines the default URLs used for services if not explicitly overridden.
@@ -208,8 +246,8 @@ func WithEnvironment(env Environment) Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithLedgerURL] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithLedgerURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // This overrides any URL derived from the Environment setting.
@@ -235,56 +273,115 @@ func WithLedgerURL(ledgerURL string) Option {
 		}
 
 		trimmed := strings.TrimRight(ledgerURL, "/")
+		c.LedgerURL = trimmed
 		c.ServiceURLs[ServiceOnboarding] = trimmed
-		c.ServiceURLs[ServiceTransaction] = trimmed
 		c.ledgerURLSet = true
 
 		return nil
 	}
 }
 
-// WithCRMURL sets the base URL for the CRM API.
+// WithTracerURL sets the base URL for the Tracer plane — the second of the two
+// consolidated server planes (Ledger being the first).
+//
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithCRMURL] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithTracerURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
-func WithCRMURL(crmURL string) Option {
+//
+// This overrides any URL derived from the Environment setting.
+//
+// Parameters:
+//   - tracerURL: The base URL for the Tracer plane
+//
+// Returns:
+//   - Option: A function that sets the Tracer URL on a Config
+//   - May return an error if the URL is invalid
+func WithTracerURL(tracerURL string) Option {
 	return func(c *Config) error {
 		if c == nil {
 			return errors.New("config cannot be nil")
 		}
 
-		if err := parseURLWithInsecureHTTP(crmURL, c.AllowInsecureHTTP); err != nil {
-			return fmt.Errorf("invalid crm URL: %w", err)
+		if err := parseURLWithInsecureHTTP(tracerURL, c.AllowInsecureHTTP); err != nil {
+			return fmt.Errorf("invalid tracer URL: %w", err)
 		}
 
 		if c.ServiceURLs == nil {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
 
-		c.ServiceURLs[ServiceCRM] = strings.TrimRight(crmURL, "/")
-		c.crmURLSet = true
+		trimmed := strings.TrimRight(tracerURL, "/")
+		c.TracerURL = trimmed
+		c.ServiceURLs[ServiceTracer] = trimmed
+		c.tracerURLSet = true
 
 		return nil
 	}
 }
 
-// WithBaseURL sets a common base URL that will be used for all services.
+// WithTracerAPIKey configures the Tracer plane to authenticate with an
+// "X-API-Key" header carrying the supplied value, instead of sharing the
+// Ledger's Access Manager Bearer token.
+//
+// When this option is absent (the default), the Tracer plane reuses the same
+// Bearer token as the Ledger. When present, the Tracer request path injects
+// "X-API-Key: <key>" and does not attach the Bearer token. The key is stored
+// here; the auth transport that consumes it lives in the entity layer.
+//
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithBaseURL] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
-// directly.
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithTracerAPIKey] is what most
+// callers should use.
 //
-// Service-specific ports and paths will be automatically added.
-// This is useful for connecting to custom deployments.
+// Parameters:
+//   - apiKey: The X-API-Key value for the Tracer plane. Empty is a no-op.
+//
+// Returns:
+//   - Option: A function that sets the Tracer API key on a Config
+func WithTracerAPIKey(apiKey string) Option {
+	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
+		c.TracerAPIKey = apiKey
+
+		return nil
+	}
+}
+
+// WithBaseURL sets a common base URL used as the default for BOTH consolidated
+// planes (Ledger and Tracer), fanned out to whichever plane a more-specific
+// setter ([WithLedgerURL] / [WithTracerURL]) has not already pinned.
+//
+// The two planes normalize the shared base differently, because their OpenAPI
+// contracts version themselves differently:
+//
+//   - Ledger keeps the base bare. Its spec declares servers:[{url: "/"}] and
+//     carries the version inside every path ("/v1/organizations",
+//     "/v2/organizations"), so the SDK serves both the v1 and v2 surfaces off
+//     one unversioned base.
+//   - Tracer gets [DefaultTracerAPIVersionPath] ("/v1") stamped on. Its spec
+//     declares servers:[{url: "/v1"}] with unversioned paths.
+//
+// Decision (v4 two-plane remodel): the pre-v4 CRM fan-out is gone — CRM is no
+// longer a separate host. A single base URL applied to both planes remains the
+// ergonomic default for a stack served under one origin. For a split
+// deployment, set the planes explicitly.
+//
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithBaseURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// directly.
 //
 // Parameters:
 //   - baseURL: The base URL (e.g., "http://example.com")
 //
 // Returns:
-//   - Option: A function that sets all service URLs derived from the base URL
+//   - Option: A function that sets both plane URLs derived from the base URL
 //   - May return an error if the URL is invalid
 func WithBaseURL(baseURL string) Option {
 	return func(c *Config) error {
@@ -305,23 +402,25 @@ func WithBaseURL(baseURL string) Option {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
 
-		ledgerURL, err := buildLedgerServiceURL(baseURL)
+		planeURL, err := buildLedgerServiceURL(baseURL)
 		if err != nil {
-			return fmt.Errorf("invalid ledger base URL: %w", err)
-		}
-
-		crmURL, err := buildCRMServiceURL(baseURL)
-		if err != nil {
-			return fmt.Errorf("invalid crm base URL: %w", err)
+			return fmt.Errorf("invalid base URL: %w", err)
 		}
 
 		if !c.ledgerURLSet {
-			c.ServiceURLs[ServiceOnboarding] = ledgerURL
-			c.ServiceURLs[ServiceTransaction] = ledgerURL
+			c.LedgerURL = planeURL
+			c.ServiceURLs[ServiceOnboarding] = planeURL
 		}
 
-		if !c.crmURLSet {
-			c.ServiceURLs[ServiceCRM] = crmURL
+		if !c.tracerURLSet {
+			// The Tracer cannot reuse the bare Ledger string: it needs "/v1".
+			tracerURL, err := tracerURLFromSharedOrigin(planeURL)
+			if err != nil {
+				return fmt.Errorf("invalid base URL: %w", err)
+			}
+
+			c.TracerURL = tracerURL
+			c.ServiceURLs[ServiceTracer] = tracerURL
 		}
 
 		c.baseURLSet = true
@@ -333,8 +432,8 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient sets a custom HTTP client for the Config.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithHTTPClient] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithHTTPClient] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // This allows for advanced customization of the HTTP client behavior.
@@ -364,8 +463,8 @@ func WithHTTPClient(client *http.Client) Option {
 // WithTimeout sets the timeout duration for HTTP requests.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithTimeout] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithTimeout] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // Parameters:
@@ -395,8 +494,8 @@ func WithTimeout(timeout time.Duration) Option {
 // WithUserAgent sets the user agent for HTTP requests.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithUserAgent] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithUserAgent] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // Parameters:
@@ -423,8 +522,8 @@ func WithUserAgent(userAgent string) Option {
 // WithDebug enables or disables debug mode.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithDebug] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithDebug] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // In debug mode, the SDK logs detailed information about requests and responses.
@@ -449,6 +548,11 @@ func WithDebug(enabled bool) Option {
 // WithErrorBodyExposure enables or disables raw upstream error response body
 // exposure on SDK errors. When enabled, upstream 4xx/5xx response bodies are
 // attached without redaction and only truncated.
+//
+// The flag no longer changes anything an SDK call returns. Every accessor
+// routes over the two generated plane clients, which decode errors via
+// errors.DecodeProblemJSON and never attach the raw upstream body; the legacy
+// *HTTPClient path this flag reached serves no resource any more.
 func WithErrorBodyExposure(enabled bool) Option {
 	return func(c *Config) error {
 		if c == nil {
@@ -464,8 +568,8 @@ func WithErrorBodyExposure(enabled bool) Option {
 // WithObservabilityProvider sets the observability provider.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityProvider] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithObservabilityProvider] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // Parameters:
@@ -492,9 +596,9 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 // WithIdempotency enables or disables automatic idempotency key generation.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithIdempotency] is what most
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithIdempotency] is what most
 // callers should use; it composes with
-// [github.com/LerianStudio/midaz-sdk-golang/v4.New] directly.
+// [github.com/LerianStudio/midaz-sdk-golang/v5.New] directly.
 //
 // Parameters:
 //   - enabled: Whether to enable idempotency key generation
@@ -516,8 +620,8 @@ func WithIdempotency(enabled bool) Option {
 // WithAccessManager sets the plugin-based authentication configuration.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithAccessManager] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithAccessManager] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // The Enabled field of the supplied AccessManager is OVERRIDDEN to true —
@@ -577,8 +681,8 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 // WithAnonymous and WithAccessManager are mutually exclusive — the last
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithAnonymous] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v4.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithAnonymous] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
 // directly.
 //
 // option applied wins. Calling WithAnonymous after WithAccessManager
@@ -623,9 +727,9 @@ func WithAnonymous() Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates
 // on [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithAllowInsecureAccessManagerHTTP]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithAllowInsecureAccessManagerHTTP]
 // is what most callers should use; it composes with
-// [github.com/LerianStudio/midaz-sdk-golang/v4.New] directly.
+// [github.com/LerianStudio/midaz-sdk-golang/v5.New] directly.
 //
 // Parameters:
 //   - allow: Whether to permit plain http:// for non-loopback hosts.
@@ -644,7 +748,7 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 	}
 }
 
-// WithAllowInsecureHTTP opts the configured Ledger and CRM service URLs
+// WithAllowInsecureHTTP opts the configured Ledger and Tracer plane URLs
 // out of the SDK's "http:// only for localhost" gate. DEFAULT IS FALSE
 // (strict).
 //
@@ -662,7 +766,7 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 // active.
 //
 // ORDERING NOTE: this option mutates a flag read by [WithLedgerURL],
-// [WithCRMURL], and [WithBaseURL] at the moment those options run.
+// [WithTracerURL], and [WithBaseURL] at the moment those options run.
 // Apply WithAllowInsecureHTTP BEFORE the URL setters in your option
 // chain:
 //
@@ -674,7 +778,7 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 //
 // When the URLs come from [FromEnvironment], the helper loads
 // MIDAZ_ALLOW_INSECURE_HTTP before processing MIDAZ_LEDGER_URL /
-// MIDAZ_CRM_URL / MIDAZ_BASE_URL so the ordering is automatic.
+// MIDAZ_TRACER_URL / MIDAZ_BASE_URL so the ordering is automatic.
 //
 // This flag is independent of [WithAllowInsecureAccessManagerHTTP], which
 // gates the Access Manager (auth) endpoint. Set both when both the
@@ -682,12 +786,12 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates
 // on [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v4.WithAllowInsecureHTTP]
+// [github.com/LerianStudio/midaz-sdk-golang/v5.WithAllowInsecureHTTP]
 // is what most callers should use; it composes with
-// [github.com/LerianStudio/midaz-sdk-golang/v4.New] directly.
+// [github.com/LerianStudio/midaz-sdk-golang/v5.New] directly.
 //
 // Parameters:
-//   - allow: Whether to permit plain http:// for non-loopback Ledger/CRM hosts.
+//   - allow: Whether to permit plain http:// for non-loopback Ledger/Tracer hosts.
 //
 // Returns:
 //   - Option: A function that wires the flag onto a Config.
@@ -712,9 +816,10 @@ func WithAllowInsecureHTTP(allow bool) Option {
 //   - PLUGIN_AUTH_ADDRESS: The address of the access manager service
 //   - MIDAZ_CLIENT_ID: The client ID for authentication
 //   - MIDAZ_CLIENT_SECRET: The client secret for authentication
-//   - MIDAZ_LEDGER_URL: The URL for the Ledger API (serves both onboarding and transaction endpoints)
-//   - MIDAZ_CRM_URL: The URL for the CRM API
-//   - MIDAZ_BASE_URL: The base URL for all services
+//   - MIDAZ_LEDGER_URL: The URL for the Ledger plane (serves onboarding, transaction, and CRM/fees/billing endpoints)
+//   - MIDAZ_TRACER_URL: The URL for the Tracer plane
+//   - MIDAZ_TRACER_API_KEY: Optional X-API-Key for the Tracer plane; when unset, the Tracer shares the Ledger Bearer token
+//   - MIDAZ_BASE_URL: The base URL used as the default for both planes
 //   - MIDAZ_TIMEOUT: The timeout in seconds for HTTP requests
 //   - MIDAZ_DEBUG: Enable debug mode (parsed via [strconv.ParseBool])
 //   - MIDAZ_MAX_RETRIES: Maximum number of retries
@@ -725,9 +830,9 @@ func WithAllowInsecureHTTP(allow bool) Option {
 //     Manager URLs for non-loopback hosts (parsed via [strconv.ParseBool]).
 //     Production deployments must leave this unset or false; the flag
 //     exists for the in-cluster Kubernetes Service pattern.
-//   - MIDAZ_ALLOW_INSECURE_HTTP: Permit plain http:// Ledger/CRM service
+//   - MIDAZ_ALLOW_INSECURE_HTTP: Permit plain http:// Ledger/Tracer service
 //     URLs for non-loopback hosts (parsed via [strconv.ParseBool]). Loaded
-//     before the URL env vars so MIDAZ_LEDGER_URL / MIDAZ_CRM_URL /
+//     before the URL env vars so MIDAZ_LEDGER_URL / MIDAZ_TRACER_URL /
 //     MIDAZ_BASE_URL pointing at cluster-internal services are accepted.
 //     Production deployments over the public internet must leave this
 //     unset or false; the flag exists for the in-cluster Kubernetes
@@ -758,7 +863,7 @@ func FromEnvironment() Option {
 		}
 
 		// configureInsecureHTTP MUST run before configureURLs so the
-		// in-cluster cluster.local Ledger/CRM URLs that drove the flag's
+		// in-cluster cluster.local Ledger/Tracer URLs that drove the flag's
 		// existence in the first place are accepted by parseURL.
 		if err := configureInsecureHTTP(c); err != nil {
 			return err
@@ -879,7 +984,8 @@ func configureURLs(c *Config) error {
 	return configureSpecificURLs(c)
 }
 
-// configureSpecificURLs sets specific service URLs that override base URL
+// configureSpecificURLs sets per-plane URLs that override the base URL, plus
+// the optional Tracer X-API-Key.
 func configureSpecificURLs(c *Config) error {
 	if ledgerURL := os.Getenv("MIDAZ_LEDGER_URL"); ledgerURL != "" {
 		if err := WithLedgerURL(ledgerURL)(c); err != nil {
@@ -887,8 +993,14 @@ func configureSpecificURLs(c *Config) error {
 		}
 	}
 
-	if crmURL := os.Getenv("MIDAZ_CRM_URL"); crmURL != "" {
-		if err := WithCRMURL(crmURL)(c); err != nil {
+	if tracerURL := os.Getenv("MIDAZ_TRACER_URL"); tracerURL != "" {
+		if err := WithTracerURL(tracerURL)(c); err != nil {
+			return err
+		}
+	}
+
+	if apiKey := os.Getenv("MIDAZ_TRACER_API_KEY"); apiKey != "" {
+		if err := WithTracerAPIKey(apiKey)(c); err != nil {
 			return err
 		}
 	}
@@ -1064,7 +1176,7 @@ func ensureServiceURLMap(config *Config) {
 
 type defaultServiceURLs struct {
 	ledgerURL string
-	crmURL    string
+	tracerURL string
 }
 
 func defaultServiceURLsForEnvironment(environment Environment) (defaultServiceURLs, error) {
@@ -1086,31 +1198,58 @@ func defaultLocalServiceURLs() (defaultServiceURLs, error) {
 		return defaultServiceURLs{}, err
 	}
 
-	crmURL, err := buildCRMServiceURL(DefaultLocalCRMBaseURL)
+	tracerURL, err := buildTracerServiceURL(DefaultLocalTracerBaseURL)
 	if err != nil {
 		return defaultServiceURLs{}, err
 	}
 
-	return defaultServiceURLs{ledgerURL: ledgerURL, crmURL: crmURL}, nil
+	return defaultServiceURLs{ledgerURL: ledgerURL, tracerURL: tracerURL}, nil
 }
 
+// defaultLedgerBackedServiceURLs points both planes at the same host. The
+// hosted dev/prod stacks serve both the Ledger and Tracer planes under one
+// origin, so the single environment base URL feeds both. Split deployments
+// override the Tracer via [WithTracerURL] / MIDAZ_TRACER_URL.
 func defaultLedgerBackedServiceURLs(baseURL string) (defaultServiceURLs, error) {
 	ledgerURL, err := buildLedgerServiceURL(baseURL)
 	if err != nil {
 		return defaultServiceURLs{}, err
 	}
 
-	return defaultServiceURLs{ledgerURL: ledgerURL, crmURL: ledgerURL}, nil
+	tracerURL, err := tracerURLFromSharedOrigin(ledgerURL)
+	if err != nil {
+		return defaultServiceURLs{}, err
+	}
+
+	return defaultServiceURLs{ledgerURL: ledgerURL, tracerURL: tracerURL}, nil
+}
+
+// tracerURLFromSharedOrigin derives the Tracer base from an already-built
+// (bare) Ledger base serving the same origin. It keeps the Ledger's host and
+// path and stamps the Tracer's "/v1" on top.
+//
+// The two planes cannot share one string: the Ledger base must stay bare (its
+// spec versions the paths) while the Tracer base must carry "/v1" (its spec
+// declares servers:[{url: "/v1"}]). Handing the bare Ledger URL straight to the
+// Tracer sends every Tracer call one segment short of its route.
+func tracerURLFromSharedOrigin(ledgerURL string) (string, error) {
+	parsedURL, err := url.Parse(ledgerURL)
+	if err != nil {
+		return "", err
+	}
+
+	return ensureTracerAPIVersionPath(parsedURL), nil
 }
 
 func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 	if !config.ledgerURLSet {
+		config.LedgerURL = serviceURLs.ledgerURL
 		config.ServiceURLs[ServiceOnboarding] = serviceURLs.ledgerURL
-		config.ServiceURLs[ServiceTransaction] = serviceURLs.ledgerURL
 	}
 
-	if !config.crmURLSet {
-		config.ServiceURLs[ServiceCRM] = serviceURLs.crmURL
+	if !config.tracerURLSet {
+		config.TracerURL = serviceURLs.tracerURL
+		config.ServiceURLs[ServiceTracer] = serviceURLs.tracerURL
 	}
 }
 
@@ -1124,12 +1263,11 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 //
 // Returns nil on success or an error describing the first problem encountered.
 // Use [Config.ValidateAll] for an accumulated multi-problem view (planned for
-// v3 Track 8).
+// v4 Track 8).
 //
 // Validation rules:
-//   - ServiceURLs[ServiceOnboarding] and ServiceURLs[ServiceTransaction] must
-//     both be set — these are populated from LedgerURL (the single user-facing
-//     knob) and used internally to route onboarding vs transaction endpoints.
+//   - ServiceURLs[ServiceOnboarding] must be set — it is populated from
+//     LedgerURL (the single user-facing knob) and addresses the Ledger plane.
 //   - Exactly one auth source must be configured: either WithAccessManager
 //     (enables AccessManager and requires Address) or WithAnonymous (explicit
 //     auth-less mode). Construction without either fails.
@@ -1160,17 +1298,11 @@ func validateConfig(config *Config) error {
 }
 
 // validateServiceURLs enforces that the Ledger service URL is configured.
-// The onboarding and transaction internal routes both resolve to LedgerURL,
-// so both map entries must be populated for the entity layer to function.
 // It also refuses the AllowInsecureHTTP opt-in in the production
 // environment, mirroring the Access Manager equivalent — the flag is for
 // in-cluster or controlled-network deployments, never the public internet.
 func validateServiceURLs(config *Config) error {
 	if onboardingURL, ok := config.ServiceURLs[ServiceOnboarding]; !ok || strings.TrimSpace(onboardingURL) == "" {
-		return errors.New("ledger URL is required")
-	}
-
-	if transactionURL, ok := config.ServiceURLs[ServiceTransaction]; !ok || strings.TrimSpace(transactionURL) == "" {
 		return errors.New("ledger URL is required")
 	}
 
@@ -1258,7 +1390,7 @@ func (c *Config) hasExplicitTarget() bool {
 		return false
 	}
 
-	return c.environmentSet || c.baseURLSet || c.ledgerURLSet || c.crmURLSet
+	return c.environmentSet || c.baseURLSet || c.ledgerURLSet || c.tracerURLSet
 }
 
 // GetBaseURLs converts ServiceURLs to the map format expected by the entity layer.
@@ -1293,7 +1425,7 @@ func (c *Config) GetObservabilityProvider() observability.Provider {
 	return c.ObservabilityProvider
 }
 
-// GetAllowInsecureHTTP returns the data-plane (Ledger / CRM) insecure HTTP
+// GetAllowInsecureHTTP returns the data-plane (Ledger / Tracer) insecure HTTP
 // opt-in flag. The entities layer reads this to gate the runtime
 // [security.ValidateOutboundRequest] check the same way the config-time
 // [parseURL] gate is relaxed.
@@ -1303,6 +1435,29 @@ func (c *Config) GetAllowInsecureHTTP() bool {
 	}
 
 	return c.AllowInsecureHTTP
+}
+
+// GetTracerAPIKey returns the optional X-API-Key for the Tracer plane. Empty
+// means the Tracer shares the Ledger's Access Manager Bearer token. The
+// entities layer reads this to wire the Tracer plane's auth transport.
+func (c *Config) GetTracerAPIKey() string {
+	if c == nil {
+		return ""
+	}
+
+	return c.TracerAPIKey
+}
+
+// GetEnableIdempotency returns whether automatic idempotency-key generation is
+// enabled. The entities layer reads this to gate auto-gen on the plane
+// write-facades (parity with the legacy httpClient.SetEnableIdempotency gate);
+// it never gates an explicit or context-supplied key.
+func (c *Config) GetEnableIdempotency() bool {
+	if c == nil {
+		return false
+	}
+
+	return c.EnableIdempotency
 }
 
 // Clone returns an independent copy of the configuration.
@@ -1393,12 +1548,17 @@ func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
 		Timeout:       timeout,
 		CheckRedirect: security.ValidateRedirect,
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   10,
-			MaxConnsPerHost:       100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
+			Proxy:               http.ProxyFromEnvironment,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     100,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			// Hard-guard against a server that accepts the connection but
+			// stalls before sending response headers. Set on the SDK's OWN
+			// default transport so both planes and the legacy path inherit it
+			// via the shared pool.
+			ResponseHeaderTimeout: 30 * time.Second,
 			ExpectContinueTimeout: time.Second,
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
@@ -1421,10 +1581,13 @@ func buildLedgerServiceURL(baseURL string) (string, error) {
 		parsedURL.Host = withPort(parsedURL.Hostname(), "3002")
 	}
 
-	return ensureAPIVersionPath(parsedURL), nil
+	// No version segment: the Ledger spec puts /v1 and /v2 inside the paths.
+	parsedURL.Path = strings.TrimSuffix(parsedURL.Path, "/")
+
+	return parsedURL.String(), nil
 }
 
-func buildCRMServiceURL(baseURL string) (string, error) {
+func buildTracerServiceURL(baseURL string) (string, error) {
 	parsedURL, err := url.Parse(strings.TrimSuffix(baseURL, "/"))
 	if err != nil {
 		return "", err
@@ -1435,25 +1598,27 @@ func buildCRMServiceURL(baseURL string) (string, error) {
 	}
 
 	if isLocalhost(parsedURL.Host) && parsedURL.Port() == "" {
-		parsedURL.Host = withPort(parsedURL.Hostname(), "4003")
+		parsedURL.Host = withPort(parsedURL.Hostname(), "4020")
 	}
 
-	return ensureAPIVersionPath(parsedURL), nil
+	return ensureTracerAPIVersionPath(parsedURL), nil
 }
 
-func ensureAPIVersionPath(parsedURL *url.URL) string {
+// ensureTracerAPIVersionPath stamps the Tracer plane's "/v1" onto a base URL,
+// leaving a base URL that already ends in it untouched.
+func ensureTracerAPIVersionPath(parsedURL *url.URL) string {
 	cleanPath := strings.TrimSuffix(parsedURL.Path, "/")
 	if cleanPath == "" {
-		parsedURL.Path = DefaultLedgerAPIVersionPath
+		parsedURL.Path = DefaultTracerAPIVersionPath
 		return parsedURL.String()
 	}
 
-	if cleanPath == DefaultLedgerAPIVersionPath {
+	if strings.HasSuffix(cleanPath, DefaultTracerAPIVersionPath) {
 		parsedURL.Path = cleanPath
 		return parsedURL.String()
 	}
 
-	parsedURL.Path = cleanPath + DefaultLedgerAPIVersionPath
+	parsedURL.Path = cleanPath + DefaultTracerAPIVersionPath
 
 	return parsedURL.String()
 }

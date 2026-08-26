@@ -14,13 +14,13 @@ import (
 	"sync"
 	"time"
 
-	obslog "github.com/LerianStudio/lib-observability/log"
-	obsruntime "github.com/LerianStudio/lib-observability/runtime"
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	obslog "github.com/LerianStudio/lib-observability/v3/log"
+	obsruntime "github.com/LerianStudio/lib-observability/v3/runtime"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -145,7 +145,7 @@ func BatchTransactions(
 		ctx = context.Background()
 	}
 
-	if midazClient == nil || midazClient.Entity == nil || midazClient.Transactions == nil {
+	if midazClient == nil || midazClient.Entity == nil || midazClient.V1.Transactions == nil {
 		return nil, stdErrors.New("transaction service is not initialized")
 	}
 
@@ -167,13 +167,13 @@ func BatchTransactions(
 	recordBatchStartedEvent(ctx, orgID, ledgerID, len(inputs))
 
 	processor := &batchProcessor{
-		ctx:      ctx,
-		client:   midazClient,
-		orgID:    orgID,
-		ledgerID: ledgerID,
-		inputs:   inputs,
-		options:  options,
-		results:  results,
+		ctx:          ctx,
+		transactions: midazClient.V1.Transactions,
+		orgID:        orgID,
+		ledgerID:     ledgerID,
+		inputs:       inputs,
+		options:      options,
+		results:      results,
 	}
 
 	results, err := processor.execute()
@@ -261,14 +261,21 @@ func normalizeOptions(options *BatchOptions) *BatchOptions {
 }
 
 // batchProcessor handles the batch transaction processing logic.
+// transactionCreator is the narrow slice of the transactions accessor the
+// batch processor needs (Epic 5.3 consumer-side interface; client.V1.Transactions
+// is now a concrete facade). Tests inject a mock satisfying just this.
+type transactionCreator interface {
+	CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
+}
+
 type batchProcessor struct {
-	ctx      context.Context
-	client   *midaz.Client
-	orgID    string
-	ledgerID string
-	inputs   []*models.CreateTransactionInput
-	options  *BatchOptions
-	results  []BatchResult
+	ctx          context.Context
+	transactions transactionCreator
+	orgID        string
+	ledgerID     string
+	inputs       []*models.CreateTransactionInput
+	options      *BatchOptions
+	results      []BatchResult
 
 	progressMu sync.Mutex
 	completed  int
@@ -467,7 +474,7 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 			// treats the unsafe request as non-retryable.
 			ctx = sdkctx.WithoutAutoIdempotency(ctx)
 		}
-		tx, err = bp.client.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
+		tx, err = bp.transactions.CreateJSON(ctx, bp.orgID, bp.ledgerID, input)
 
 		if err == nil || !isRetryableError(err) {
 			break
@@ -483,10 +490,12 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 // shift overflowed reasoning. The final delay is clamped after jitter
 // so MaxDelay remains a hard upper bound.
 //
-// time.NewTimer (with defer Stop) replaces the older time.After
-// pattern: time.After leaks the underlying timer until the duration
-// elapses, which matters when ctx.Done fires first on a retry-storm
-// shutdown.
+// time.NewTimer with a deferred Stop is kept for explicit, consistent
+// cleanup. The old worry — that time.After leaks its underlying timer
+// until the duration elapses even when ctx.Done fires first on a
+// retry-storm shutdown — was a pre-Go-1.23 concern; since Go 1.23 an
+// unreferenced time.After timer is GC-eligible before it fires, so no
+// leak occurs on this repo's Go 1.26.
 func (bp *batchProcessor) waitForRetry(attempt int) error {
 	backoffDuration := bp.computeBackoffWithJitter(attempt)
 

@@ -20,9 +20,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 )
 
 func main() {
@@ -61,8 +61,8 @@ func basicConfiguration() error {
 	fmt.Println("-----------------------------")
 
 	// Create a client with minimal configuration. WithAnonymous opts out of
-	// auth so the example builds without credentials; v3 requires exactly
-	// one auth source (Anonymous or AccessManager) at construction.
+	// auth so the example builds without credentials; the SDK requires
+	// exactly one auth source (Anonymous or AccessManager) at construction.
 	c, err := midaz.New(midaz.WithAnonymous())
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -78,7 +78,6 @@ func basicConfiguration() error {
 	}
 
 	fmt.Printf("Using onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("Using transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
@@ -125,15 +124,12 @@ func environmentBasedConfiguration() error {
 	// Display the different URLs for each environment
 	fmt.Println("Local Environment URLs:")
 	fmt.Printf("  Onboarding: %s\n", localClient.GetConfig().ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("  Transaction: %s\n", localClient.GetConfig().ServiceURLs[config.ServiceTransaction])
 
 	fmt.Println("Staging Environment URLs:")
 	fmt.Printf("  Onboarding: %s\n", stagingConfig.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("  Transaction: %s\n", stagingConfig.ServiceURLs[config.ServiceTransaction])
 
 	fmt.Println("Production Environment URLs:")
 	fmt.Printf("  Onboarding: %s\n", productionConfig.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("  Transaction: %s\n", productionConfig.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
@@ -141,7 +137,7 @@ func environmentBasedConfiguration() error {
 
 // setupConfigurationEnv installs the env vars used by configurationFromEnvironment.
 // PLUGIN_AUTH_ENABLED + PLUGIN_AUTH_ADDRESS install the Access Manager auth source,
-// satisfying v3's "exactly one auth source" invariant.
+// satisfying the SDK's "exactly one auth source" invariant.
 func setupConfigurationEnv() {
 	envs := map[string]string{
 		"PLUGIN_AUTH_ENABLED": "true",
@@ -204,7 +200,6 @@ func configurationFromEnvironment() error {
 	fmt.Printf("Environment (from env): %s\n", cfg.Environment)
 	fmt.Printf("Debug Mode (from env): %t\n", cfg.Debug)
 	fmt.Printf("Onboarding URL: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("Transaction URL: %s\n", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
@@ -293,7 +288,6 @@ func comprehensiveConfiguration() error {
 	fmt.Printf("Debug Mode: %t\n", cfg.Debug)
 	fmt.Printf("Enable Idempotency: %t\n", cfg.EnableIdempotency)
 	fmt.Printf("Onboarding URL: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("Transaction URL: %s\n", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil

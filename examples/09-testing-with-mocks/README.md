@@ -1,20 +1,21 @@
 # 09-testing-with-mocks
 
-Demonstrates **unit-testing your code against the Midaz SDK** using
-`go.uber.org/mock` and the SDK's pre-generated mock implementations
-under `entities/mocks/`.
+Demonstrates **unit-testing your code against the Midaz SDK** using a
+consumer-defined narrow interface and a small hand-written mock — the
+idiomatic pattern ("accept interfaces, return structs").
 
 ## What this demonstrates
 
-- Depending on the SDK service **interfaces** (e.g.,
-  `entities.AccountsService`) rather than the concrete `*midaz.Client`
-- Wiring `c.Accounts` in production and `mocks.NewMockAccountsService`
-  in tests
-- Building synthetic `iter.Seq2[T, error]` streams in mock returns —
-  the iterator-based pagination shape requires this when mocking
-  ListAccountsAll / ListAccountsPages
-- Asserting both happy-path and error-path behavior with proper
-  `errors.Is` wrap-checking
+- Declaring a NARROW interface on the consumer side (`accountSource`, with only
+  the `All` and `GetByAlias` methods this code actually calls) instead of
+  importing a broad SDK interface
+- `c.V2.Accounts` (the concrete facade) satisfies that interface structurally in
+  production; a tiny local mock satisfies it in tests — no generated mocks, no
+  SDK test dependency
+- Building synthetic `iter.Seq2[T, error]` streams in mock returns — the
+  iterator-based pagination shape requires this when mocking `All`
+- Asserting both happy-path and error-path behavior with proper `errors.Is`
+  wrap-checking
 
 ## When to use this pattern
 
@@ -22,42 +23,36 @@ Always, in unit tests of code that calls the SDK. The reasons:
 
 1. **Speed.** No network. No Midaz container. Tests run in milliseconds.
 2. **Determinism.** No flaky API timeouts, no shared-data drift.
-3. **Coverage.** You can mock specific error responses (5xx, validation,
-   network failure) that are otherwise hard to reproduce.
-4. **Decoupling.** Your code depends on a stable SDK interface, not on
-   a running backend. Refactoring backend behavior doesn't break your
-   tests.
+3. **Coverage.** You can return specific error responses that are otherwise
+   hard to reproduce.
+4. **Decoupling.** Your code depends on the narrow interface you own, not on a
+   running backend or a broad SDK type.
 
-For end-to-end coverage, run integration tests separately against a
-real local stack.
+For end-to-end coverage, run integration tests separately against a real local
+stack.
 
 ## How it's wired
 
-Mock generation is automatic via `//go:generate` directives on each
-SDK service source file:
+Declare the narrow interface next to the code that needs it, and pass whatever
+satisfies it:
 
 ```go
-// entities/accounts.go
-package entities
-
-//go:generate mockgen -source=accounts.go -destination=mocks/mock_accounts.go -package=mocks AccountsService
+type accountSource interface {
+    All(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error]
+    GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
+}
 ```
 
-To regenerate mocks after the SDK interfaces change:
-
-```bash
-go generate ./entities/...
-```
-
-You don't need to do this — the SDK ships pre-generated mocks for
-every service.
+In production you pass `c.V2.Accounts`; in tests you pass a hand-written mock with
+func fields (see `reporter_test.go`'s `mockAccountSource`). No code-generation
+step is involved.
 
 ## Files
 
-- `reporter.go` — `AccountReporter` type that depends on
-  `entities.AccountsService`. The unit under test.
-- `reporter_test.go` — 4 tests covering happy paths, stream errors,
-  not-found errors, and wrap propagation.
+- `reporter.go` — `AccountReporter`, which depends on the consumer-defined
+  `accountSource` interface. The unit under test.
+- `reporter_test.go` — 4 tests covering happy paths, stream errors, not-found
+  errors, and wrap propagation, using a local `mockAccountSource`.
 
 ## How to run
 
@@ -81,9 +76,6 @@ PASS
 
 ## Related
 
-- [`go.uber.org/mock`](https://github.com/uber-go/mock) — the mock
-  framework. Note: this is the active fork. The deprecated
-  `github.com/golang/mock` was removed from the SDK in v3.
-- [`entities/mocks/`](../../entities/mocks/) — pre-generated mocks
-- [Track 8 / Error system](../../docs/v3-dx-plan.md#track-8--error-system-actionability) —
-  context for the `errors.Is` wrap pattern
+- ["Accept interfaces, return structs"](https://go.dev/wiki/CodeReviewComments#interfaces) —
+  the Go idiom this example follows
+- [`errors.Is`](https://pkg.go.dev/errors#Is) — the error-wrap pattern the tests assert

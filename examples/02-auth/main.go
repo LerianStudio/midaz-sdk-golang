@@ -1,4 +1,4 @@
-// Package main demonstrates v3 Access Manager authentication.
+// Package main demonstrates Access Manager authentication.
 //
 // Run with credentials in your .env or shell:
 //
@@ -18,10 +18,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
 	"github.com/joho/godotenv"
 )
 
@@ -45,7 +45,7 @@ func main() {
 
 	log.Printf("Creating organization with legal name: %q", input.LegalName)
 
-	organization, err := c.Organizations.CreateOrganization(ctx, input)
+	organization, err := c.V2.Organizations.Create(ctx, input)
 	if err != nil {
 		handleCreationError(err, c.GetConfig().AccessManager.Address)
 	} else {
@@ -76,7 +76,7 @@ func buildClient() (*midaz.Client, error) {
 
 	return midaz.New(
 		midaz.WithConfig(cfg),
-		// v3: midaz.WithObservability(t,m,l bool) was deleted. The canonical
+		// midaz.WithObservability(t,m,l bool) was deleted in v3. The canonical
 		// expression chains observability.WithComponentEnabled through
 		// midaz.WithObservabilityOptions, which composes uniformly with
 		// every other observability.Option (service name, collector endpoint,

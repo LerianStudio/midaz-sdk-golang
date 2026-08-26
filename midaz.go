@@ -13,11 +13,28 @@
 //	if err != nil { return err }
 //	defer c.Shutdown(ctx)
 //
-//	org, err := c.Organizations.GetOrganization(ctx, "org-id")
+//	org, err := c.V2.Organizations.Get(ctx, "org-id")
+//
+// # Ledger surfaces
+//
+// Midaz serves two ledger surfaces at once — /v1, deprecated but alive, and
+// /v2, the current one — and does not mirror every resource across them, so
+// the accessors are grouped by the version that serves each: c.V1.<Service>
+// and c.V2.<Service>. The version travels in the request path, never in the
+// base URL.
+//
+// Build against c.V2: it is the wider surface (22 services against V1's 14).
+// /v1 alone still serves asset rates and the four legacy transaction creation
+// styles; /v2 alone serves holders, instruments, encryption, composition,
+// protection audit and the whole billing family.
+//
+// Tracer accessors are not version-grouped — the Tracer serves one surface and
+// versions itself in its base URL — so they stay flat: c.Rules, c.Limits,
+// c.Validations, c.Reservations, c.AuditEvents.
 //
 // # Authentication
 //
-// v3 requires exactly one auth source at construction time:
+// The SDK requires exactly one auth source at construction time:
 //   - [WithAccessManager] — production-shape OAuth via the Lerian
 //     Access Manager. Recommended for any non-local stack.
 //   - [WithAnonymous] — opt out of authentication. Suitable only for
@@ -42,15 +59,18 @@
 //
 // # Pagination
 //
-// Every paginated entity List* method returns one page. ListAll yields
-// iter.Seq2[T, error] for full-collection iteration; ListPages yields page
-// envelopes with metadata. MetadataIndexes is intentionally non-paginated.
+// Paginated list methods ship in a trio: List returns one page, All yields
+// iter.Seq2[T, error] for full-collection iteration, and Pages yields page
+// envelopes with metadata. Accessors serving more than one list prefix the
+// trio instead (Balances.ListAccountBalances / ...All / ...Pages).
+// MetadataIndexes is intentionally non-paginated, as are the alias and
+// external-code balance lookups.
 // Page-based and cursor-based endpoints are distinguished at the type system:
 // wrong-shape opts don't compile. See docs/pagination.md.
 //
 // # Errors
 //
-// Every error returned by SDK code is a *[github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors.Error]
+// Every error returned by SDK code is a *[github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors.Error]
 // with structured Category, Code, Operation, and Resource fields. Use
 // errors.Is, errors.As, and the typed predicates (IsNotFoundError,
 // IsValidationError, IsNetworkError, IsAuthError, etc.). The Retryable()
@@ -60,9 +80,9 @@
 //
 // Auto-idempotency is on by default; the SDK emits an X-Idempotency
 // header per unsafe request. Override per-call via
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey]
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey]
 // (caller-supplied key) or
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithoutAutoIdempotency]
+// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithoutAutoIdempotency]
 // (suppression). Disable globally via [WithIdempotency](false). Unsafe
 // requests retry only when X-Idempotency is present; caller-supplied and
 // SDK-generated keys both satisfy that gate. Retries follow the default
@@ -73,8 +93,9 @@
 // # Examples
 //
 // See examples/ for runnable demos. Start with examples/01-hello-world
-// for the minimum-viable shape; examples/03-end-to-end walks the full
-// resource hierarchy.
+// for the minimum-viable shape; examples/03-end-to-end creates a transaction
+// on the /v2 surface; examples/workflow-with-entities walks the full resource
+// hierarchy.
 package midaz
 
 import (
@@ -86,28 +107,31 @@ import (
 	"os"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/reflectutil"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
 )
 
-// Version is the current version of the SDK.
-// This is automatically updated during the release process.
-const Version = "3.0.0-beta.1"
+// Version is the current version of the SDK. It mirrors the single source of
+// truth in pkg/version so midaz.Version and version.Version never drift.
+const Version = version.Version
 
 // Client is the main entry point for using the Midaz API.
 // It provides access to all API services, connection management,
 // authentication, rate limiting, and retry handling.
 //
-// All services are exposed as promoted fields via the embedded *entities.Entity.
-// In v3, prefer c.Accounts.X over c.Entity.Accounts.X — they refer to the same
-// instance, but the shorter form is the canonical idiom. The embedded Entity
-// pointer remains accessible as c.Entity for back-compat during the v2 → v3
-// migration window.
+// Every service is reached through the embedded *entities.Entity, grouped by
+// the server version that serves it: c.V2.Accounts, c.V1.AssetRates. The grouping
+// is a fact about Midaz, which keeps both ledger surfaces alive and does not
+// mirror every resource across them — see [entities.V1Services] and
+// [entities.V2Services]. The Tracer serves a single surface and stays flat:
+// c.Rules, c.Limits, c.Validations, c.Reservations, c.AuditEvents. The embedded
+// pointer is also reachable as c.Entity.
 //
 // Client wraps a small subset of Entity methods (SetObservability,
 // GetObservabilityProvider) so the Client view of state never drifts from the
@@ -122,9 +146,12 @@ type Client struct {
 	// mutated c.config — see WithConfig godoc for the rationale.
 	configMutated bool
 
-	// Embedded Entity. Promoted fields expose every service directly on Client:
-	//   c.Accounts, c.Transactions, c.Ledgers, c.Organizations, etc.
-	// The embedded pointer is also accessible as c.Entity for back-compat.
+	// Embedded Entity. Promoted fields expose the Ledger accessors through the
+	// version group that serves them and the Tracer accessors flat:
+	//   c.V2.Accounts, c.V2.Transactions, c.V1.AssetRates, c.Rules, etc.
+	// There are no top-level per-resource fields — a Ledger accessor is always
+	// reached through c.V1 or c.V2. The embedded pointer is also accessible as
+	// c.Entity.
 	*entities.Entity
 
 	// pendingObservability is the observability provider accumulated by
@@ -169,7 +196,7 @@ type Option func(*Client) error
 // New validates configuration eagerly. If any required field is missing or any
 // option fails, it returns a typed error so callers can distinguish setup
 // mistakes from runtime API failures. The "naked SDK" footgun where
-// c.Entity could be nil after construction is gone in v3 — every service is
+// c.Entity could be nil after construction is gone in v4 — every service is
 // initialized and ready to use upon successful return.
 //
 // Default observability provider: New always installs a default
@@ -190,8 +217,9 @@ type Option func(*Client) error
 //
 // Returns:
 //
-//   - *Client: A fully-initialized client. All service fields (c.Accounts,
-//     c.Transactions, etc.) are non-nil and ready for API calls.
+//   - *Client: A fully-initialized client. Every service accessor
+//     (c.V2.Accounts, c.V2.Transactions, c.V1.AssetRates, c.Rules, ...) is
+//     non-nil and ready for API calls.
 //
 //   - error: A *errors.Error with a category appropriate to the failure
 //     class. The classification space is:
@@ -290,8 +318,21 @@ func New(options ...Option) (*Client, error) {
 		)
 	}
 
+	// The DATA-PLANE insecure-HTTP flag (WithAllowInsecureHTTP /
+	// MIDAZ_ALLOW_INSECURE_HTTP) disables the same gate for the Ledger and
+	// Tracer plane URLs. The Bearer token and idempotency keys transit the data
+	// plane, so it earns the same auditable Warn as the Access Manager flag.
+	if c.config.AllowInsecureHTTP {
+		c.logger.Warn(
+			"Data plane (Ledger/Tracer) configured with insecure HTTP. Only valid for trusted in-cluster networks. Production deployments must use HTTPS.",
+			slog.String("sdk.name", "midaz-go-sdk"),
+			slog.String("sdk.component", "bootstrap"),
+			slog.String("operation", operation),
+		)
+	}
+
 	// Always initialize the Entity surface. The "naked SDK" footgun
-	// (c.Entity == nil after New) is gone in v3.
+	// (c.Entity == nil after New) is gone in v4.
 	if err := c.setupEntity(); err != nil {
 		c.logBootstrapSetupFailure(err)
 		return nil, classifyBootstrapSetupError(operation, err)
@@ -300,7 +341,7 @@ func New(options ...Option) (*Client, error) {
 	return c, nil
 }
 
-// resolveLogger applies the v3 logger-priority rule:
+// resolveLogger applies the v4 logger-priority rule:
 //
 //  1. If WithLogger was explicitly called (loggerSet=true), use that logger
 //     (even if it's nil — caller asked for silence).
@@ -360,7 +401,18 @@ func classifyBootstrapSetupError(operation string, err error) *sdkerrors.Error {
 		)
 	}
 
-	return sdkerrors.NewConfigurationError(operation, "failed to initialize entity API", err)
+	// The cause carries the whole diagnostic — which plane URL is malformed, which
+	// environment variable to edit. Error() renders only Message, so wrapping the
+	// cause without folding its text in leaves the operator with a bare "failed to
+	// initialize entity API" and no way to reach the reason short of calling
+	// errors.Unwrap by hand. err stays the wrapped cause, so Unwrap/Is/As are
+	// unchanged.
+	message := "failed to initialize entity API"
+	if err != nil {
+		message += ": " + err.Error()
+	}
+
+	return sdkerrors.NewConfigurationError(operation, message, err)
 }
 
 func newAccessManagerUpstreamBootstrapError(operation string, err error) *sdkerrors.Error {
@@ -425,18 +477,47 @@ func (c *Client) setupEntity() error {
 		return errors.New("missing onboarding URL in config")
 	}
 
-	if _, ok := serviceURLs["transaction"]; !ok {
-		return errors.New("missing transaction URL in config")
-	}
-
 	if err := config.WithObservabilityProvider(c.pendingObservability)(c.config); err != nil {
 		return fmt.Errorf("failed to configure observability provider: %w", err)
 	}
 
+	// Retry chain construction: config seeds first, user overrides last.
+	// Override-on-conflict semantics — see [WithRetryOptions] godoc.
+	// MaxRetries == 0 (set via [WithoutRetries] or pkg/config.WithMaxRetries(0))
+	// flows through naturally; no separate enable flag is consulted.
+	//
+	// Built BEFORE Entity construction and resolved ONCE so the plane retry
+	// round tripper and the legacy *HTTPClient derive from the same seed. The
+	// plane clients are built inside NewEntityWithConfigContext — before the
+	// legacy WithRetryOptions/SetCustomRetryPolicy calls below — so the
+	// resolved policy must be threaded through construction, otherwise plane
+	// money-writes would silently ignore WithRetryOptions/WithCustomRetryPolicy.
+	retryChain := append(
+		[]retry.Option{
+			retry.WithMaxRetries(c.config.MaxRetries),
+			retry.WithInitialDelay(c.config.RetryWaitMin),
+			retry.WithMaxDelay(c.config.RetryWaitMax),
+		},
+		c.retryOpts...,
+	)
+
+	resolvedRetry, err := resolveRetryOptions(retryChain)
+	if err != nil {
+		return fmt.Errorf("failed to resolve retry options: %w", err)
+	}
+
 	// Construct the Entity from the resolved Config. NewEntityWithConfig
 	// runs initServices() internally during construction, seeding every
-	// per-service HTTPClient with the entity-level snapshot.
-	entity, err := entities.NewEntityWithConfigContext(c.ctx, c.config)
+	// per-service HTTPClient with the entity-level snapshot. The config is
+	// wrapped so the plane-client builder can read the resolved retry policy
+	// (see [entities.planeRetryConfig]).
+	entityConfig := planeRetryConfigWrapper{
+		Config:            c.config,
+		planeRetryOptions: resolvedRetry,
+		planeCustomRetry:  c.customRetryPolicy,
+	}
+
+	entity, err := entities.NewEntityWithConfigContext(c.ctx, entityConfig)
 	if err != nil {
 		return err
 	}
@@ -451,18 +532,8 @@ func (c *Client) setupEntity() error {
 	httpClient.SetEnableIdempotency(c.config.EnableIdempotency)
 	httpClient.SetExposeErrorBody(c.config.ExposeErrorBody)
 
-	// Retry chain construction: config seeds first, user overrides last.
-	// Override-on-conflict semantics — see [WithRetryOptions] godoc.
-	// MaxRetries == 0 (set via [WithoutRetries] or pkg/config.WithMaxRetries(0))
-	// flows through naturally; no separate enable flag is consulted.
-	retryChain := append(
-		[]retry.Option{
-			retry.WithMaxRetries(c.config.MaxRetries),
-			retry.WithInitialDelay(c.config.RetryWaitMin),
-			retry.WithMaxDelay(c.config.RetryWaitMax),
-		},
-		c.retryOpts...,
-	)
+	// Legacy per-service *HTTPClient path (unchanged): the SAME retryChain
+	// feeds WithRetryOptions so the two paths resolve from one seed.
 	if err := httpClient.WithRetryOptions(retryChain...); err != nil {
 		return fmt.Errorf("failed to configure retry options: %w", err)
 	}
@@ -472,7 +543,7 @@ func (c *Client) setupEntity() error {
 	}
 
 	// Push the resolved logger and slow-call threshold into the entity-level
-	// HTTPClient. With the v3 per-service HTTPClient consolidation, every
+	// HTTPClient. With the v4 per-service HTTPClient consolidation, every
 	// service shares this same *HTTPClient instance — there's no per-service
 	// snapshot to refresh, so the mutation propagates immediately to every
 	// service's next request. The v2-era double-init pattern
@@ -483,6 +554,52 @@ func (c *Client) setupEntity() error {
 	c.Entity = entity
 
 	return nil
+}
+
+// resolveRetryOptions folds an option chain onto retry.DefaultOptions() using
+// the same apply mechanism as retry.Do and HTTPClient.WithRetryOptions, so the
+// plane retry round tripper and the legacy *HTTPClient resolve identical
+// effective options from one seed. It is the single conversion point from
+// []retry.Option to a concrete retry.Options for plane-client construction.
+func resolveRetryOptions(opts []retry.Option) (*retry.Options, error) {
+	resolved := retry.DefaultOptions()
+
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("retry option at index %d cannot be nil", i)
+		}
+
+		if err := opt(resolved); err != nil {
+			return nil, fmt.Errorf("retry option at index %d failed: %w", i, err)
+		}
+	}
+
+	return resolved, nil
+}
+
+// planeRetryConfigWrapper adapts *config.Config into an entities.Config that
+// ALSO exposes the effective plane retry policy (entities.planeRetryConfig).
+// The embedded *config.Config promotes every base and optional Config method
+// (GetHTTPClient, GetBaseURLs, GetObservabilityProvider, GetPluginAuth,
+// GetTracerAPIKey, GetAllowInsecureHTTP); this wrapper adds only the resolved
+// retry policy, which lives on the midaz.Client rather than on config.Config.
+type planeRetryConfigWrapper struct {
+	*config.Config
+
+	planeRetryOptions *retry.Options
+	planeCustomRetry  func(*http.Response, error) bool
+}
+
+// GetPlaneRetryOptions returns the effective plane retry policy resolved at
+// construction. Never nil in practice (setupEntity always resolves it).
+func (w planeRetryConfigWrapper) GetPlaneRetryOptions() *retry.Options {
+	return w.planeRetryOptions
+}
+
+// GetPlaneCustomRetryPolicy returns the caller-supplied plane custom retry
+// policy, or nil when none was configured.
+func (w planeRetryConfigWrapper) GetPlaneCustomRetryPolicy() func(*http.Response, error) bool {
+	return w.planeCustomRetry
 }
 
 // Shutdown gracefully shuts down the client, releasing any resources.
@@ -562,7 +679,7 @@ func (c *Client) Trace(name string, fn func(context.Context) error) error {
 // Client.Logger() for application code; reach for Provider.Logger() only when
 // you need span-aware logging within an SDK call.
 //
-// In v3 the return type changed from observability.Logger to *slog.Logger.
+// In v4 the return type changed from observability.Logger to *slog.Logger.
 // Code that needs the bespoke observability.Logger interface should reach
 // for c.GetObservabilityProvider().Logger() instead.
 //
@@ -619,7 +736,7 @@ func (c *Client) GetObservabilityProvider() observability.Provider {
 // SetObservability replaces the metrics collector if the new provider reports
 // IsEnabled() == true. A nil provider is a no-op.
 //
-// In v3 this is the canonical post-construction observability mutator. It
+// In v4 this is the canonical post-construction observability mutator. It
 // supersedes the v2 pattern where the promoted *Entity.SetObservability was
 // the only entry point but Client kept its own duplicate observability field —
 // callers occasionally hit the drift footgun where Client.GetObservabilityProvider

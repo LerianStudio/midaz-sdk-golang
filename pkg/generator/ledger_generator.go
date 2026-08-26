@@ -7,17 +7,23 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/data"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/stats"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/stats"
 )
 
+// ledgersAPI is the narrow slice of the ledgers facade this generator needs.
+type ledgersAPI interface {
+	Create(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error)
+	List(ctx context.Context, orgID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error)
+}
+
 type ledgerGenerator struct {
-	e          *entities.Entity
+	ledgers    ledgersAPI
 	obs        observability.Provider
 	defaultOrg string
 	mc         *observability.MetricsCollector
@@ -33,14 +39,19 @@ func NewLedgerGenerator(e *entities.Entity, obs observability.Provider, defaultO
 		}
 	}
 
-	return &ledgerGenerator{e: e, obs: obs, defaultOrg: defaultOrg, mc: mc}
+	g := &ledgerGenerator{obs: obs, defaultOrg: defaultOrg, mc: mc}
+	if e != nil && e.V1.Ledgers != nil {
+		g.ledgers = e.V1.Ledgers
+	}
+
+	return g
 }
 
 // Generate creates a single ledger from the provided template.
 func (g *ledgerGenerator) Generate(ctx context.Context, organizationID string, template data.LedgerTemplate) (*models.Ledger, error) {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.Ledgers == nil {
+	if g.ledgers == nil {
 		return nil, errors.New("entity ledgers service not initialized")
 	}
 
@@ -57,7 +68,7 @@ func (g *ledgerGenerator) Generate(ctx context.Context, organizationID string, t
 	err := observability.WithSpan(ctx, g.obs, "GenerateLedger", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				ledger, err := g.e.Ledgers.CreateLedger(ctx, organizationID, input)
+				ledger, err := g.ledgers.Create(ctx, organizationID, input)
 				if err != nil {
 					return err
 				}
@@ -168,7 +179,7 @@ func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts models.Le
 		return nil, errors.New("default organization id not configured for listing")
 	}
 
-	if g.e == nil || g.e.Ledgers == nil {
+	if g.ledgers == nil {
 		return nil, errors.New("entity ledgers service not initialized")
 	}
 
@@ -176,7 +187,7 @@ func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts models.Le
 
 	err := observability.WithSpan(ctx, g.obs, "ListLedgersWithPagination", func(ctx context.Context) error {
 		return retry.DoWithContext(ctx, func() error {
-			resp, err := g.e.Ledgers.ListLedgers(ctx, g.defaultOrg, opts)
+			resp, err := g.ledgers.List(ctx, g.defaultOrg, opts)
 			if err != nil {
 				return err
 			}

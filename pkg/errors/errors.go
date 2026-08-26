@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	obsredaction "github.com/LerianStudio/lib-observability/redaction"
+	obsredaction "github.com/LerianStudio/lib-observability/v3/redaction"
 )
 
 const redactedValue = "[REDACTED]"
@@ -59,6 +59,16 @@ const (
 
 	// CodeInternal indicates an internal server error
 	CodeInternal ErrorCode = "internal_error"
+
+	// CodeResponseDecode indicates the SDK received a successful HTTP response
+	// whose body it could not decode. It is deliberately distinct from
+	// [CodeInternal]: the two carry opposite money-path facts. An internal
+	// error covers failures BEFORE the request leaves the SDK (nothing
+	// happened upstream); a response-decode error proves the request was sent
+	// AND the server answered — so the operation may already have taken
+	// effect, and replaying it is unsafe. Recognise it with
+	// [IsResponseDecodeError].
+	CodeResponseDecode ErrorCode = "response_decode_error"
 
 	// CodeNetwork indicates a network-related error
 	CodeNetwork ErrorCode = "network_error"
@@ -149,6 +159,16 @@ const (
 
 	// CategoryInternal represents internal SDK or server errors
 	CategoryInternal ErrorCategory = "internal"
+
+	// CategoryResponseDecode represents a response whose body the SDK could
+	// not decode. It is deliberately NOT [CategoryInternal], and the reason is
+	// money: [IsInternalError] is documented as an upstream blip where the
+	// request did not take effect, so a caller reading it that way replays the
+	// operation. A response-decode failure proves the opposite -- the request
+	// was sent AND the server answered -- so the outcome is UNKNOWN and a
+	// replay may post the same transaction twice. Recognise it with
+	// [IsResponseDecodeError].
+	CategoryResponseDecode ErrorCategory = "response_decode"
 
 	// CategoryUnprocessable represents unprocessable operations
 	CategoryUnprocessable ErrorCategory = "unprocessable"
@@ -1303,6 +1323,59 @@ func NewInternalError(operation string, err error) *Error {
 	}, ErrorSourceSDK, false)
 }
 
+// NewResponseDecodeError reports a response that arrived and could not be
+// decoded: the request WAS sent and the server DID answer with status, the SDK
+// simply could not read the body into its model.
+//
+// This is a distinct constructor rather than an [NewInternalError] because the
+// two say opposite things about the money path. An internal error is stamped
+// with HTTPRequestSent=false: nothing reached the server, so the caller may
+// safely retry. A response we could not decode carries no such licence — a
+// create whose response is unreadable may already have moved money, so the
+// caller must treat the outcome as unknown and never replay it blindly.
+//
+// The status the server answered with stays in the message (operators need it)
+// but NOT in StatusCode: an unreadable 201 body is not an upstream error status,
+// and [ActualHTTPStatus] must not hand callers a code to classify by.
+// Recognise this shape with [IsResponseDecodeError].
+func NewResponseDecodeError(operation string, status int, err error) *Error {
+	err = normalizeError(err)
+
+	message := fmt.Sprintf("decode response body (HTTP %d)", status)
+	if err != nil {
+		message = fmt.Sprintf("decode response body (HTTP %d): %v", status, err)
+	}
+
+	return withDiagnostics(&Error{
+		Category:  CategoryResponseDecode,
+		Code:      CodeResponseDecode,
+		Message:   redactMessage(message),
+		Operation: redactSensitive(operation),
+		Err:       err,
+	}, ErrorSourceHTTPResponse, true, true, StatusCodeSourceNone)
+}
+
+// IsResponseDecodeError reports whether err is a response the SDK received and
+// could not decode (see [NewResponseDecodeError]). Callers on an unsafe path
+// (any create) MUST treat it as "outcome unknown": the server answered, so the
+// operation may have taken effect, and the request must not be replayed on the
+// assumption that it did not.
+//
+// Matched strictly by error code — no fallback that could report true for an
+// unrelated error.
+func IsResponseDecodeError(err error) bool {
+	if isNilError(err) {
+		return false
+	}
+
+	var sdkErr *Error
+	if !errors.As(err, &sdkErr) || sdkErr == nil {
+		return false
+	}
+
+	return sdkErr.Code == CodeResponseDecode
+}
+
 // NewConfigurationError creates a configuration error for SDK setup failures.
 //
 // Use this for client construction problems: missing required options,
@@ -1631,7 +1704,16 @@ func IsConfigurationError(err error) bool {
 	return errors.Is(err, ErrConfiguration)
 }
 
-// IsIdempotencyError checks if an error is an idempotency error.
+// IsIdempotencyError reports whether an error is an idempotency conflict:
+// HTTP 409 with wire code 0084 (idempotency_error), non-retryable. The ledger
+// emits it in two cases: an earlier request with the same key is still in
+// flight (the slot is taken but holds no result yet), or a finished request's
+// key is reused with a DIFFERENT payload (the slot stores the original body's
+// hash and refuses the mismatch). It never means the original request
+// succeeded or was replayed: only an identical retry, same key AND same
+// payload, replays the original transaction as a success marked
+// X-Idempotency-Replayed: true (see
+// models.CreateTransactionInput.IdempotencyKey).
 func IsIdempotencyError(err error) bool {
 	if isNilError(err) {
 		return false
@@ -1861,6 +1943,10 @@ func categorizeByErrorChecks(err error) ErrorCategory {
 		{IsCancellationError, CategoryCancellation},
 		{IsTimeoutError, CategoryTimeout},
 		{IsNetworkError, CategoryNetwork},
+		// Before IsInternalError: a decode failure is no longer Internal, and
+		// without this it would fall through to the CategoryInternal default
+		// and be re-labelled as the very thing it is not.
+		{IsResponseDecodeError, CategoryResponseDecode},
 		{IsInternalError, CategoryInternal},
 	}
 
@@ -2048,20 +2134,66 @@ var apiErrorCodeMappings = map[string]httpErrorMapping{
 	string(CodeAssetMismatch):       {CategoryValidation, CodeAssetMismatch, true},
 }
 
+// apiCodeSuffixMappings overrides retryability for domain codes whose
+// semantics the HTTP status cannot express, keyed on the four-digit suffix
+// of the RFC 9457 <SERVICE>-NNNN code (robust to the service prefix):
+//   - 0178: transient unavailability → retryable (CategoryNetwork), even
+//     when the status is a non-retryable 4xx.
+//   - 0177: domain denial → non-retryable (CategoryUnprocessable), even
+//     when the status is a retryable 5xx.
+//   - 0084: idempotency conflict → non-retryable (CategoryConflict) and
+//     classified as CodeIdempotency. On the wire the code arrives prefixed
+//     ("LEDGER-0084"), so the exact-match apiErrorCodeMappings["0084"] never
+//     fires; the suffix lookup is the only path that catches the prefixed form.
+var apiCodeSuffixMappings = map[string]httpErrorMapping{
+	"0178": {CategoryNetwork, CodeServiceUnavailable, false},
+	"0177": {CategoryUnprocessable, CodeUnprocessable, false},
+	"0084": {CategoryConflict, CodeIdempotency, false},
+}
+
+// apiCodeSuffixLen is the fixed width of the NNNN suffix in an
+// <SERVICE>-NNNN RFC 9457 error code.
+const apiCodeSuffixLen = 4
+
+// apiCodeSuffix returns the trailing four-digit numeric suffix of an
+// <SERVICE>-NNNN error code, or "" if the code has no such suffix.
+func apiCodeSuffix(apiCode string) string {
+	if i := strings.LastIndex(apiCode, "-"); i >= 0 {
+		apiCode = apiCode[i+1:]
+	}
+
+	if len(apiCode) != apiCodeSuffixLen {
+		return ""
+	}
+
+	for _, r := range apiCode {
+		if r < '0' || r > '9' {
+			return ""
+		}
+	}
+
+	return apiCode
+}
+
 func applyAPICodeMapping(mapping httpErrorMapping, apiCode string) httpErrorMapping {
 	apiCode = strings.TrimSpace(apiCode)
 	if apiCode == "" {
 		return mapping
 	}
 
-	apiMapping, ok := apiErrorCodeMappings[apiCode]
-	if !ok {
-		return mapping
+	if apiMapping, ok := apiErrorCodeMappings[apiCode]; ok {
+		apiMapping.withResource = apiMapping.withResource || mapping.withResource
+
+		return apiMapping
 	}
 
-	apiMapping.withResource = apiMapping.withResource || mapping.withResource
+	if apiMapping, ok := apiCodeSuffixMappings[apiCodeSuffix(apiCode)]; ok {
+		apiMapping.withResource = apiMapping.withResource || mapping.withResource
 
-	return apiMapping
+		return apiMapping
+	}
+
+	return mapping
 }
 
 // ErrorFromHTTPResponse creates an appropriate error based on the HTTP response

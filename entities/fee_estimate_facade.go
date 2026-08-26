@@ -1,0 +1,77 @@
+// Copyright 2025 Lerian Studio
+// SPDX-License-Identifier: Elastic-2.0
+
+package entities
+
+import (
+	"context"
+	"io"
+	"net/http"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+)
+
+// feeEstimateFacade is the Epic 3.2 (Task 3.2.2) hand-written facade over the
+// generated genledger.ClientWithResponses for dry-run fee estimation. The public
+// surface is exactly models.FeeEstimateInput -> models.FeeEstimateResponse +
+// *errors.Error; the generated types (whose response body is opaque *[]byte)
+// never leak.
+//
+// Money is money-adjacent here: the fee-adjusted send/amount values ride the wire
+// as JSON strings and are modeled as string end to end (models.FeeAdjustedSend) —
+// no float hop.
+//
+// SUCCESS shape: the estimate endpoint returns 2xx with either a populated
+// feesApplied (rules matched) OR feesApplied:null (no fee/gratuity rules found).
+// BOTH are successes — the null branch is a message-only result, NOT a Go error.
+// Only a transport failure or a non-2xx status maps to *errors.Error. The write
+// routes through the RAW ...WithBody + readRawResponse + isSuccess(2xx), never
+// the generated JSON200 wrapper (which would reject the message-only response).
+type feeEstimateFacade struct {
+	ledger *genledger.ClientWithResponses
+}
+
+// newFeeEstimateFacade wires the facade over a ledger plane client.
+func newFeeEstimateFacade(ledger *genledger.ClientWithResponses) *feeEstimateFacade {
+	return &feeEstimateFacade{ledger: ledger}
+}
+
+// EstimateFee runs a dry-run fee estimation for a transaction under a LEDGER.
+// A 2xx with feesApplied:null (no rules matched) returns (resp, nil) with
+// FeesApplied == nil — never an error. Same write-facade pattern as the creates:
+// a rewindable body so the auth round tripper can replay after a 401.
+//
+// SCOPE: fee estimation is ledger-scoped on the server
+// (POST /v2/organizations/{org}/ledgers/{ledger}/estimates). The removed /v1
+// route was organization-scoped; ledgerID is not optional.
+//
+// The ledger travels in the path AND in the body (the server schema requires
+// ledgerId). An empty input.LedgerID inherits the path ledger; a different one is
+// rejected — see [reconcileBodyLedgerID]. The caller's input is never mutated.
+func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID, ledgerID string, input *models.FeeEstimateInput) (*models.FeeEstimateResponse, error) {
+	const operation = "FeeEstimate.EstimateFee"
+
+	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID); err != nil {
+		return nil, err
+	}
+
+	payload := input
+
+	if input != nil {
+		reconciled := *input
+		if err := reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID); err != nil {
+			return nil, err
+		}
+
+		payload = &reconciled
+	}
+
+	if err := validationErr(operation, payload.Validate()); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.FeeEstimateResponse](ctx, operation, payload, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.EstimateFeeCalculationV2WithBody(ctx, orgID, ledgerID, jsonContentType, body))
+	})
+}

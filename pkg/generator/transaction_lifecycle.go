@@ -4,29 +4,34 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 )
 
 // lifecycle implements TransactionLifecycle using the entities API with retry and observability.
 type lifecycle struct {
-	e   *entities.Entity
-	obs observability.Provider
+	transactions transactionsAPI
+	obs          observability.Provider
 }
 
 // NewTransactionLifecycle creates a TransactionLifecycle implementation.
 func NewTransactionLifecycle(e *entities.Entity, obs observability.Provider) TransactionLifecycle {
-	return &lifecycle{e: e, obs: obs}
+	l := &lifecycle{obs: obs}
+	if e != nil && e.V1.Transactions != nil {
+		l.transactions = e.V1.Transactions
+	}
+
+	return l
 }
 
 // CreatePending creates a transaction marked as pending, respecting idempotency and retries.
 func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTransactionInput) (*models.Transaction, error) {
 	ctx = normalizeContext(ctx)
 
-	if l.e == nil || l.e.Transactions == nil {
+	if l.transactions == nil {
 		return nil, errors.New("entity transactions service not initialized")
 	}
 
@@ -52,7 +57,7 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 	err := observability.WithSpan(ctx, l.obs, "Lifecycle.CreatePending", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				tx, err := l.e.Transactions.CreateTransaction(ctx, organizationID, ledgerID, input)
+				tx, err := l.transactions.CreateJSON(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}
@@ -78,7 +83,7 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 	ctx = normalizeContext(ctx)
 
-	if l.e == nil || l.e.Transactions == nil {
+	if l.transactions == nil {
 		return errors.New("entity transactions service not initialized")
 	}
 
@@ -98,7 +103,7 @@ func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 	return observability.WithSpan(ctx, l.obs, "Lifecycle.Commit", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				_, err := l.e.Transactions.CommitTransaction(ctx, organizationID, ledgerID, txID)
+				_, err := l.transactions.Commit(ctx, organizationID, ledgerID, txID)
 				return err
 			})
 		})
@@ -109,7 +114,7 @@ func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 func (l *lifecycle) Revert(ctx context.Context, txID string) error {
 	ctx = normalizeContext(ctx)
 
-	if l.e == nil || l.e.Transactions == nil {
+	if l.transactions == nil {
 		return errors.New("entity transactions service not initialized")
 	}
 
@@ -129,7 +134,7 @@ func (l *lifecycle) Revert(ctx context.Context, txID string) error {
 	return observability.WithSpan(ctx, l.obs, "Lifecycle.Revert", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				_, err := l.e.Transactions.RevertTransaction(ctx, organizationID, ledgerID, txID)
+				_, err := l.transactions.Revert(ctx, organizationID, ledgerID, txID)
 				return err
 			})
 		})

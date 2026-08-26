@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
 // TestIdempotencyPrecedence_InputKeyBeatsCtxKey verifies the documented
@@ -40,7 +40,7 @@ func TestIdempotencyPrecedence_InputKeyBeatsCtxKey(t *testing.T) {
 
 	ctx := sdkctx.WithIdempotencyKey(context.Background(), "ctx-key")
 
-	// Mirror the call shape used by transactionsEntity.sendCreateTransactionRequest:
+	// Mirror the call shape used by the legacy transaction create request:
 	// the input-level key is plumbed in by setting X-Idempotency directly.
 	headers := map[string]string{
 		"X-Idempotency": "input-key",

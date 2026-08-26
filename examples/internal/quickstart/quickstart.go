@@ -34,8 +34,8 @@ import (
 	"log/slog"
 	"os"
 
-	midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	midaz "github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 )
 
 // Client builds a Midaz SDK client from environment variables. It is
@@ -62,7 +62,7 @@ func Client() (*midaz.Client, error) {
 	// Local stacks may not have Access Manager configured at all. When
 	// PLUGIN_AUTH_ENABLED is missing or false, FromEnvironment does not
 	// install an auth source, so we explicitly opt out via WithAnonymous
-	// to satisfy the v3 'must have exactly one auth source' invariant.
+	// to satisfy the SDK's 'must have exactly one auth source' invariant.
 	if !accessManagerEnabled() {
 		opts = append(opts, midaz.WithAnonymous())
 	}

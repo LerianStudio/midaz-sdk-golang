@@ -45,6 +45,13 @@
 //	│ configuration      │ configuration_error           │ no (fatal)   │
 //	└────────────────────┴───────────────────────────────┴──────────────┘
 //
+// idempotency_error (wire code 0084) is a conflict, never a success. The server
+// emits it while an earlier request with the same key is still in flight, and
+// when a finished request's key is reused with a different payload. It never
+// means "the original transaction was returned": only an identical retry (same
+// key, same payload) of a finished create comes back as HTTP 200 with the
+// original transaction, not as an error. See [IsIdempotencyError].
+//
 // # Recognising an error
 //
 // Three idioms cover every use case:
@@ -93,7 +100,7 @@
 //	errors.IsTimeoutError(err)         // request deadline exceeded
 //	errors.IsCancellationError(err)    // context cancelled by caller
 //	errors.IsNetworkError(err)         // DNS, conn-refused, TLS, broken pipe — pre-response
-//	errors.IsConflictError(err)        // 409 — already exists or idempotency conflict
+//	errors.IsConflictError(err)        // 409 — already exists, or an idempotency key reused with a different payload (never a replay success)
 //	errors.IsUnprocessableError(err)   // 422 — domain rule violation
 //	errors.IsInternalError(err)        // 5xx
 //	errors.IsConfigurationError(err)   // SDK setup mistake (eager, from client.New)
@@ -136,6 +143,6 @@
 //   - [NewNetworkError]            — wrap a transport-layer failure
 //   - [NewConfigurationError]      — eager SDK setup error
 //   - [ErrorFromHTTPResponse]      — server-response → *Error
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation.FieldErrors]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation.FieldErrors]
 //     — multi-field validation accumulator
 package errors

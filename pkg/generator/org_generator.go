@@ -8,20 +8,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/data"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/stats"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/stats"
 	fake "github.com/brianvoe/gofakeit/v7"
 )
 
+// organizationsAPI is the narrow slice of the organizations facade this
+// generator needs (Epic 5.3 consumer-side interface).
+type organizationsAPI interface {
+	Create(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)
+}
+
 type orgGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
-	mc  *observability.MetricsCollector
+	orgs organizationsAPI
+	obs  observability.Provider
+	mc   *observability.MetricsCollector
 }
 
 // NewOrganizationGenerator creates a new OrganizationGenerator backed by entities API.
@@ -34,14 +40,19 @@ func NewOrganizationGenerator(e *entities.Entity, obs observability.Provider) Or
 		}
 	}
 
-	return &orgGenerator{e: e, obs: obs, mc: mc}
+	g := &orgGenerator{obs: obs, mc: mc}
+	if e != nil && e.V1.Organizations != nil {
+		g.orgs = e.V1.Organizations
+	}
+
+	return g
 }
 
 // Generate creates a single organization from the provided template.
 func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) (*models.Organization, error) {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.Organizations == nil {
+	if g.orgs == nil {
 		return nil, errors.New("entity organizations service not initialized")
 	}
 
@@ -58,7 +69,7 @@ func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) 
 		// Respect retry + circuit breaker options from context if present
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				org, err := g.e.Organizations.CreateOrganization(ctx, input)
+				org, err := g.orgs.Create(ctx, input)
 				if err != nil {
 					return err
 				}
@@ -81,8 +92,6 @@ func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) 
 }
 
 // GenerateBatch creates multiple organizations concurrently.
-//
-//nolint:cyclop // Batch orchestration branches are kept local for readability.
 func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.Organization, error) {
 	ctx = normalizeContext(ctx)
 
@@ -126,14 +135,7 @@ func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.
 		}
 
 		// EIN or CNPJ depending on locale
-		var taxID string
-
-		switch getOrgLocale(ctx) {
-		case "br":
-			taxID = generateCNPJ(r, true)
-		default:
-			taxID = generateEIN(r)
-		}
+		taxID := taxDocumentFor(r, getOrgLocale(ctx), true)
 
 		// Address
 		addr := fake.Address()
@@ -198,6 +200,40 @@ func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.
 	}
 
 	return out, nil
+}
+
+// taxDocumentFor returns a company tax document for the locale: a Brazilian
+// CNPJ for "br", a US EIN otherwise. formatted applies to the CNPJ only — an
+// EIN has one spelling.
+func taxDocumentFor(r *rand.Rand, locale string, formatted bool) string {
+	if strings.EqualFold(locale, "br") {
+		return generateCNPJ(r, formatted)
+	}
+
+	return generateEIN(r)
+}
+
+// GenerateTaxDocument returns a company tax document appropriate to the locale:
+// a Brazilian CNPJ with valid check digits for "br", a US EIN otherwise. When
+// formatted is true the CNPJ carries its punctuation (NN.NNN.NNN/NNNN-NN);
+// false yields the bare 14 digits, which is the spelling most CRM surfaces
+// store.
+//
+// The locale match is CASE-INSENSITIVE: "BR", "Br" and "br" all select the
+// CNPJ. A case-sensitive comparison used to hand "BR" a US EIN, which is a
+// Brazilian organization carrying a US federal document — demo data that lies
+// about its own shape, from a caller that spelled its locale in caps.
+//
+// It seeds from the auto-seeded global source rather than from the clock, so
+// two calls in the same nanosecond still yield different documents. That is the
+// whole reason for the indirection: a clock seed collides in a tight loop, and
+// a demo that writes five holders with one document is not a demo of five
+// holders. Non-cryptographic — for demo and fixture data only.
+func GenerateTaxDocument(locale string, formatted bool) string {
+	// #nosec G404 - non-cryptographic PRNG used only for demo data variety.
+	r := rand.New(rand.NewSource(rand.Int63()))
+
+	return taxDocumentFor(r, locale, formatted)
 }
 
 // generateEIN returns a US EIN in NN-NNNNNNN format.

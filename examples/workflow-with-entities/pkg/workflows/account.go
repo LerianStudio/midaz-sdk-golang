@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
 // CreateAccounts creates customer and merchant accounts and returns their models
@@ -33,13 +33,13 @@ func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Create customer account
 	fmt.Println("Creating customer account...")
 
-	customerAccount, err = midazClient.Accounts.CreateAccount(
-		ctx, orgID, ledgerID, &models.CreateAccountInput{
+	customerAccount, err = midazClient.V2.Accounts.Create(
+		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Customer Account",
 			Type:      "deposit",
 			AssetCode: "USD",
 			Metadata:  map[string]any{"purpose": "main"},
-		},
+		}).WithAlias("customer_account"),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create customer account: %w", err)
@@ -60,13 +60,13 @@ func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Create merchant account
 	fmt.Println("Creating merchant account...")
 
-	merchantAccount, err = midazClient.Accounts.CreateAccount(
-		ctx, orgID, ledgerID, &models.CreateAccountInput{
+	merchantAccount, err = midazClient.V2.Accounts.Create(
+		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Merchant Account",
 			Type:      "marketplace",
 			AssetCode: "USD",
 			Metadata:  map[string]any{"purpose": "main"},
-		},
+		}).WithAlias("merchant_account"),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create merchant account: %w", err)
@@ -85,13 +85,13 @@ func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Create Dummy 1 account
 	fmt.Println("Creating dummy 1 account...")
 
-	dummyOneAccount, err = midazClient.Accounts.CreateAccount(
-		ctx, orgID, ledgerID, &models.CreateAccountInput{
+	dummyOneAccount, err = midazClient.V2.Accounts.Create(
+		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Dummy 1 Account",
 			Type:      "deposit",
 			AssetCode: "USD",
 			Metadata:  map[string]any{"purpose": "main"},
-		},
+		}).WithAlias("dummy_one_account"),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create merchant account: %w", err)
@@ -110,13 +110,13 @@ func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Create Dummy 2 account
 	fmt.Println("Creating dummy 2 account...")
 
-	dummyTwoAccount, err = midazClient.Accounts.CreateAccount(
-		ctx, orgID, ledgerID, &models.CreateAccountInput{
+	dummyTwoAccount, err = midazClient.V2.Accounts.Create(
+		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Dummy 2 Account",
 			Type:      "deposit",
 			AssetCode: "USD",
 			Metadata:  map[string]any{"purpose": "main"},
-		},
+		}).WithAlias("dummy_two_account"),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create merchant account: %w", err)
@@ -159,8 +159,8 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 	// Create customer account with account type
 	fmt.Println("Creating customer account with account type...")
 
-	customerAccount, err = midazClient.Accounts.CreateAccount(
-		ctx, orgID, ledgerID, &models.CreateAccountInput{
+	customerAccount, err = midazClient.V2.Accounts.Create(
+		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Customer Account",
 			Type:      "liability", // Change to liability to match destination operation route
 			AssetCode: "USD",
@@ -169,7 +169,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 				"account_type_id": accountTypeID, // Link to account type via metadata
 				"category":        "business",
 			},
-		},
+		}).WithAlias("typed_customer_account"),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create customer account: %w", err)
@@ -195,8 +195,8 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 	// Create merchant account with account type
 	fmt.Println("Creating merchant account with account type...")
 
-	merchantAccount, err = midazClient.Accounts.CreateAccount(
-		ctx, orgID, ledgerID, &models.CreateAccountInput{
+	merchantAccount, err = midazClient.V2.Accounts.Create(
+		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Merchant Account",
 			Type:      "revenue", // Change to revenue to match destination operation route
 			AssetCode: "USD",
@@ -205,7 +205,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 				"account_type_id": accountTypeID, // Link to account type via metadata
 				"category":        "business",
 			},
-		},
+		}).WithAlias("typed_merchant_account"),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create merchant account: %w", err)
@@ -229,8 +229,8 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 	// Create Dummy 1 account with account type
 	fmt.Println("Creating dummy 1 account with account type...")
 
-	dummyOneAccount, err = midazClient.Accounts.CreateAccount(
-		ctx, orgID, ledgerID, &models.CreateAccountInput{
+	dummyOneAccount, err = midazClient.V2.Accounts.Create(
+		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Dummy 1 Account",
 			Type:      "deposit",
 			AssetCode: "USD",
@@ -239,7 +239,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 				"account_type_id": accountTypeID, // Link to account type via metadata
 				"category":        "business",
 			},
-		},
+		}).WithAlias("typed_dummy_one_account"),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create dummy account: %w", err)
@@ -263,8 +263,8 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 	// Create Dummy 2 account with account type
 	fmt.Println("Creating dummy 2 account with account type...")
 
-	dummyTwoAccount, err = midazClient.Accounts.CreateAccount(
-		ctx, orgID, ledgerID, &models.CreateAccountInput{
+	dummyTwoAccount, err = midazClient.V2.Accounts.Create(
+		ctx, orgID, ledgerID, (&models.CreateAccountInput{
 			Name:      "Dummy 2 Account",
 			Type:      "deposit",
 			AssetCode: "USD",
@@ -273,7 +273,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgI
 				"account_type_id": accountTypeID, // Link to account type via metadata
 				"category":        "business",
 			},
-		},
+		}).WithAlias("typed_dummy_two_account"),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create dummy 2 account: %w", err)

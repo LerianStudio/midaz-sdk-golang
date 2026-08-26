@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
 )
 
 const maxAccountFieldLength = 256
@@ -77,8 +77,8 @@ func GetAccountIdentifier(account Account) string {
 // See also:
 //   - [CreateAccountInput.Validate] — multi-field validation accumulator.
 //   - [UpdateAccountInput] — partial-update shape.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/entities.AccountsService.CreateAccount]
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
+//   - Create it via the client's Accounts accessor: c.Accounts.Create.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 type CreateAccountInput struct {
 	// Name is the human-readable name of the account.
 	// Max length: 256 characters. Optional in the Midaz API.

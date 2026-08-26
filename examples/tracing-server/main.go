@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
@@ -321,7 +321,7 @@ func (s *Server) listOrganizations(ctx context.Context, w http.ResponseWriter, _
 	logger.Info("Listing organizations")
 
 	// Call Midaz API - tracing context will be automatically propagated
-	organizations, err := s.midazClient.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{})
+	organizations, err := s.midazClient.V2.Organizations.List(ctx, models.OrganizationsListOpts{})
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
@@ -400,7 +400,7 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 		orgInput = orgInput.WithMetadata(reqBody.Metadata)
 	}
 
-	organization, err := s.midazClient.Organizations.CreateOrganization(ctx, orgInput)
+	organization, err := s.midazClient.V2.Organizations.Create(ctx, orgInput)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
@@ -480,7 +480,7 @@ func (s *Server) performLedgerOperations(ctx context.Context) error {
 	ctx, span1 := tracer.Start(ctx, "ledger_ops_list_orgs")
 	logger.Info("Step 1: Listing organizations for ledger operations")
 
-	organizations, err := s.midazClient.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{})
+	organizations, err := s.midazClient.V2.Organizations.List(ctx, models.OrganizationsListOpts{})
 	if err != nil {
 		span1.SetStatus(codes.Error, err.Error())
 		span1.RecordError(err)
@@ -503,7 +503,7 @@ func (s *Server) performLedgerOperations(ctx context.Context) error {
 	span2.SetAttributes(attribute.String("organization.id", orgID))
 	logger.Info("Step 2: Listing ledgers", "org_id", sanitizeLogInput(orgID))
 
-	ledgers, err := s.midazClient.Ledgers.ListLedgers(ctx, orgID, models.LedgersListOpts{})
+	ledgers, err := s.midazClient.V2.Ledgers.List(ctx, orgID, models.LedgersListOpts{})
 	if err != nil {
 		span2.SetStatus(codes.Error, err.Error())
 		span2.RecordError(err)

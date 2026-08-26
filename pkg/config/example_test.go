@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 )
 
 // ExampleNewConfig shows the typical anonymous local-development setup. The
@@ -60,7 +60,7 @@ func ExampleNewConfig_withAccessManager() {
 }
 
 // ExampleNewConfig_customEndpoint targets a self-hosted Midaz stack. WithBaseURL
-// derives both the Ledger and CRM service URLs from a single base, which is
+// derives both the Ledger and Tracer plane URLs from a single base, which is
 // the right knob for in-cluster deployments behind a single ingress.
 func ExampleNewConfig_customEndpoint() {
 	cfg, err := config.NewConfig(
@@ -77,5 +77,5 @@ func ExampleNewConfig_customEndpoint() {
 	fmt.Println("ledger:", cfg.ServiceURLs[config.ServiceOnboarding])
 	// Output:
 	// idempotency: true
-	// ledger: https://midaz.internal.example.com/v1
+	// ledger: https://midaz.internal.example.com
 }

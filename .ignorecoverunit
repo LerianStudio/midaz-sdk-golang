@@ -1,0 +1,9 @@
+# Coverage-profile exclusions for the CI unit-coverage gate (go-pr-analysis.yml
+# filters coverage.txt lines matching these patterns before computing the total).
+#
+# Mirrors the local Makefile coverage scope, which is the gate of record:
+#   go list ./... | grep -v -E '(examples|mocks|internal/gen)'
+# examples/ are runnable mains (never unit-covered) and internal/gen* is
+# generated wire code exercised through the entities facades.
+/examples/
+/internal/gen

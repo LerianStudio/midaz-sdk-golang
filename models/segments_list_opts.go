@@ -3,8 +3,8 @@
 
 package models
 
-// SegmentsListOpts is the typed options struct for ListSegments and
-// the ListSegmentsAll / ListSegmentsPages iterators.
+// SegmentsListOpts is the typed options struct for the segment list surface:
+// V1.Segments.List and the All / Pages iterators.
 //
 // Embeds PageListOpts for the shared pagination/sort/date-range
 // fields; attaches a SegmentsFilters sub-struct carrying only the

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // dateRangeFormat is the wire format for StartDate/EndDate filters across
@@ -43,6 +43,48 @@ func validateDateRange(operation, startDate, endDate string) error {
 		if err != nil {
 			return errors.NewValidationError(operation,
 				"end date must be YYYY-MM-DD",
+				fmt.Errorf("got %q", endDate))
+		}
+	}
+
+	if startDate != "" && endDate != "" && start.After(end) {
+		return errors.NewValidationError(operation,
+			"start date must be on or before end date",
+			fmt.Errorf("got start=%q end=%q", startDate, endDate))
+	}
+
+	return nil
+}
+
+// validateDateRangeRFC3339 is the RFC3339 sibling of validateDateRange for the
+// tracer plane, whose list endpoints strict-parse StartDate/EndDate as RFC3339
+// server-side rather than the ledger plane's YYYY-MM-DD. Each must parse as
+// RFC3339 when present, and StartDate must not be after EndDate when both are
+// present. Empty strings mean "no bound" and are skipped.
+//
+// Additive on purpose: validateDateRange stays the YYYY-MM-DD authority for the
+// page endpoints and the ledger cursor endpoints (transactions, operations).
+func validateDateRangeRFC3339(operation, startDate, endDate string) error {
+	var (
+		start time.Time
+		end   time.Time
+		err   error
+	)
+
+	if startDate != "" {
+		start, err = time.Parse(time.RFC3339, startDate)
+		if err != nil {
+			return errors.NewValidationError(operation,
+				"start date must be RFC3339",
+				fmt.Errorf("got %q", startDate))
+		}
+	}
+
+	if endDate != "" {
+		end, err = time.Parse(time.RFC3339, endDate)
+		if err != nil {
+			return errors.NewValidationError(operation,
+				"end date must be RFC3339",
 				fmt.Errorf("got %q", endDate))
 		}
 	}

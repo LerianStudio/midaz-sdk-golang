@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,8 +67,8 @@ func TestNewClient(t *testing.T) {
 	client, err = New(
 		WithConfig(testCfg),
 		WithHTTPClient(customHTTPClient),
-		WithLedgerURL("https://test.example.com/v1"),
-		WithCRMURL("https://test.example.com/crm"),
+		WithLedgerURL("https://test.example.com"),
+		WithTracerURL("https://test.example.com/tracer/v1"),
 		WithTimeout(30*time.Second),
 		WithDebug(true),
 		WithEnvironment(config.EnvironmentDevelopment),
@@ -106,14 +106,13 @@ func TestNewClient(t *testing.T) {
 		t.Error("Expected debug to be true")
 	}
 
-	if got := client.config.ServiceURLs[config.ServiceCRM]; got != "https://test.example.com/crm" {
-		t.Errorf("Expected CRM URL to be applied, got %q", got)
+	if got := client.config.ServiceURLs[config.ServiceTracer]; got != "https://test.example.com/tracer/v1" {
+		t.Errorf("Expected Tracer URL to be applied, got %q", got)
 	}
 
 	require.NotNil(t, client.Entity)
-	require.NotNil(t, client.Holders)
-	require.NotNil(t, client.Aliases)
-	require.NotNil(t, client.MetadataIndexes)
+	require.NotNil(t, client.V2.Holders)
+	require.NotNil(t, client.V1.MetadataIndexes)
 
 	// Test creating a client with a complete config
 	cfg, err := config.NewConfig(
@@ -142,9 +141,9 @@ func TestEntityAlwaysInitialized(t *testing.T) {
 	}
 
 	require.NotNil(t, c.Entity, "v3 must always initialize Entity")
-	require.NotNil(t, c.Accounts)
-	require.NotNil(t, c.Transactions)
-	require.NotNil(t, c.Organizations)
+	require.NotNil(t, c.V1.Accounts)
+	require.NotNil(t, c.V1.Transactions)
+	require.NotNil(t, c.V1.Organizations)
 }
 
 func TestGetConfig(t *testing.T) {
@@ -304,6 +303,27 @@ func TestClientOptionErrorsAndNilReceivers(t *testing.T) {
 	assert.ErrorIs(t, c.Trace("callback-error", func(context.Context) error { return expectedErr }), expectedErr)
 }
 
+// TestNewSurfacesEntitySetupCause pins the operator-facing rendering of a
+// construction failure. The entity layer composes an actionable diagnostic (the
+// rejected "/v1" suffix, the variable to edit); before this test existed, New
+// wrapped it in a configuration error whose Error() printed only "failed to
+// initialize entity API" — so the one line that reaches a log aggregator carried
+// none of the reason. err.Error() must carry the cause, and errors.Unwrap must
+// still reach it.
+func TestNewSurfacesEntitySetupCause(t *testing.T) {
+	_, err := New(WithConfig(createTestConfig(t)), WithBaseURL("http://localhost:3002/v1"))
+	require.Error(t, err)
+	assert.True(t, sdkerrors.IsConfigurationError(err))
+
+	assert.Contains(t, err.Error(), `must not end in "/v1"`,
+		"Error() must carry the cause, not just the generic bootstrap message")
+	assert.Contains(t, err.Error(), "MIDAZ_LEDGER_URL",
+		"Error() must name the setting the operator has to edit")
+
+	require.Error(t, errors.Unwrap(err), "the cause must stay reachable via errors.Unwrap")
+	assert.Contains(t, errors.Unwrap(err).Error(), `must not end in "/v1"`)
+}
+
 func TestClientObservabilityOptionVariants(t *testing.T) {
 	provider, err := observability.New(context.Background(), observability.WithServiceName("coverage-provider"), observability.WithComponentEnabled(false, false, false))
 	require.NoError(t, err)
@@ -326,10 +346,19 @@ func TestClientCollectorEndpointOptionCreatesProvider(t *testing.T) {
 	// This test ensures the canonical path produces a working provider +
 	// metrics collector for the same input shape (collector endpoint +
 	// all components enabled).
+	//
+	// The environment is pinned to development because a scheme-less
+	// endpoint like "localhost:4317" is treated as plaintext by
+	// lib-observability, and plaintext collectors are refused outright in
+	// production (the default environment) unless ALLOW_INSECURE_OTEL
+	// justifies them. That refusal is the SDK's intended posture and is
+	// asserted by TestNewRejectsInsecureCollectorInProduction; this test
+	// covers the option chain, not the security policy.
 	c, err := New(
 		WithConfig(createTestConfig(t)),
 		WithObservabilityOptions(
 			observability.WithServiceName("midaz-go-sdk"),
+			observability.WithEnvironment("development"),
 			observability.WithCollectorEndpoint("localhost:4317"),
 			observability.WithComponentEnabled(true, true, true),
 		),
@@ -471,7 +500,7 @@ func TestNewAccessManagerTokenFetchError_IsClassifiedAsAuth(t *testing.T) {
 // move is to use the models package directly:
 //
 //	in := &models.CreateAccountInput{...}
-//	c.Accounts.CreateAccount(ctx, ...)
+//	c.V1.Accounts.Create(ctx, ...)
 //
 // instead of the empty trap that NewAccount used to return.
 func TestFactoryTrapMethodsRemoved_AtCompileTime(t *testing.T) {
@@ -484,7 +513,7 @@ func TestFactoryTrapMethodsRemoved_AtCompileTime(t *testing.T) {
 		assert.False(t, ok, "%s must stay removed from *Client", methodName)
 	}
 
-	require.NotNil(t, c.Accounts, "service surface must remain — only the trap factories are gone")
+	require.NotNil(t, c.V1.Accounts, "service surface must remain — only the trap factories are gone")
 }
 
 // TestServiceHandles_PersistAcrossPostConstructionMutations is the M2
@@ -508,7 +537,7 @@ func TestServiceHandles_PersistAcrossPostConstructionMutations(t *testing.T) {
 	require.NotNil(t, c.Entity)
 
 	// Capture the service handle before any further mutation.
-	originalAccounts := c.Accounts
+	originalAccounts := c.V1.Accounts
 
 	// A subsequent SetObservability triggers Entity.RefreshHTTPConfiguration
 	// internally via Entity.SetObservability. The service handles must
@@ -521,7 +550,7 @@ func TestServiceHandles_PersistAcrossPostConstructionMutations(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, c.SetObservability(replacement))
 
-	assert.Equal(t, originalAccounts, c.Accounts,
+	assert.Equal(t, originalAccounts, c.V1.Accounts,
 		"RefreshHTTPConfiguration must preserve service handles — recreating them on every config tweak is the v2-era waste this test guards against")
 }
 
@@ -659,16 +688,9 @@ func TestPublicConfigValidate(t *testing.T) {
 		require.Error(t, cfg.Validate())
 	})
 
-	t.Run("missing transaction URL fails", func(t *testing.T) {
-		cfg := createTestConfig(t)
-		delete(cfg.ServiceURLs, config.ServiceTransaction)
-		require.Error(t, cfg.Validate())
-	})
-
 	t.Run("missing ledger URL surfaces as ledger URL error", func(t *testing.T) {
 		cfg := createTestConfig(t)
 		delete(cfg.ServiceURLs, config.ServiceOnboarding)
-		delete(cfg.ServiceURLs, config.ServiceTransaction)
 		err := cfg.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "ledger URL is required")
@@ -682,7 +704,7 @@ func TestNewWithValidConfigSucceeds(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	require.NotNil(t, c.Entity)
-	require.NotNil(t, c.Accounts, "Accounts service must be initialized via embedded Entity")
+	require.NotNil(t, c.V1.Accounts, "Accounts service must be initialized via embedded Entity")
 }
 
 // TestNewRejectsConstructionWithoutAuthSource verifies the v3 auth-required
@@ -959,4 +981,22 @@ func TestAccessManagerAndAnonymousMutualExclusion(t *testing.T) {
 			"WithAccessManager must clear a previous Anonymous flag")
 		assert.True(t, cfg.AccessManager.Enabled)
 	})
+}
+
+// TestNewClientWiresTwoPlaneClients is the Task 1.3.2 construction guard:
+// midaz.New produces a Client whose embedded Entity carries both generated
+// plane clients (Ledger + Tracer), promoted via Planes().
+func TestNewClientWiresTwoPlaneClients(t *testing.T) {
+	c, err := New(
+		WithEnvironment(config.EnvironmentLocal),
+		WithAnonymous(),
+		WithLedgerURL("http://localhost:3002"),
+		WithTracerURL("http://localhost:4020/v1"),
+	)
+	require.NoError(t, err)
+
+	planes := c.Planes()
+	require.NotNil(t, planes, "Planes() must be non-nil after New")
+	assert.NotNil(t, planes.Ledger, "ledger plane client must be wired")
+	assert.NotNil(t, planes.Tracer, "tracer plane client must be wired")
 }

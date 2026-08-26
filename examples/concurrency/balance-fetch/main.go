@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/examples/internal/quickstart"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/examples/internal/quickstart"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
 	"github.com/shopspring/decimal"
 )
 
@@ -54,7 +54,7 @@ func setupAndFetchAccounts() (*midaz.Client, []string, context.Context, context.
 
 	fmt.Println("Fetching accounts...")
 
-	accounts, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, models.AccountsListOpts{})
+	accounts, err := c.V2.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{})
 	if err != nil {
 		cancel()
 		return nil, nil, nil, nil, fmt.Errorf("failed to list accounts: %w", err)

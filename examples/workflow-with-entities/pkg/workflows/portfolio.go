@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
 // CreatePortfolio creates a portfolio
@@ -27,7 +27,7 @@ func CreatePortfolio(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 
 	fmt.Println("\nCreating portfolio...")
 
-	portfolio, err := midazClient.Portfolios.CreatePortfolio(
+	portfolio, err := midazClient.V2.Portfolios.Create(
 		ctx, orgID, ledgerID,
 		models.NewCreatePortfolioInput(ledgerID, "Main Portfolio"),
 	)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
 func TestWithIdempotencyKey(t *testing.T) {
@@ -46,6 +46,39 @@ func TestWithoutAutoIdempotency(t *testing.T) {
 	//nolint:staticcheck // intentional nil-context for nil-safety verification
 	if !sdkctx.AutoIdempotencySuppressed(sdkctx.WithoutAutoIdempotency(nil)) {
 		t.Error("nil ctx should be promoted to background and accept the flag")
+	}
+}
+
+func TestWithIdempotencyTTL(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     context.Context //nolint:containedctx // table-driven test
+		seconds int
+		want    string
+		wantOK  bool
+	}{
+		{name: "positive TTL stored as string", ctx: context.Background(), seconds: 600, want: "600", wantOK: true},
+		{name: "zero TTL is a no-op (server default applies)", ctx: context.Background(), seconds: 0, want: "", wantOK: false},
+		{name: "negative TTL is a no-op", ctx: context.Background(), seconds: -5, want: "", wantOK: false},
+		{name: "nil ctx becomes background", ctx: nil, seconds: 300, want: "300", wantOK: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ttl, ok := sdkctx.IdempotencyTTLFromContext(sdkctx.WithIdempotencyTTL(tt.ctx, tt.seconds))
+			if ok != tt.wantOK {
+				t.Errorf("IdempotencyTTLFromContext ok = %v, want %v", ok, tt.wantOK)
+			}
+			if ttl != tt.want {
+				t.Errorf("IdempotencyTTLFromContext = %q, want %q", ttl, tt.want)
+			}
+		})
+	}
+}
+
+func TestIdempotencyTTLFromContext_NilCtx(t *testing.T) {
+	//nolint:staticcheck // intentional nil-context for nil-safety verification
+	if ttl, ok := sdkctx.IdempotencyTTLFromContext(nil); ok || ttl != "" {
+		t.Errorf("expected (\"\", false) from nil ctx, got (%q, %v)", ttl, ok)
 	}
 }
 

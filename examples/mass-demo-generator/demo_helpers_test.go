@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/transaction"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -28,6 +28,40 @@ func TestValidateDemoConfigRejectsUnsafeValues(t *testing.T) {
 
 	cfg.txPerAccountVal = -1
 	require.ErrorContains(t, validateDemoConfig(cfg), "tx")
+}
+
+// TestValidateDemoConfigRejectsAnUnrunnableV2Phase pins the refusal that keeps
+// the money-path proof from being skipped in silence.
+//
+// runV2Phases is driven by the ledger contexts the demo flow builds, so
+// DEMO_RUN_V2=true with no flow, no organizations or no ledgers used to exit 0
+// having proven nothing — the one outcome worse than a failing proof, because
+// nothing distinguishes it from a passing one.
+func TestValidateDemoConfigRejectsAnUnrunnableV2Phase(t *testing.T) {
+	base := demoConfig{
+		timeoutSecVal: 120, orgsVal: 1, ledgersPerOrgVal: 1, accountsPerLedgerVal: 1,
+		txPerAccountVal: 1, assetsCountVal: 1, batchSizeVal: 1, orgLocaleVal: "us",
+		doDemoVal: true, runV2Val: true,
+	}
+	require.NoError(t, validateDemoConfig(base))
+
+	noFlow := base
+	noFlow.doDemoVal = false
+	require.ErrorContains(t, validateDemoConfig(noFlow), "DEMO_RUN_FLOW")
+
+	noOrgs := base
+	noOrgs.orgsVal = 0
+	require.ErrorContains(t, validateDemoConfig(noOrgs), "DEMO_ORGS")
+
+	noLedgers := base
+	noLedgers.ledgersPerOrgVal = 0
+	require.ErrorContains(t, validateDemoConfig(noLedgers), "DEMO_LEDGERS_PER_ORG")
+
+	// The same zero counts are fine when the phase is off — the refusal is about
+	// asking for a proof that cannot run, not about the counts themselves.
+	off := noFlow
+	off.runV2Val = false
+	require.NoError(t, validateDemoConfig(off))
 }
 
 func TestSaveEntitiesIDsUsesOwnerOnlyPermissions(t *testing.T) {

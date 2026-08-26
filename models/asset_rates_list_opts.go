@@ -8,7 +8,8 @@ import (
 )
 
 // AssetRatesListOpts is the typed options struct for
-// ListAssetRatesByAssetCode and the ListAll/ListPages iterators.
+// V1.AssetRates.ListAssetRatesByAssetCode and its
+// ListAssetRatesByAssetCodeAll / ListAssetRatesByAssetCodePages iterators.
 //
 // AssetRatesListOpts is a value type. Concurrent-safe by construction —
 // the entity layer never mutates a caller's opts.

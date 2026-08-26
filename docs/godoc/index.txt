@@ -1,4 +1,4 @@
-package midaz // import "github.com/LerianStudio/midaz-sdk-golang/v4"
+package midaz // import "github.com/LerianStudio/midaz-sdk-golang/v5"
 
 Package midaz is the entry point for the Midaz Go SDK.
 
@@ -15,11 +15,27 @@ Package midaz is the entry point for the Midaz Go SDK.
     if err != nil { return err }
     defer c.Shutdown(ctx)
 
-    org, err := c.Organizations.GetOrganization(ctx, "org-id")
+    org, err := c.V2.Organizations.Get(ctx, "org-id")
+
+# Ledger surfaces
+
+Midaz serves two ledger surfaces at once — /v1, deprecated but alive,
+and /v2, the current one — and does not mirror every resource across them,
+so the accessors are grouped by the version that serves each: c.V1.<Service> and
+c.V2.<Service>. The version travels in the request path, never in the base URL.
+
+Build against c.V2: it is the wider surface (22 services against V1's 14). /v1
+alone still serves asset rates and the four legacy transaction creation styles;
+/v2 alone serves holders, instruments, encryption, composition, protection audit
+and the whole billing family.
+
+Tracer accessors are not version-grouped — the Tracer serves one surface
+and versions itself in its base URL — so they stay flat: c.Rules, c.Limits,
+c.Validations, c.Reservations, c.AuditEvents.
 
 # Authentication
 
-v3 requires exactly one auth source at construction time:
+The SDK requires exactly one auth source at construction time:
   - WithAccessManager — production-shape OAuth via the Lerian Access Manager.
     Recommended for any non-local stack.
   - WithAnonymous — opt out of authentication. Suitable only for a local Midaz
@@ -43,16 +59,18 @@ examples.
 
 # Pagination
 
-Every paginated entity List* method returns one page. ListAll yields
-iter.Seq2[T, error] for full-collection iteration; ListPages yields page
-envelopes with metadata. MetadataIndexes is intentionally non-paginated.
+Paginated list methods ship in a trio: List returns one page, All yields
+iter.Seq2[T, error] for full-collection iteration, and Pages yields page
+envelopes with metadata. Accessors serving more than one list prefix the trio
+instead (Balances.ListAccountBalances / ...All / ...Pages). MetadataIndexes is
+intentionally non-paginated, as are the alias and external-code balance lookups.
 Page-based and cursor-based endpoints are distinguished at the type system:
 wrong-shape opts don't compile. See docs/pagination.md.
 
 # Errors
 
 Every error returned by SDK code is a
-*github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors.Error with structured
+*github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors.Error with structured
 Category, Code, Operation, and Resource fields. Use errors.Is, errors.As,
 and the typed predicates (IsNotFoundError, IsValidationError, IsNetworkError,
 IsAuthError, etc.). The Retryable() method on *Error is the canonical
@@ -62,9 +80,9 @@ retry-policy source.
 
 Auto-idempotency is on by default; the SDK emits an
 X-Idempotency header per unsafe request. Override per-call via
-github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey
+github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey
 (caller-supplied key) or
-github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithoutAutoIdempotency
+github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithoutAutoIdempotency
 (suppression). Disable globally via WithIdempotency(false). Unsafe requests
 retry only when X-Idempotency is present; caller-supplied and SDK-generated
 keys both satisfy that gate. Retries follow the default exponential-backoff
@@ -75,15 +93,15 @@ examples/07-retries.
 # Examples
 
 See examples/ for runnable demos. Start with examples/01-hello-world for the
-minimum-viable shape; examples/03-end-to-end walks the full resource hierarchy.
+minimum-viable shape; examples/03-end-to-end creates a transaction on the /v2
+surface; examples/workflow-with-entities walks the full resource hierarchy.
 
 const EnvironmentLocal = config.EnvironmentLocal ...
-const Version = "3.0.0-beta.1"
+const Version = version.Version
 type AccessManager = auth.AccessManager
 type Account = models.Account
 type AccountType = models.AccountType
 type Address = models.Address
-type Alias = models.Alias
 type AmountInput = models.AmountInput
 type Asset = models.Asset
 type AssetRate = models.AssetRate
@@ -92,14 +110,12 @@ type Client struct{ ... }
     func New(options ...Option) (*Client, error)
 type CreateAccountInput = models.CreateAccountInput
 type CreateAccountTypeInput = models.CreateAccountTypeInput
-type CreateAliasInput = models.CreateAliasInput
 type CreateAssetInput = models.CreateAssetInput
 type CreateAssetRateInput = models.CreateAssetRateInput
 type CreateBalanceInput = models.CreateBalanceInput
 type CreateHolderInput = models.CreateHolderInput
 type CreateLedgerInput = models.CreateLedgerInput
 type CreateMetadataIndexInput = models.CreateMetadataIndexInput
-type CreateOperationInput = models.CreateOperationInput
 type CreateOperationRouteInput = models.CreateOperationRouteInput
 type CreateOrganizationInput = models.CreateOrganizationInput
 type CreatePortfolioInput = models.CreatePortfolioInput
@@ -118,9 +134,9 @@ type OperationRoute = models.OperationRoute
 type Option func(*Client) error
     func WithAccessManager(am AccessManager) Option
     func WithAllowInsecureAccessManagerHTTP(allow bool) Option
+    func WithAllowInsecureHTTP(allow bool) Option
     func WithAnonymous() Option
     func WithBaseURL(baseURL string) Option
-    func WithCRMURL(crmURL string) Option
     func WithConfig(cfg *config.Config) Option
     func WithContext(ctx context.Context) Option
     func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option
@@ -136,6 +152,8 @@ type Option func(*Client) error
     func WithRetryOptions(opts ...retry.Option) Option
     func WithSlowCallThreshold(threshold time.Duration) Option
     func WithTimeout(timeout time.Duration) Option
+    func WithTracerAPIKey(apiKey string) Option
+    func WithTracerURL(tracerURL string) Option
     func WithUserAgent(userAgent string) Option
     func WithoutRetries() Option
 type Organization = models.Organization
@@ -149,7 +167,6 @@ type Transaction = models.Transaction
 type TransactionRoute = models.TransactionRoute
 type UpdateAccountInput = models.UpdateAccountInput
 type UpdateAccountTypeInput = models.UpdateAccountTypeInput
-type UpdateAliasInput = models.UpdateAliasInput
 type UpdateAssetInput = models.UpdateAssetInput
 type UpdateBalanceInput = models.UpdateBalanceInput
 type UpdateHolderInput = models.UpdateHolderInput

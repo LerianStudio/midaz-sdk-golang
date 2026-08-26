@@ -1,10 +1,10 @@
-package observability // import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+package observability // import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
 
 Package observability wires the Midaz Go SDK into OpenTelemetry — distributed
 tracing, metrics, and logs with a single Provider.
 
 The provider is the unit of lifecycle: build one at process boot, hand it to
-github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityProvider, shut it
+github.com/LerianStudio/midaz-sdk-golang/v5.WithObservabilityProvider, shut it
 down on exit. Every SDK call emits spans + metrics that nest correctly under
 whatever parent span the caller has open.
 
@@ -39,9 +39,9 @@ whatever parent span the caller has open.
 # Two-layer surface
 
 observability options have a parallel surface on the root midaz package:
-github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityOptions
+github.com/LerianStudio/midaz-sdk-golang/v5.WithObservabilityOptions
 (build a provider inline) and
-github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityProvider (use a
+github.com/LerianStudio/midaz-sdk-golang/v5.WithObservabilityProvider (use a
 pre-built provider). Most consumers want the latter.
 
 # Logging surfaces
@@ -49,7 +49,7 @@ pre-built provider). Most consumers want the latter.
 The SDK exposes two distinct logger surfaces, configured independently and
 backed by different handler chains:
 
-  - github.com/LerianStudio/midaz-sdk-golang/v4.Client.Logger returns a
+  - github.com/LerianStudio/midaz-sdk-golang/v5.Client.Logger returns a
     *slog.Logger — the Go-stdlib idiom. Used by the SDK for retry traces
     and other internal lines that are not span-correlated. Configured via
     midaz.WithLogger / Config.Debug.
@@ -64,8 +64,8 @@ span-aware logging from inside an SDK callback.
 
 # See also
 
-  - github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityProvider
-  - github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityOptions
+  - github.com/LerianStudio/midaz-sdk-golang/v5.WithObservabilityProvider
+  - github.com/LerianStudio/midaz-sdk-golang/v5.WithObservabilityOptions
   - docs/logging.md — logging and trace/span ID guidance
   - examples/10-observability-otel — runnable end-to-end demo
   - examples/tracing — client-side tracing reference

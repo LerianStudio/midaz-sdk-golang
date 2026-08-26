@@ -1,11 +1,11 @@
 // Package midaz re-exports the most commonly used types from the models package
 // so that user code can stay on a single import path:
 //
-//	import "github.com/LerianStudio/midaz-sdk-golang/v4"
+//	import "github.com/LerianStudio/midaz-sdk-golang/v5"
 //
 // Without the aliases below, every typical user file would also need:
 //
-//	import "github.com/LerianStudio/midaz-sdk-golang/v4/models"
+//	import "github.com/LerianStudio/midaz-sdk-golang/v5/models"
 //
 // All aliases use Go's `type X = Y` form, which preserves type identity. That
 // means `midaz.Account` and `models.Account` are interchangeable — the same
@@ -21,9 +21,9 @@
 package midaz
 
 import (
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 )
 
 // The aliases below are intentionally undocumented per-line: each alias just
@@ -43,7 +43,6 @@ import (
 type (
 	Account          = models.Account
 	AccountType      = models.AccountType
-	Alias            = models.Alias
 	Asset            = models.Asset
 	AssetRate        = models.AssetRate
 	Balance          = models.Balance
@@ -66,14 +65,12 @@ type (
 type (
 	CreateAccountInput          = models.CreateAccountInput
 	CreateAccountTypeInput      = models.CreateAccountTypeInput
-	CreateAliasInput            = models.CreateAliasInput
 	CreateAssetInput            = models.CreateAssetInput
 	CreateAssetRateInput        = models.CreateAssetRateInput
 	CreateBalanceInput          = models.CreateBalanceInput
 	CreateHolderInput           = models.CreateHolderInput
 	CreateLedgerInput           = models.CreateLedgerInput
 	CreateMetadataIndexInput    = models.CreateMetadataIndexInput
-	CreateOperationInput        = models.CreateOperationInput
 	CreateOperationRouteInput   = models.CreateOperationRouteInput
 	CreateOrganizationInput     = models.CreateOrganizationInput
 	CreatePortfolioInput        = models.CreatePortfolioInput
@@ -89,7 +86,6 @@ type (
 type (
 	UpdateAccountInput          = models.UpdateAccountInput
 	UpdateAccountTypeInput      = models.UpdateAccountTypeInput
-	UpdateAliasInput            = models.UpdateAliasInput
 	UpdateAssetInput            = models.UpdateAssetInput
 	UpdateBalanceInput          = models.UpdateBalanceInput
 	UpdateHolderInput           = models.UpdateHolderInput

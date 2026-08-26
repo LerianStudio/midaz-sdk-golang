@@ -1,6 +1,6 @@
 # 02-auth
 
-Demonstrates authentication via the Lerian Access Manager (the v3
+Demonstrates authentication via the Lerian Access Manager (the
 production-shape auth path).
 
 ## What this demonstrates
@@ -8,12 +8,12 @@ production-shape auth path).
 - Loading auth configuration from environment variables via `config.FromEnvironment()`
 - Building a client with `WithAccessManager`
 - Constructing an organization via the typed input builder
-- Calling `c.Organizations.CreateOrganization` under a traced context
+- Calling `c.V2.Organizations.Create` under a traced context
 
 ## When to use this pattern
 
 Production. Access Manager handles OAuth client-credentials flow,
-token refresh, and credential rotation. v3 has exactly two sanctioned
+token refresh, and credential rotation. The SDK has exactly two sanctioned
 auth sources: `WithAccessManager` (this example) or `WithAnonymous`
 (local stacks only — see `examples/01-hello-world`). Calling `midaz.New()`
 with neither returns a typed configuration error.

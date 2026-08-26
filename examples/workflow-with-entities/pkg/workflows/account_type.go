@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
 // CreateAccountType creates a new account type in the specified organization and ledger
@@ -30,7 +30,7 @@ func CreateAccountType(ctx context.Context, midazClient *midaz.Client, orgID, le
 		})
 
 	// Create the account type
-	accountType, err := midazClient.AccountTypes.CreateAccountType(ctx, orgID, ledgerID, input)
+	accountType, err := midazClient.V2.AccountTypes.Create(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create account type: %w", err)
 	}
@@ -75,7 +75,7 @@ func UpdateAccountType(ctx context.Context, midazClient *midaz.Client, orgID, le
 		})
 
 	// Update the account type
-	updatedAccountType, err := midazClient.AccountTypes.UpdateAccountType(ctx, orgID, ledgerID, accountTypeID, input)
+	updatedAccountType, err := midazClient.V2.AccountTypes.Update(ctx, orgID, ledgerID, accountTypeID, input)
 	if err != nil {
 		return fmt.Errorf("failed to update account type: %w", err)
 	}
@@ -107,7 +107,7 @@ func GetAccountType(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	fmt.Println("\n🔍 Retrieving Account Type...")
 
 	// Get the account type
-	accountType, err := midazClient.AccountTypes.GetAccountType(ctx, orgID, ledgerID, accountTypeID)
+	accountType, err := midazClient.V2.AccountTypes.Get(ctx, orgID, ledgerID, accountTypeID)
 	if err != nil {
 		return fmt.Errorf("failed to get account type: %w", err)
 	}
@@ -144,7 +144,7 @@ func ListAccountTypes(ctx context.Context, midazClient *midaz.Client, orgID, led
 		PageListOpts: models.PageListOpts{Page: 1, Limit: 10},
 	}
 
-	accountTypes, err := midazClient.AccountTypes.ListAccountTypes(ctx, orgID, ledgerID, opts)
+	accountTypes, err := midazClient.V2.AccountTypes.List(ctx, orgID, ledgerID, opts)
 	if err != nil {
 		return fmt.Errorf("failed to list account types: %w", err)
 	}
@@ -181,7 +181,7 @@ func DeleteAccountType(ctx context.Context, midazClient *midaz.Client, orgID, le
 	fmt.Println("\n🗑️  Deleting Account Type...")
 
 	// Delete the account type
-	err := midazClient.AccountTypes.DeleteAccountType(ctx, orgID, ledgerID, accountTypeID)
+	err := midazClient.V2.AccountTypes.Delete(ctx, orgID, ledgerID, accountTypeID)
 	if err != nil {
 		return fmt.Errorf("failed to delete account type: %w", err)
 	}

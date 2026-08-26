@@ -15,9 +15,9 @@ import (
 	"fmt"
 	"log"
 
-	midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	midaz "github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func main() {
 		}
 	}()
 
-	page, err := c.Organizations.ListOrganizations(context.Background(), models.OrganizationsListOpts{
+	page, err := c.V2.Organizations.List(context.Background(), models.OrganizationsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 5},
 	})
 	if err != nil {

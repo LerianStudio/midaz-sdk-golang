@@ -1,3 +1,7 @@
+// These flows stay on c.V1.Transactions for the same reason transaction.go
+// does: they create through CreateJSON, and the nested send/source/distribute
+// creation style exists only on /v1. See the note at the top of transaction.go,
+// and examples/03-end-to-end for the /v2 creation path.
 package workflows
 
 import (
@@ -12,13 +16,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	midazmodels "github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	midazmodels "github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
 	"github.com/google/uuid"
 )
 
@@ -226,6 +230,12 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *midaz
 		return errors.New("customer and merchant accounts are required")
 	}
 
+	// Transaction legs address accounts by alias; the ledger does not resolve
+	// account IDs there.
+	if midazmodels.GetAccountAlias(*customerAccount) == "" || midazmodels.GetAccountAlias(*merchantAccount) == "" {
+		return errors.New("customer and merchant accounts must have aliases: transaction legs address accounts by alias")
+	}
+
 	rateLimiter := concurrent.NewRateLimiter(20000, 20000)
 	defer rateLimiter.Stop()
 
@@ -278,7 +288,7 @@ func createC2MTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID st
 		transferInput := buildC2MTransactionInput(index, customerAccount, merchantAccount, idempotencyKey)
 
 		startTime := time.Now()
-		tx, err := midazClient.Transactions.CreateTransaction(txCtx, orgID, ledgerID, transferInput)
+		tx, err := midazClient.V1.Transactions.CreateJSON(txCtx, orgID, ledgerID, transferInput)
 		duration := time.Since(startTime)
 
 		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(duration.Milliseconds()))
@@ -308,16 +318,16 @@ func buildC2MTransactionInput(index int, customerAccount, merchantAccount *midaz
 			Source: &midazmodels.SourceInput{
 				From: []midazmodels.FromToInput{
 					{
-						Account: customerAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: midazmodels.GetAccountAlias(*customerAccount),
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
 			Distribute: &midazmodels.DistributeInput{
 				To: []midazmodels.FromToInput{
 					{
-						Account: merchantAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: midazmodels.GetAccountAlias(*merchantAccount),
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
@@ -412,6 +422,14 @@ func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAcc
 		return nil, err
 	}
 
+	// Transaction legs address accounts by alias; the ledger does not resolve
+	// account IDs there.
+	if midazmodels.GetAccountAlias(*merchantAccount) == "" || midazmodels.GetAccountAlias(*customerAccount) == "" {
+		err := errors.New("merchant and customer accounts must have aliases: transaction legs address accounts by alias")
+		observability.RecordError(ctx, err, "missing_account_aliases")
+		return nil, err
+	}
+
 	inputs := make([]*midazmodels.CreateTransactionInput, count)
 	for i := 0; i < count; i++ {
 		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, GenerateUniqueIdempotencyKey("m2c", i))
@@ -435,16 +453,16 @@ func buildM2CTransactionInput(index int, merchantAccount, customerAccount *midaz
 			Source: &midazmodels.SourceInput{
 				From: []midazmodels.FromToInput{
 					{
-						Account: merchantAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: midazmodels.GetAccountAlias(*merchantAccount),
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
 			Distribute: &midazmodels.DistributeInput{
 				To: []midazmodels.FromToInput{
 					{
-						Account: customerAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: midazmodels.GetAccountAlias(*customerAccount),
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
@@ -503,7 +521,7 @@ func createM2CSingleTransactionProcessor(midazClient *midaz.Client, orgID, ledge
 		index := extractTransactionIndex(txCtx, input)
 		txStartTime := time.Now()
 
-		tx, err := midazClient.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
+		tx, err := midazClient.V1.Transactions.CreateJSON(txCtx, orgID, ledgerID, input)
 		txDuration := time.Since(txStartTime)
 		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(txDuration.Milliseconds()))
 

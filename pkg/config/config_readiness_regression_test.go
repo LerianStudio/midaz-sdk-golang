@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,8 +36,8 @@ func TestAccessManagerRequiresExplicitTarget(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("explicit crm URL counts", func(t *testing.T) {
-		_, err := NewConfig(WithCRMURL("https://api.example.com/crm"), WithAccessManager(accessManager))
+	t.Run("explicit tracer URL counts", func(t *testing.T) {
+		_, err := NewConfig(WithTracerURL("https://tracer.example.com/v1"), WithAccessManager(accessManager))
 		require.NoError(t, err)
 	})
 

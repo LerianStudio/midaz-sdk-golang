@@ -1,6 +1,6 @@
 // Example: configuring the Midaz SDK with a *slog.Logger.
 //
-// Demonstrates the v3 logging contract:
+// Demonstrates the SDK logging contract:
 //   - midaz.WithLogger plugs in any *slog.Logger
 //   - Retry attempts emit structured DEBUG/WARN log lines
 //   - midaz.WithSlowCallThreshold emits a WARN on slow calls
@@ -19,8 +19,8 @@ import (
 	"os"
 	"time"
 
-	midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	midaz "github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
 func main() {
@@ -44,7 +44,7 @@ func main() {
 	c, err := midaz.New(
 		midaz.WithLogger(logger),
 		// WithAnonymous opts out of auth so the example runs without
-		// credentials against a local stack. v3 requires exactly one auth
+		// credentials against a local stack. The SDK requires exactly one auth
 		// source at construction; the first API call will still fail with
 		// 401 if the server enforces auth.
 		midaz.WithAnonymous(),
@@ -74,7 +74,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	_, err = c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{})
+	_, err = c.V2.Organizations.List(ctx, models.OrganizationsListOpts{})
 	if err != nil {
 		// Application-side error logging — same logger, same structure.
 		c.Logger().Warn("ListOrganizations failed",

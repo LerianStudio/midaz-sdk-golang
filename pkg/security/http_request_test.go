@@ -575,3 +575,77 @@ func TestIsLocalhost(t *testing.T) {
 		})
 	}
 }
+
+// planeReq builds a minimal *http.Request carrying just the URL fields the
+// redirect policy inspects (scheme, host, path).
+func planeReq(scheme, host, path string) *http.Request {
+	return &http.Request{URL: &url.URL{Scheme: scheme, Host: host, Path: path}}
+}
+
+func TestValidatePlaneRedirect(t *testing.T) {
+	tenVia := make([]*http.Request, maxRedirects)
+
+	tests := []struct {
+		name         string
+		next         *http.Request
+		via          []*http.Request
+		wantSentinel bool
+		errContain   string
+	}{
+		{
+			name: "InitialRequestNoVia",
+			next: planeReq("https", "api.midaz.io", "/v1/organizations"),
+			via:  nil,
+		},
+		{
+			name: "SameOriginPathChangeAllowed",
+			next: planeReq("https", "api.midaz.io", "/v1/organizations-final"),
+			via:  []*http.Request{planeReq("https", "api.midaz.io", "/v1/organizations")},
+		},
+		{
+			name:         "CrossHostBlocked",
+			next:         planeReq("https", "evil.example", "/v1/organizations"),
+			via:          []*http.Request{planeReq("https", "api.midaz.io", "/v1/organizations")},
+			wantSentinel: true,
+		},
+		{
+			name: "SameHostHTTPtoHTTPSUpgradeAllowed",
+			next: planeReq("https", "localhost", "/v1/organizations"),
+			via:  []*http.Request{planeReq("http", "localhost", "/v1/organizations")},
+		},
+		{
+			name:         "SameHostHTTPStoHTTPDowngradeBlocked",
+			next:         planeReq("http", "localhost", "/v1/organizations"),
+			via:          []*http.Request{planeReq("https", "localhost", "/v1/organizations")},
+			wantSentinel: true,
+		},
+		{
+			name:       "MaxRedirectsCeiling",
+			next:       planeReq("https", "api.midaz.io", "/v1/organizations"),
+			via:        tenVia,
+			errContain: "stopped after",
+		},
+		{
+			name:       "OutboundValidationStillRuns",
+			next:       planeReq("ftp", "api.midaz.io", "/v1/organizations"),
+			via:        nil,
+			errContain: "unsupported URL scheme",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePlaneRedirect(tt.next, tt.via)
+
+			switch {
+			case tt.wantSentinel:
+				require.ErrorIs(t, err, ErrAuthenticatedRedirect)
+			case tt.errContain != "":
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContain)
+			default:
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

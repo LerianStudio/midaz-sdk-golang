@@ -1,0 +1,16 @@
+# oapi-codegen config for the tracer plane.
+#
+# Consumes the 3.0.3 spec produced by `specdowngrade` from api/tracer.openapi.yaml
+# (native OAS 3.1). Generates low-level types + net/http client into one package.
+#
+# response-type-suffix is kept in lockstep with the ledger plane so both planes
+# share one client wrapper naming convention ({Op}Resp).
+#
+# Do not hand-edit the generated .gen.go; run `make generate` instead.
+package: gentracer
+output: tracer.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  response-type-suffix: Resp

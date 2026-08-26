@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -141,9 +141,7 @@ func createMockPluginAuthConfig(pluginAuth auth.AccessManager) *mockPluginAuthCo
 	return &mockPluginAuthConfig{
 		httpClient: &http.Client{},
 		baseURLs: map[string]string{
-			"onboarding":  "http://localhost:3000/v1",
-			"transaction": "http://localhost:3001/v1",
-			"crm":         "http://localhost:3002/v1",
+			"onboarding": "http://localhost:3000",
 		},
 		pluginAuth: pluginAuth,
 	}

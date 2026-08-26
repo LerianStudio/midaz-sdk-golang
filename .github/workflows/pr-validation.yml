@@ -1,0 +1,51 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  issues: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  validate:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.58.0
+    with:
+      enforce_source_branches: true
+      allowed_source_branches: 'develop|hotfix/*'
+      target_branches_for_source_check: 'main'
+      pr_title_scopes: |
+        contract
+        docs
+        entities
+        examples
+        internal
+        models
+        pkg
+        scripts
+        config
+        ci
+        deps
+        tests
+      go_version: "1.26.3"
+      go_private_modules: "github.com/LerianStudio/*"
+      # Library repository: no Dockerfile to build or score.
+      enable_docker_scan: false
+      enable_custom_checks: true
+      custom_checks: |
+        verify-sdk
+      shared_paths: |
+        go.mod
+        go.sum
+        internal/
+        pkg/
+        entities/
+        models/
+        Makefile
+    secrets: inherit

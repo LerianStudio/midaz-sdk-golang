@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,191 +102,29 @@ func (l *mockLogger) WithSpan(_ trace.Span) observability.Logger           { ret
 // Mock Services - Complete implementations of entities interfaces
 // -----------------------------------------------------------------------------
 
-// testBalancesService implements entities.BalancesService for testing
+// testBalancesService implements the consumer-defined balancesLister for testing.
 type testBalancesService struct {
-	listBalancesFn               func(ctx context.Context, orgID, ledgerID string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
-	listAccountBalancesFn        func(ctx context.Context, orgID, ledgerID, accountID string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
-	getBalanceFn                 func(ctx context.Context, orgID, ledgerID, balanceID string) (*models.Balance, error)
-	updateBalanceFn              func(ctx context.Context, orgID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error)
-	deleteBalanceFn              func(ctx context.Context, orgID, ledgerID, balanceID string) error
-	createBalanceFn              func(ctx context.Context, orgID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error)
-	listBalancesByAccountAliasFn func(ctx context.Context, orgID, ledgerID, alias string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
-	listBalancesByExternalCodeFn func(ctx context.Context, orgID, ledgerID, code string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	listBalancesFn func(ctx context.Context, orgID, ledgerID string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
 }
 
-func (s *testBalancesService) ListBalances(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
-	if s.listBalancesFn != nil {
-		return s.listBalancesFn(ctx, orgID, ledgerID, opts)
-	}
-
-	return nil, errors.New("mock: ListBalances not implemented")
-}
-
-func (s *testBalancesService) ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
-	if s.listAccountBalancesFn != nil {
-		return s.listAccountBalancesFn(ctx, orgID, ledgerID, accountID, opts)
-	}
-
-	return nil, errors.New("mock: ListAccountBalances not implemented")
-}
-
-func (s *testBalancesService) GetBalance(ctx context.Context, orgID, ledgerID, balanceID string) (*models.Balance, error) {
-	if s.getBalanceFn != nil {
-		return s.getBalanceFn(ctx, orgID, ledgerID, balanceID)
-	}
-
-	return nil, errors.New("mock: GetBalance not implemented")
-}
-
-func (*testBalancesService) GetBalanceHistory(context.Context, string, string, string, string) (*models.BalanceHistory, error) {
-	return nil, errors.New("mock: GetBalanceHistory not implemented")
-}
-
-func (s *testBalancesService) UpdateBalance(ctx context.Context, orgID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error) {
-	if s.updateBalanceFn != nil {
-		return s.updateBalanceFn(ctx, orgID, ledgerID, balanceID, input)
-	}
-
-	return nil, errors.New("mock: UpdateBalance not implemented")
-}
-
-func (s *testBalancesService) DeleteBalance(ctx context.Context, orgID, ledgerID, balanceID string) error {
-	if s.deleteBalanceFn != nil {
-		return s.deleteBalanceFn(ctx, orgID, ledgerID, balanceID)
-	}
-
-	return nil
-}
-
-func (s *testBalancesService) CreateBalance(ctx context.Context, orgID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error) {
-	if s.createBalanceFn != nil {
-		return s.createBalanceFn(ctx, orgID, ledgerID, accountID, input)
-	}
-
-	return nil, errors.New("mock: CreateBalance not implemented")
-}
-
-func (s *testBalancesService) ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
-	if s.listBalancesByAccountAliasFn != nil {
-		return s.listBalancesByAccountAliasFn(ctx, orgID, ledgerID, alias, opts)
-	}
-
-	return nil, errors.New("mock: ListBalancesByAccountAlias not implemented")
-}
-
-func (s *testBalancesService) ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
-	if s.listBalancesByExternalCodeFn != nil {
-		return s.listBalancesByExternalCodeFn(ctx, orgID, ledgerID, code, opts)
-	}
-
-	return nil, errors.New("mock: ListBalancesByExternalCode not implemented")
-}
-
-func (*testBalancesService) GetAccountBalancesHistory(context.Context, string, string, string, string) ([]models.BalanceHistory, error) {
-	return nil, errors.New("mock: GetAccountBalancesHistory not implemented")
-}
-
-// testAccountsService implements entities.AccountsService for testing
+// testAccountsService implements the consumer-defined accountsGetter for testing
 type testAccountsService struct {
-	listAccountsFn              func(ctx context.Context, orgID, ledgerID string, _ models.AccountsListOpts) (*models.ListResponse[models.Account], error)
-	getAccountFn                func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error)
-	getAccountByAliasFn         func(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
-	createAccountFn             func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
-	updateAccountFn             func(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error)
-	deleteAccountFn             func(ctx context.Context, orgID, ledgerID, id string) error
-	getBalanceFn                func(ctx context.Context, orgID, ledgerID, accountID string) (*models.Balance, error)
-	getAccountsMetricsCountFn   func(ctx context.Context, orgID, ledgerID string) (*models.MetricsCount, error)
-	getExternalAccountFn        func(ctx context.Context, orgID, ledgerID, assetCode string) (*models.Account, error)
-	getExternalAccountBalanceFn func(ctx context.Context, orgID, ledgerID, assetCode string) (*models.Balance, error)
-	getAccountByAliasPathFn     func(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
+	getAccountFn func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error)
 }
 
-func (s *testAccountsService) ListAccounts(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
-	if s.listAccountsFn != nil {
-		return s.listAccountsFn(ctx, orgID, ledgerID, opts)
-	}
-
-	return nil, errors.New("mock: ListAccounts not implemented")
-}
-
-func (s *testAccountsService) GetAccount(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+func (s *testAccountsService) Get(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
 	if s.getAccountFn != nil {
 		return s.getAccountFn(ctx, orgID, ledgerID, id)
 	}
 
-	return nil, errors.New("mock: GetAccount not implemented")
+	return nil, errors.New("mock: Get not implemented")
 }
 
-func (s *testAccountsService) GetAccountByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
-	if s.getAccountByAliasFn != nil {
-		return s.getAccountByAliasFn(ctx, orgID, ledgerID, alias)
-	}
-
-	return nil, errors.New("mock: GetAccountByAlias not implemented")
-}
-
-func (s *testAccountsService) CreateAccount(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
-	if s.createAccountFn != nil {
-		return s.createAccountFn(ctx, orgID, ledgerID, input)
-	}
-
-	return nil, errors.New("mock: CreateAccount not implemented")
-}
-
-func (s *testAccountsService) UpdateAccount(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {
-	if s.updateAccountFn != nil {
-		return s.updateAccountFn(ctx, orgID, ledgerID, id, input)
-	}
-
-	return nil, errors.New("mock: UpdateAccount not implemented")
-}
-
-func (s *testAccountsService) DeleteAccount(ctx context.Context, orgID, ledgerID, id string) error {
-	if s.deleteAccountFn != nil {
-		return s.deleteAccountFn(ctx, orgID, ledgerID, id)
-	}
-
-	return nil
-}
-
-func (s *testAccountsService) GetBalance(ctx context.Context, orgID, ledgerID, accountID string) (*models.Balance, error) {
-	if s.getBalanceFn != nil {
-		return s.getBalanceFn(ctx, orgID, ledgerID, accountID)
-	}
-
-	return nil, errors.New("mock: GetBalance not implemented")
-}
-
-func (s *testAccountsService) GetAccountsMetricsCount(ctx context.Context, orgID, ledgerID string) (*models.MetricsCount, error) {
-	if s.getAccountsMetricsCountFn != nil {
-		return s.getAccountsMetricsCountFn(ctx, orgID, ledgerID)
-	}
-
-	return nil, errors.New("mock: GetAccountsMetricsCount not implemented")
-}
-
-func (s *testAccountsService) GetExternalAccount(ctx context.Context, orgID, ledgerID, assetCode string) (*models.Account, error) {
-	if s.getExternalAccountFn != nil {
-		return s.getExternalAccountFn(ctx, orgID, ledgerID, assetCode)
-	}
-
-	return nil, errors.New("mock: GetExternalAccount not implemented")
-}
-
-func (s *testAccountsService) GetExternalAccountBalance(ctx context.Context, orgID, ledgerID, assetCode string) (*models.Balance, error) {
-	if s.getExternalAccountBalanceFn != nil {
-		return s.getExternalAccountBalanceFn(ctx, orgID, ledgerID, assetCode)
-	}
-
-	return nil, errors.New("mock: GetExternalAccountBalance not implemented")
-}
-
-func (s *testAccountsService) GetAccountByAliasPath(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
-	if s.getAccountByAliasPathFn != nil {
-		return s.getAccountByAliasPathFn(ctx, orgID, ledgerID, alias)
-	}
-
-	return nil, errors.New("mock: GetAccountByAliasPath not implemented")
+// newTestChecker builds a Checker with a mock accounts getter + balances lister
+// (client.V1.Accounts and client.V1.Balances are concrete facades, not injectable via
+// the entity).
+func newTestChecker(accounts accountsGetter, balances balancesLister) *Checker {
+	return &Checker{e: &entities.Entity{}, accounts: accounts, balances: balances}
 }
 
 // Test error variables
@@ -444,12 +282,7 @@ func TestGenerateLedgerReport_NilEntity(t *testing.T) {
 }
 
 func TestGenerateLedgerReport_NilBalancesService(t *testing.T) {
-	checker := &Checker{
-		e: &entities.Entity{
-			Accounts: nil,
-			Balances: nil,
-		},
-	}
+	checker := &Checker{e: &entities.Entity{}}
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -459,14 +292,7 @@ func TestGenerateLedgerReport_NilBalancesService(t *testing.T) {
 }
 
 func TestGenerateLedgerReport_NilAccountsService(t *testing.T) {
-	mockBalances := &testBalancesService{}
-
-	checker := &Checker{
-		e: &entities.Entity{
-			Accounts: nil,
-			Balances: mockBalances,
-		},
-	}
+	checker := &Checker{e: &entities.Entity{}, balances: &testBalancesService{}}
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -490,10 +316,7 @@ func TestGenerateLedgerReport_EmptyLedger(t *testing.T) {
 	}
 	mockAccounts := &testAccountsService{}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -520,10 +343,7 @@ func TestGenerateLedgerReport_SingleBalance(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -570,10 +390,7 @@ func TestGenerateLedgerReport_MultipleBalancesSameAsset(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -609,10 +426,7 @@ func TestGenerateLedgerReport_MultipleAssets(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -650,10 +464,7 @@ func TestGenerateLedgerReport_ExternalAccount(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -697,10 +508,7 @@ func TestGenerateLedgerReport_OverdrawnAccount(t *testing.T) {
 	}
 
 	obs := newMockObservabilityProvider(true)
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	}).WithObservability(obs)
+	checker := newTestChecker(mockAccounts, mockBalances).WithObservability(obs)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -734,10 +542,7 @@ func TestGenerateLedgerReport_AccountWithNoAlias(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -768,10 +573,7 @@ func TestGenerateLedgerReport_AccountWithEmptyAlias(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -815,10 +617,7 @@ func TestGenerateLedgerReport_Pagination(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -842,10 +641,7 @@ func TestGenerateLedgerReport_ListBalancesError(t *testing.T) {
 	}
 	mockAccounts := &testAccountsService{}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -870,10 +666,7 @@ func TestGenerateLedgerReport_GetAccountError(t *testing.T) {
 	}
 
 	obs := newMockObservabilityProvider(true)
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	}).WithObservability(obs)
+	checker := newTestChecker(mockAccounts, mockBalances).WithObservability(obs)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -901,10 +694,7 @@ func TestGenerateLedgerReport_ContextCancellation(t *testing.T) {
 	mockAccounts := &testAccountsService{}
 
 	// Setup account lookup delay
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	}).WithAccountLookupDelay(5 * time.Second) // Long delay
+	checker := newTestChecker(mockAccounts, mockBalances).WithAccountLookupDelay(5 * time.Second) // Long delay
 
 	// Create a context that's already cancelled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -929,10 +719,7 @@ func TestGenerateLedgerReport_ContextTimeout(t *testing.T) {
 	mockAccounts := &testAccountsService{}
 
 	// Setup account lookup delay longer than context timeout
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	}).WithAccountLookupDelay(5 * time.Second)
+	checker := newTestChecker(mockAccounts, mockBalances).WithAccountLookupDelay(5 * time.Second)
 
 	// Create a context with very short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
@@ -974,10 +761,7 @@ func TestGenerateLedgerReport_AccountCaching(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -1666,10 +1450,7 @@ func TestGenerateLedgerReport_LargeNumberOfBalances(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -1701,10 +1482,7 @@ func TestGenerateLedgerReport_VerySmallDecimalBalances(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -1740,10 +1518,7 @@ func TestGenerateLedgerReport_VeryLargeDecimalBalances(t *testing.T) {
 		},
 	}
 
-	checker := NewChecker(&entities.Entity{
-		Accounts: mockAccounts,
-		Balances: mockBalances,
-	})
+	checker := newTestChecker(mockAccounts, mockBalances)
 
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
@@ -1754,15 +1529,14 @@ func TestGenerateLedgerReport_VeryLargeDecimalBalances(t *testing.T) {
 	assert.True(t, pointsTotals.TotalAvailable.Equal(largeValue))
 }
 
+// ListBalancesAll mirrors the facade's cursor loop: it advances by echoing the
+// response next_cursor and stops when that is empty.
 func (s *testBalancesService) ListBalancesAll(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
 	return func(yield func(models.Balance, error) bool) {
 		current := opts
-		if current.Page <= 0 {
-			current.Page = 1
-		}
 
 		for {
-			resp, err := s.ListBalances(ctx, orgID, ledgerID, current)
+			resp, err := s.listBalances(ctx, orgID, ledgerID, current)
 			if err != nil {
 				yield(models.Balance{}, err)
 				return
@@ -1774,68 +1548,21 @@ func (s *testBalancesService) ListBalancesAll(ctx context.Context, orgID, ledger
 				}
 			}
 
-			if !resp.Pagination.HasMore() {
+			if resp.Pagination.NextCursor == "" {
 				return
 			}
 
-			current.Page++
+			current.Cursor = resp.Pagination.NextCursor
 		}
 	}
 }
 
-func (s *testBalancesService) ListBalancesPages(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
-		resp, err := s.ListBalances(ctx, orgID, ledgerID, opts)
-		if err != nil {
-			yield(nil, err)
-			return
-		}
-
-		yield(resp, nil)
+func (s *testBalancesService) listBalances(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
+	if s.listBalancesFn != nil {
+		return s.listBalancesFn(ctx, orgID, ledgerID, opts)
 	}
-}
 
-func (s *testBalancesService) ListAccountBalancesAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
-	return func(yield func(models.Balance, error) bool) {
-		resp, err := s.ListAccountBalances(ctx, orgID, ledgerID, accountID, opts)
-		if err != nil {
-			yield(models.Balance{}, err)
-			return
-		}
-		for _, b := range resp.Items {
-			if !yield(b, nil) {
-				return
-			}
-		}
-	}
-}
-
-func (*testBalancesService) ListAccountBalancesPages(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return func(_ func(*models.ListResponse[models.Balance], error) bool) {}
-}
-
-func (*testBalancesService) ListBalancesByAccountAliasAll(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[models.Balance, error] {
-	return func(_ func(models.Balance, error) bool) {}
-}
-
-func (*testBalancesService) ListBalancesByAccountAliasPages(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return func(_ func(*models.ListResponse[models.Balance], error) bool) {}
-}
-
-func (*testBalancesService) ListBalancesByExternalCodeAll(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[models.Balance, error] {
-	return func(_ func(models.Balance, error) bool) {}
-}
-
-func (*testBalancesService) ListBalancesByExternalCodePages(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
-	return func(_ func(*models.ListResponse[models.Balance], error) bool) {}
-}
-
-func (*testAccountsService) ListAccountsAll(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[models.Account, error] {
-	return func(_ func(models.Account, error) bool) {}
-}
-
-func (*testAccountsService) ListAccountsPages(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
-	return func(_ func(*models.ListResponse[models.Account], error) bool) {}
+	return nil, errors.New("mock: listBalances not implemented")
 }
 
 // TestChecker_WithObservability_NilReceiver_DoesNotPanic verifies that the

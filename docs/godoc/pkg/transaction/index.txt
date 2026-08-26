@@ -1,0 +1,49 @@
+package transaction // import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/transaction"
+
+Package transaction provides high-level utilities for creating, processing,
+and managing transactions in the Midaz platform. It includes utility functions
+for common transaction patterns, batch processing with error handling, and
+template-based transaction creation.
+
+Package transaction provides high-level utilities for creating, processing,
+and managing transactions in the Midaz platform. It includes utility functions
+for common transaction patterns, batch processing with error handling, and
+template-based transaction creation.
+
+var ErrSettlementTimeout = errors.New("wait for settlement: timed out before balance settled")
+func CancelPendingTransaction(ctx context.Context, entity *entities.Entity, ...) (*models.Transaction, error)
+func CommitPendingTransaction(ctx context.Context, entity *entities.Entity, ...) (*models.Transaction, error)
+func CreateFromTemplate(ctx context.Context, entity *entities.Entity, orgID, ledgerID string, ...) (*models.Transaction, error)
+func Deposit(ctx context.Context, entity *entities.Entity, orgID, ledgerID string, ...) (*models.Transaction, error)
+func GetTransactionStatus(tx *models.Transaction) string
+func IsTransactionSuccessful(tx *models.Transaction) bool
+func MultiAccountTransfer(ctx context.Context, entity *entities.Entity, orgID, ledgerID string, ...) (*models.Transaction, error)
+func Transfer(ctx context.Context, entity *entities.Entity, orgID, ledgerID string, ...) (*models.Transaction, error)
+func WaitForSettlement(ctx context.Context, r balanceReader, orgID, ledgerID, accountID string, ...) (models.Balance, error)
+func Withdrawal(ctx context.Context, entity *entities.Entity, orgID, ledgerID string, ...) (*models.Transaction, error)
+type BatchOptions struct{ ... }
+    func DefaultBatchOptions() *BatchOptions
+type BatchResult struct{ ... }
+    func BatchTransactions(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, ...) ([]BatchResult, error)
+type BatchSummary struct{ ... }
+    func GetBatchSummary(results []BatchResult) BatchSummary
+type DepositOptions struct{ ... }
+    func DefaultDepositOptions() *DepositOptions
+type GenerationReport struct{ ... }
+    func NewGenerationReport(results []BatchResult, notes string, additional map[string]any) *GenerationReport
+type MultiTransferOptions struct{ ... }
+    func DefaultMultiTransferOptions() *MultiTransferOptions
+type ReportAPIStats struct{ ... }
+type ReportDataSummary struct{ ... }
+type ReportEntities struct{ ... }
+type ReportEntityCounts struct{ ... }
+type ReportEntityIDs struct{ ... }
+type SettlementOption func(*settlementConfig)
+    func WithMaxInterval(d time.Duration) SettlementOption
+    func WithPollInterval(d time.Duration) SettlementOption
+    func WithTimeout(d time.Duration) SettlementOption
+type Template struct{ ... }
+type TransferOptions struct{ ... }
+    func DefaultTransferOptions() *TransferOptions
+type WithdrawalOptions struct{ ... }
+    func DefaultWithdrawalOptions() *WithdrawalOptions

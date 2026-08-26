@@ -17,6 +17,35 @@ Contributors: @fredcamaral,
 
 ## [Unreleased]
 
+### ⚠️ Breaking Changes (v4 remodel)
+
+The v4 remodel repoints the ledger accessors onto concrete facades over the generated plane clients and removes the legacy DSL surface.
+
+**Removed (breaking):**
+- The 13 legacy ledger `XService` interfaces and their generated mocks.
+- `models.TransactionDSLInput` and its DSL machinery (`FromTransactionMap`, and the DSL create paths `CreateTransactionWithDSL` / `CreateTransactionWithDSLFile`).
+- Five exported DSL validators from `pkg/validation`: `ValidateTransactionDSL`, `EnhancedValidateTransactionDSL`, `TransactionDSLValidator`, the `AccountReference` interface, and `EnhancedValidateAccountReference`.
+- The legacy transaction-create surface on `models.CreateTransactionInput`: the `ExternalID`, `Amount`, `AssetCode`, and `Operations` fields, plus the `WithExternalID` and `WithOperations` builders. None of them reached the ledger: `ExternalID` was `json:"-"` and gave no deduplication, while `Amount` / `AssetCode` / `Operations` only fed an internal adapter that no-opped whenever `Send` was set — so a caller filling them believed in a contract the SDK dropped. Migration: describe the money movement in `Send` only (`Send.Asset` replaces `AssetCode`, `Send.Value` replaces `Amount`, `Send.Source.From` / `Send.Distribute.To` replace `Operations`); use `IdempotencyKey` or `sdkctx.WithIdempotencyKey` for duplicate protection, and `Metadata` for durable correlation. A create with a nil `Send` now fails validation with `send is required; legacy Operations input was removed in v4.2`. The same field is gone from the `pkg/transaction` helper options (`TransferOptions`, `DepositOptions`, `WithdrawalOptions`, `MultiTransferOptions`), which had no other place to send it.
+- `models.CreateTransactionInput.Template`. It carried `json:"template,omitempty"` but `ToLibTransaction` never emitted it, so every value set on it was silently discarded — the same defect as the four fields above. Nothing in the SDK read it. Migration: none; the ledger create endpoints have no template input.
+- `models.CreateOperationInput` and its surface (`NewCreateOperationInput`, `WithAccountAlias`, `WithRoute`, `Validate`), plus the `midaz.CreateOperationInput` re-export. The type only ever fed `CreateTransactionInput.Operations`, removed above; the ledger has no operation-create endpoint, so nothing could send one. Migration: describe every leg in `Send.Source.From` / `Send.Distribute.To` with `models.FromToInput`.
+
+**Changed (breaking):**
+- `json.Marshal` of a transaction create input now returns the endpoint's request body, not the struct-tag shape. `CreateTransactionInput`, `CreateInflowInput`, `CreateOutflowInput`, `CreateAnnotationInput`, `SendInput`, `SourceInput`, `DistributeInput`, `FromToInput` and `AmountInput` implement `MarshalJSON` delegating to their mapper (`ToLibTransaction` / `ToMap`), which is what the facade puts on the wire. Observable differences for anyone who marshals an input for a log, an audit row, an outbox record or a payload fingerprint: money values render as decimal strings (an `any` holding `100` becomes `"100"`, not `100`), a leg carrying `share` / `remaining` / `rate` omits `amount` entirely (`AmountInput{}` marshals to `null`), a nil `Source` / `Distribute` is omitted instead of emitted as `null`, and fields the mapper never emitted stop appearing. A stored document or hash taken from a marshaled input therefore changes with this version. There is no matching `UnmarshalJSON`: unmarshaling still reads struct tags, so a marshal→unmarshal round trip of a create input is now lossy — marshal for transport and inspection, not as a persistence format for the input itself. `entities/transactions_facade_wire_test.go` pins each endpoint's body against a hand-written golden.
+- `client.X` accessors now return concrete `*xFacade` structs exposing generic CRUD method names (`List` / `Get` / `Create` / `Update` / `Delete` / `All` / `Pages` / `Count`) instead of the old verbose `XService` methods — e.g. `ListAccounts` → `List`, `CreateTransaction` → `CreateJSON`.
+- `route` and `routeId` are now mutually exclusive on every transaction create. Both fields serialize whenever set, so a payload carrying the pair left the ledger to pick which routing decision applied. Validation now rejects it at the transaction level (`transaction-level route and routeId are mutually exclusive; keep routeId`, enforced for `CreateJSON`, inflow, outflow, and annotation) and on each leg (`leg accountAlias=<alias>: route and routeId are mutually exclusive; keep routeId`). Migration: send `RouteID` (UUID) and drop `Route`; `Route` remains supported alone for server-side alias compatibility.
+- `models.FromToInput` now carries a single account identity: `AccountAlias`. The `Account` field is removed. On the transaction creates it never reached the wire — the leg mapper copied it into `accountAlias` whenever `AccountAlias` was empty, so a caller setting `Account` to an account ID had it silently reinterpreted as an alias. Migration: rename `Account:` to `AccountAlias:` in every source and destination leg; a leg with an empty `AccountAlias` now fails validation with `accountAlias is required`.
+- `models.FeeAdjustedFromTo.Account` (`json:"account"`) is now `AccountAlias` (`json:"accountAlias"`). The fee engine projects the same leg DTO on the way out as on the way in (`pkg/mtransaction.FromTo`, which has only `accountAlias`), so the old field never decoded and every fee-adjusted leg read back with an empty account identity. Migration: read `AccountAlias`.
+- The fee-estimate request body (`POST /organizations/{id}/estimates`, `FeeEstimates.EstimateFee`) changed shape, because `models.FeeEstimateInput` reuses the transaction leg types: legs now ship `accountAlias` instead of `account`, `send.value` and every `amount.value` ship as decimal strings instead of raw JSON numbers, an absent `source`/`distribute` is omitted instead of serialized as `null`, and a share/remaining/rate leg no longer ships an empty `amount` object. This aligns the request with the DTO the fee engine unmarshals (`components/ledger/pkg/feeshared/model.FeeEstimate` embeds `pkg/mtransaction.Transaction`, whose `FromTo` exposes only `accountAlias`), so an estimate that previously reached the engine with no account identity on any leg now resolves the accounts it quotes. `entities/fee_estimate_facade_test.go` pins the full body.
+
+### ✨ Added (v4 remodel)
+- `models/correlation` — the versioned, closed contract for the correlation metadata a transactional plugin attaches to a ledger transaction. `correlation.Correlation` carries only identifiers and classification (plugin, rail, flow, aggregate id, end-to-end id, provider message id/code, original aggregate id, direction), `Validate` enforces the enums and the rule that a refund names the aggregate it returns, and `ToMetadata` emits the whitelist under camelCase keys with `contractVersion` (currently `"1"`). The rails are `RailTED`, `RailPix` and `RailInternal` — the last one for a book transfer between accounts of the same institution, which settles on no external rail and would otherwise have to borrow `TED` or `PIX` to satisfy the required `Rail` field. `FromMetadata` reads a payload back, and `Keys` exposes the whitelist, so no consumer needs a second copy of the key set. Arbitrary client metadata is never forwarded: extending the whitelist is a versioned change to this package, which is what keeps counterparty PII out of the ledger by construction.
+- `models/correlation/correlationtest` — `AssertCanonical(tb, input)`, the shared conformance gate every transactional plugin runs over the create inputs it produces: the metadata must declare the current contract version and rebuild into a valid `Correlation`, no metadata key on the transaction or on any leg may fall outside `correlation.Keys`, and no level of the payload may set both `route` and `routeId`.
+- `errors.NewResponseDecodeError` / `errors.IsResponseDecodeError` / `errors.CodeResponseDecode` — the shape returned when the SDK received a response it could not decode. Previously every facade decode failure came back as `NewInternalError`, which stamps `HTTPRequestSent=false`, `HTTPResponseReceived=false` and a synthetic HTTP 500: on a create, that told the caller the request never left the SDK when in fact the ledger had answered, and the transaction may already exist. The new error carries the truth (request sent, response received, no upstream status code to classify by) so a caller on the money path can recognise "outcome unknown, never replay" with `IsResponseDecodeError` instead of sniffing `encoding/json` error types across a module boundary. Applies to every write and single-object read that goes through the shared facade decode path.
+- 13 plane-native accessors: Tracer plane (`Rules`, `Limits`, `Validations`, `Reservations`, `AuditEvents`) and ledger-plane extensions (`ProtectionAudit`, `Encryption`, `Instruments`, `Composition`, `FeePackages`, `FeeEstimates`, `BillingPackages`, `BillingCalculations`).
+- `transaction.WaitForSettlement` — polls an account's balances until a caller-supplied predicate matches (an accepted transaction returns HTTP 201, which is not the same as settled).
+- Model builders: `models.NewFeeEstimateInput`, `models.NewBillingCalculateInput`, and `models.NewCreateHolderAccountInput` (each with `With*` optionals).
+- Typed error predicates: `IsSkipNotPermitted`, `IsHolderRequired`, `IsHolderNotFound`, `IsFeeError`, and `IsFeatureNotAvailable`.
+
 ### ✨ Added
 - **`WithAllowInsecureHTTP` config option**: opt-in that permits plain `http://` Ledger and CRM service URLs for non-loopback hosts, both at config build time (`parseURL` / `WithLedgerURL` / `WithCRMURL` / `WithBaseURL`) and at every outbound request (`security.ValidateOutboundRequestWithInsecureHTTP`). DEFAULT IS FALSE — strict behavior is preserved for every existing caller. Intended for Kubernetes cluster-internal services reached over the cluster mesh (e.g. `http://midaz-ledger.midaz-mt.svc.cluster.local:3000`) and dev/test deployments behind a controlled network boundary. Independent from `WithAllowInsecureAccessManagerHTTP` (auth plane). Equivalent env var: `MIDAZ_ALLOW_INSECURE_HTTP=true` (loaded before URL env vars by `FromEnvironment` so ordering is automatic). Production environment rejects the flag at `Validate()` time. Public companion helpers: `pkg/config.WithAllowInsecureHTTP`, `pkg/config.Config.AllowInsecureHTTP`, `pkg/config.Config.GetAllowInsecureHTTP`, `pkg/security.ValidateOutboundRequestWithInsecureHTTP`, `entities.HTTPClient.SetAllowInsecureHTTP` / `AllowInsecureHTTP`. The redirect policy installed by the data-plane HTTPClient is automatically swapped to the permissive `ValidateRedirectWithInsecureHTTP` variant when the flag is on.
 
@@ -572,23 +601,4 @@ ianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)
 ### Features
 
 * **sdk:** init repo ([709cb58](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/709cb5813927c4c505cd7d3da45cbf370cc67273))
-
-# Changelog
-
-All notable changes to the Midaz Go SDK will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-import "github.com/LerianStudio/midaz-sdk-golang/v2"
-
-## [Unreleased]
-
-### Added
-- Initial SDK setup with core functionality
-- Entity models and client implementation
-- Validation, error handling, and configuration utilities
-- Concurrency utilities and pagination support
-- Retry mechanisms and observability integration
-- Comprehensive documentation and examples
 

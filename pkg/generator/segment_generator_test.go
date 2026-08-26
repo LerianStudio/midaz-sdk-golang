@@ -3,11 +3,10 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,40 +15,12 @@ type mockSegmentsService struct {
 	createFunc func(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error)
 }
 
-func (m *mockSegmentsService) CreateSegment(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error) {
+func (m *mockSegmentsService) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
 
 	return &models.Segment{ID: "seg-123", Name: input.Name}, nil
-}
-
-func (*mockSegmentsService) GetSegment(_ context.Context, _, _, _ string) (*models.Segment, error) {
-	return nil, errors.New("mock: GetSegment not implemented")
-}
-
-func (*mockSegmentsService) ListSegments(_ context.Context, _, _ string, _ models.SegmentsListOpts) (*models.ListResponse[models.Segment], error) {
-	return nil, errors.New("mock: ListSegments not implemented")
-}
-
-func (*mockSegmentsService) ListSegmentsAll(_ context.Context, _, _ string, _ models.SegmentsListOpts) iter.Seq2[models.Segment, error] {
-	return func(_ func(models.Segment, error) bool) {}
-}
-
-func (*mockSegmentsService) ListSegmentsPages(_ context.Context, _, _ string, _ models.SegmentsListOpts) iter.Seq2[*models.ListResponse[models.Segment], error] {
-	return func(_ func(*models.ListResponse[models.Segment], error) bool) {}
-}
-
-func (*mockSegmentsService) UpdateSegment(_ context.Context, _, _, _ string, _ *models.UpdateSegmentInput) (*models.Segment, error) {
-	return nil, errors.New("mock: UpdateSegment not implemented")
-}
-
-func (*mockSegmentsService) DeleteSegment(_ context.Context, _, _, _ string) error {
-	return nil
-}
-
-func (*mockSegmentsService) GetSegmentsMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
-	return nil, errors.New("mock: GetSegmentsMetricsCount not implemented")
 }
 
 func TestNewSegmentGenerator(t *testing.T) {
@@ -92,11 +63,7 @@ func TestSegmentGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Segments: mockSvc,
-	}
-
-	gen := NewSegmentGenerator(e, nil)
+	gen := &segmentGenerator{segments: mockSvc}
 	metadata := map[string]any{
 		"region":   "us-west",
 		"category": "retail",
@@ -115,11 +82,7 @@ func TestSegmentGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Segments: mockSvc,
-	}
-
-	gen := NewSegmentGenerator(e, nil)
+	gen := &segmentGenerator{segments: mockSvc}
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Segment", nil)
 	require.Error(t, err)
@@ -138,11 +101,7 @@ func TestSegmentGenerator_Generate_NilMetadata(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Segments: mockSvc,
-	}
-
-	gen := NewSegmentGenerator(e, nil)
+	gen := &segmentGenerator{segments: mockSvc}
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Segment", nil)
 	require.NoError(t, err)
@@ -162,11 +121,7 @@ func TestSegmentGenerator_Generate_VerifyIDs(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Segments: mockSvc,
-	}
-
-	gen := NewSegmentGenerator(e, nil)
+	gen := &segmentGenerator{segments: mockSvc}
 
 	_, err := gen.Generate(context.Background(), "test-org", "test-ledger", "Test", nil)
 	require.NoError(t, err)
@@ -186,11 +141,7 @@ func TestSegmentGenerator_Generate_WithMetadata(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Segments: mockSvc,
-	}
-
-	gen := NewSegmentGenerator(e, nil)
+	gen := &segmentGenerator{segments: mockSvc}
 	metadata := map[string]any{
 		"priority": "high",
 		"type":     "premium",

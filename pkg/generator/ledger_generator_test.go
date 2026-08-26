@@ -3,24 +3,24 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"strconv"
 	"sync/atomic"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// mockLedgersService satisfies the generator's narrow ledgersAPI (Create, List only).
 type mockLedgersService struct {
 	createFunc func(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error)
 	listFunc   func(ctx context.Context, orgID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error)
 }
 
-func (m *mockLedgersService) CreateLedger(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
+func (m *mockLedgersService) Create(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, input)
 	}
@@ -28,44 +28,12 @@ func (m *mockLedgersService) CreateLedger(ctx context.Context, orgID string, inp
 	return &models.Ledger{ID: "ledger-123", Name: input.Name}, nil
 }
 
-func (*mockLedgersService) GetLedger(_ context.Context, _, _ string) (*models.Ledger, error) {
-	return nil, errors.New("mock: GetLedger not implemented")
-}
-
-func (m *mockLedgersService) ListLedgers(ctx context.Context, orgID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
+func (m *mockLedgersService) List(ctx context.Context, orgID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, orgID, opts)
 	}
 
 	return &models.ListResponse[models.Ledger]{Items: []models.Ledger{}}, nil
-}
-
-func (*mockLedgersService) ListLedgersAll(_ context.Context, _ string, _ models.LedgersListOpts) iter.Seq2[models.Ledger, error] {
-	return func(_ func(models.Ledger, error) bool) {}
-}
-
-func (*mockLedgersService) ListLedgersPages(_ context.Context, _ string, _ models.LedgersListOpts) iter.Seq2[*models.ListResponse[models.Ledger], error] {
-	return func(_ func(*models.ListResponse[models.Ledger], error) bool) {}
-}
-
-func (*mockLedgersService) UpdateLedger(_ context.Context, _, _ string, _ *models.UpdateLedgerInput) (*models.Ledger, error) {
-	return nil, errors.New("mock: UpdateLedger not implemented")
-}
-
-func (*mockLedgersService) DeleteLedger(_ context.Context, _, _ string) error {
-	return nil
-}
-
-func (*mockLedgersService) GetLedgerSettings(_ context.Context, _, _ string) (*models.LedgerSettings, error) {
-	return nil, errors.New("mock: GetLedgerSettings not implemented")
-}
-
-func (*mockLedgersService) UpdateLedgerSettings(_ context.Context, _, _ string, _ *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
-	return nil, errors.New("mock: UpdateLedgerSettings not implemented")
-}
-
-func (*mockLedgersService) GetLedgersMetricsCount(_ context.Context, _ string) (*models.MetricsCount, error) {
-	return nil, errors.New("mock: GetLedgersMetricsCount not implemented")
 }
 
 func TestNewLedgerGenerator(t *testing.T) {
@@ -112,10 +80,7 @@ func TestLedgerGenerator_Generate_NilLedgersService(t *testing.T) {
 
 func TestLedgerGenerator_Generate_EmptyOrgID(t *testing.T) {
 	mockSvc := &mockLedgersService{}
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-	gen := NewLedgerGenerator(e, nil, "")
+	gen := &ledgerGenerator{ledgers: mockSvc}
 	template := data.LedgerTemplate{
 		Name: "Test Ledger",
 	}
@@ -135,11 +100,7 @@ func TestLedgerGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-
-	gen := NewLedgerGenerator(e, nil, "")
+	gen := &ledgerGenerator{ledgers: mockSvc}
 	template := data.LedgerTemplate{
 		Name:   "Test Ledger",
 		Status: models.NewStatus(models.StatusActive),
@@ -161,11 +122,7 @@ func TestLedgerGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-
-	gen := NewLedgerGenerator(e, nil, "")
+	gen := &ledgerGenerator{ledgers: mockSvc}
 	template := data.LedgerTemplate{
 		Name: "Test Ledger",
 	}
@@ -214,11 +171,7 @@ func TestLedgerGenerator_GenerateForOrg_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-
-	gen := NewLedgerGenerator(e, nil, "")
+	gen := &ledgerGenerator{ledgers: mockSvc}
 	ctx := WithWorkers(context.Background(), 2)
 
 	results, err := gen.GenerateForOrg(ctx, "org-123", 3)
@@ -243,11 +196,7 @@ func TestLedgerGenerator_GenerateForOrg_PartialError(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-
-	gen := NewLedgerGenerator(e, nil, "")
+	gen := &ledgerGenerator{ledgers: mockSvc}
 	ctx := WithWorkers(context.Background(), 1)
 
 	results, err := gen.GenerateForOrg(ctx, "org-123", 3)
@@ -276,11 +225,7 @@ func TestLedgerGenerator_ListWithPagination_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-
-	gen := NewLedgerGenerator(e, nil, "default-org")
+	gen := &ledgerGenerator{ledgers: mockSvc, defaultOrg: "default-org"}
 
 	result, err := gen.ListWithPagination(context.Background(), models.LedgersListOpts{})
 	require.NoError(t, err)
@@ -294,11 +239,7 @@ func TestLedgerGenerator_ListWithPagination_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-
-	gen := NewLedgerGenerator(e, nil, "default-org")
+	gen := &ledgerGenerator{ledgers: mockSvc, defaultOrg: "default-org"}
 
 	result, err := gen.ListWithPagination(context.Background(), models.LedgersListOpts{})
 	require.Error(t, err)
@@ -319,11 +260,7 @@ func TestLedgerGenerator_ListWithPagination_WithOptions(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-
-	gen := NewLedgerGenerator(e, nil, "default-org")
+	gen := &ledgerGenerator{ledgers: mockSvc, defaultOrg: "default-org"}
 
 	opts := models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: 10}}
 
@@ -381,11 +318,7 @@ func TestLedgerGenerator_GenerateForOrg_WithWorkers(t *testing.T) {
 				},
 			}
 
-			e := &entities.Entity{
-				Ledgers: mockSvc,
-			}
-
-			gen := NewLedgerGenerator(e, nil, "")
+			gen := &ledgerGenerator{ledgers: mockSvc}
 			ctx := context.Background()
 
 			if tt.workers > 0 {
@@ -406,11 +339,7 @@ func TestLedgerGenerator_GenerateForOrg_AllErrors(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Ledgers: mockSvc,
-	}
-
-	gen := NewLedgerGenerator(e, nil, "")
+	gen := &ledgerGenerator{ledgers: mockSvc}
 	ctx := WithWorkers(context.Background(), 1)
 
 	results, err := gen.GenerateForOrg(ctx, "org-123", 3)

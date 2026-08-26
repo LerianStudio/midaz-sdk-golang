@@ -9,6 +9,24 @@ If this is your first time with the SDK, read the numbered examples in
 order. If you already know what you're looking for, jump to the relevant
 section below.
 
+## Which surface these examples use
+
+The SDK serves **both** Midaz ledger surfaces, and the version lives in
+the request path rather than in the base URL: `c.V1.<Service>` (14
+services) and `c.V2.<Service>` (22 services). Tracer accessors are not
+grouped — they stay flat on the client.
+
+Midaz deprecated all of /v1, so **these examples use `c.V2` by default**.
+Two flows deliberately stay on `c.V1`, because the endpoints they
+demonstrate exist only there:
+
+| Stays on V1 | Why |
+|---|---|
+| [`workflow-with-entities/`](workflow-with-entities/) transaction flows | `CreateJSON` and the nested send/source/distribute envelope: /v2 replaced the four /v1 creation styles with the flat top-level `direct`/`hold` actions |
+| asset rates | /v2 dropped the resource entirely |
+
+[`03-end-to-end/`](03-end-to-end/) shows the /v2 creation path.
+
 ## Start here
 
 | Example | Demonstrates | Body size |
@@ -20,7 +38,7 @@ section below.
 
 | Example | Demonstrates |
 |---|---|
-| [`03-end-to-end/`](03-end-to-end/) | Org → ledger → asset → account → transaction |
+| [`03-end-to-end/`](03-end-to-end/) | Creating a transaction on /v2 (`CreateDirect`) |
 | [`04-listing-cursor/`](04-listing-cursor/) | Cursor-based pagination with `iter.Seq2` |
 | [`05-listing-pages/`](05-listing-pages/) | Page-based pagination — `List` / `ListAll` / `ListPages` |
 
@@ -30,13 +48,13 @@ section below.
 |---|---|
 | [`06-idempotency/`](06-idempotency/) | Auto / explicit / suppressed idempotency modes |
 | [`07-retries/`](07-retries/) | Default policy, custom policy, disabled retries |
-| [`08-logging-slog/`](08-logging-slog/) | `*slog.Logger` integration (canonical v3 logging) |
+| [`08-logging-slog/`](08-logging-slog/) | `*slog.Logger` integration (the SDK's only logging surface) |
 
 ## Testing & observability
 
 | Example | Demonstrates |
 |---|---|
-| [`09-testing-with-mocks/`](09-testing-with-mocks/) | `go.uber.org/mock` for unit testing your code against the SDK |
+| [`09-testing-with-mocks/`](09-testing-with-mocks/) | A consumer-defined narrow interface plus a hand-written mock — no generated mocks, no SDK test dependency |
 | [`10-observability-otel/`](10-observability-otel/) | Full OpenTelemetry surface (tracing + metrics + logs) |
 
 ## Reference / advanced

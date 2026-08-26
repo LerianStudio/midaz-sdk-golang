@@ -109,6 +109,55 @@ func ValidateRedirectWithInsecureHTTP(req *http.Request, via []*http.Request, al
 	return nil
 }
 
+// ValidatePlaneRedirect is the redirect policy for the two-plane clients
+// (Ledger + Tracer). Unlike [ValidateRedirect] — used by the legacy path,
+// which refuses a cross-origin redirect only when the previous request carried
+// credentials — this policy refuses ANY cross-origin redirect.
+//
+// The Midaz server is a fixed, configured host, so a cross-origin 302 on plane
+// traffic is never legitimate. Blocking all of them closes the credential-leak
+// gap on safe methods (GET): the plane auth round tripper injects the Bearer /
+// X-API-Key BELOW net/http's redirect-header-stripping layer, so on a followed
+// cross-host redirect the token is re-stamped onto the foreign host. Same-host
+// scheme upgrades (http→https) are permitted — credentials stay with the
+// intended host over a stronger channel.
+//
+// It reuses the same outbound-request validation and maxRedirects ceiling as
+// [ValidateRedirect].
+func ValidatePlaneRedirect(req *http.Request, via []*http.Request) error {
+	if err := validateOutboundRequest(req, false); err != nil {
+		return err
+	}
+
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("stopped after %d redirects", maxRedirects)
+	}
+
+	if len(via) == 0 {
+		return nil
+	}
+
+	previous := via[len(via)-1].URL
+	if previous == nil {
+		// A previous hop with no URL is not something we can prove is
+		// same-origin — fail closed.
+		return ErrAuthenticatedRedirect
+	}
+
+	if sameOrigin(previous, req.URL) {
+		return nil
+	}
+
+	// Allow a same-host http→https upgrade (but never an https→http downgrade,
+	// which would leak the token over an insecure channel to the same host).
+	if strings.EqualFold(previous.Host, req.URL.Host) &&
+		strings.EqualFold(previous.Scheme, "http") && strings.EqualFold(req.URL.Scheme, "https") {
+		return nil
+	}
+
+	return ErrAuthenticatedRedirect
+}
+
 // EnsureRedirectPolicy returns a SHALLOW client copy whose CheckRedirect
 // enforces the SDK redirect policy before delegating to any
 // caller-supplied policy.

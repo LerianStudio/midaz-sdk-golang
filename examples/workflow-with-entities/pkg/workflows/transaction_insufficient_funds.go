@@ -1,3 +1,7 @@
+// This flow stays on c.V1.Transactions for the same reason transaction.go
+// does: it creates through CreateJSON, and the nested send/source/distribute
+// creation style exists only on /v1. See the note at the top of transaction.go,
+// and examples/03-end-to-end for the /v2 creation path.
 package workflows
 
 import (
@@ -8,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/conversion"
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/conversion"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
 )
 
 // insufficientFundsTest defines a test case for insufficient funds scenarios
@@ -129,7 +133,7 @@ func runInsufficientFundsTest(ctx context.Context, midazClient *midaz.Client, or
 	}
 
 	startTime := time.Now()
-	_, err = midazClient.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
+	_, err = midazClient.V1.Transactions.CreateJSON(testCtx, orgID, ledgerID, transferInput)
 	duration := time.Since(startTime)
 
 	observability.RecordSpanMetric(testCtx, "test_duration_ms", float64(duration.Milliseconds()))

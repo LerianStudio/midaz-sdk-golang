@@ -2,11 +2,11 @@
 
 ## Project structure and module organization
 
-- `midaz.go` - Root SDK entry point (`github.com/LerianStudio/midaz-sdk-golang/v4`, package name `midaz`). Defines `Client`, `New`, and the user-facing `With*` options.
+- `midaz.go` - Root SDK entry point (`github.com/LerianStudio/midaz-sdk-golang/v5`, package name `midaz`). Defines `Client`, `New`, and the user-facing `With*` options.
 - `types.go` - Re-exports of the most commonly used `models.*` types (Account, Ledger, Transaction, etc.) and the `Environment` constants under the `midaz` package.
 - `entities/` - Entity service interfaces, HTTP transport, request helpers, and service accessors.
 - `models/` - Public API types, request builders, response wrappers, pagination options, and Midaz model aliases.
-- `pkg/` - SDK utilities including access manager, concurrency, config, errors, formatting, observability, pagination, performance, retry, security, transaction helpers, validation, and versioning.
+- `pkg/` - SDK utilities including access manager, concurrency, config, errors, formatting, observability, performance, retry, sdkctx (idempotency-key context helpers), security, transaction helpers, validation, and versioning.
 - `examples/` - Runnable examples. Start with `examples/mass-demo-generator` for end-to-end demo data.
 - `docs/` - Generated Go docs and hand-written guides; `docs/mapping/` contains public and internal API maps.
 - `scripts/` - Automation helpers for docs and repository maintenance.
@@ -62,7 +62,7 @@
 
 - Never commit secrets. Configure local runs via `.env` copied from `.env.example` (alias of `.env.local.example`); use `.env.production.example` as the production template.
 - The three `.env*.example` files are the authoritative list of SDK-read env vars. Keep them in sync with `pkg/config/config.go:FromEnvironment` whenever you change the config surface.
-- Service URL variables: `MIDAZ_BASE_URL`, `MIDAZ_LEDGER_URL`, `MIDAZ_CRM_URL`.
+- Service URL variables: `MIDAZ_BASE_URL`, `MIDAZ_LEDGER_URL`, `MIDAZ_TRACER_URL` (+ optional `MIDAZ_TRACER_API_KEY` for Tracer-plane auth).
 - Access Manager variables: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`, `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`.
 - Behavior variables: `MIDAZ_ENVIRONMENT`, `MIDAZ_TIMEOUT`, `MIDAZ_DEBUG`, `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`, `MIDAZ_ERROR_EXPOSE_BODY`.
 - Environment loading is explicit: use `config.NewConfig(config.FromEnvironment())`. The SDK does not auto-read env vars otherwise.

@@ -1,6 +1,6 @@
 # Midaz Go SDK public API map
 
-This map documents the recommended public SDK surface that consumers should use. It is not a replacement for generated Go docs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v4`; the Go package name is `midaz`.
+This map documents the recommended public SDK surface that consumers should use. It is not a replacement for generated Go docs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v5`; the Go package name is `midaz`.
 
 ## Root package
 
@@ -11,9 +11,9 @@ This map documents the recommended public SDK surface that consumers should use.
 ### Client options
 
 - `midaz.WithConfig(*config.Config)` - Uses a pre-built SDK configuration.
-- `midaz.WithBaseURL(string)` - Sets a shared base URL and derives Ledger/CRM service URLs.
-- `midaz.WithLedgerURL(string)` - Sets the Ledger service URL (onboarding + transactions).
-- `midaz.WithCRMURL(string)` - Sets the CRM service URL.
+- `midaz.WithBaseURL(string)` - Sets one shared origin and fans it out to **both** planes, re-shaping the Tracer copy (the Tracer base keeps `/v1`, the Ledger base is bare). This is the only fan-out; the per-plane options below each address one plane.
+- `midaz.WithLedgerURL(string)` - Sets the Ledger plane URL. Must carry **no version segment** — the server puts the version in each path, so a `/v1` or `/v2` suffix is rejected at construction rather than producing `/v1/v1/...`. Does **not** derive the Tracer base.
+- `midaz.WithTracerURL(string)` - Sets the Tracer plane URL. The Tracer versions itself in its base URL, so this one keeps `/v1`.
 - `midaz.WithEnvironment(config.Environment)` - Uses a named environment preset.
 - `midaz.WithHTTPClient(*http.Client)` - Supplies a custom HTTP client.
 - `midaz.WithTimeout(time.Duration)` - Sets request timeout.
@@ -31,6 +31,7 @@ This map documents the recommended public SDK surface that consumers should use.
 - `midaz.WithObservabilityProvider(observability.Provider)` - Install a pre-built observability provider. Replacement semantics.
 - `midaz.WithAccessManager(midaz.AccessManager)` - Configure Access Manager OAuth authentication. Mutually exclusive with `WithAnonymous`.
 - `midaz.WithAllowInsecureAccessManagerHTTP(bool)` - Explicitly allow non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Default is strict HTTPS-or-loopback only.
+- `midaz.WithAllowInsecureHTTP(bool)` - Explicitly allow non-loopback `http://` **Ledger and Tracer** URLs for trusted in-cluster networks (e.g. `*.svc.cluster.local`). Independent of the Access Manager knob above, and refused with `WithEnvironment(config.EnvironmentProduction)`. Apply it BEFORE the URL setters in the chain — each URL is validated as it is set.
 - `midaz.WithAnonymous()` - Explicitly opt out of authentication for local development and tests. Mutually exclusive with `WithAccessManager`.
 
 ### Client fields and methods
@@ -50,7 +51,7 @@ This map documents the recommended public SDK surface that consumers should use.
 
 ## Validation package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation` for optional client-side validation helpers.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation` for optional client-side validation helpers.
 
 - `validation.NewValidator(options ...core.ValidationOption) (*validation.Validator, error)`
 - `validation.DefaultValidator() *validation.Validator`
@@ -65,7 +66,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation` for optional cl
 
 ## Configuration package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config`.
 
 ### Constructors and options
 
@@ -76,9 +77,10 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config`.
 - `config.WithEnvironment(config.Environment) config.Option`
 - `config.WithBaseURL(string) config.Option`
 - `config.WithLedgerURL(string) config.Option`
-- `config.WithCRMURL(string) config.Option`
+- `config.WithTracerURL(string) config.Option`
 - `config.WithAccessManager(auth.AccessManager) config.Option`
 - `config.WithAllowInsecureAccessManagerHTTP(bool) config.Option`
+- `config.WithAllowInsecureHTTP(bool) config.Option` - Ledger/Tracer plane equivalent of the option above. Apply before the URL setters; `Validate` refuses it together with `EnvironmentProduction`.
 - `config.WithHTTPClient(*http.Client) config.Option`
 - `config.WithTimeout(time.Duration) config.Option`
 - `config.WithUserAgent(string) config.Option`
@@ -95,8 +97,9 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config`.
 
 - `MIDAZ_ENVIRONMENT`
 - `MIDAZ_BASE_URL`
-- `MIDAZ_LEDGER_URL`
-- `MIDAZ_CRM_URL`
+- `MIDAZ_LEDGER_URL` - no version segment; a `/v1` or `/v2` suffix is rejected
+- `MIDAZ_TRACER_URL` - keeps `/v1`
+- `MIDAZ_TRACER_API_KEY` - optional; authenticates the Tracer plane with an `X-API-Key` instead of the shared Ledger Bearer token
 - `MIDAZ_TIMEOUT`
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
@@ -105,104 +108,123 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config`.
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
 - `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`
+- `MIDAZ_ALLOW_INSECURE_HTTP` - Ledger/Tracer plane; loaded before the URL variables so the ordering is automatic. Refused with `MIDAZ_ENVIRONMENT=production`
 - `MIDAZ_CLIENT_ID`
 - `MIDAZ_CLIENT_SECRET`
 
 ## Access Manager package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth` (no alias needed; package name is `auth`).
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth` (no alias needed; package name is `auth`).
 
 - `auth.AccessManager` - Plugin authentication configuration with `Enabled`, `Address`, `ClientID`, `ClientSecret`, and `AllowInsecureHTTP`. Re-exported as `midaz.AccessManager` so a typical setup needs only the root import.
 - `config.WithAccessManager(auth.AccessManager)` / `midaz.WithAccessManager(midaz.AccessManager)` - Configure plugin auth. The Enabled field is auto-set to true; callers populate Address/ClientID/ClientSecret only.
 - `midaz.WithAnonymous()` / `config.WithAnonymous()` - Explicit auth-less mode for local development and tests.
 
-v3 contract: `midaz.New()` requires exactly one of `WithAccessManager` or `WithAnonymous`. See [docs/auth.md](../auth.md).
+`midaz.New()` requires exactly one of `WithAccessManager` or `WithAnonymous`. See [docs/auth.md](../auth.md).
 
 ## Entity package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should prefer promoted client services such as `c.Accounts`, `c.Transactions`, and `c.Organizations`; `c.Entity.Accounts` remains available as the embedded back-compat access path.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/entities`.
 
 ### Entity access point
 
-- `Client.Accounts` (`Client.Entity.Accounts` compatibility path)
-- `Client.AccountTypes` (`Client.Entity.AccountTypes` compatibility path)
-- `Client.Assets` (`Client.Entity.Assets` compatibility path)
-- `Client.AssetRates` (`Client.Entity.AssetRates` compatibility path)
-- `Client.Balances` (`Client.Entity.Balances` compatibility path)
-- `Client.Holders` (`Client.Entity.Holders` compatibility path)
-- `Client.Aliases` (`Client.Entity.Aliases` compatibility path)
-- `Client.Ledgers` (`Client.Entity.Ledgers` compatibility path)
-- `Client.MetadataIndexes` (`Client.Entity.MetadataIndexes` compatibility path)
-- `Client.Operations` (`Client.Entity.Operations` compatibility path)
-- `Client.OperationRoutes` (`Client.Entity.OperationRoutes` compatibility path)
-- `Client.Organizations` (`Client.Entity.Organizations` compatibility path)
-- `Client.Portfolios` (`Client.Entity.Portfolios` compatibility path)
-- `Client.Segments` (`Client.Entity.Segments` compatibility path)
-- `Client.Transactions` (`Client.Entity.Transactions` compatibility path)
-- `Client.TransactionRoutes` (`Client.Entity.TransactionRoutes` compatibility path)
+Ledger-plane accessors are grouped by the **server version that serves them**: `Client.V1.<Service>` and `Client.V2.<Service>`, promoted through the embedded `*Entity` (so `Client.Entity.V1.Accounts` is the same accessor). There are no flat ledger accessors.
 
-### OrganizationsService
+The grouping is a fact about the server, not a style choice. Midaz carries the version inside each operation path (`/v1/organizations`, `/v2/organizations`), deprecated all of /v1 while keeping it alive, and did not mirror every resource across the two. Grouping turns that asymmetry into a compile error rather than a 404. Base URLs carry no version — a `/v1` or `/v2` suffix on the Ledger base URL is rejected at construction.
 
-- `ListOrganizations(ctx, opts)`
-- `ListOrganizationsAll(ctx, opts)`
-- `ListOrganizationsPages(ctx, opts)`
-- `GetOrganization(ctx, id)`
-- `CreateOrganization(ctx, input)`
-- `UpdateOrganization(ctx, id, input)`
-- `DeleteOrganization(ctx, id)`
-- `GetOrganizationsMetricsCount(ctx)`
+`V1Services`, 14 members:
 
-### LedgersService
+- `Client.V1.Organizations`, `Client.V1.Ledgers`, `Client.V1.Accounts`, `Client.V1.AccountTypes`, `Client.V1.Assets`, `Client.V1.Portfolios`, `Client.V1.Segments`, `Client.V1.OperationRoutes`, `Client.V1.TransactionRoutes`, `Client.V1.MetadataIndexes`, `Client.V1.Balances`, `Client.V1.Operations`, `Client.V1.Transactions`
+- `Client.V1.AssetRates` - **V1 only.** /v2 dropped the resource.
 
-- `ListLedgers(ctx, organizationID, opts)`
-- `ListLedgersAll(ctx, organizationID, opts)`
-- `ListLedgersPages(ctx, organizationID, opts)`
-- `GetLedger(ctx, organizationID, id)`
-- `CreateLedger(ctx, organizationID, input)`
-- `UpdateLedger(ctx, organizationID, id, input)`
-- `GetLedgerSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`.
-- `UpdateLedgerSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; allowed fields are `accounting.validateAccountType` and `accounting.validateRoutes`.
-- `DeleteLedger(ctx, organizationID, id)`
-- `GetLedgersMetricsCount(ctx, organizationID)`
+`V2Services`, 22 members — wider than V1, and the surface to build against:
 
-### AccountsService
+- Dual-served families: `Client.V2.Organizations`, `Client.V2.Ledgers`, `Client.V2.Accounts`, `Client.V2.AccountTypes`, `Client.V2.Assets`, `Client.V2.Portfolios`, `Client.V2.Segments`, `Client.V2.OperationRoutes`, `Client.V2.TransactionRoutes`, `Client.V2.MetadataIndexes`, `Client.V2.Balances`, `Client.V2.Operations`, `Client.V2.Transactions`
+- **V2 only** (Midaz removed these from /v1): `Client.V2.Holders`, `Client.V2.Instruments`, `Client.V2.Encryption`, `Client.V2.Composition`, `Client.V2.ProtectionAudit`, `Client.V2.BillingPackages`, `Client.V2.FeePackages`, `Client.V2.FeeEstimates`, `Client.V2.BillingCalculations`
 
-- `ListAccounts(ctx, organizationID, ledgerID, opts)`
-- `ListAccountsAll(ctx, organizationID, ledgerID, opts)`
-- `ListAccountsPages(ctx, organizationID, ledgerID, opts)`
-- `GetAccount(ctx, organizationID, ledgerID, id)`
-- `GetAccountByAlias(ctx, organizationID, ledgerID, alias)`
-- `CreateAccount(ctx, organizationID, ledgerID, input)`
-- `UpdateAccount(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAccount(ctx, organizationID, ledgerID, id)`
-- `GetBalance(ctx, organizationID, ledgerID, accountID)` - Convenience helper for accounts with exactly one balance; returns not found for zero balances and a validation error when multiple balances exist. Use `BalancesService.ListAccountBalances` for full balance lists.
-- `GetAccountsMetricsCount(ctx, organizationID, ledgerID)`
-- `GetExternalAccount(ctx, organizationID, ledgerID, assetCode)`
-- `GetExternalAccountBalance(ctx, organizationID, ledgerID, assetCode)` - Convenience helper for external accounts with exactly one balance; returns not found for zero balances and a validation error when multiple balances exist. Use `BalancesService.ListBalancesByExternalCode` for full balance lists.
-- `GetAccountByAliasPath(ctx, organizationID, ledgerID, alias)` - Deprecated compatibility alias for `GetAccountByAlias`.
+Two V2 members differ in **shape** from their V1 namesake rather than only in path:
 
-### AccountTypesService
+- `V2.Transactions` creates at the top level (`/v2/transactions/direct`) with the organization and ledger travelling per leg in the body, and answers with `models.TransactionV2`. The four V1 creation styles (json, inflow, outflow, annotation) have no V2 twin.
+- `V2.Accounts` does not re-expose the account-scoped balance and operation reads. V1 spells each on two facades; V2 spells each once, on `V2.Balances` and `V2.Operations`.
 
-- `ListAccountTypes(ctx, organizationID, ledgerID, opts)`
-- `ListAccountTypesAll(ctx, organizationID, ledgerID, opts)`
-- `ListAccountTypesPages(ctx, organizationID, ledgerID, opts)`
-- `GetAccountType(ctx, organizationID, ledgerID, id)`
-- `CreateAccountType(ctx, organizationID, ledgerID, input)`
-- `UpdateAccountType(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAccountType(ctx, organizationID, ledgerID, id)`
+The billing family (`BillingPackages`, `FeePackages`, `FeeEstimates`, `BillingCalculations`) also **moved scope** between versions, from organization to ledger, so every method takes a ledger ID.
 
-### AssetsService
+Tracer-plane accessors are **not** version-grouped: the Tracer serves one surface and carries its version in the base URL rather than in each path, so they stay flat on the client.
 
-- `ListAssets(ctx, organizationID, ledgerID, opts)`
-- `ListAssetsAll(ctx, organizationID, ledgerID, opts)`
-- `ListAssetsPages(ctx, organizationID, ledgerID, opts)`
-- `GetAsset(ctx, organizationID, ledgerID, id)`
-- `CreateAsset(ctx, organizationID, ledgerID, input)`
-- `UpdateAsset(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAsset(ctx, organizationID, ledgerID, id)`
-- `GetAssetsMetricsCount(ctx, organizationID, ledgerID)`
+- `Client.Rules` (`Client.Entity.Rules` compatibility path)
+- `Client.Limits` (`Client.Entity.Limits` compatibility path)
+- `Client.Validations` (`Client.Entity.Validations` compatibility path)
+- `Client.Reservations` (`Client.Entity.Reservations` compatibility path)
+- `Client.AuditEvents` (`Client.Entity.AuditEvents` compatibility path)
 
-### AssetRatesService
+### Organizations
+
+- `List(ctx, opts)`
+- `All(ctx, opts)`
+- `Pages(ctx, opts)`
+- `Get(ctx, id)`
+- `Create(ctx, input)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Count(ctx)`
+
+### Ledgers
+
+- `List(ctx, organizationID, opts)`
+- `All(ctx, organizationID, opts)`
+- `Pages(ctx, organizationID, opts)`
+- `Get(ctx, organizationID, id)`
+- `Create(ctx, organizationID, input)`
+- `Update(ctx, organizationID, id, input)`
+- `GetSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`.
+- `UpdateSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; allowed fields are `accounting.validateAccountType` and `accounting.validateRoutes`.
+- `Delete(ctx, organizationID, id)`
+- `Count(ctx, organizationID)`
+
+### Accounts
+
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `GetByAlias(ctx, organizationID, ledgerID, alias)`
+- `GetByExternalCode(ctx, organizationID, ledgerID, code)` - Reaches the EXTERNAL account of an asset (the counterparty every deposit is drawn from) by asset code rather than by id.
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `ListBalances(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListBalancesAll(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListBalancesPages(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperations(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperationsAll(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperationsPages(ctx, organizationID, ledgerID, accountID, opts)`
+- `BalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, timestamp)` - Point-in-time balance snapshot.
+- `Count(ctx, organizationID, ledgerID)`
+
+Account balances are listed via `Accounts.ListBalances` (and its `All` / `Pages` variants); there is no single-balance convenience getter on the `Accounts` facade. For cross-account or external-account balance queries, use the legacy `Balances` accessor (`ListAccountBalances`, `ListBalancesByExternalCode`, etc.).
+
+### AccountTypes
+
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+
+### Assets
+
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
+
+### AssetRates
 
 - `CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, input)`
 - `GetAssetRate(ctx, organizationID, ledgerID, externalID)`
@@ -212,7 +234,9 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 
 `models.AssetRatesListOpts` embeds `models.CursorListOpts` for `Limit`, `Cursor`, `SortDirection`, `StartDate`, and `EndDate`, plus `models.AssetRatesFilters{To: []string{...}}`. It serializes to `to`, `limit`, `start_date`, `end_date`, `sort_order`, and `cursor`.
 
-### BalancesService
+### Balances
+
+Served on both surfaces: `V1.Balances` and `V2.Balances`.
 
 - `ListBalances(ctx, orgID, ledgerID, opts)`
 - `ListBalancesAll(ctx, orgID, ledgerID, opts)`
@@ -225,37 +249,39 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `UpdateBalance(ctx, orgID, ledgerID, balanceID, input)`
 - `DeleteBalance(ctx, orgID, ledgerID, balanceID)`
 - `CreateBalance(ctx, orgID, ledgerID, accountID, input)`
-- `ListBalancesByAccountAlias(ctx, orgID, ledgerID, alias, opts)`
-- `ListBalancesByAccountAliasAll(ctx, orgID, ledgerID, alias, opts)`
-- `ListBalancesByAccountAliasPages(ctx, orgID, ledgerID, alias, opts)`
-- `ListBalancesByExternalCode(ctx, orgID, ledgerID, code, opts)`
-- `ListBalancesByExternalCodeAll(ctx, orgID, ledgerID, code, opts)`
-- `ListBalancesByExternalCodePages(ctx, orgID, ledgerID, code, opts)`
+- `ListBalancesByAccountAlias(ctx, orgID, ledgerID, alias)`
+- `ListBalancesByExternalCode(ctx, orgID, ledgerID, code)`
 - `GetAccountBalancesHistory(ctx, orgID, ledgerID, accountID, date)`
 
-### PortfoliosService
+The alias and external-code lookups take **no opts and have no `All`/`Pages` iterators**. Those endpoints accept no query parameters and are not paginated — the server answers with a fixed page — so an iterator over them could not advance, and an opts parameter whose only legal value is the zero value is not a parameter.
 
-- `ListPortfolios(ctx, organizationID, ledgerID, opts)`
-- `ListPortfoliosAll(ctx, organizationID, ledgerID, opts)`
-- `ListPortfoliosPages(ctx, organizationID, ledgerID, opts)`
-- `GetPortfolio(ctx, organizationID, ledgerID, id)`
-- `CreatePortfolio(ctx, organizationID, ledgerID, input)`
-- `UpdatePortfolio(ctx, organizationID, ledgerID, id, input)`
-- `DeletePortfolio(ctx, organizationID, ledgerID, id)`
-- `GetPortfoliosMetricsCount(ctx, organizationID, ledgerID)`
+On /v1 the account-scoped balance reads are also reachable through `V1.Accounts` (`ListBalances`, `ListBalancesAll`, `ListBalancesPages`, `BalancesAtTimestamp`). /v2 spells each endpoint once, here.
 
-### SegmentsService
+### Portfolios
 
-- `ListSegments(ctx, organizationID, ledgerID, opts)`
-- `ListSegmentsAll(ctx, organizationID, ledgerID, opts)`
-- `ListSegmentsPages(ctx, organizationID, ledgerID, opts)`
-- `GetSegment(ctx, organizationID, ledgerID, id)`
-- `CreateSegment(ctx, organizationID, ledgerID, input)`
-- `UpdateSegment(ctx, organizationID, ledgerID, id, input)`
-- `DeleteSegment(ctx, organizationID, ledgerID, id)`
-- `GetSegmentsMetricsCount(ctx, organizationID, ledgerID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
 
-### OperationsService
+### Segments
+
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
+
+### Operations
+
+Served on both surfaces: `V1.Operations` and `V2.Operations`.
 
 - `ListOperations(ctx, orgID, ledgerID, accountID, opts)`
 - `ListOperationsAll(ctx, orgID, ledgerID, accountID, opts)`
@@ -263,99 +289,269 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `GetOperation(ctx, orgID, ledgerID, accountID, operationID)`
 - `UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
 
-### OperationRoutesService
+`OperationsFilters` exposes the four predicates the server honors — `Type`, `Direction`, `RouteID`, `RouteCode`. On /v1 the account-scoped list is also reachable through `V1.Accounts.ListOperations`, and the transaction-scoped update through `V1.Transactions.UpdateOperation`; /v2 spells each once, here.
 
-- `ListOperationRoutes(ctx, organizationID, ledgerID, opts)`
-- `ListOperationRoutesAll(ctx, organizationID, ledgerID, opts)`
-- `ListOperationRoutesPages(ctx, organizationID, ledgerID, opts)`
-- `GetOperationRoute(ctx, organizationID, ledgerID, operationRouteID)`
-- `CreateOperationRoute(ctx, organizationID, ledgerID, input)`
-- `UpdateOperationRoute(ctx, organizationID, ledgerID, operationRouteID, input)`
-- `DeleteOperationRoute(ctx, organizationID, ledgerID, operationRouteID)`
+**`V2.Operations` answers with `models.Operation`, not `models.OperationV2`.** The server's v2 operation endpoints return the v1 schema; `OperationV2` appears only nested inside `models.TransactionV2.Operations`. That is a server-side inconsistency the SDK reports rather than papers over.
 
-### TransactionRoutesService
+### OperationRoutes
 
-- `ListTransactionRoutes(ctx, organizationID, ledgerID, opts)`
-- `ListTransactionRoutesAll(ctx, organizationID, ledgerID, opts)`
-- `ListTransactionRoutesPages(ctx, organizationID, ledgerID, opts)`
-- `GetTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID)`
-- `CreateTransactionRoute(ctx, organizationID, ledgerID, input)`
-- `UpdateTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID, input)`
-- `DeleteTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, operationRouteID)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, operationRouteID, input)`
+- `Delete(ctx, organizationID, ledgerID, operationRouteID)`
 
-### TransactionsService
+### TransactionRoutes
 
-- `CreateTransaction(ctx, orgID, ledgerID, input)`
-- `CreateTransactionWithDSL(ctx, orgID, ledgerID, input)`
-- `CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)`
-- `GetTransaction(ctx, orgID, ledgerID, transactionID)`
-- `ListTransactions(ctx, orgID, ledgerID, opts)`
-- `ListTransactionsAll(ctx, orgID, ledgerID, opts)`
-- `ListTransactionsPages(ctx, orgID, ledgerID, opts)`
-- `GetTransactionsMetricsCount(ctx, orgID, ledgerID, opts)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, transactionRouteID)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, transactionRouteID, input)`
+- `Delete(ctx, organizationID, ledgerID, transactionRouteID)`
+
+### Transactions
+
+The one family whose two surfaces differ in **shape**, not only in path.
+
+`V1.Transactions`, returning `models.Transaction`:
+
+- `CreateJSON(ctx, orgID, ledgerID, input)` - **V1 only**, as are the three below
+- `CreateInflow(ctx, orgID, ledgerID, input)`
+- `CreateOutflow(ctx, orgID, ledgerID, input)`
+- `CreateAnnotation(ctx, orgID, ledgerID, input)`
+- `CreateBlock(ctx, orgID, ledgerID, input)`
+- `CreateUnblock(ctx, orgID, ledgerID, input)`
+- `Get` / `List` / `All` / `Pages` / `Count(ctx, orgID, ledgerID, ...)`
 - `UpdateTransaction(ctx, orgID, ledgerID, transactionID, input)`
-- `RevertTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CommitTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CancelTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID)`
-- `CreateInflowTransaction(ctx, orgID, ledgerID, input)`
-- `CreateOutflowTransaction(ctx, orgID, ledgerID, input)`
-- `CreateAnnotationTransaction(ctx, orgID, ledgerID, input)`
+- `UpdateOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
+- `Commit` / `Revert` / `Cancel(ctx, orgID, ledgerID, transactionID)`
 
-`CreateTransactionWithDSLFile` sends `POST /transactions/dsl` as multipart form data with field name `transaction`, filename `transaction.dsl`, and UTF-8 DSL content. The SDK rejects empty, invalid UTF-8, and over-limit DSL payloads before network I/O.
+`V2.Transactions`, returning `models.TransactionV2`:
 
-`ListTransactions` (and the `*All` / `*Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexesService.CreateMetadataIndex(ctx, "transaction", input)` to avoid a backend collection scan at scale.
+- `CreateDirect(ctx, orgID, ledgerID, input)` - settles immediately
+- `CreateHold(ctx, orgID, ledgerID, input)` - reserves value for a later `Commit`
+- `CreateBlock` / `CreateUnblock(ctx, orgID, ledgerID, input)`
+- `Get` / `List` / `All` / `Pages` / `Count(ctx, orgID, ledgerID, ...)`
+- `Update(ctx, orgID, ledgerID, transactionID, input)`
+- `Commit` / `Revert` / `Cancel(ctx, orgID, ledgerID, transactionID)`
+
+The four V1 creation styles nest a `send` envelope (`send.source.from`, `send.distribute.to`) behind four endpoints. All four V2 creates share **one** request type, `models.CreateTransactionV2Input`, which is flat: an asset, a total, and two leg arrays (`Debits`, `Credits`). Nothing in the payload says which action runs — the endpoint does.
+
+The V2 creates are posted at the **top level** (`POST /v2/transactions/direct`); the URL carries no organization or ledger at all. Instead **every leg** names the pair its account belongs to, and the server refuses a body whose legs disagree. The facade still takes `(orgID, ledgerID)` and stamps them onto any leg that left them empty, into a deep copy — so a caller reusing one input across two ledgers cannot carry the first call's scope into the second. A leg that names a *different* pair is refused rather than posted into the wrong ledger.
+
+A V2 leg carries **exactly one** value expression: an explicit `Amount`, or a `Share` of the transaction total. Both, or neither, is refused before the request leaves.
+
+`models.TransactionV2` is not `models.Transaction` with fields added: it drops four V1 fields the surface does not serve (`chartOfAccountsGroupName`, `route`, `source`, `destination`), carries two V1 dropped (`FeesSkipped`, `TracerSkipped`), and names the participating aliases `Debit`/`Credit` rather than `Source`/`Destination`.
+
+Structured splits (multiple sources or destinations in one transaction) are multiple `Debits` / `Credits` entries on V2, and multiple `Distribute.To` entries on the V1 send payload. There is no dedicated DSL endpoint on either.
+
+#### What a transaction list can narrow by
+
+The date range, the sort direction, and **one metadata predicate** — nothing else, on either surface.
+
+Six `TransactionsFilters` fields — `Status`, `AssetCode`, `Reference`, `SourceAccount`, `DestinationAccount`, `Route` — are **refused before the request is built**, naming every one the caller set. The ledger never honored them: both list routes call the same server function, which parses `status` and `asset_code` and then discards them (`ToCursorPagination` returns only limit/cursor/sort_order/start_date/end_date), and never parses the other four at all. Setting one previously returned the whole unfiltered ledger with a nil error, which is why refusal replaced it in v5. `Status` and `Route` remain honored by `Count`.
+
+The metadata pair (`Filters.MetadataKey` + `MetadataValue`, rendered as `metadata.<key>=<value>`) is the only content filter that survives, which is why a correlation identifier belongs in transaction metadata at create time — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexes.Create(ctx, "transaction", input)` to avoid a backend collection scan at scale.
 
 ### Count method behavior
 
-The supported count methods are `GetOrganizationsMetricsCount`, `GetLedgersMetricsCount`, `GetAssetsMetricsCount`, `GetPortfoliosMetricsCount`, `GetSegmentsMetricsCount`, `GetAccountsMetricsCount`, and `GetTransactionsMetricsCount`.
+`Count(...)` is exposed on the `Organizations`, `Ledgers`, `Assets`, `Portfolios`, `Segments`, `Accounts` and `Transactions` accessors, on both surfaces. `AccountTypes` has no count endpoint on either version.
 
 These methods call Midaz `metrics/count` endpoints with `HEAD` and read the integer count from the `X-Total-Count` response header. If the header is missing, blank, non-integer, negative, or overflowing, the SDK returns an internal count-request error.
 
-### MetadataIndexesService
+**`Transactions.Count`'s default window is TODAY, not the ledger.** The SDK omits the dates when the opts leave them unset, and the server then fills in the current UTC day. A `Count` with a zero `TransactionsListOpts` therefore answers "how many transactions today" — a number that looks plausible to a caller reading it as the ledger total.
 
-- `ListMetadataIndexes(ctx, entityName)`
-- `CreateMetadataIndex(ctx, entityName, input)`
-- `DeleteMetadataIndex(ctx, entityName, metadataKey)`
+To count any other span set `StartDate` and `EndDate` as `YYYY-MM-DD`, the **same format `List` takes** from the same opts struct. Both bounds name a whole day and both are inclusive: `2026-01-01` to `2026-01-31` counts from the first instant of January 1st through the last instant of January 31st. The endpoint itself parses RFC 3339; the SDK widens each named day to the boundary instants at param-mapping time, so a caller never carries two date formats for one struct.
 
-`ListMetadataIndexes` returns a non-paginated `[]models.MetadataIndex` slice. There are no `ListMetadataIndexesAll` or `ListMetadataIndexesPages` helpers because the service does not use the SDK `ListResponse` pagination envelope.
+### MetadataIndexes
+
+- `List(ctx, entityName)`
+- `Create(ctx, entityName, input)`
+- `Delete(ctx, entityName, metadataKey)`
+
+`List` returns a non-paginated `[]models.MetadataIndex` slice. There are no `All` or `Pages` helpers because the service does not use the SDK `ListResponse` pagination envelope.
 
 ### CRM services
 
-CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header. Tenant scope is derived from Access Manager/JWT claims; the SDK does not expose or send `X-Tenant-ID`.
+There is no CRM plane and no CRM base URL. Midaz folded these resources into the ledger surface, so they route over the **Ledger** plane client like every other ledger accessor, and they are **/v2 only** — Midaz removed CRM from /v1. Tenant scope is derived from Access Manager/JWT claims; the SDK does not expose or send `X-Tenant-ID`.
 
-#### HoldersService
+#### Holders
 
-- `ListHolders(ctx, organizationID, opts)`
-- `ListHoldersAll(ctx, organizationID, opts)`
-- `ListHoldersPages(ctx, organizationID, opts)`
-- `CreateHolder(ctx, organizationID, input)`
-- `GetHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted holders.
-- `UpdateHolder(ctx, organizationID, holderID, input)`
-- `DeleteHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
+- `List(ctx, organizationID, opts)`
+- `All(ctx, organizationID, opts)`
+- `Pages(ctx, organizationID, opts)`
+- `Create(ctx, organizationID, input)`
+- `Get(ctx, organizationID, holderID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted holders.
+- `Update(ctx, organizationID, holderID, input)`
+- `Delete(ctx, organizationID, holderID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 
-#### AliasesService
+#### Aliases — removed, renamed to Instruments
 
-- `ListAliases(ctx, organizationID, opts)`
-- `ListAliasesAll(ctx, organizationID, opts)`
-- `ListAliasesPages(ctx, organizationID, opts)`
-- `CreateAlias(ctx, organizationID, holderID, input)`
-- `GetAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted aliases.
-- `UpdateAlias(ctx, organizationID, holderID, aliasID, input)`
-- `DeleteAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
-- `DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)`
+There is **no alias accessor**. Midaz renamed the resource to *instruments* and serves it on /v2 only; the server has no alias route at any version. `models.AliasesListOpts` and `models.AliasesFilters` are gone with it. See `V2.Instruments` under the plane-native accessors below.
+
+The shared CRM value types the alias models used to carry — `BankingDetails`, `RegulatoryFields`, `RelatedParty` — survive in `models/crm_shared_types.go`, because instruments and composition use them.
+
+### Plane-native accessors (v4 remodel)
+
+Concrete facades added in the v4 remodel over the typed generated plane clients (`internal/gentracer` for the Tracer plane, `internal/genledger` for the ledger-plane extensions). Their public surface is exactly `models.*` + `*errors.Error`; the generated types never leak. Tracer-plane accessors (`Rules`, `Limits`, `Validations`, `Reservations`, `AuditEvents`) are flat — they are not scoped by organization/ledger path segments. The ledger-plane accessors carry organization (and where noted, ledger/holder) path scope.
+
+#### Rules
+
+Tracer plane. Rule definitions and their lifecycle.
+
+- `Create(ctx, input)`
+- `Get(ctx, id)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Activate(ctx, id)`
+- `Deactivate(ctx, id)`
+- `Draft(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Limits
+
+Tracer plane. Limit definitions, their lifecycle, and point-in-time usage.
+
+- `Create(ctx, input)`
+- `Get(ctx, id)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Activate(ctx, id)`
+- `Deactivate(ctx, id)`
+- `Draft(ctx, id)`
+- `GetUsage(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Validations
+
+Tracer plane. Evaluate a transaction against the active rules/limits and read stored verdicts.
+
+- `Evaluate(ctx, input)`
+- `Get(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Reservations
+
+Tracer plane. Two-phase capacity reservations, by reservation id or by transaction.
+
+- `Reserve(ctx, input)`
+- `Confirm(ctx, id)`
+- `Release(ctx, id)`
+- `ConfirmByTransaction(ctx, transactionID)`
+- `ReleaseByTransaction(ctx, transactionID)`
+
+#### AuditEvents
+
+Tracer plane. Read-only audit trail with a server-side hash-chain verdict (the SDK performs no crypto).
+
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+- `Get(ctx, id)`
+- `Verify(ctx, id)`
+
+#### ProtectionAudit
+
+Ledger plane. Protection (envelope-encryption) audit trail. A `404` means the feature is disabled for the deployment (legacy mode), distinct from an empty result set.
+
+- `ListAuditEvents(ctx, organizationID, opts)`
+- `ListAuditEventsPages(ctx, organizationID, opts)`
+- `ListAuditEventsAll(ctx, organizationID, opts)`
+
+#### Encryption
+
+Ledger plane. Envelope-encryption provisioning. A `404` means the feature is disabled for the deployment (use `errors.IsFeatureNotAvailable`), distinct from a `provisioned:false` 200.
+
+- `Provision(ctx, organizationID, input)`
+- `GetProvisioningStatus(ctx, organizationID)`
+
+#### Instruments
+
+Ledger plane. CRM instruments under a holder, plus the holder's accounts.
+
+- `List(ctx, organizationID, holderID, opts)`
+- `ListPages(ctx, organizationID, holderID, opts)`
+- `ListAll(ctx, organizationID, holderID, opts)`
+- `Create(ctx, organizationID, holderID, input)` - `input` is `models.CreateInstrumentInput`, which requires the ledger, the account the instrument belongs to, banking details and metadata. The endpoint rejects any other property.
+- `Get(ctx, organizationID, holderID, id)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted instruments.
+- `Update(ctx, organizationID, holderID, id, input)` - `input` is `models.UpdateInstrumentInput`. The PATCH contract requires `bankingDetails` and `metadata` even on a partial update, and declares only `regulatoryFields` and `relatedParties` besides them; those two are also the only ones `WithNullFields` can clear. Neither write payload has a `document` or `type` slot.
+- `Delete(ctx, organizationID, holderID, id)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
+- `DeleteRelatedParty(ctx, organizationID, holderID, instrumentID, relatedPartyID)`
+- `ListAccountsByHolder(ctx, organizationID, ledgerID, holderID, opts)`
+- `ListAccountsByHolderPages(ctx, organizationID, ledgerID, holderID, opts)`
+- `ListAccountsByHolderAll(ctx, organizationID, ledgerID, holderID, opts)`
+
+The three holder-accounts methods take a ledger even though only the holder is a path segment: the endpoint requires the ledger as a query parameter at runtime, while the published contract does not declare it, so the SDK carries it explicitly. Without it every call fails with a missing-parameter error.
+
+#### Composition
+
+Ledger plane. Opens a holder-owned account and, when instrument fields are present, its instrument in one call. A populated `InstrumentError` on a 2xx response means the account committed but the instrument write failed (no rollback) — that is a success, not an error.
+
+- `CreateHolderAccount(ctx, organizationID, ledgerID, holderID, input)`
+
+#### FeePackages
+
+Ledger plane, **ledger-scoped**, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
+
+- `List(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+
+#### FeeEstimates
+
+Ledger plane, **ledger-scoped**. Dry-run fee estimation; a 2xx with `feesApplied:null` (no rules matched) is a success, not an error.
+
+- `EstimateFee(ctx, organizationID, ledgerID, input)`
+
+#### BillingPackages
+
+Ledger plane, **ledger-scoped**, page-mode paginated (`ListPages` advances `Page++` and stops on `!HasMore()`).
+
+- `List(ctx, organizationID, ledgerID, opts)`
+- `ListPages(ctx, organizationID, ledgerID, opts)`
+- `ListAll(ctx, organizationID, ledgerID, opts)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+
+#### BillingCalculations
+
+Ledger plane, **ledger-scoped**. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error. The ledger travels in the path AND in the body: an empty `input.LedgerID` inherits the path ledger, and a different one is rejected locally.
+
+- `CalculateBilling(ctx, organizationID, ledgerID, input)`
+
+## Transaction helpers package
+
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/transaction` for post-create settlement waits.
+
+- `transaction.WaitForSettlement(ctx, r, orgID, ledgerID, accountID, settled, opts...)` - Polls an account's balances via `r.ListAccountBalances` (satisfied structurally by `client.Balances`) until the caller-supplied `settled func(models.Balance) bool` predicate matches, then returns that `Balance`. An accepted transaction (HTTP 201) is NOT settled — 201 records the create; this waits on the balance effect. The predicate must pin the asset on a multi-asset account. Options: `transaction.WithPollInterval` (default 500ms), `transaction.WithMaxInterval` (default 5s), `transaction.WithTimeout` (default 30s). Returns `transaction.ErrSettlementTimeout` on deadline, or the caller's `ctx.Err()` on cancellation.
 
 ## Models package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/models`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/models`.
 
 ### List and pagination
 
-v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate base structs, so wrong-shape opts do not compile. The v2 `models.ListOptions` mega-struct, `NewListOptions`, all `With*` setters, and the `HasNextPage` / `NextPageOptions` / `CurrentPage` / `TotalPages` methods are deleted. See [docs/pagination.md](../pagination.md) for the full contract.
+The SDK uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate base structs, so wrong-shape opts do not compile. SDK v2's `models.ListOptions` mega-struct, `NewListOptions`, all `With*` setters, and the `HasNextPage` / `NextPageOptions` / `CurrentPage` / `TotalPages` methods are deleted. See [docs/pagination.md](../pagination.md) for the full contract.
 
 #### Base structs
 
-- `models.PageListOpts{Limit, Page, SortDirection, StartDate, EndDate}` - Shared base for page-based endpoints (Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, AccountTypes, Balances, Holders, Aliases). Embedded in per-entity opts.
+- `models.PageListOpts{Limit, Page, SortDirection, StartDate, EndDate}` - Shared base for page-based endpoints (Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, AccountTypes). Embedded in per-entity opts. Balances, Holders and Instruments are **cursor**-based, not page-based.
 - `models.CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}` - Shared base for cursor-based endpoints (Transactions, Operations, OperationRoutes, TransactionRoutes, AssetRates). Embedded in per-entity opts.
 
 #### Per-entity opts
@@ -366,11 +562,18 @@ Each list endpoint exposes a typed opts struct embedding the appropriate base an
 - `models.AccountTypesListOpts` / `AccountTypesFilters`
 - `models.AssetsListOpts` / `AssetsFilters`
 - `models.AssetRatesListOpts` / `AssetRatesFilters` (cursor base)
-- `models.BalancesListOpts` / `BalancesFilters`
-- `models.HoldersListOpts` / `HoldersFilters`
-- `models.AliasesListOpts` / `AliasesFilters`
+- `models.BalancesListOpts` (cursor base, **no Filters**) - the balance lists
+  honor no predicate: the account is a path segment on the account-scoped
+  list, and there is no asset-code or status filter to narrow by.
+- `models.BillingPackagesListOpts` / `BillingPackagesFilters`
+- `models.HoldersListOpts` / `HoldersFilters` (cursor base)
+- `models.InstrumentsListOpts` / `InstrumentFilters` (cursor base) - the
+  resource /v1 served as "aliases" before Midaz renamed it. V2 only.
 - `models.LedgersListOpts` / `LedgersFilters`
-- `models.OperationsListOpts` / `OperationsFilters` (cursor base)
+- `models.OperationsListOpts` / `OperationsFilters` (cursor base) - aliases of
+  `AccountOperationsListOpts` / `AccountOperationsFilters`. One server endpoint,
+  one type, so the two spellings cannot drift apart.
+- `models.PackagesListOpts` / `PackagesFilters`
 - `models.OperationRoutesListOpts` / `OperationRoutesFilters` (cursor base)
 - `models.OrganizationsListOpts` / `OrganizationsFilters`
 - `models.PortfoliosListOpts` / `PortfoliosFilters`
@@ -381,7 +584,7 @@ Each list endpoint exposes a typed opts struct embedding the appropriate base an
 Each per-entity opts struct exposes:
 
 - `Validate() error` - Enforces SDK-side preconditions (delegates to `ValidatePageListOpts` or `ValidateCursorListOpts` then layers in filter-specific checks).
-- `ToQueryParams() map[string]string` - Renders the opts into the wire query map. Internal contract; customers should reach the wire path through `List* / List*All / List*Pages` instead of calling `ToQueryParams` directly.
+- `ToQueryParams() map[string]string` - On most opts structs. Renders the opts into the wire query map. Internal contract; customers should reach the wire path through `List* / List*All / List*Pages` instead of calling `ToQueryParams` directly. `BalancesListOpts`, `OperationsListOpts`, `AccountOperationsListOpts`, and `TransactionsListOpts` do not carry it: their facades map the fields straight onto the generated request params.
 
 #### Pagination metadata
 
@@ -415,7 +618,7 @@ Each per-entity opts struct exposes:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` for retry-safe unsafe requests.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, through `WithSend(...)` — the legacy operation-adaptation path was removed in v4.2. Set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` for retry-safe unsafe requests.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.
@@ -428,29 +631,43 @@ Each per-entity opts struct exposes:
 - `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
-- `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
-- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. Repeated `WithRelatedParties` calls replace the in-builder related-party list; empty alias updates are rejected by the SDK.
+- `models.NewFeeEstimateInput(packageID, ledgerID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
+- `models.NewBillingCalculateInput(ledgerID, period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
+- `models.NewCreateHolderAccountInput(assetCode, accountType)` with account setters (`WithName`, `WithParentAccountID`, `WithEntityID`, `WithPortfolioID`, `WithSegmentID`, `WithStatus`, `WithAlias`, `WithMetadata`) and instrument setters (`WithBankingDetails`, `WithRegulatoryFields`, `WithRelatedParties`). An instrument is written if and only if any instrument setter is used. Feeds `Composition.CreateHolderAccount`.
+
+## Correlation contract package
+
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/models/correlation` — the versioned, closed contract for the ledger metadata a transactional plugin (Bank Transfer, Pix) attaches to the transactions it creates.
+
+- `correlation.Correlation` - identifiers and classification only: `Plugin`, `Rail`, `Flow`, `AggregateID` (required), plus optional `EndToEndID`, `ProviderMessageID`, `ProviderMessageCode`, `OriginalAggregateID`, `Direction`. Never amounts, names, or documents.
+- Typed enums: `RailTED` / `RailPix` / `RailInternal` (book transfer inside the same institution, no external rail); `FlowCashOut`, `FlowCashIn`, `FlowP2P`, `FlowRefund`, `FlowMED`, `FlowAutomaticDebit`; `DirectionIn` / `DirectionOut`.
+- `(Correlation).Validate()` - required fields present, enums known, and `FlowRefund` requires `OriginalAggregateID`.
+- `(Correlation).ToMetadata()` - the ledger payload: `contractVersion` (`correlation.ContractVersion`, currently `"1"`) plus every non-blank field, trimmed, under camelCase keys. Assign it to `CreateTransactionInput.Metadata`.
+- `correlation.FromMetadata(metadata)` - reads a payload back into a `Correlation`; `correlation.Keys()` - the whitelist, derived from the emitter so no consumer keeps a second copy.
+- Extending the whitelist is a versioned change to this package, never a free-form map: that closure is what keeps counterparty PII out of the ledger.
+- `models/correlation/correlationtest.AssertCanonical(tb, input)` - the shared conformance gate for plugin producer tests: metadata declares the current contract version and rebuilds into a valid `Correlation`, every metadata key (transaction and legs) is inside `correlation.Keys()`, and no level sets both `route` and `routeId`.
 
 ## Errors package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors`.
 
 - Core type: `*errors.Error`.
 - Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrAuth`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrConfiguration`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
 - Checkers: `IsValidationError`, `IsNotFoundError`, `IsAuthenticationError`, `IsAuthorizationError`, `IsAuthError`, `IsConfigurationError`, `IsBootstrapError`, `IsConflictError`, `IsRateLimitError`, `IsTimeoutError`, `IsNetworkError`, `IsCancellationError`, `IsInternalError`, `IsInsufficientBalanceError`, `IsAccountEligibilityError`, `IsAssetMismatchError`, `IsIdempotencyError`, `IsUnprocessableError`. (v3 — `IsPermissionError` and `IsAlreadyExistsError` were retired; use `IsAuthorizationError` and `IsConflictError` respectively.)
 - Accessors: `GetErrorCategory`, `GetStatusCode`, `GetErrorCode`, `GetErrorDetails`, `GetTransactionErrorContext`, `(*Error).GetUpstreamBody`, `(*Error).IsUpstreamBodyTruncated`, `(*Error).GetUpstreamBodyOriginalBytes`.
+- v4 plane predicates (added with the plane-native accessors): `IsSkipNotPermitted`, `IsHolderRequired`, `IsHolderNotFound`, `IsFeeError`, and `IsFeatureNotAvailable` (a `404` from `Encryption` / `ProtectionAudit` meaning the feature is disabled for the deployment, distinct from a generic not-found).
 - Constructors: `NewValidationError`, `NewInvalidInputError`, `NewMissingParameterError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewCancellationError`, `NewNetworkError`, `NewUpstreamHTTPError`, `NewInternalError`, `NewConfigurationError`, `NewUnprocessableError`, `NewInsufficientBalanceError`, `NewAssetMismatchError`, `NewAccountEligibilityError`.
 - Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available. Received upstream 4xx/5xx responses attach raw, unredacted, truncated body text on `Error.UpstreamBody` only when error body exposure is explicitly enabled.
 
 ## Observability package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability`.
 
 - `observability.New(ctx, opts...)`
 - `observability.WithServiceName(string)`
 - `observability.WithServiceVersion(string)`
 - `observability.WithEnvironment(string)`
-- `observability.WithCollectorEndpoint(string)` - OTLP gRPC endpoint in `host:port` form.
+- `observability.WithCollectorEndpoint(string)` - OTLP gRPC endpoint. Prefix with `https://` for TLS; both plaintext forms — explicit `http://` and bare `host:port` — are refused in a `production` environment (override only via `ALLOW_INSECURE_OTEL`).
 - `observability.WithSDKVersion(string)`
 - `observability.WithLogLevel(observability.LogLevel)`
 - `observability.WithTraceSampleRate(float64)` - deprecated source-compatible option; sampling is currently owned by lib-observability.
@@ -470,7 +687,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability`.
 
 ## Retry package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry`.
 
 - `retry.Do(ctx, fn, opts...)`
 - `retry.DoWithContext(ctx, fn)`
@@ -486,7 +703,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry`.
 
 ## Generator package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/generator` for demo-data workflows and example tooling.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/generator` for demo-data workflows and example tooling.
 
 - `generator.DefaultConfig() generator.GeneratorConfig`
 - `(*generator.GeneratorConfig).WithOverrides(generator.GeneratorConfig)` - Additive merge helper. Numeric zero values and empty slices do not override; boolean fields are additive and cannot disable an already-enabled value.
@@ -507,5 +724,6 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/generator` for demo-data wo
 - `generator.NewTransactionGenerator(entity, provider)`
 - `generator.NewTransactionLifecycle(entity, provider)`
 - `generator.NewAccountHierarchyGenerator(accountGenerator)`
+- `generator.GenerateTaxDocument(locale string, formatted bool) string` - Company tax document for the locale: a Brazilian CNPJ with valid check digits for `br` (case-insensitive), a US EIN otherwise. `formatted` adds the CNPJ punctuation and is ignored for the EIN. Non-cryptographic, for demo and fixture data only.
 
 The mass demo generator is example tooling, not an idempotent migration system. It creates remote resources and writes local report artifacts containing operational identifiers.

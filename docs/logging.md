@@ -25,7 +25,7 @@ import (
     "os"
     "time"
 
-    midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
+    midaz "github.com/LerianStudio/midaz-sdk-golang/v5"
 )
 
 func main() {
@@ -41,7 +41,7 @@ func main() {
     if err != nil { return }
     defer c.Shutdown(context.Background())
 
-    // ...c.Accounts.GetAccount(...) etc. Retry attempts emit DEBUG/WARN lines
+    // ...c.V2.Accounts.Get(...) etc. Retry attempts emit DEBUG/WARN lines
     // through `logger`. Calls slower than 2s emit a WARN line.
 }
 ```

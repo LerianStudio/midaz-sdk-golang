@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
 )
 
 // MetadataIndex represents a custom metadata index.

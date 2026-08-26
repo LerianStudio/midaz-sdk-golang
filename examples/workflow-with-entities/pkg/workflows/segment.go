@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
 // CreateSegments creates segments within a ledger
@@ -64,7 +64,7 @@ func CreateSegments(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 
 		// Attempt to create the segment
 		// Note: portfolioID is passed for backward compatibility but not used by the API
-		segment, err := midazClient.Segments.CreateSegment(
+		segment, err := midazClient.V2.Segments.Create(
 			ctx, orgID, ledgerID, segmentInput,
 		)
 		if err != nil {

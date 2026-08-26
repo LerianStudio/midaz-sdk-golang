@@ -15,12 +15,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/version"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -63,6 +63,11 @@ const (
 )
 
 const idempotencyHeader = "X-Idempotency"
+
+// ttlHeader carries the idempotency-slot TTL (seconds) set via
+// sdkctx.WithIdempotencyTTL. Omitted when unset — the server applies its
+// default (300s).
+const ttlHeader = "X-TTL"
 
 // defaultUserAgent returns the SDK's centralized user-agent string.
 // The configured value flows in via (*HTTPClient).SetUserAgent (driven
@@ -194,12 +199,17 @@ var defaultHTTPClient = sync.OnceValue(func() *http.Client {
 		Timeout:       30 * time.Second,
 		CheckRedirect: validateSDKRedirect,
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   10,
-			MaxConnsPerHost:       100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
+			Proxy:               http.ProxyFromEnvironment,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     100,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			// Hard-guard against a server that accepts the connection but
+			// stalls before sending response headers. Set on the SDK's OWN
+			// shared default transport so both planes and the legacy path
+			// inherit it via the shared pool.
+			ResponseHeaderTimeout: 30 * time.Second,
 			ExpectContinueTimeout: time.Second,
 		},
 	}
@@ -654,120 +664,6 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 
 	return nil
-}
-
-// doRawRequest performs an HTTP request using a pre-built byte payload without JSON encoding.
-func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string, headers map[string]string, body []byte, result any) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	ctx, endSpan := c.setupObservabilityContext(ctx, method, requestURL)
-	defer endSpan()
-
-	req, headers, err := buildRawHTTPRequest(ctx, method, requestURL, headers, body, c.allowInsecureHTTP.Load())
-	if err != nil {
-		c.logHTTPPhaseFailure(ctx, method, requestURL, nil, err)
-		c.recordSDKFailure(ctx, method, requestURL, 0, err)
-
-		return err
-	}
-
-	// Set GetBody for retry support - allows body to be recreated on retries
-	if len(body) > 0 {
-		req.GetBody = func() (io.ReadCloser, error) {
-			return io.NopCloser(bytes.NewReader(body)), nil
-		}
-	}
-
-	// Inject context-based headers (idempotency key)
-	headers = c.injectContextHeaders(ctx, method, headers)
-	headers = c.ensureIdempotencyHeader(ctx, method, headers)
-
-	c.setupRequestHeaders(req, headers, len(body) > 0)
-
-	c.injectTraceContext(ctx, req)
-
-	start := time.Now()
-	resp, responseBody, maxRetries, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
-	elapsed := time.Since(start)
-
-	if err != nil {
-		c.logHTTPTerminalFailure(ctx, method, requestURL, resp, err, maxRetries)
-		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, err)
-		return err
-	}
-	// Ensure response body is closed after we're done with it
-	defer func() {
-		if resp != nil && resp.Body != nil {
-			c.closeResponseBody(resp)
-		}
-	}()
-
-	c.logResponseDetails(method, requestURL, resp, responseBody)
-
-	if err := c.processResponse(result, responseBody); err != nil {
-		decodeErr := wrapHTTPPhaseError(httpPhaseResponseDecode, true, err)
-		c.logHTTPPhaseFailure(ctx, method, requestURL, resp, decodeErr)
-
-		if errors.Is(err, errEmptyResponseBody) || errors.Is(err, errNullResponseBody) {
-			c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
-
-			return decodeErr
-		}
-
-		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, decodeErr)
-
-		return decodeErr
-	}
-
-	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
-
-	return nil
-}
-
-func prepareRawRequestBody(headers map[string]string, body []byte) (io.Reader, map[string]string, error) {
-	if len(body) == 0 {
-		return nil, headers, nil
-	}
-
-	if int64(len(body)) > maxHTTPRequestBodyBytes {
-		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes))
-	}
-
-	if headers == nil {
-		headers = map[string]string{}
-	}
-
-	if strings.TrimSpace(headers["Content-Type"]) == "" {
-		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, errors.New("content-type header required for non-empty request body"))
-	}
-
-	return bytes.NewReader(body), headers, nil
-}
-
-func buildRawHTTPRequest(ctx context.Context, method, requestURL string, headers map[string]string, body []byte, allowInsecureHTTP bool) (*http.Request, map[string]string, error) {
-	reader, headers, err := prepareRawRequestBody(headers, body)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	parsedURL, err := url.Parse(requestURL)
-	if err != nil {
-		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("failed to parse request URL: %w", err))
-	}
-
-	validationReq := &http.Request{URL: parsedURL}
-	if err := security.ValidateOutboundRequestWithInsecureHTTP(validationReq, allowInsecureHTTP); err != nil {
-		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestValidate, false, err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, parsedURL.String(), reader) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest using parsed URL
-	if err != nil {
-		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("failed to create request: %w", err))
-	}
-
-	return req, headers, nil
 }
 
 func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL string, headers map[string]string) (int, error) {

@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   drift:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       issues: write # open/update the drift report issue
@@ -29,13 +29,13 @@ jobs:
         branch: [main, develop]
     steps:
       - name: Checkout SDK (${{ matrix.branch }})
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ matrix.branch }}
           persist-credentials: false
 
       - name: Checkout midaz upstream (${{ matrix.branch }})
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: LerianStudio/midaz
           ref: ${{ matrix.branch }}

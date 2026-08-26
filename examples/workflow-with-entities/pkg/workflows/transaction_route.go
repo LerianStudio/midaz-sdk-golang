@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 	"github.com/google/uuid"
 )
 
@@ -63,7 +63,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	// Create payment transaction route
 	fmt.Println("Creating payment transaction route...")
 
-	paymentTransactionRoute, err := midazClient.TransactionRoutes.CreateTransactionRoute(
+	paymentTransactionRoute, err := midazClient.V2.TransactionRoutes.Create(
 		ctx, orgID, ledgerID,
 		models.NewCreateTransactionRouteInput(
 			"Payment Transaction Route",
@@ -90,7 +90,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	// Create refund transaction route
 	fmt.Println("Creating refund transaction route...")
 
-	refundTransactionRoute, err := midazClient.TransactionRoutes.CreateTransactionRoute(
+	refundTransactionRoute, err := midazClient.V2.TransactionRoutes.Create(
 		ctx, orgID, ledgerID,
 		models.NewCreateTransactionRouteInput(
 			"Refund Transaction Route",

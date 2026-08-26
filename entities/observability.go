@@ -1,3 +1,14 @@
+// The business-event surface below has NO caller: every resource accessor now
+// routes over a generated plane client, and re-homing midaz.* business-event
+// emission onto that path is the deferred Task 5.2.6
+// (docs/plans/2026-06-30-sdk-v4-remodel.md:621). The emitter, its field
+// allow-list and its error classifier are kept here — together with the skipped
+// tests in business_observability_test.go that specify which events fire and
+// which payload values must never be logged — because that pair IS the
+// specification 5.2.6 re-homes. Deleting them would leave the task to reinvent
+// the contract from scratch.
+//
+//nolint:unused // dead until Task 5.2.6 re-homes emission onto the plane path.
 package entities
 
 import (
@@ -9,8 +20,8 @@ import (
 	"reflect"
 	"strings"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )

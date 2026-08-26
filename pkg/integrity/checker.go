@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
 	"github.com/shopspring/decimal"
 )
 
@@ -34,9 +35,25 @@ type Report struct {
 	TotalsByAsset map[string]*BalanceTotals
 }
 
+// accountsGetter is the narrow slice of the accounts accessor the checker needs
+// (consumer-side interface; client.V1.Accounts is a concrete facade).
+type accountsGetter interface {
+	Get(ctx context.Context, orgID, ledgerID, accountID string) (*models.Account, error)
+}
+
+// balancesLister is the narrow slice of the balances accessor the checker needs.
+// Same consumer-side pattern as accountsGetter, for the same reason:
+// client.V1.Balances is a concrete facade, so the seam that lets a caller stand in
+// a fake has to live here.
+type balancesLister interface {
+	ListBalancesAll(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+}
+
 // Checker provides data integrity checks and balance verification.
 type Checker struct {
-	e *entities.Entity
+	e        *entities.Entity
+	accounts accountsGetter
+	balances balancesLister
 	// Optional observability provider for logging and tracing
 	obs observability.Provider
 	// Optional delay between account lookups to avoid overwhelming services on large ledgers
@@ -44,7 +61,18 @@ type Checker struct {
 }
 
 // NewChecker creates a new Checker.
-func NewChecker(e *entities.Entity) *Checker { return &Checker{e: e} }
+func NewChecker(e *entities.Entity) *Checker {
+	c := &Checker{e: e}
+	if e != nil && e.V1.Accounts != nil {
+		c.accounts = e.V1.Accounts
+	}
+
+	if e != nil && e.V1.Balances != nil {
+		c.balances = e.V1.Balances
+	}
+
+	return c
+}
 
 // WithObservability sets the observability provider for logging and tracing.
 func (c *Checker) WithObservability(obs observability.Provider) *Checker {
@@ -84,7 +112,7 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, organizationID, ledg
 		return nil, errors.New("checker is nil")
 	}
 
-	if c.e == nil || c.e.Balances == nil || c.e.Accounts == nil {
+	if c.e == nil || c.balances == nil || c.accounts == nil {
 		return nil, errors.New("entities not initialized for integrity checks")
 	}
 
@@ -116,9 +144,9 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, organizationID, ledg
 
 // processBalances processes all balances with pagination
 func (c *Checker) processBalances(ctx context.Context, organizationID, ledgerID string, totals map[string]*BalanceTotals, accountAliasCache map[string]string) error {
-	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 100}}
+	opts := models.BalancesListOpts{CursorListOpts: models.CursorListOpts{Limit: 100}}
 
-	for b, err := range c.e.Balances.ListBalancesAll(ctx, organizationID, ledgerID, opts) {
+	for b, err := range c.balances.ListBalancesAll(ctx, organizationID, ledgerID, opts) {
 		if err != nil {
 			return err
 		}
@@ -187,7 +215,7 @@ func (c *Checker) fetchAccountAlias(ctx context.Context, organizationID, ledgerI
 		return "", err
 	}
 
-	acc, err := c.e.Accounts.GetAccount(ctx, organizationID, ledgerID, accountID)
+	acc, err := c.accounts.Get(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get account %s: %w", accountID, err)
 	}
