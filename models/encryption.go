@@ -6,7 +6,7 @@ package models
 import (
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 )
 
 // ProvisionEncryptionInput is the request payload to provision envelope

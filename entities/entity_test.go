@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
 	"github.com/stretchr/testify/require"
 )
 

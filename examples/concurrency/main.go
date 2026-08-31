@@ -16,10 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/examples/internal/quickstart"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v6"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/examples/internal/quickstart"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/concurrent"
 )
 
 func main() {

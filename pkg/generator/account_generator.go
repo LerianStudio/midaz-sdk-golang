@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/stats"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/stats"
 )
 
 // accountsAPI is the narrow slice of the accounts facade this generator needs.

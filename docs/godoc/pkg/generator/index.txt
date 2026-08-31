@@ -1,11 +1,11 @@
-package generator // import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/generator"
+package generator // import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/generator"
 
 Package generator builds realistic Midaz resource graphs (organizations,
 ledgers, assets, accounts, balances, portfolios, segments, routes, transactions)
 for demos, integration tests, and load testing.
 
 The package is the engine behind examples/mass-demo-generator. It composes
-data templates from github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data with
+data templates from github.com/LerianStudio/midaz-sdk-golang/v6/pkg/data with
 concrete SDK calls, applies bounded concurrency, and emits structured progress
 reports.
 
@@ -42,7 +42,7 @@ GenerateMany twice produces two distinct resource sets.
 # See also
 
   - examples/mass-demo-generator — runnable end-to-end consumer
-  - github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data — catalogs
+  - github.com/LerianStudio/midaz-sdk-golang/v6/pkg/data — catalogs
   - docs/examples.md — example and generator usage guidance
 
 const AccountTypeKeyChecking = "CHECKING" ...

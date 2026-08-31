@@ -143,6 +143,6 @@
 //   - [NewNetworkError]            — wrap a transport-layer failure
 //   - [NewConfigurationError]      — eager SDK setup error
 //   - [ErrorFromHTTPResponse]      — server-response → *Error
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation.FieldErrors]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation.FieldErrors]
 //     — multi-field validation accumulator
 package errors

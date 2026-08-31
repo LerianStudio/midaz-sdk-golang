@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/conversion"
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/conversion"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 )
 
 // insufficientFundsTest defines a test case for insufficient funds scenarios

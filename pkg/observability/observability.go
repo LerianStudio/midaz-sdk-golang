@@ -14,7 +14,7 @@ import (
 	obslog "github.com/LerianStudio/lib-observability/v3/log"
 	obsmetrics "github.com/LerianStudio/lib-observability/v3/metrics"
 	obstracing "github.com/LerianStudio/lib-observability/v3/tracing"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -72,7 +72,7 @@ const (
 //
 // The Tracer, Meter, and Logger accessors MUST return non-nil values for any
 // implementation that may be installed via
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithObservabilityProvider].
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithObservabilityProvider].
 // Use the OTel no-op providers (e.g. [go.opentelemetry.io/otel/trace/noop])
 // or [NewNoopLogger] for disabled-component configurations. The in-tree
 // [MidazProvider] follows this contract.
@@ -534,7 +534,7 @@ func (p *MidazProvider) initTelemetry() error {
 	}
 
 	telemetry, err := obstracing.NewTelemetry(obstracing.TelemetryConfig{
-		LibraryName:               "github.com/LerianStudio/midaz-sdk-golang/v5",
+		LibraryName:               "github.com/LerianStudio/midaz-sdk-golang/v6",
 		ServiceName:               p.config.ServiceName,
 		ServiceVersion:            p.config.ServiceVersion,
 		DeploymentEnv:             p.config.Environment,
@@ -562,7 +562,7 @@ func (p *MidazProvider) initTelemetry() error {
 	p.metricsFactory = telemetry.MetricsFactory
 
 	if p.config.EnabledComponents.Tracing {
-		tracer, err := telemetry.Tracer("github.com/LerianStudio/midaz-sdk-golang/v5")
+		tracer, err := telemetry.Tracer("github.com/LerianStudio/midaz-sdk-golang/v6")
 		if err != nil {
 			return err
 		}
@@ -570,7 +570,7 @@ func (p *MidazProvider) initTelemetry() error {
 	}
 
 	if p.config.EnabledComponents.Metrics {
-		meter, err := telemetry.Meter("github.com/LerianStudio/midaz-sdk-golang/v5")
+		meter, err := telemetry.Meter("github.com/LerianStudio/midaz-sdk-golang/v6")
 		if err != nil {
 			return err
 		}
@@ -708,7 +708,7 @@ func (p *MidazProvider) Meter() metric.Meter {
 // non-nil contract on [Provider.Logger].
 //
 // This logger is distinct from
-// [github.com/LerianStudio/midaz-sdk-golang/v5.Client.Logger]: that method
+// [github.com/LerianStudio/midaz-sdk-golang/v6.Client.Logger]: that method
 // returns the canonical *slog.Logger used for retry/internal lines, while
 // this method returns the bespoke observability.Logger that integrates with
 // the provider's tracing pipeline (call WithSpan(span) to inject trace_id /

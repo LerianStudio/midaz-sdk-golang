@@ -8,7 +8,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // balanceReader is the narrow slice of the Balances accessor WaitForSettlement

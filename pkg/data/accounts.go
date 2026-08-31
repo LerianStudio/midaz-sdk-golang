@@ -1,7 +1,7 @@
 package data
 
 import (
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // Account type key constants define standard account type identifiers.

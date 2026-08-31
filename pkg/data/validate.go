@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 )
 
 // validDSLAliasPattern defines the allowed characters for DSL aliases to prevent

@@ -1,4 +1,4 @@
-package correlation // import "github.com/LerianStudio/midaz-sdk-golang/v5/models/correlation"
+package correlation // import "github.com/LerianStudio/midaz-sdk-golang/v6/models/correlation"
 
 Package correlation is the single source of truth for the correlation metadata
 that transactional plugins attach to Midaz ledger transactions.

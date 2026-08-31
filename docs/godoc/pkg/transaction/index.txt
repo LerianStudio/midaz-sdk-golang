@@ -1,4 +1,4 @@
-package transaction // import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/transaction"
+package transaction // import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/transaction"
 
 Package transaction provides high-level utilities for creating, processing,
 and managing transactions in the Midaz platform. It includes utility functions

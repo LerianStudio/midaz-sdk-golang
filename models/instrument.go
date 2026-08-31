@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation/core"
 )
 
 // Instrument is the SDK-native ledger-plane instrument response.

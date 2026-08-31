@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/google/uuid"
 )
 

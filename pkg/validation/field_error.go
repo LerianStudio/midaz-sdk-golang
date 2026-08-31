@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // FieldError represents a validation error for a specific field
@@ -165,14 +165,14 @@ func (fe *FieldError) WithSuggestions(suggestions ...string) *FieldError {
 
 // FieldErrors represents a collection of field errors. The canonical
 // multi-field validation accumulator used by every Validate() method
-// in [github.com/LerianStudio/midaz-sdk-golang/v5/models].
+// in [github.com/LerianStudio/midaz-sdk-golang/v6/models].
 //
 // See also:
 //   - [FieldErrors.Append] — record a field problem.
 //   - [FieldErrors.AppendWith] — record with structured Value/Code/Constraint/Suggest.
 //   - [FieldErrors.OrNil] — return nil when no errors accumulated (Go nil-interface trap fix).
 //   - [FieldErrors.Errs] — programmatic walk over accumulated errors.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors.ErrValidation] — sentinel for errors.Is.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors.ErrValidation] — sentinel for errors.Is.
 type FieldErrors struct {
 	Errors []*FieldError
 }
@@ -448,7 +448,7 @@ func (fe *FieldErrors) Len() int {
 
 // Is reports whether this FieldErrors collection should be treated as
 // the same kind of error as target. It returns true when target is the
-// broad [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors.ErrValidation]
+// broad [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors.ErrValidation]
 // sentinel, enabling the canonical pattern:
 //
 //	if errors.Is(err, sdkerrors.ErrValidation) { ... }

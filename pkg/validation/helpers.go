@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation/core"
 )
 
 const (

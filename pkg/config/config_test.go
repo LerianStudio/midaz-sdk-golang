@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/version"
 )
 
 // disableAuthCheck is a test-only helper that returns an Option which sets

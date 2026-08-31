@@ -10,8 +10,8 @@ Environment loading is explicit. Use `config.FromEnvironment()` when you want pr
 import (
     "context"
 
-    "github.com/LerianStudio/midaz-sdk-golang/v5"
-    "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+    "github.com/LerianStudio/midaz-sdk-golang/v6"
+    "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
 )
 
 cfg, err := config.NewConfig(config.FromEnvironment())
@@ -232,7 +232,7 @@ ledger balance reflects it. Wait on the balance effect with
 advancing). Pin the asset on a multi-asset account:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/transaction"
+import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/transaction"
 
 settled, err := transaction.WaitForSettlement(
     ctx,

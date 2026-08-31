@@ -70,7 +70,7 @@
 //
 // # Errors
 //
-// Every error returned by SDK code is a *[github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors.Error]
+// Every error returned by SDK code is a *[github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors.Error]
 // with structured Category, Code, Operation, and Resource fields. Use
 // errors.Is, errors.As, and the typed predicates (IsNotFoundError,
 // IsValidationError, IsNetworkError, IsAuthError, etc.). The Retryable()
@@ -80,9 +80,9 @@
 //
 // Auto-idempotency is on by default; the SDK emits an X-Idempotency
 // header per unsafe request. Override per-call via
-// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey]
+// [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithIdempotencyKey]
 // (caller-supplied key) or
-// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithoutAutoIdempotency]
+// [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithoutAutoIdempotency]
 // (suppression). Disable globally via [WithIdempotency](false). Unsafe
 // requests retry only when X-Idempotency is present; caller-supplied and
 // SDK-generated keys both satisfy that gate. Retries follow the default
@@ -107,14 +107,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/reflectutil"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/version"
 )
 
 // Version is the current version of the SDK. It mirrors the single source of

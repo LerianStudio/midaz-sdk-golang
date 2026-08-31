@@ -10,7 +10,7 @@
 //
 // # Public surface
 //
-//   - [Checker] — entry point. Wraps a [github.com/LerianStudio/midaz-sdk-golang/v5.Client]
+//   - [Checker] — entry point. Wraps a [github.com/LerianStudio/midaz-sdk-golang/v6.Client]
 //     plus optional retry/timeout knobs.
 //   - Per-check methods: [Checker.CheckAccountBalance],
 //     [Checker.CheckTransactionStatus], etc.
@@ -31,7 +31,7 @@
 //
 // # See also
 //
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability] —
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability] —
 //     structured logging + tracing for production
 //   - examples/mass-demo-generator — uses this package post-generation
 package integrity

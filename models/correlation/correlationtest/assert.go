@@ -21,8 +21,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models/correlation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models/correlation"
 )
 
 // contractKeys is the closed whitelist, taken from the emitter. There is no

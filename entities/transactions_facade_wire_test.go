@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // Route ids are UUID-validated by every create validator, so the fixtures below

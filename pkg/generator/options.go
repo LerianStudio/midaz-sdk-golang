@@ -4,7 +4,7 @@ import (
 	"context"
 	"runtime"
 
-	conc "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
+	conc "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/concurrent"
 )
 
 // context keys

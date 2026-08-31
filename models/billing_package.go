@@ -8,7 +8,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 )
 
 // Billing-package type discriminants. A package is either a volume package

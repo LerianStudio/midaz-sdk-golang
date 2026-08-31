@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 )
 
 // TestAuditEventsListDecodes covers case (a): the flat server envelope

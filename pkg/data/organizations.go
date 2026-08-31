@@ -3,7 +3,7 @@ package data
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // TechCompanies returns sample OrgTemplate definitions for technology companies.
