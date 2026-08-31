@@ -4,11 +4,17 @@
 > epic whose dependencies are met, at the same time, one agent per epic, same
 > branch. All work lands in a single PR.
 >
-> NOTA (wave 2): after Epic 1.1 the tree compiles only once Epic 1.2 lands its
-> facade fixes. Packages `entities` and the root package stay red until then. A
-> wave-2 agent whose verification fails ONLY inside sibling-owned files reports
-> its own files done and re-runs the verification after the wave completes; the
-> orchestrator confirms all wave-2 verifications together before Epic 1.5.
+> NOTA (wave 2, updated after Epic 1.1 landed): the tree is GREEN after 1.1 —
+> the fee/billing facades build bodies from `models.*` types, so removing the
+> generated fields broke no compile. The break is a SILENT wire incompatibility:
+> the SDK still marshals `ledgerId` into fee/billing bodies and every existing
+> test passes, because tests assert against SDK-owned mocks. The wire-shape
+> assertions in Tasks 1.2.1/1.2.2/1.2.3 are therefore load-bearing — they are
+> the only detection for the bug this plan fixes. A wave-2 agent whose
+> verification fails ONLY inside sibling-owned files re-runs after the wave
+> completes; the orchestrator confirms all wave-2 verifications before Epic 1.5.
+> Wave-2 agents do NOT run `git commit` — one shared worktree, concurrent
+> commits race; the orchestrator commits per epic after the wave.
 
 **Goal:** Align the SDK with the midaz v4.0.0-rc.2 contract and release it as v6.0.0; v5.x stays as the line paired with the pre-RC2 contract.
 **Scope:** `api/`, `internal/genledger/`, `models/`, `entities/`, `examples/mass-demo-generator/`, `contract/`, `go.mod`, `README.md`, `docs/mapping/`.
@@ -267,7 +273,7 @@ Description string `json:"description,omitempty"`
 
 **Context:** Absence claims belong here (siblings done writing). CI note: golangci warm cache can hide findings — clear `~/.cache/golangci-lint` before linting if results look suspiciously clean.
 
-**Implementation vision:** Run `make ci`. Then the repo-wide checks: (a) `rg '"ledgerId"' models/` hits only response/decode models (`FeePackage`, `BillingPackage`, and any other server-owned response struct), never a create/estimate/calculate input; (b) `rg 'midaz-sdk-golang/v5' --glob '!.references/**' --glob '!CHANGELOG.md'` → nothing; (c) `contract/` module tests pass (`cd contract && go test ./...`). Fix what fails, rerun.
+**Implementation vision:** Run `make ci`. Then the repo-wide checks: (a) `rg '"ledgerId"' models/` hits only response/decode models (`FeePackage`, `BillingPackage`, and any other server-owned response struct), never a create/estimate/calculate input; (b) `rg 'midaz-sdk-golang/v5' --glob '!.references/**' --glob '!CHANGELOG.md' --glob '!PLAN.md' --glob '!docs/plans/**'` → nothing (PLAN.md records the v5 path as a historical fact; this plan file quotes the check itself); (c) `contract/` module tests pass (`cd contract && go test ./...`). Fix what fails, rerun.
 
 **Files:**
 - — (verification only)
