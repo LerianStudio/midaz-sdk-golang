@@ -89,6 +89,47 @@ func TestV2LegRefusesCompositeAlias(t *testing.T) {
 	}
 }
 
+// TestV2LegDescriptionBound pins the per-leg description against the ledger's
+// own "max=256". The leg description is optional, so the interesting cases are
+// the two ends: absent must stay valid, and one character over must be refused
+// here rather than travelling out to earn a 400 on a money-moving request.
+func TestV2LegDescriptionBound(t *testing.T) {
+	newLeg := func(description string) TransactionV2Leg {
+		return TransactionV2Leg{
+			Alias:          "@person1",
+			OrganizationID: "org",
+			LedgerID:       "ledger",
+			Amount:         "100",
+			Description:    description,
+		}
+	}
+
+	tests := []struct {
+		name        string
+		description string
+		wantErr     bool
+	}{
+		{name: "absent"},
+		{name: "short", description: "card settlement"},
+		{name: "at the limit", description: strings.Repeat("x", maxTransactionDescriptionLength)},
+		{name: "one over the limit", description: strings.Repeat("x", maxTransactionDescriptionLength+1), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := newLeg(tt.description).validate()
+			if tt.wantErr && err == nil {
+				t.Fatalf("a %d-character leg description must be refused locally; the ledger caps it at %d",
+					len(tt.description), maxTransactionDescriptionLength)
+			}
+
+			if !tt.wantErr && err != nil {
+				t.Fatalf("a %d-character leg description must be accepted, got %v", len(tt.description), err)
+			}
+		})
+	}
+}
+
 // TestUpdateTransactionDescriptionBoundIsTheSameOnBothSurfaces: /v1 refused a
 // description over 256 characters and /v2 did not, so the same patch was
 // refused locally on one surface and rejected by the server on the other. One

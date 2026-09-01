@@ -274,6 +274,10 @@ type TransactionV2Leg struct {
 
 	// OperationRouteID overrides the request-level operation route for this leg.
 	OperationRouteID string `json:"operationRouteId,omitempty"`
+
+	// Description is this leg's own human-readable note, distinct from the
+	// transaction-level Description. Optional, at most 256 characters.
+	Description string `json:"description,omitempty"`
 }
 
 // TransactionV2Share expresses a leg's value as a percentage of the transaction
@@ -385,6 +389,12 @@ func (leg TransactionV2Leg) validate() error {
 
 	if leg.OrganizationID == "" || leg.LedgerID == "" {
 		return errors.New("organizationId and ledgerId are required on every leg")
+	}
+
+	// Same bound the transaction-level description carries, because it is the
+	// same "max=256" the ledger applies to both.
+	if len(leg.Description) > maxTransactionDescriptionLength {
+		return fmt.Errorf("description must not exceed %d characters", maxTransactionDescriptionLength)
 	}
 
 	hasAmount := leg.Amount != ""

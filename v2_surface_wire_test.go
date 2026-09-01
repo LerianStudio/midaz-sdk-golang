@@ -455,6 +455,57 @@ func v2WireBody(path string) string {
 	}
 }
 
+// TestV2SurfaceAccountHolderHonoursTheSchemaSplit pins the response split RC2
+// introduced on accounts.
+//
+// The two surfaces answer with DIFFERENT schemas over one SDK type: /v2 answers
+// with AccountV2, which carries holderId and holderCheckSkipped, while /v1
+// answers with Account, which has neither key. One decoded struct serves both,
+// so the guard has to run in both directions — a /v2 read that dropped the
+// holder leaves a caller unable to tell whose account they are looking at, and a
+// /v1 read that invented one would be worse, because it reads as fact.
+func TestV2SurfaceAccountHolderHonoursTheSchemaSplit(t *testing.T) {
+	const (
+		accountID = "44444444-4444-4444-4444-444444444444"
+		holderID  = "55555555-5555-5555-5555-555555555555"
+	)
+
+	clientAnswering := func(t *testing.T, body string) *Client {
+		t.Helper()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(body))
+		}))
+		t.Cleanup(srv.Close)
+
+		c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
+		require.NoError(t, err)
+
+		return c
+	}
+
+	t.Run("v2 decodes the holder pair", func(t *testing.T) {
+		c := clientAnswering(t, `{"id":"`+accountID+`","assetCode":"USD","type":"deposit",`+
+			`"holderId":"`+holderID+`","holderCheckSkipped":true}`)
+
+		account, err := c.V2.Accounts.Get(context.Background(), "org-1", "led-1", accountID)
+		require.NoError(t, err)
+		require.NotNil(t, account.HolderID, "the /v2 AccountV2 schema carries holderId; dropping it loses who owns the account")
+		require.Equal(t, holderID, *account.HolderID)
+		require.True(t, account.HolderCheckSkipped)
+	})
+
+	t.Run("v1 leaves the holder pair zero", func(t *testing.T) {
+		c := clientAnswering(t, `{"id":"`+accountID+`","assetCode":"USD","type":"deposit"}`)
+
+		account, err := c.V1.Accounts.Get(context.Background(), "org-1", "led-1", accountID)
+		require.NoError(t, err)
+		require.Nil(t, account.HolderID, "the /v1 Account schema has no holder keys; anything decoded here would be invented")
+		require.False(t, account.HolderCheckSkipped)
+	})
+}
+
 // TestV2ListsSendTheirPaginationStyle pins that each V2 list advances the way its
 // endpoint actually paginates.
 //
