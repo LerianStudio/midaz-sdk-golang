@@ -46,6 +46,7 @@ GenerateMany twice produces two distinct resource sets.
   - docs/examples.md — example and generator usage guidance
 
 const AccountTypeKeyChecking = "CHECKING" ...
+func GenerateTaxDocument(locale string, formatted bool) string
 func WithCircuitBreaker(ctx context.Context, cb *conc.CircuitBreaker) context.Context
 func WithLedgerID(ctx context.Context, ledgerID string) context.Context
 func WithOrgID(ctx context.Context, organizationID string) context.Context

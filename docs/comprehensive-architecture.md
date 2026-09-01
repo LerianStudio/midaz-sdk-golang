@@ -269,7 +269,7 @@ operation path, not in the base URL.
 | `BillingPackages` | — | yes | **V2 only, and ledger-scoped** — the billing family moved from organization to ledger scope. |
 | `FeePackages` | — | yes | Same move as BillingPackages. |
 | `FeeEstimates` | — | yes | Same move. |
-| `BillingCalculations` | — | yes | Same move. Money-adjacent: the path ledger and the body `ledgerId` are reconciled before the request leaves. |
+| `BillingCalculations` | — | yes | Same move. Money-adjacent: the ledger travels only in the path — the request body carries no `ledgerId`. |
 
 That is 14 members on `V1` and 22 on `V2`. Tracer accessors (`Rules`, `Limits`,
 `Validations`, `Reservations`, `AuditEvents`) are **not** version-grouped: the

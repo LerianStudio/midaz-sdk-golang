@@ -262,12 +262,11 @@ method takes a ledger ID.
 
 Feed a billing period into `NewBillingCalculateInput` and call the
 `BillingCalculations` accessor; an empty result set (no packages matched) is a
-success, not an error. The ledger in the path and the `ledgerId` in the body
-are reconciled before the request leaves the SDK — filled when empty, refused
-when they contradict:
+success, not an error. The ledger scopes the call through the URL path only —
+the request body carries no `ledgerId`, and the server rejects one:
 
 ```go
-calcInput := models.NewBillingCalculateInput(ledgerID, "2026-06").
+calcInput := models.NewBillingCalculateInput("2026-06").
     WithType("volume")
 
 result, err := c.V2.BillingCalculations.CalculateBilling(ctx, orgID, ledgerID, calcInput)

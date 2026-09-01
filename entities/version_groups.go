@@ -191,8 +191,9 @@ type V2Services struct {
 	FeeEstimates *feeEstimateFacade
 
 	// BillingCalculations calculates billing (/v2/.../billing/calculate).
-	// V2 ONLY and ledger-scoped. Money-adjacent: the ledger in the path and the
-	// ledgerId in the body are reconciled before the request leaves the SDK.
+	// V2 ONLY and ledger-scoped. Money-adjacent: the ledger travels ONLY in the
+	// path — the request body carries no ledgerId and the server rejects one
+	// (closed schema).
 	BillingCalculations *billingCalculateFacade
 }
 
