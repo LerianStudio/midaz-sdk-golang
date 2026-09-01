@@ -491,7 +491,7 @@ Ledger plane. CRM instruments under a holder, plus the holder's accounts.
 - `ListAccountsByHolderPages(ctx, organizationID, ledgerID, holderID, opts)`
 - `ListAccountsByHolderAll(ctx, organizationID, ledgerID, holderID, opts)`
 
-The three holder-accounts methods take a ledger even though only the holder is a path segment: the endpoint requires the ledger as a query parameter at runtime, while the published contract does not declare it, so the SDK carries it explicitly. Without it every call fails with a missing-parameter error.
+The three holder-accounts methods take a ledger even though only the holder is a path segment: the endpoint declares `ledger_id` as an optional query parameter that narrows the listing to one ledger, and the SDK fills it through that parameter. The SDK keeps the ledger **required** on its own side — omitting it would silently widen the listing to every account the holder owns across the whole organization, which is never what a ledger-scoped caller meant. Pass the ledger you are addressing.
 
 #### Composition
 
@@ -531,7 +531,7 @@ Ledger plane, **ledger-scoped**, page-mode paginated (`ListPages` advances `Page
 
 #### BillingCalculations
 
-Ledger plane, **ledger-scoped**. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error. The ledger travels in the path AND in the body: an empty `input.LedgerID` inherits the path ledger, and a different one is rejected locally.
+Ledger plane, **ledger-scoped**. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error. The ledger travels in the path only — the request body carries no `ledgerId` and the server rejects one that does.
 
 - `CalculateBilling(ctx, organizationID, ledgerID, input)`
 
@@ -631,9 +631,18 @@ Each per-entity opts struct exposes:
 - `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
-- `models.NewFeeEstimateInput(packageID, ledgerID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
-- `models.NewBillingCalculateInput(ledgerID, period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
+- `models.NewCreatePackageInput(feeGroupLabel, minAmount, maxAmount, fees)` with `WithDescription`, `WithSegmentID`, `WithTransactionRoute`, `WithWaivedAccounts`, and `WithEnable`. Feeds `FeePackages.Create`.
+- `models.NewFeeEstimateInput(packageID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
+- `models.NewCreateVolumeBillingPackageInput(label, assetCode, debitAlias, creditAlias)` and `models.NewCreateMaintenanceBillingPackageInput(label, assetCode, feeAmount, maintenanceCreditAccount)` with `WithDescription`, `WithEnable`, `WithEventFilter`, `WithPricingModel`, `WithPricingTiers`, `WithFreeQuota`, `WithDiscountTiers`, `WithCountMode`, and `WithAccountTarget`. Feed `BillingPackages.Create`.
+- `models.NewBillingCalculateInput(period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
 - `models.NewCreateHolderAccountInput(assetCode, accountType)` with account setters (`WithName`, `WithParentAccountID`, `WithEntityID`, `WithPortfolioID`, `WithSegmentID`, `WithStatus`, `WithAlias`, `WithMetadata`) and instrument setters (`WithBankingDetails`, `WithRegulatoryFields`, `WithRelatedParties`). An instrument is written if and only if any instrument setter is used. Feeds `Composition.CreateHolderAccount`.
+
+None of the four fee/billing inputs carries a ledger: the ledger is a path segment on every fee/billing route and the server rejects a body that also names one.
+
+### Response fields worth knowing
+
+- `models.Account.HolderID` (`*string`) and `models.Account.HolderCheckSkipped` (`bool`) - decode-only, populated **only** by `/v2` endpoints. `/v1` withholds both keys by server contract, so on a `/v1` response `HolderID` is always nil and `HolderCheckSkipped` always false — neither says anything about the account. Account create and update carry no counterpart.
+- `models.TransactionV2Leg.Description` (`string`) - optional per-leg note, distinct from the transaction-level description, refused above 256 characters before the request leaves.
 
 ## Correlation contract package
 

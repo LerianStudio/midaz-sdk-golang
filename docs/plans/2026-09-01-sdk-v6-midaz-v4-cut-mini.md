@@ -238,10 +238,10 @@ Description string `json:"description,omitempty"`
 **Scope:** Repo-wide verification plus the files below.
 **Dependencies:** 1.2, 1.3, 1.4
 **Done when:** `make ci` passes; repo-wide absence checks below hold.
-**Status:** Pending
+**Status:** Done — `make ci` green end to end (lint 0 issues on a cleared cache, gosec clean, coverage 81.6% over the 80.0% threshold, codegen drift clean, all examples build, contract module tests pass). All three repo-wide assertions hold.
 
 #### Task 1.5.1: Delete reconcileBodyLedgerID and its tests
-- [ ] Done
+- [x] Done
 
 **Context:** After 1.2 the helper in `entities/organizations_facade.go` has zero callers. Its behavior tests (mismatch → error, empty → inherit) live in the facade test files 1.2 already rewrote; any remaining direct test of the helper dies with it.
 
@@ -255,7 +255,7 @@ Description string `json:"description,omitempty"`
 **Done when:** Zero references repo-wide, build green.
 
 #### Task 1.5.2: Sweep examples and docs to the new signatures
-- [ ] Done
+- [x] Done
 
 **Context:** `examples/mass-demo-generator/v2_phases.go` builds fee/billing inputs through the constructors whose signatures changed (frozen in `## Contracts`). `docs/mapping/external_apis.md` and README fee/billing snippets document the old inputs.
 
@@ -269,7 +269,7 @@ Description string `json:"description,omitempty"`
 **Done when:** Examples compile; no fee/billing LedgerID usage remains in examples or docs.
 
 #### Task 1.5.3: Full pipeline + repo-wide contract assertions
-- [ ] Done
+- [x] Done
 
 **Context:** Absence claims belong here (siblings done writing). CI note: golangci warm cache can hide findings — clear `~/.cache/golangci-lint` before linting if results look suspiciously clean.
 

@@ -198,11 +198,15 @@ asset on a multi-asset account). See
 
 ### Fee, billing, and composition builders
 
-`models.NewFeeEstimateInput(packageID, ledgerID, send)`,
-`models.NewBillingCalculateInput(ledgerID, period)`, and
+`models.NewFeeEstimateInput(packageID, send)`,
+`models.NewBillingCalculateInput(period)`, and
 `models.NewCreateHolderAccountInput(assetCode, accountType)` (each with `With*`
 optionals) build the inputs for `FeeEstimates`, `BillingCalculations`, and
 `Composition` respectively.
+
+No fee or billing input carries a ledger. Every fee/billing route is
+ledger-scoped in its path, and the server rejects a request body that also
+names a ledger.
 
 ### Pagination
 
