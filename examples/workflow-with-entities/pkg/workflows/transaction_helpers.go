@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5"
-	ourEntities "github.com/LerianStudio/midaz-sdk-golang/v5/examples/workflow-with-entities/pkg/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6"
+	ourEntities "github.com/LerianStudio/midaz-sdk-golang/v6/examples/workflow-with-entities/pkg/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
 )
 
 // DemonstrateTransactionHelpers showcases the transaction helpers in the SDK

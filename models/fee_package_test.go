@@ -5,6 +5,7 @@ package models
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -90,6 +91,81 @@ func TestUpdatePackageInput_Wire(t *testing.T) {
 	}
 }
 
+// requireNoLedgerIDOnWire marshals a fee/billing request input and fails if the
+// body carries a "ledgerId" key at any depth.
+//
+// This is the load-bearing assertion for the midaz v4 fee/billing contract: the
+// server removed ledgerId from these request bodies and its schemas are closed
+// (additionalProperties: false), so a body still carrying the key is rejected with
+// 400 on every fee/billing write. The break is invisible to every other test in
+// this repo — they assert against SDK-owned mocks that accept any body — so this
+// check is the only detection. Do not weaken it to a top-level-only check: the
+// key must be absent from nested objects too.
+func requireNoLedgerIDOnWire(t *testing.T, input any) string {
+	t.Helper()
+
+	raw, err := json.Marshal(input)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("marshaled body is not valid JSON: %v (%s)", err, raw)
+	}
+
+	assertNoLedgerIDKey(t, decoded, "$", string(raw))
+
+	return string(raw)
+}
+
+// assertNoLedgerIDKey walks a decoded JSON value and fails on any "ledgerId" key.
+func assertNoLedgerIDKey(t *testing.T, node any, path, body string) {
+	t.Helper()
+
+	switch v := node.(type) {
+	case map[string]any:
+		for key, child := range v {
+			if key == "ledgerId" {
+				t.Fatalf("wire = %s\n%s.ledgerId must be absent: midaz v4 rejects the field (closed schema)", body, path)
+			}
+
+			assertNoLedgerIDKey(t, child, path+"."+key, body)
+		}
+	case []any:
+		for i, child := range v {
+			assertNoLedgerIDKey(t, child, path+"["+strconv.Itoa(i)+"]", body)
+		}
+	}
+}
+
+// TestCreatePackageInput_Wire is the midaz v4 contract rail on the fee-package
+// create body: the marshaled payload must carry the create fields and NO
+// ledgerId, which the server now rejects.
+func TestCreatePackageInput_Wire(t *testing.T) {
+	deductible := false
+	input := NewCreatePackageInput("Std", "100.00", "1000.00", map[string]Fee{
+		"admin": {
+			CreditAccount:    "@fees",
+			FeeLabel:         "Admin",
+			ReferenceAmount:  "originalAmount",
+			IsDeductibleFrom: &deductible,
+			CalculationModel: FeeCalculationModel{
+				ApplicationRule: "flatFee",
+				Calculations:    []Calculation{{Type: "flat", Value: "10.00"}},
+			},
+		},
+	}).WithEnable(true)
+
+	got := requireNoLedgerIDOnWire(t, input)
+
+	for _, want := range []string{`"feeGroupLabel":"Std"`, `"minimumAmount":"100.00"`, `"maximumAmount":"1000.00"`, `"enable":true`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("wire = %s\nmissing %s", got, want)
+		}
+	}
+}
+
 // TestCreatePackageInput_Validate enforces the SDK trust-boundary gate: the
 // required top-level fields AND the per-fee dive that mirrors the server's
 // ValidateStruct dive over the Fee map (feeshared/model/package.go tags). Each
@@ -112,7 +188,7 @@ func TestCreatePackageInput_Validate(t *testing.T) {
 	mut := func(f func(fee *Fee)) *CreatePackageInput {
 		fee := okFee()
 		f(&fee)
-		return NewCreatePackageInput("Std", "led-1", "100.00", "1000.00", map[string]Fee{"admin": fee}).WithEnable(true)
+		return NewCreatePackageInput("Std", "100.00", "1000.00", map[string]Fee{"admin": fee}).WithEnable(true)
 	}
 
 	tests := []struct {
@@ -124,37 +200,32 @@ func TestCreatePackageInput_Validate(t *testing.T) {
 		{"nil", nil, true, ""},
 		{
 			"ok",
-			NewCreatePackageInput("Std", "led-1", "100.00", "1000.00", map[string]Fee{"admin": okFee()}).WithEnable(true),
+			NewCreatePackageInput("Std", "100.00", "1000.00", map[string]Fee{"admin": okFee()}).WithEnable(true),
 			false, "",
 		},
 		{
 			"missing-feeGroupLabel",
-			NewCreatePackageInput("  ", "led-1", "100.00", "1000.00", map[string]Fee{"admin": okFee()}).WithEnable(true),
+			NewCreatePackageInput("  ", "100.00", "1000.00", map[string]Fee{"admin": okFee()}).WithEnable(true),
 			true, "feeGroupLabel",
 		},
 		{
-			"missing-ledgerId",
-			NewCreatePackageInput("Std", "  ", "100.00", "1000.00", map[string]Fee{"admin": okFee()}).WithEnable(true),
-			true, "ledgerId",
-		},
-		{
 			"missing-minimumAmount",
-			NewCreatePackageInput("Std", "led-1", "  ", "1000.00", map[string]Fee{"admin": okFee()}).WithEnable(true),
+			NewCreatePackageInput("Std", "  ", "1000.00", map[string]Fee{"admin": okFee()}).WithEnable(true),
 			true, "minimumAmount",
 		},
 		{
 			"missing-maximumAmount",
-			NewCreatePackageInput("Std", "led-1", "100.00", "  ", map[string]Fee{"admin": okFee()}).WithEnable(true),
+			NewCreatePackageInput("Std", "100.00", "  ", map[string]Fee{"admin": okFee()}).WithEnable(true),
 			true, "maximumAmount",
 		},
 		{
 			"empty-fees",
-			NewCreatePackageInput("Std", "led-1", "100.00", "1000.00", map[string]Fee{}).WithEnable(true),
+			NewCreatePackageInput("Std", "100.00", "1000.00", map[string]Fee{}).WithEnable(true),
 			true, "fees",
 		},
 		{
 			"nil-enable",
-			NewCreatePackageInput("Std", "led-1", "100.00", "1000.00", map[string]Fee{"admin": okFee()}),
+			NewCreatePackageInput("Std", "100.00", "1000.00", map[string]Fee{"admin": okFee()}),
 			true, "enable",
 		},
 		{"fee-missing-isDeductibleFrom", mut(func(f *Fee) { f.IsDeductibleFrom = nil }), true, "fees[admin].isDeductibleFrom"},

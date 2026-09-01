@@ -51,7 +51,7 @@ type idempotencyKeyType struct{}
 // Precedence (first non-empty source wins):
 //  1. Caller-supplied input field — for service methods whose input struct
 //     carries an IdempotencyKey field (e.g.,
-//     [github.com/LerianStudio/midaz-sdk-golang/v5/models.CreateTransactionInput]),
+//     [github.com/LerianStudio/midaz-sdk-golang/v6/models.CreateTransactionInput]),
 //     the input-level value is the most explicit caller assertion and wins
 //     over a ctx-supplied key.
 //  2. ctx-supplied via WithIdempotencyKey — request-scoped, useful when the

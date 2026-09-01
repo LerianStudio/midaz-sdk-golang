@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
 	"go.opentelemetry.io/otel/attribute"
 )
 

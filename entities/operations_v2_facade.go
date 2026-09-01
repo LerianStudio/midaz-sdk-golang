@@ -9,8 +9,8 @@ import (
 	"iter"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // operationsV2Facade serves the /v2 operation surface — the individual debits

@@ -147,7 +147,7 @@ check-references:
 # Track 7E: enforce no mmodel references in public API (root, models, entities, pkg/...).
 check-mmodel-references:
 	@echo "$(YELLOW)Checking for mmodel references in public API...$(NC)"
-	@bad=$$(grep -rl "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/mmodel" --include="*.go" --exclude="*_test.go" ./*.go ./models ./entities ./pkg 2>/dev/null | xargs -I{} grep -Hn "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/mmodel" {} | grep -v '^[^:]*:[[:space:]]*//' || true); \
+	@bad=$$(grep -rl "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/mmodel" --include="*.go" --exclude="*_test.go" ./*.go ./models ./entities ./pkg 2>/dev/null | xargs -I{} grep -Hn "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/mmodel" {} | grep -v '^[^:]*:[[:space:]]*//' || true); \
 		if [ -n "$$bad" ]; then echo "$(RED)❌ Found unexpected mmodel references in public API:$(NC)"; echo "$$bad"; exit 1; fi
 	@echo "$(GREEN)✅ No unexpected mmodel references in public API$(NC)"
 

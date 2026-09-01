@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // TestRule_UnmarshalWireShape proves the server wire (ruleId identity key,

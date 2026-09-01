@@ -21,7 +21,7 @@ package entities
 import (
 	"context"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // getIdempotencyKeyFromContext returns the idempotency key previously

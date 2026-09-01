@@ -1,4 +1,4 @@
-package entities // import "github.com/LerianStudio/midaz-sdk-golang/v5/entities"
+package entities // import "github.com/LerianStudio/midaz-sdk-golang/v6/entities"
 
 Package entities provides the service interfaces for interacting with the Midaz
 API resources — organizations, ledgers, accounts, assets, balances, portfolios,

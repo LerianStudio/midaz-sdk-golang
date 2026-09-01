@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // transactionsV2Facade serves the /v2 transaction surface. It is the money-write
@@ -34,9 +34,8 @@ import (
 // on every leg is not just tedious, it is the exact shape of mistake the server
 // refuses: one leg out of twelve pointing at the wrong ledger. So the facade
 // stamps the addressed pair onto every leg that leaves it empty, and refuses a
-// leg that names a different one — the same reconcile-or-refuse rule the billing
-// calculation applies between its path ledger and its body ledgerId. The
-// argument is the scope; the body is where it travels.
+// leg that names a different one. The argument is the scope; the body is where
+// it travels.
 //
 // # The four actions differ only by endpoint
 //

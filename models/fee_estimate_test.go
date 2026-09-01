@@ -4,7 +4,6 @@
 package models
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -22,8 +21,9 @@ func validEstimateSend() *SendInput {
 	}
 }
 
-// TestFeeEstimateInput_Validate enforces the SDK trust-boundary gate: required
-// package and ledger IDs and a valid send leg (the server rejects the same).
+// TestFeeEstimateInput_Validate enforces the SDK trust-boundary gate: the required
+// package ID and a valid send leg (the server rejects the same). The ledger is a
+// path segment and is deliberately NOT validated here.
 func TestFeeEstimateInput_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -34,27 +34,22 @@ func TestFeeEstimateInput_Validate(t *testing.T) {
 		{"nil", nil, true, ""},
 		{
 			"ok",
-			&FeeEstimateInput{PackageID: "pkg-1", LedgerID: "led-1", Transaction: FeeEstimateTransactionInput{Send: validEstimateSend()}},
+			&FeeEstimateInput{PackageID: "pkg-1", Transaction: FeeEstimateTransactionInput{Send: validEstimateSend()}},
 			false, "",
 		},
 		{
 			"missing-packageId",
-			&FeeEstimateInput{LedgerID: "led-1", Transaction: FeeEstimateTransactionInput{Send: validEstimateSend()}},
+			&FeeEstimateInput{Transaction: FeeEstimateTransactionInput{Send: validEstimateSend()}},
 			true, "packageId",
 		},
 		{
-			"missing-ledgerId",
-			&FeeEstimateInput{PackageID: "pkg-1", Transaction: FeeEstimateTransactionInput{Send: validEstimateSend()}},
-			true, "ledgerId",
-		},
-		{
 			"nil-send",
-			&FeeEstimateInput{PackageID: "pkg-1", LedgerID: "led-1"},
+			&FeeEstimateInput{PackageID: "pkg-1"},
 			true, "transaction.send",
 		},
 		{
 			"invalid-send",
-			&FeeEstimateInput{PackageID: "pkg-1", LedgerID: "led-1", Transaction: FeeEstimateTransactionInput{Send: &SendInput{}}},
+			&FeeEstimateInput{PackageID: "pkg-1", Transaction: FeeEstimateTransactionInput{Send: &SendInput{}}},
 			true, "transaction.send",
 		},
 	}
@@ -72,29 +67,25 @@ func TestFeeEstimateInput_Validate(t *testing.T) {
 	}
 }
 
-// TestFeeEstimateInput_Wire is the money-string rail on the estimate write path:
-// a string send value must marshal as a JSON string, never a bare number. A number
-// on the wire would be a float hop that drifts on values like 0.333333333333333333.
+// TestFeeEstimateInput_Wire carries two rails on the estimate write path:
+//
+//   - the midaz v4 contract rail: the body must carry NO ledgerId (the server
+//     removed the field and rejects it on a closed schema);
+//   - the money-string rail: a string send value must marshal as a JSON string,
+//     never a bare number. A number on the wire would be a float hop that drifts on
+//     values like 0.333333333333333333.
 func TestFeeEstimateInput_Wire(t *testing.T) {
 	const precise = "0.333333333333333333"
 	send := validEstimateSend()
 	send.Value = precise
 	send.Source.From[0].Amount.Value = precise
 
-	input := &FeeEstimateInput{
-		PackageID:   "pkg-1",
-		LedgerID:    "led-1",
-		Transaction: FeeEstimateTransactionInput{Send: send},
-	}
+	input := NewFeeEstimateInput("pkg-1", send)
 
-	b, err := json.Marshal(input)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-	got := string(b)
+	got := requireNoLedgerIDOnWire(t, input)
 
-	if !strings.Contains(got, `"packageId":"pkg-1"`) || !strings.Contains(got, `"ledgerId":"led-1"`) {
-		t.Fatalf("wire = %s, want packageId + ledgerId", got)
+	if !strings.Contains(got, `"packageId":"pkg-1"`) {
+		t.Fatalf("wire = %s, want packageId", got)
 	}
 	// Quoted string, not a bare number. `"value":0.333…` (no quote) would be the
 	// float-hop bug this rail guards against.

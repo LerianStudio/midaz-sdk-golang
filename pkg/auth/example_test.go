@@ -3,7 +3,7 @@ package auth_test
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
 )
 
 // ExampleAccessManager shows the canonical credential bag for the Lerian

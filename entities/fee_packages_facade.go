@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // feePackagesFacade is the Epic 3.2 (Task 3.2.1) hand-written facade over the
@@ -28,9 +28,9 @@ import (
 // calculation value ride the wire as JSON strings and are modeled as string end
 // to end — no float hop.
 //
-// All list filters (segmentId/ledgerId/transactionRoute/enable) have native
-// slots on the generated GetAllPackagesParams, so no request-editor injection is
-// needed.
+// All list filters (segmentId/transactionRoute/enable) have native slots on the
+// generated GetAllPackagesParams, so no request-editor injection is needed. The
+// ledger is a path segment, never a query filter.
 type feePackagesFacade struct {
 	ledger *genledger.ClientWithResponses
 	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
@@ -109,9 +109,8 @@ func (f *feePackagesFacade) All(ctx context.Context, orgID, ledgerID string, opt
 // Create registers a new fee package under a LEDGER via the write-facade
 // pattern (rewindable body so the auth round tripper can replay after a 401).
 //
-// The ledger travels in the path AND in the body (the server schema requires
-// ledgerId). An empty input.LedgerID inherits the path ledger; a different one is
-// rejected — see [reconcileBodyLedgerID]. The caller's input is never mutated.
+// The ledger travels ONLY in the path — the request body carries no ledgerId and
+// the server rejects one (closed schema). The caller's input is never mutated.
 func (f *feePackagesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreatePackageInput) (*models.FeePackage, error) {
 	const operation = "FeePackages.Create"
 
@@ -119,22 +118,11 @@ func (f *feePackagesFacade) Create(ctx context.Context, orgID, ledgerID string, 
 		return nil, err
 	}
 
-	payload := input
-
-	if input != nil {
-		reconciled := *input
-		if err := reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID); err != nil {
-			return nil, err
-		}
-
-		payload = &reconciled
-	}
-
-	if err := validationErr(operation, payload.Validate()); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
-	return writeJSON[models.FeePackage](ctx, operation, payload, func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.FeePackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreatePackageV2WithBody(ctx, orgID, ledgerID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }

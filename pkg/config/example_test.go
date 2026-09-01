@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
 )
 
 // ExampleNewConfig shows the typical anonymous local-development setup. The

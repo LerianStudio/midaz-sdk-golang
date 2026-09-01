@@ -6,6 +6,7 @@ package models
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // TestValidationJudgesTheBytesThatLeave pins the rule that local validation and
@@ -84,6 +85,54 @@ func TestV2LegRefusesCompositeAlias(t *testing.T) {
 
 			if !tt.wantErr && err != nil {
 				t.Fatalf("alias %q must be accepted, got %v", tt.alias, err)
+			}
+		})
+	}
+}
+
+// TestV2LegDescriptionBound pins the per-leg description against the ledger's
+// own "max=256". The leg description is optional, so the interesting cases are
+// the two ends: absent must stay valid, and one character over must be refused
+// here rather than travelling out to earn a 400 on a money-moving request.
+func TestV2LegDescriptionBound(t *testing.T) {
+	newLeg := func(description string) TransactionV2Leg {
+		return TransactionV2Leg{
+			Alias:          "@person1",
+			OrganizationID: "org",
+			LedgerID:       "ledger",
+			Amount:         "100",
+			Description:    description,
+		}
+	}
+
+	tests := []struct {
+		name        string
+		description string
+		wantErr     bool
+	}{
+		{name: "absent"},
+		{name: "short", description: "card settlement"},
+		{name: "at the limit", description: strings.Repeat("x", maxTransactionDescriptionLength)},
+		{name: "one over the limit", description: strings.Repeat("x", maxTransactionDescriptionLength+1), wantErr: true},
+		// The ledger counts RUNES, not bytes. A Portuguese description of 256
+		// accented characters is 512 bytes on the wire and legal on the server;
+		// counting bytes here would refuse a money-moving request the ledger
+		// would have accepted.
+		{name: "at the limit in multi-byte characters", description: strings.Repeat("ç", maxTransactionDescriptionLength)},
+		{name: "one over the limit in multi-byte characters", description: strings.Repeat("ç", maxTransactionDescriptionLength+1), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := newLeg(tt.description).validate()
+			if tt.wantErr && err == nil {
+				t.Fatalf("a %d-character leg description must be refused locally; the ledger caps it at %d",
+					utf8.RuneCountInString(tt.description), maxTransactionDescriptionLength)
+			}
+
+			if !tt.wantErr && err != nil {
+				t.Fatalf("a %d-character (%d-byte) leg description must be accepted, got %v",
+					utf8.RuneCountInString(tt.description), len(tt.description), err)
 			}
 		})
 	}

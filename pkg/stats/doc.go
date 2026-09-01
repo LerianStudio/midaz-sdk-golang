@@ -32,12 +32,12 @@
 // # When NOT to use
 //
 //   - Production observability. Use
-//     [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability]
+//     [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability]
 //     instead — it emits OpenTelemetry metrics that downstream
 //     dashboards already understand.
 //
 // # See also
 //
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability]
 //   - examples/mass-demo-generator
 package stats

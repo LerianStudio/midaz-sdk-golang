@@ -1,5 +1,5 @@
-github.com/LerianStudio/lib-observability/v3 v3.1.0 h1:NP29WDBeCPkz0AxzWO+yULR7OaGQc0lIDt2HqYhmwqg=
-github.com/LerianStudio/lib-observability/v3 v3.1.0/go.mod h1:3wiIk6QdAIgH8/ecYcs/HnmalktLMP0QbQzfvGzOaGI=
+github.com/LerianStudio/lib-observability/v3 v3.2.0 h1:p4QXA6fv5tOkJ+As8UhN3fkyAKBWdVde814vc48Y900=
+github.com/LerianStudio/lib-observability/v3 v3.2.0/go.mod h1:3wiIk6QdAIgH8/ecYcs/HnmalktLMP0QbQzfvGzOaGI=
 github.com/LerianStudio/midaz/v3 v3.7.5 h1:uyZ+avewF79GyY79U9MzN79MH4AaVMbFvTltXf0QGgQ=
 github.com/LerianStudio/midaz/v3 v3.7.5/go.mod h1:e0fz8svqzuDC5EH2t3ATBchkJxD654B/LlYF8DDJGZM=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=

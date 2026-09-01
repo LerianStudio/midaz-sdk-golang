@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/security"
 )
 
 const maxHTTPResponseBodyBytes int64 = 10 << 20
@@ -879,7 +879,7 @@ func isRequestMethodRetryable(req *http.Request, logger *slog.Logger) bool {
 // before it manifests as missing retries in production.
 //
 // Callers should set the SDK header explicitly via
-// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey]
+// [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithIdempotencyKey]
 // or by writing "X-Idempotency" directly on the *http.Request.
 func hasIdempotencyHeader(req *http.Request, logger *slog.Logger) bool {
 	hasCanonical := strings.TrimSpace(req.Header.Get("X-Idempotency")) != ""

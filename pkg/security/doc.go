@@ -51,9 +51,9 @@
 //
 // # See also
 //
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5.WithBaseURL]
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5.WithLedgerURL]
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5.WithAccessManager]
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors] —
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6.WithBaseURL]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6.WithLedgerURL]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6.WithAccessManager]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors] —
 //     errors returned when validation rejects a request
 package security

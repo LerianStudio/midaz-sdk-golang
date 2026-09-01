@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
 

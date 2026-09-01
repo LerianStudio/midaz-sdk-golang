@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/security"
 )
 
 // TestNewPlaneClients_PreservesConfiguredTimeout proves the configured request

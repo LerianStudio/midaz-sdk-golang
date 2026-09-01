@@ -15,7 +15,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // FetchAccountsInParallel fetches multiple accounts concurrently.
