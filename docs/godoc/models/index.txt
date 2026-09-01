@@ -1,4 +1,4 @@
-package models // import "github.com/LerianStudio/midaz-sdk-golang/v5/models"
+package models // import "github.com/LerianStudio/midaz-sdk-golang/v6/models"
 
 Package models defines the SDK-owned data models for the Midaz API.
 
@@ -106,7 +106,7 @@ type BankingDetails struct{ ... }
 type BaseResponse struct{ ... }
 type BillingAccountTarget struct{ ... }
 type BillingCalculateInput struct{ ... }
-    func NewBillingCalculateInput(ledgerID, period string) *BillingCalculateInput
+    func NewBillingCalculateInput(period string) *BillingCalculateInput
 type BillingCalculateResponse struct{ ... }
 type BillingCalculateSummary struct{ ... }
 type BillingCalculationResult struct{ ... }
@@ -132,8 +132,8 @@ type CreateAssetRateInput struct{ ... }
 type CreateBalanceInput struct{ ... }
     func NewCreateBalanceInput(key string) *CreateBalanceInput
 type CreateBillingPackageInput struct{ ... }
-    func NewCreateMaintenanceBillingPackageInput(label, ledgerID, assetCode, feeAmount, maintenanceCreditAccount string) *CreateBillingPackageInput
-    func NewCreateVolumeBillingPackageInput(label, ledgerID, assetCode, debitAlias, creditAlias string) *CreateBillingPackageInput
+    func NewCreateMaintenanceBillingPackageInput(label, assetCode, feeAmount, maintenanceCreditAccount string) *CreateBillingPackageInput
+    func NewCreateVolumeBillingPackageInput(label, assetCode, debitAlias, creditAlias string) *CreateBillingPackageInput
 type CreateHolderAccountInput struct{ ... }
     func NewCreateHolderAccountInput(assetCode, accountType string) *CreateHolderAccountInput
 type CreateHolderInput struct{ ... }
@@ -155,7 +155,7 @@ type CreateOrganizationInput struct{ ... }
 type CreateOutflowInput struct{ ... }
     func NewCreateOutflowInput(asset string, value any, source *SourceInput) *CreateOutflowInput
 type CreatePackageInput struct{ ... }
-    func NewCreatePackageInput(feeGroupLabel, ledgerID, minAmount, maxAmount string, fees map[string]Fee) *CreatePackageInput
+    func NewCreatePackageInput(feeGroupLabel, minAmount, maxAmount string, fees map[string]Fee) *CreatePackageInput
 type CreatePortfolioInput struct{ ... }
     func NewCreatePortfolioInput(entityID, name string) *CreatePortfolioInput
 type CreateRuleInput struct{ ... }
@@ -179,7 +179,7 @@ type FeeAdjustedSource struct{ ... }
 type FeeAdjustedTransaction struct{ ... }
 type FeeCalculationModel struct{ ... }
 type FeeEstimateInput struct{ ... }
-    func NewFeeEstimateInput(packageID, ledgerID string, send *SendInput) *FeeEstimateInput
+    func NewFeeEstimateInput(packageID string, send *SendInput) *FeeEstimateInput
 type FeeEstimateResponse struct{ ... }
 type FeeEstimateResult struct{ ... }
 type FeeEstimateTransactionInput struct{ ... }

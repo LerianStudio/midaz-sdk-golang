@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/conversion"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/conversion"
 	"github.com/stretchr/testify/assert"
 )
 

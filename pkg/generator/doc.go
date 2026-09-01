@@ -4,7 +4,7 @@
 //
 // The package is the engine behind examples/mass-demo-generator. It
 // composes data templates from
-// [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data] with concrete
+// [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/data] with concrete
 // SDK calls, applies bounded concurrency, and emits structured progress
 // reports.
 //
@@ -42,6 +42,6 @@
 // # See also
 //
 //   - examples/mass-demo-generator — runnable end-to-end consumer
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/data] — catalogs
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/data] — catalogs
 //   - docs/examples.md — example and generator usage guidance
 package generator

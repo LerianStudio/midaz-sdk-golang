@@ -3,7 +3,7 @@ package accounts_test
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/accounts"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/accounts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

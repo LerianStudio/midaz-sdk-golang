@@ -22,10 +22,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
 )
 
 func main() {

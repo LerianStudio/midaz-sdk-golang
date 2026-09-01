@@ -5,7 +5,7 @@ import (
 	stderrors "errors"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 func FuzzRedactSensitiveString(f *testing.F) {

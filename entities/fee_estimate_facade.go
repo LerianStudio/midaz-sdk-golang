@@ -8,8 +8,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // feeEstimateFacade is the Epic 3.2 (Task 3.2.2) hand-written facade over the
@@ -46,9 +46,8 @@ func newFeeEstimateFacade(ledger *genledger.ClientWithResponses) *feeEstimateFac
 // (POST /v2/organizations/{org}/ledgers/{ledger}/estimates). The removed /v1
 // route was organization-scoped; ledgerID is not optional.
 //
-// The ledger travels in the path AND in the body (the server schema requires
-// ledgerId). An empty input.LedgerID inherits the path ledger; a different one is
-// rejected — see [reconcileBodyLedgerID]. The caller's input is never mutated.
+// The ledger travels ONLY in the path — the request body carries no ledgerId and
+// the server rejects one (closed schema). The caller's input is never mutated.
 func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID, ledgerID string, input *models.FeeEstimateInput) (*models.FeeEstimateResponse, error) {
 	const operation = "FeeEstimate.EstimateFee"
 
@@ -56,22 +55,11 @@ func (f *feeEstimateFacade) EstimateFee(ctx context.Context, orgID, ledgerID str
 		return nil, err
 	}
 
-	payload := input
-
-	if input != nil {
-		reconciled := *input
-		if err := reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID); err != nil {
-			return nil, err
-		}
-
-		payload = &reconciled
-	}
-
-	if err := validationErr(operation, payload.Validate()); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
-	return writeJSON[models.FeeEstimateResponse](ctx, operation, payload, func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.FeeEstimateResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.EstimateFeeCalculationV2WithBody(ctx, orgID, ledgerID, jsonContentType, body))
 	})
 }

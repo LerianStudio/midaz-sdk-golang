@@ -4,8 +4,8 @@
 package entities
 
 import (
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // Every V2 list operation declares exactly the same query set as its V1 twin —

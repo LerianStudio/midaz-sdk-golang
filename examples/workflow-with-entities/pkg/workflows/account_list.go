@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // ListAccounts lists all accounts in the ledger with idiomatic demonstrations.

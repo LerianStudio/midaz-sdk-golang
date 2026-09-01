@@ -53,5 +53,5 @@ request failed fast: ...
 
 ## Related
 
-- [`pkg/retry` godoc](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry)
+- [`pkg/retry` godoc](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry)
 - `midaz.WithRetryOptions`, `midaz.WithCustomRetryPolicy`, `midaz.WithoutRetries`

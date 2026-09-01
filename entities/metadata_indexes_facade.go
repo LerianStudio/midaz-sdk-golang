@@ -8,8 +8,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // metadataIndexesFacade is the Phase 2 (Task 2.1.d) hand-written facade over the

@@ -90,25 +90,23 @@ func (e StatusCode) Valid() bool {
 
 // Account defines model for Account.
 type Account struct {
-	Alias              *string                 `json:"alias"`
-	AssetCode          string                  `json:"assetCode"`
-	Blocked            *bool                   `json:"blocked"`
-	CreatedAt          time.Time               `json:"createdAt"`
-	DeletedAt          *time.Time              `json:"deletedAt"`
-	EntityId           *string                 `json:"entityId"`
-	HolderCheckSkipped bool                    `json:"holderCheckSkipped"`
-	HolderId           *openapi_types.UUID     `json:"holderId"`
-	Id                 openapi_types.UUID      `json:"id"`
-	LedgerId           openapi_types.UUID      `json:"ledgerId"`
-	Metadata           *map[string]interface{} `json:"metadata,omitempty"`
-	Name               string                  `json:"name"`
-	OrganizationId     openapi_types.UUID      `json:"organizationId"`
-	ParentAccountId    *openapi_types.UUID     `json:"parentAccountId"`
-	PortfolioId        *openapi_types.UUID     `json:"portfolioId"`
-	SegmentId          *openapi_types.UUID     `json:"segmentId"`
-	Status             Status                  `json:"status"`
-	Type               string                  `json:"type"`
-	UpdatedAt          time.Time               `json:"updatedAt"`
+	Alias           *string                 `json:"alias"`
+	AssetCode       string                  `json:"assetCode"`
+	Blocked         *bool                   `json:"blocked"`
+	CreatedAt       time.Time               `json:"createdAt"`
+	DeletedAt       *time.Time              `json:"deletedAt"`
+	EntityId        *string                 `json:"entityId"`
+	Id              openapi_types.UUID      `json:"id"`
+	LedgerId        openapi_types.UUID      `json:"ledgerId"`
+	Metadata        *map[string]interface{} `json:"metadata,omitempty"`
+	Name            string                  `json:"name"`
+	OrganizationId  openapi_types.UUID      `json:"organizationId"`
+	ParentAccountId *openapi_types.UUID     `json:"parentAccountId"`
+	PortfolioId     *openapi_types.UUID     `json:"portfolioId"`
+	SegmentId       *openapi_types.UUID     `json:"segmentId"`
+	Status          Status                  `json:"status"`
+	Type            string                  `json:"type"`
+	UpdatedAt       time.Time               `json:"updatedAt"`
 }
 
 // AccountRule defines model for AccountRule.
@@ -138,6 +136,29 @@ type AccountType struct {
 	Name             *string                 `json:"name,omitempty"`
 	OrganizationId   *string                 `json:"organizationId,omitempty"`
 	UpdatedAt        time.Time               `json:"updatedAt"`
+}
+
+// AccountV2 defines model for AccountV2.
+type AccountV2 struct {
+	Alias              *string                 `json:"alias"`
+	AssetCode          string                  `json:"assetCode"`
+	Blocked            *bool                   `json:"blocked"`
+	CreatedAt          time.Time               `json:"createdAt"`
+	DeletedAt          *time.Time              `json:"deletedAt"`
+	EntityId           *string                 `json:"entityId"`
+	HolderCheckSkipped bool                    `json:"holderCheckSkipped"`
+	HolderId           *openapi_types.UUID     `json:"holderId"`
+	Id                 openapi_types.UUID      `json:"id"`
+	LedgerId           openapi_types.UUID      `json:"ledgerId"`
+	Metadata           *map[string]interface{} `json:"metadata,omitempty"`
+	Name               string                  `json:"name"`
+	OrganizationId     openapi_types.UUID      `json:"organizationId"`
+	ParentAccountId    *openapi_types.UUID     `json:"parentAccountId"`
+	PortfolioId        *openapi_types.UUID     `json:"portfolioId"`
+	SegmentId          *openapi_types.UUID     `json:"segmentId"`
+	Status             Status                  `json:"status"`
+	Type               string                  `json:"type"`
+	UpdatedAt          time.Time               `json:"updatedAt"`
 }
 
 // AccountingEntries defines model for AccountingEntries.
@@ -607,9 +628,8 @@ type FeeAccountTarget struct {
 
 // FeeBillingCalculateRequest defines model for FeeBillingCalculateRequest.
 type FeeBillingCalculateRequest struct {
-	LedgerId string  `json:"ledgerId"`
-	Period   string  `json:"period"`
-	Type     *string `json:"type,omitempty"`
+	Period string  `json:"period"`
+	Type   *string `json:"type,omitempty"`
 }
 
 // FeeBillingCalculateResponse defines model for FeeBillingCalculateResponse.
@@ -684,13 +704,37 @@ type FeeCalculationModel struct {
 	Calculations    *[]FeeCalculation `json:"calculations"`
 }
 
+// FeeCreateBillingPackageInput defines model for FeeCreateBillingPackageInput.
+type FeeCreateBillingPackageInput struct {
+	AccountTarget            *FeeAccountTarget  `json:"accountTarget,omitempty"`
+	AssetCode                *string            `json:"assetCode,omitempty"`
+	CountMode                *string            `json:"countMode,omitempty"`
+	CreatedAt                *string            `json:"createdAt,omitempty"`
+	CreditAccountAlias       *string            `json:"creditAccountAlias,omitempty"`
+	DebitAccountAlias        *string            `json:"debitAccountAlias,omitempty"`
+	DeletedAt                *string            `json:"deletedAt,omitempty"`
+	Description              *string            `json:"description,omitempty"`
+	DiscountTiers            *[]FeeDiscountTier `json:"discountTiers,omitempty"`
+	Enable                   *bool              `json:"enable"`
+	EventFilter              *FeeEventFilter    `json:"eventFilter,omitempty"`
+	FeeAmount                *string            `json:"feeAmount,omitempty"`
+	FreeQuota                *int64             `json:"freeQuota,omitempty"`
+	Id                       *string            `json:"id,omitempty"`
+	Label                    string             `json:"label"`
+	MaintenanceCreditAccount *string            `json:"maintenanceCreditAccount,omitempty"`
+	OrganizationId           *string            `json:"organizationId,omitempty"`
+	PricingModel             *string            `json:"pricingModel,omitempty"`
+	Tiers                    *[]FeePricingTier  `json:"tiers,omitempty"`
+	Type                     string             `json:"type"`
+	UpdatedAt                *string            `json:"updatedAt,omitempty"`
+}
+
 // FeeCreatePackageInput defines model for FeeCreatePackageInput.
 type FeeCreatePackageInput struct {
 	Description      *string        `json:"description,omitempty"`
 	Enable           *bool          `json:"enable"`
 	FeeGroupLabel    string         `json:"feeGroupLabel"`
 	Fees             map[string]Fee `json:"fees"`
-	LedgerId         string         `json:"ledgerId"`
 	MaximumAmount    string         `json:"maximumAmount"`
 	MinimumAmount    string         `json:"minimumAmount"`
 	SegmentId        *string        `json:"segmentId"`
@@ -706,7 +750,6 @@ type FeeDiscountTier struct {
 
 // FeeEstimate defines model for FeeEstimate.
 type FeeEstimate struct {
-	LedgerId    string           `json:"ledgerId"`
 	PackageId   string           `json:"packageId"`
 	Transaction TransactionInput `json:"transaction"`
 }
@@ -796,7 +839,7 @@ type Holder struct {
 
 // HolderAccountResponse defines model for HolderAccountResponse.
 type HolderAccountResponse struct {
-	Account         Account            `json:"account"`
+	Account         AccountV2          `json:"account"`
 	Instrument      Instrument         `json:"instrument"`
 	InstrumentError *InstrumentFailure `json:"instrumentError,omitempty"`
 }
@@ -1397,6 +1440,7 @@ type Upstream struct {
 type V2LegInput struct {
 	Alias            string              `json:"alias"`
 	Amount           *string             `json:"amount,omitempty"`
+	Description      *string             `json:"description,omitempty"`
 	LedgerId         openapi_types.UUID  `json:"ledgerId"`
 	OperationRouteId *openapi_types.UUID `json:"operationRouteId,omitempty"`
 	OrganizationId   openapi_types.UUID  `json:"organizationId"`
@@ -1995,6 +2039,9 @@ type ListAccountsByHolderV2Params struct {
 
 	// SortOrder Sort direction (asc, desc)
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// LedgerId Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
+	LedgerId *string `form:"ledger_id,omitempty" json:"ledger_id,omitempty"`
 }
 
 // ListInstrumentsV2Params defines parameters for ListInstrumentsV2.
@@ -2628,7 +2675,7 @@ type UpdateAssetV2JSONRequestBody = UpdateAssetInput
 type UpdateBalanceV2JSONRequestBody = UpdateBalance
 
 // CreateBillingPackageV2JSONRequestBody defines body for CreateBillingPackageV2 for application/json ContentType.
-type CreateBillingPackageV2JSONRequestBody = FeeBillingPackage
+type CreateBillingPackageV2JSONRequestBody = FeeCreateBillingPackageInput
 
 // UpdateBillingPackageV2JSONRequestBody defines body for UpdateBillingPackageV2 for application/json ContentType.
 type UpdateBillingPackageV2JSONRequestBody = FeeBillingPackageUpdate
@@ -13970,6 +14017,18 @@ func NewListAccountsByHolderV2Request(server string, organizationId string, id s
 
 		}
 
+		if params.LedgerId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "ledger_id", *params.LedgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -24737,7 +24796,7 @@ func (r ListAccountsV2Resp) ContentType() string {
 type CreateAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON201                       *Account
+	JSON201                       *AccountV2
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24768,7 +24827,7 @@ func (r CreateAccountV2Resp) ContentType() string {
 type GetAccountByAliasV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON200                       *Account
+	JSON200                       *AccountV2
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24830,7 +24889,7 @@ func (r GetBalancesByAliasV2Resp) ContentType() string {
 type GetAccountExternalByCodeV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON200                       *Account
+	JSON200                       *AccountV2
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25107,7 +25166,7 @@ func (r DeleteAccountV2Resp) ContentType() string {
 type GetAccountByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON200                       *Account
+	JSON200                       *AccountV2
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25138,7 +25197,7 @@ func (r GetAccountByIDV2Resp) ContentType() string {
 type UpdateAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON200                       *Account
+	JSON200                       *AccountV2
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -33238,7 +33297,7 @@ func ParseCreateAccountV2Resp(rsp *http.Response) (*CreateAccountV2Resp, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Account
+		var dest AccountV2
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -33271,7 +33330,7 @@ func ParseGetAccountByAliasV2Resp(rsp *http.Response) (*GetAccountByAliasV2Resp,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Account
+		var dest AccountV2
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -33337,7 +33396,7 @@ func ParseGetAccountExternalByCodeV2Resp(rsp *http.Response) (*GetAccountExterna
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Account
+		var dest AccountV2
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -33620,7 +33679,7 @@ func ParseGetAccountByIDV2Resp(rsp *http.Response) (*GetAccountByIDV2Resp, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Account
+		var dest AccountV2
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -33653,7 +33712,7 @@ func ParseUpdateAccountV2Resp(rsp *http.Response) (*UpdateAccountV2Resp, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Account
+		var dest AccountV2
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

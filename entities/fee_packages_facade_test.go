@@ -5,16 +5,18 @@ package entities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 const (
@@ -122,7 +124,7 @@ func TestFeePackagesFacade_CRUD(t *testing.T) {
 		defer srv.Close()
 
 		enable := true
-		input := models.NewCreatePackageInput("Std", feePackagesLedgerID, "100.00", "1000.00", map[string]models.Fee{
+		input := models.NewCreatePackageInput("Std", "100.00", "1000.00", map[string]models.Fee{
 			"admin": validFee(),
 		}).WithEnable(enable)
 
@@ -136,6 +138,7 @@ func TestFeePackagesFacade_CRUD(t *testing.T) {
 		if !strings.Contains(body, `"feeGroupLabel":"Std"`) || !strings.Contains(body, `"minimumAmount":"100.00"`) {
 			t.Fatalf("body = %q, want flat CreatePackageInput wire shape", body)
 		}
+		requireNoLedgerIDInRequestBody(t, body)
 		if pkg.ID != id || pkg.FeeGroupLabel != "Std" {
 			t.Fatalf("Create returned %+v", pkg)
 		}
@@ -298,7 +301,7 @@ func TestFeePackagesFacade_WriteReplaySafe(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	input := models.NewCreatePackageInput("Std", feePackagesLedgerID, "100.00", "1000.00", map[string]models.Fee{
+	input := models.NewCreatePackageInput("Std", "100.00", "1000.00", map[string]models.Fee{
 		"admin": validFee(),
 	}).WithEnable(true)
 
@@ -312,6 +315,8 @@ func TestFeePackagesFacade_WriteReplaySafe(t *testing.T) {
 	if !strings.Contains(replayed, `"feeGroupLabel":"Std"`) {
 		t.Fatalf("replayed body = %q, want full JSON", replayed)
 	}
+	// The replayed body must satisfy the same contract as the first attempt.
+	requireNoLedgerIDInRequestBody(t, replayed)
 }
 
 // TestFeePackagesFacade_Validation rejects bad input before any request leaves.
@@ -362,68 +367,72 @@ func TestFeePackagesFacade_UpdateMinAmountStringRail(t *testing.T) {
 	}
 }
 
-// TestFeePackagesFacade_LedgerReconciliation covers the path-vs-body ledger on
-// create: the server takes the ledger from the URL AND requires ledgerId in the
-// body, so an empty body value must inherit the addressed ledger and a
-// contradicting one must never reach the wire — it would register a fee package
-// (which prices money movement) against a ledger the caller did not address.
-func TestFeePackagesFacade_LedgerReconciliation(t *testing.T) {
-	newInput := func(ledgerID string) *models.CreatePackageInput {
-		return models.NewCreatePackageInput("Std", ledgerID, "100.00", "1000.00", map[string]models.Fee{
-			"admin": validFee(),
-		}).WithEnable(true)
+// TestFeePackagesFacade_LedgerIsPathOnly is the midaz v4 contract rail on the
+// fee-package create: the ledger scopes the request through the URL alone, and the
+// body must carry NO ledgerId. The server removed the field and its schema is
+// closed (additionalProperties: false), so a body still carrying it is rejected
+// with 400 — the whole fee-package write surface would be dead against midaz v4.
+// Every other test here asserts against an SDK-owned mock that accepts any body,
+// so this is the only detection for that regression.
+func TestFeePackagesFacade_LedgerIsPathOnly(t *testing.T) {
+	var gotPath, body string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"aaaa","feeGroupLabel":"Std"}`))
+	}))
+	defer srv.Close()
+
+	input := models.NewCreatePackageInput("Std", "100.00", "1000.00", map[string]models.Fee{
+		"admin": validFee(),
+	}).WithEnable(true)
+
+	if _, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID, input); err != nil {
+		t.Fatalf("Create: %v", err)
 	}
 
-	t.Run("empty body ledgerId inherits the path ledger", func(t *testing.T) {
-		var body string
+	if gotPath != feePackagesBase() {
+		t.Fatalf("path = %q, want %q (the ledger scopes the request through the URL)", gotPath, feePackagesBase())
+	}
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			b, _ := io.ReadAll(r.Body)
-			body = string(b)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"aaaa","feeGroupLabel":"Std"}`))
-		}))
-		defer srv.Close()
+	requireNoLedgerIDInRequestBody(t, body)
+}
 
-		input := newInput("")
+// requireNoLedgerIDInRequestBody fails if a fee/billing request body carries a
+// "ledgerId" key at any depth. midaz v4 removed the field from these request
+// schemas and closed them (additionalProperties: false), so the key is a 400 on
+// every fee/billing write. Do not weaken this to a top-level-only check.
+func requireNoLedgerIDInRequestBody(t *testing.T, body string) {
+	t.Helper()
 
-		if _, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID, input); err != nil {
-			t.Fatalf("Create: %v", err)
+	var decoded any
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		t.Fatalf("request body is not valid JSON: %v (%s)", err, body)
+	}
+
+	var walk func(node any, path string)
+	walk = func(node any, path string) {
+		switch v := node.(type) {
+		case map[string]any:
+			for key, child := range v {
+				if key == "ledgerId" {
+					t.Fatalf("body = %s\n%s.ledgerId must be absent: midaz v4 rejects the field (closed schema)", body, path)
+				}
+
+				walk(child, path+"."+key)
+			}
+		case []any:
+			for i, child := range v {
+				walk(child, path+"["+strconv.Itoa(i)+"]")
+			}
 		}
+	}
 
-		if !strings.Contains(body, `"ledgerId":"`+feePackagesLedgerID+`"`) {
-			t.Fatalf("body = %q, want the path ledger filled into ledgerId", body)
-		}
-
-		if input.LedgerID != "" {
-			t.Fatalf("caller input mutated: LedgerID = %q, want it left empty", input.LedgerID)
-		}
-	})
-
-	t.Run("mismatched body ledgerId is rejected before transport", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-			t.Fatal("no request may reach the server when the ledgers disagree")
-		}))
-		defer srv.Close()
-
-		const otherLedger = "66666666-6666-6666-6666-666666666666"
-
-		input := newInput(otherLedger)
-
-		_, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID, input)
-		if err == nil {
-			t.Fatal("Create must reject a body ledgerId that differs from the path ledger")
-		}
-
-		if !strings.Contains(err.Error(), otherLedger) || !strings.Contains(err.Error(), feePackagesLedgerID) {
-			t.Fatalf("error = %v, want both ledger IDs named", err)
-		}
-
-		if input.LedgerID != otherLedger {
-			t.Fatalf("caller input mutated: LedgerID = %q", input.LedgerID)
-		}
-	})
+	walk(decoded, "$")
 }
 
 // validFee returns an inner Fee that satisfies CreatePackageInput.Validate's dive

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // Every V2 write has the same two ways to be silently wrong, and neither shows

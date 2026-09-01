@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

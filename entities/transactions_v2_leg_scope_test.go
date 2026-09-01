@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // TestV2LegScopeIgnoresWhitespace pins the whitespace half of the leg-scope

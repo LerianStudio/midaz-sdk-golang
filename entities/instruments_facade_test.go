@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 const (
@@ -430,14 +430,6 @@ func TestInstrumentsFacade_DeleteRelatedParty(t *testing.T) {
 	}
 }
 
-// TestInstrumentsFacade_ListAccountsByHolder exercises cursor pagination over the
-// holder-in-path accounts endpoint, chaining next_cursor and stopping on the
-// terminal empty cursor, returning models.Account.
-//
-// The stub REQUIRES ledger_id and answers 400 without it, which is what the real
-// server does — the parameter is enforced at runtime and absent from the
-// published contract, so nothing but a test that refuses the request keeps the
-// hand-injected param from being deleted as unexplained.
 // TestInstrumentsFacade_ListAccountsByHolderRefusesUnsendableOpts pins the
 // refusal on the opts fields the holder-accounts route cannot express.
 //
@@ -509,25 +501,30 @@ func TestInstrumentsFacade_ListAccountsByHolderRefusesUnsendableOpts(t *testing.
 	}
 }
 
+// TestInstrumentsFacade_ListAccountsByHolder exercises cursor pagination over the
+// holder-in-path accounts endpoint, chaining next_cursor and stopping on the
+// terminal empty cursor, returning models.Account.
+//
+// It also pins ledger_id onto the wire. The server treats the parameter as
+// OPTIONAL — it narrows an otherwise org-wide listing — so a request that omits
+// it succeeds and answers with every account the holder owns across every ledger.
+// A silently widened result set is exactly what a caller cannot detect, so the
+// stub records the parameter on every request instead of rejecting its absence,
+// and the assertions below refuse a page that arrived without it.
 func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 	acctID1 := "77777777-7777-7777-7777-777777777777"
 	acctID2 := "88888888-8888-8888-8888-888888888888"
 	page1 := `{"items":[{"id":"` + acctID1 + `","name":"Checking","assetCode":"USD"}],"limit":1,"next_cursor":"a2"}`
 	page2 := `{"items":[{"id":"` + acctID2 + `","name":"Savings","assetCode":"USD"}],"limit":1}`
 
-	var seenCursors, seenPaths, seenLedgerIDs []string
+	var seenCursors, seenPaths []string
+
+	var seenLedgerIDs [][]string
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenCursors = append(seenCursors, r.URL.Query().Get("cursor"))
 		seenPaths = append(seenPaths, r.URL.Path)
-		seenLedgerIDs = append(seenLedgerIDs, r.URL.Query().Get("ledger_id"))
-
-		if r.URL.Query().Get("ledger_id") == "" {
-			w.Header().Set("Content-Type", "application/problem+json")
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"code":"LEDGER-0003","title":"missing query parameter ledger_id","status":400}`))
-
-			return
-		}
+		seenLedgerIDs = append(seenLedgerIDs, r.URL.Query()["ledger_id"])
 
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Query().Get("cursor") == "a2" {
@@ -566,11 +563,14 @@ func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 			t.Fatalf("request %d path = %q, want %q", i, p, wantPath)
 		}
 	}
-	// EVERY request carries it, including the ones the cursor loop issues — the
-	// server refuses each one on its own, not just the first.
+	// EVERY request carries it exactly once, including the ones the cursor loop
+	// issues: the narrowing is per-request, so a later page without it silently
+	// widens to the whole organization. Exactly once, because the parameter has a
+	// single source now — the generated query slot — and a duplicate would mean a
+	// second injection path grew back.
 	for i, lid := range seenLedgerIDs {
-		if lid != instrumentsFacadeLedgerID {
-			t.Fatalf("request %d ledger_id = %q, want %q (the server requires it on every page)", i, lid, instrumentsFacadeLedgerID)
+		if len(lid) != 1 || lid[0] != instrumentsFacadeLedgerID {
+			t.Fatalf("request %d ledger_id = %v, want exactly [%q] (every page must be narrowed to the ledger)", i, lid, instrumentsFacadeLedgerID)
 		}
 	}
 	// seenCursors: [""] from the direct first call, then ["", "a2"] from ListAll.
@@ -578,7 +578,8 @@ func TestInstrumentsFacade_ListAccountsByHolder(t *testing.T) {
 		t.Fatalf("ListAll cursor chain tail = %v, want ['' 'a2']", seenCursors)
 	}
 
-	// An empty ledger is refused locally, before a request the server would 400.
+	// An empty ledger is refused locally rather than sent: the server would accept
+	// the unnarrowed request and answer with every ledger's accounts.
 	if _, err := facade.ListAccountsByHolder(context.Background(), instrumentsFacadeOrgID, "", instrumentsFacadeHolderID, models.AccountsListOpts{}); err == nil {
 		t.Fatal("ListAccountsByHolder with an empty ledger: want a validation error, got nil")
 	}

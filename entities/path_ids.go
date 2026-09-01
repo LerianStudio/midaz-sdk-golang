@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // requirePathIDs rejects a request whose path ids cannot safely become one URL

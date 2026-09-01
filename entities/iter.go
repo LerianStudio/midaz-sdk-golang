@@ -6,7 +6,7 @@ package entities
 import (
 	"iter"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // Collect drains up to maxItems items from a paginated iter.Seq2[T, error]

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // listFilterSurface is one of the two transaction list surfaces.

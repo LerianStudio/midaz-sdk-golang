@@ -14,8 +14,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/gentracer"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/gentracer"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"

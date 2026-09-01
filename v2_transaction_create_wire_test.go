@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -135,6 +135,60 @@ func TestV2TransactionCreateRouting(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestV2TransactionCreateLegDescription pins the optional per-leg description
+// onto the wire, in both directions.
+//
+// Presence matters because the field only reached the SDK's leg type in v6: a
+// caller who sets it and finds nothing in the ledger has no way to tell a
+// dropped field from a server that ignored it. Absence matters because the leg
+// schema refuses unknown properties and a leg that always emitted
+// `"description":""` would record an empty note on every operation that never
+// had one.
+func TestV2TransactionCreateLegDescription(t *testing.T) {
+	const (
+		orgID       = "11111111-1111-1111-1111-111111111111"
+		ledgerID    = "22222222-2222-2222-2222-222222222222"
+		description = "card settlement"
+	)
+
+	var gotBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"33333333-3333-3333-3333-333333333333","status":{"code":"APPROVED"}}`))
+	}))
+	defer srv.Close()
+
+	c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
+	require.NoError(t, err)
+
+	_, err = c.V2.Transactions.CreateDirect(context.Background(), orgID, ledgerID,
+		&models.CreateTransactionV2Input{
+			Asset:   "USD",
+			Amount:  "10",
+			Debits:  []models.TransactionV2Leg{{Alias: "@src", Amount: "10", Description: description}},
+			Credits: []models.TransactionV2Leg{{Alias: "@dst", Amount: "10"}},
+		})
+	require.NoError(t, err)
+
+	var wire struct {
+		Debits  []map[string]any `json:"debits"`
+		Credits []map[string]any `json:"credits"`
+	}
+
+	require.NoError(t, json.Unmarshal(gotBody, &wire), "body: %s", gotBody)
+	require.Len(t, wire.Debits, 1)
+	require.Len(t, wire.Credits, 1)
+
+	require.Equal(t, description, wire.Debits[0]["description"],
+		"a leg description the caller set must reach the ledger, or it is silently lost")
+	require.NotContains(t, wire.Credits[0], "description",
+		"a leg with no description must omit the key entirely, not send an empty one")
 }
 
 // TestV2TransactionCreateDoesNotMutateCallerInput is a money-path guard on the

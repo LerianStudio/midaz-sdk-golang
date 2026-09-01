@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation/core"
 )
 
 const maxAccountFieldLength = 256
@@ -40,7 +40,19 @@ type Account struct {
 	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
-	NullFields      []string       `json:"-"`
+
+	// HolderID and HolderCheckSkipped are populated ONLY by /v2 endpoints,
+	// which answer with the server's AccountV2 schema. /v1 endpoints answer
+	// with the Account schema, which withholds both keys by server contract —
+	// so on a /v1 response HolderID is always nil and HolderCheckSkipped is
+	// always false, and neither says anything about the account.
+	//
+	// Decode-only: holder assignment is not part of account create or update,
+	// so CreateAccountInput and UpdateAccountInput carry no counterpart.
+	HolderID           *string `json:"holderId,omitempty"`
+	HolderCheckSkipped bool    `json:"holderCheckSkipped,omitempty"`
+
+	NullFields []string `json:"-"`
 }
 
 // AccountHelpers provides utility functions for working with Account entities.
@@ -78,7 +90,7 @@ func GetAccountIdentifier(account Account) string {
 //   - [CreateAccountInput.Validate] — multi-field validation accumulator.
 //   - [UpdateAccountInput] — partial-update shape.
 //   - Create it via the client's Accounts accessor: c.Accounts.Create.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 type CreateAccountInput struct {
 	// Name is the human-readable name of the account.
 	// Max length: 256 characters. Optional in the Midaz API.

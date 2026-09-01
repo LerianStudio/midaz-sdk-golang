@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/concurrent"
 )
 
 // ExampleWorkerPool demonstrates parallel processing of a slice of items with

@@ -21,10 +21,10 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
-	gen "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/generator"
+	"github.com/LerianStudio/midaz-sdk-golang/v6"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	gen "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/generator"
 )
 
 const (
@@ -721,7 +721,6 @@ func runV2FeePhase(ctx context.Context, c *midaz.Client, state *workflowState, l
 
 	input := models.NewCreatePackageInput(
 		fmt.Sprintf("demo-fees-%s", prefix),
-		lc.ledger.ID,
 		formatAmountByScale(unit, int64(scale)),
 		formatAmountByScale(10_000*unit, int64(scale)),
 		fees,
@@ -754,7 +753,7 @@ func runV2FeePhase(ctx context.Context, c *midaz.Client, state *workflowState, l
 	}
 
 	estimate, err := c.V2.FeeEstimates.EstimateFee(ctx, lc.org.ID, lc.ledger.ID,
-		models.NewFeeEstimateInput(pkg.ID, lc.ledger.ID, send).
+		models.NewFeeEstimateInput(pkg.ID, send).
 			WithDescription("Mass demo generator fee estimate"))
 	if !logV2Step("fee estimate", err) {
 		return
@@ -783,7 +782,6 @@ func runV2BillingPhase(ctx context.Context, c *midaz.Client, state *workflowStat
 	aliases := []string{demo.sourceAlias}
 	input := models.NewCreateMaintenanceBillingPackageInput(
 		fmt.Sprintf("demo-billing-%s", prefix),
-		lc.ledger.ID,
 		asset,
 		formatAmountByScale(pow10(scale), int64(scale)),
 		demo.destAlias,
@@ -805,7 +803,7 @@ func runV2BillingPhase(ctx context.Context, c *midaz.Client, state *workflowStat
 	period := time.Now().UTC().Format("2006-01")
 
 	result, err := c.V2.BillingCalculations.CalculateBilling(ctx, lc.org.ID, lc.ledger.ID,
-		models.NewBillingCalculateInput(lc.ledger.ID, period))
+		models.NewBillingCalculateInput(period))
 	if !logV2Step("billing calculate", err) {
 		return
 	}
@@ -848,8 +846,9 @@ func runV2ReadOnlyPhase(ctx context.Context, c *midaz.Client, lc *ledgerContext,
 	}
 
 	if len(holders) > 0 && holders[0].ID != nil {
-		// The ledger is passed because the endpoint requires it as a query
-		// parameter, even though the holder alone is in the path.
+		// The holder alone is in the path. The server treats the ledger as an
+		// optional narrowing filter, but the SDK requires it so a listing can
+		// never widen silently to every ledger in the organization.
 		accounts, err := c.V2.Instruments.ListAccountsByHolder(ctx, lc.org.ID, lc.ledger.ID, holders[0].ID.String(), models.AccountsListOpts{})
 		if logV2Step("holder accounts list", err) {
 			fmt.Printf("V2 CRM: first holder owns %d account(s)\n", len(accounts.Items))

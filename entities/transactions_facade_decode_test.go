@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // A create that Midaz accepted and answered with a body the SDK cannot decode is

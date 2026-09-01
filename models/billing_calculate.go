@@ -8,38 +8,33 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 )
 
 // BillingCalculateInput is the billing-calculation request. It mirrors the server
 // DTO (feeshared/model/billing_calculation.go BillingCalculateRequest): the
-// organization and the ledger BOTH travel as path segments, and the server schema
-// requires ledgerId in the body as well. Leave LedgerID empty and the SDK fills it
-// from the ledger you addressed in the call; set it to a different ledger and the
-// call is rejected rather than attributed to the wrong one. Period is required and
-// Type is optional — empty calculates both "volume" and "maintenance" packages,
-// otherwise the calculation is restricted to the named type.
+// organization and the ledger BOTH travel as path segments and the ledger is the
+// sole ledger authority — it is NOT part of this payload, and the server schema is
+// closed (additionalProperties: false), so a body carrying ledgerId is rejected.
+// Period is required and Type is optional — empty calculates both "volume" and
+// "maintenance" packages, otherwise the calculation is restricted to the named
+// type.
 //
 // Period must be "YYYY-MM" (monthly), "YYYY-Www" (weekly), or "YYYY-MM-DD"
 // (daily), e.g. "2026-01", "2026-W13", or "2026-01-15".
 type BillingCalculateInput struct {
-	LedgerID string `json:"ledgerId"`
-	Period   string `json:"period"`
-	Type     string `json:"type,omitempty"`
+	Period string `json:"period"`
+	Type   string `json:"type,omitempty"`
 }
 
-// Validate enforces the SDK-side preconditions the server requires: LedgerID and
-// Period are required. Period format is validated server-side.
+// Validate enforces the SDK-side preconditions the server requires: Period is
+// required. Period format is validated server-side.
 func (input *BillingCalculateInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
 	}
 
 	var errs validation.FieldErrors
-
-	if strings.TrimSpace(input.LedgerID) == "" {
-		errs.Append("ledgerId", "is required")
-	}
 
 	if strings.TrimSpace(input.Period) == "" {
 		errs.Append("period", "is required")
@@ -57,10 +52,11 @@ func (input *BillingCalculateInput) Validate() error {
 }
 
 // NewBillingCalculateInput builds a BillingCalculateInput with the required
-// ledger ID and period. Type is optional (empty calculates all package types);
-// set it with WithType.
-func NewBillingCalculateInput(ledgerID, period string) *BillingCalculateInput {
-	return &BillingCalculateInput{LedgerID: ledgerID, Period: period}
+// period. The ledger comes from the facade call's path argument, not from this
+// payload. Type is optional (empty calculates all package types); set it with
+// WithType.
+func NewBillingCalculateInput(period string) *BillingCalculateInput {
+	return &BillingCalculateInput{Period: period}
 }
 
 // WithType restricts the calculation to a single billing type (e.g. "volume"

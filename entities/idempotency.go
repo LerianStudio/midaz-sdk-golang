@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/gentracer"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/gentracer"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // resolveIdempotency computes the X-Idempotency key and X-TTL value for a

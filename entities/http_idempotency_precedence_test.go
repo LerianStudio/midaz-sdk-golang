@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // TestIdempotencyPrecedence_InputKeyBeatsCtxKey verifies the documented

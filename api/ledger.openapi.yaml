@@ -38,6 +38,193 @@ components:
           type:
             - string
             - "null"
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Corporate Checking Account
+          maxLength: 256
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        parentAccountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type:
+            - string
+            - "null"
+        portfolioId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type:
+            - string
+            - "null"
+        segmentId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type:
+            - string
+            - "null"
+        status:
+          $ref: "#/components/schemas/Status"
+        type:
+          examples:
+            - deposit
+          type: string
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - name
+        - parentAccountId
+        - entityId
+        - assetCode
+        - organizationId
+        - ledgerId
+        - portfolioId
+        - segmentId
+        - status
+        - alias
+        - type
+        - blocked
+        - createdAt
+        - updatedAt
+        - deletedAt
+      type: object
+    AccountRule:
+      additionalProperties: false
+      properties:
+        ruleType:
+          enum:
+            - alias
+            - account_type
+          examples:
+            - alias
+          type: string
+        validIf: {}
+      type: object
+    AccountSkip:
+      additionalProperties: false
+      properties:
+        holder:
+          examples:
+            - false
+          type: boolean
+      type: object
+    AccountType:
+      additionalProperties: false
+      properties:
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        defaultDirection:
+          examples:
+            - credit
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Assets that are expected to be converted to cash within one year
+          type: string
+        id:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        keyValue:
+          examples:
+            - current_assets
+          type: string
+        ledgerId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Current Assets
+          type: string
+        organizationId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - createdAt
+        - updatedAt
+        - deletedAt
+      type: object
+    AccountV2:
+      additionalProperties: false
+      properties:
+        alias:
+          examples:
+            - "@treasury_checking"
+          maxLength: 100
+          type:
+            - string
+            - "null"
+        assetCode:
+          examples:
+            - USD
+          maxLength: 100
+          type: string
+        blocked:
+          type:
+            - boolean
+            - "null"
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        entityId:
+          examples:
+            - EXT-ACC-12345
+          maxLength: 256
+          type:
+            - string
+            - "null"
         holderCheckSkipped:
           examples:
             - false
@@ -120,82 +307,6 @@ components:
         - type
         - blocked
         - holderCheckSkipped
-        - createdAt
-        - updatedAt
-        - deletedAt
-      type: object
-    AccountRule:
-      additionalProperties: false
-      properties:
-        ruleType:
-          enum:
-            - alias
-            - account_type
-          examples:
-            - alias
-          type: string
-        validIf: {}
-      type: object
-    AccountSkip:
-      additionalProperties: false
-      properties:
-        holder:
-          examples:
-            - false
-          type: boolean
-      type: object
-    AccountType:
-      additionalProperties: false
-      properties:
-        createdAt:
-          examples:
-            - "2021-01-01T00:00:00Z"
-          format: date-time
-          type: string
-        defaultDirection:
-          examples:
-            - credit
-          type: string
-        deletedAt:
-          examples:
-            - "2021-01-01T00:00:00Z"
-          format: date-time
-          type:
-            - string
-            - "null"
-        description:
-          examples:
-            - Assets that are expected to be converted to cash within one year
-          type: string
-        id:
-          examples:
-            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        keyValue:
-          examples:
-            - current_assets
-          type: string
-        ledgerId:
-          examples:
-            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        metadata:
-          additionalProperties: {}
-          type: object
-        name:
-          examples:
-            - Current Assets
-          type: string
-        organizationId:
-          examples:
-            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        updatedAt:
-          examples:
-            - "2021-01-01T00:00:00Z"
-          format: date-time
-          type: string
-      required:
         - createdAt
         - updatedAt
         - deletedAt
@@ -1739,10 +1850,6 @@ components:
     FeeBillingCalculateRequest:
       additionalProperties: false
       properties:
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          type: string
         period:
           examples:
             - 2026-01
@@ -1752,7 +1859,6 @@ components:
             - volume
           type: string
       required:
-        - ledgerId
         - period
       type: object
     FeeBillingCalculateResponse:
@@ -2000,6 +2106,101 @@ components:
         - applicationRule
         - calculations
       type: object
+    FeeCreateBillingPackageInput:
+      additionalProperties: false
+      properties:
+        accountTarget:
+          $ref: "#/components/schemas/FeeAccountTarget"
+        assetCode:
+          examples:
+            - BRL
+          type: string
+        countMode:
+          examples:
+            - perRoute
+          type: string
+        createdAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          type: string
+        creditAccountAlias:
+          examples:
+            - account_fees_credit
+          type: string
+        debitAccountAlias:
+          examples:
+            - account_fees_debit
+          type: string
+        deletedAt:
+          examples:
+            - "2026-06-01T00:00:00Z"
+          type: string
+        description:
+          examples:
+            - Charges per completed transaction route
+          type: string
+        discountTiers:
+          items:
+            $ref: "#/components/schemas/FeeDiscountTier"
+          type:
+            - array
+            - "null"
+        enable:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        eventFilter:
+          $ref: "#/components/schemas/FeeEventFilter"
+        feeAmount:
+          examples:
+            - "50.00"
+          type: string
+        freeQuota:
+          examples:
+            - 100
+          format: int64
+          type: integer
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        label:
+          examples:
+            - Monthly Volume Billing
+          type: string
+        maintenanceCreditAccount:
+          examples:
+            - account_maintenance_credit
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        pricingModel:
+          examples:
+            - tiered
+          type: string
+        tiers:
+          items:
+            $ref: "#/components/schemas/FeePricingTier"
+          type:
+            - array
+            - "null"
+        type:
+          examples:
+            - volume
+          type: string
+        updatedAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          type: string
+      required:
+        - label
+        - type
+        - enable
+      type: object
     FeeCreatePackageInput:
       additionalProperties: false
       properties:
@@ -2019,10 +2220,6 @@ components:
           additionalProperties:
             $ref: "#/components/schemas/Fee"
           type: object
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          type: string
         maximumAmount:
           examples:
             - "1000.20"
@@ -2053,7 +2250,6 @@ components:
       required:
         - feeGroupLabel
         - segmentId
-        - ledgerId
         - minimumAmount
         - maximumAmount
         - fees
@@ -2078,10 +2274,6 @@ components:
     FeeEstimate:
       additionalProperties: false
       properties:
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          type: string
         packageId:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -2090,7 +2282,6 @@ components:
           $ref: "#/components/schemas/TransactionInput"
       required:
         - packageId
-        - ledgerId
         - transaction
       type: object
     FeeEventFilter:
@@ -2408,7 +2599,7 @@ components:
       additionalProperties: false
       properties:
         account:
-          $ref: "#/components/schemas/Account"
+          $ref: "#/components/schemas/AccountV2"
         instrument:
           $ref: "#/components/schemas/Instrument"
         instrumentError:
@@ -4430,6 +4621,9 @@ components:
         alias:
           type: string
         amount:
+          type: string
+        description:
+          maxLength: 256
           type: string
         ledgerId:
           examples:
@@ -9788,6 +9982,13 @@ paths:
           schema:
             description: Sort direction (asc, desc)
             type: string
+        - description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
+          explode: false
+          in: query
+          name: ledger_id
+          schema:
+            description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
+            type: string
       responses:
         "200":
           content:
@@ -10601,7 +10802,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/AccountV2"
           description: Created
         default:
           content:
@@ -10644,7 +10845,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/AccountV2"
           description: OK
         default:
           content:
@@ -10730,7 +10931,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/AccountV2"
           description: OK
         default:
           content:
@@ -11242,7 +11443,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/AccountV2"
           description: OK
         default:
           content:
@@ -11290,7 +11491,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/AccountV2"
           description: OK
         default:
           content:
@@ -11924,7 +12125,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/FeeBillingPackage"
+              $ref: "#/components/schemas/FeeCreateBillingPackageInput"
         required: true
       responses:
         "201":

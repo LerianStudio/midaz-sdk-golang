@@ -34,8 +34,8 @@ import (
 	"log/slog"
 	"os"
 
-	midaz "github.com/LerianStudio/midaz-sdk-golang/v5"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
+	midaz "github.com/LerianStudio/midaz-sdk-golang/v6"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
 )
 
 // Client builds a Midaz SDK client from environment variables. It is

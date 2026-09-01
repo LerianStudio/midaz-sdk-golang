@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
 // The path ids, uuids and dates every V2 behavioural table in this package

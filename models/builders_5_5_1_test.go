@@ -31,7 +31,7 @@ func TestNewFeeEstimateInput_ValidateAccumulatesFieldKeys(t *testing.T) {
 	}{
 		{
 			name: "valid with optionals",
-			input: NewFeeEstimateInput("pkg-1", "ledger-1", sampleFeeEstimateSend()).
+			input: NewFeeEstimateInput("pkg-1", sampleFeeEstimateSend()).
 				WithChartOfAccountsGroupName("FUNDING").
 				WithDescription("d").
 				WithCode("c").
@@ -41,9 +41,8 @@ func TestNewFeeEstimateInput_ValidateAccumulatesFieldKeys(t *testing.T) {
 				WithTransactionDate("2026-01-01T00:00:00Z"),
 			wantErr: "",
 		},
-		{name: "missing packageId", input: NewFeeEstimateInput("", "ledger-1", sampleFeeEstimateSend()), wantErr: "packageId"},
-		{name: "missing ledgerId", input: NewFeeEstimateInput("pkg-1", "", sampleFeeEstimateSend()), wantErr: "ledgerId"},
-		{name: "missing send", input: NewFeeEstimateInput("pkg-1", "ledger-1", nil), wantErr: "transaction.send"},
+		{name: "missing packageId", input: NewFeeEstimateInput("", sampleFeeEstimateSend()), wantErr: "packageId"},
+		{name: "missing send", input: NewFeeEstimateInput("pkg-1", nil), wantErr: "transaction.send"},
 	}
 
 	for _, tt := range tests {
@@ -60,7 +59,7 @@ func TestNewFeeEstimateInput_ValidateAccumulatesFieldKeys(t *testing.T) {
 }
 
 func TestNewFeeEstimateInput_SetsOptionalTransactionFields(t *testing.T) {
-	in := NewFeeEstimateInput("pkg-1", "ledger-1", sampleFeeEstimateSend()).
+	in := NewFeeEstimateInput("pkg-1", sampleFeeEstimateSend()).
 		WithChartOfAccountsGroupName("FUNDING").
 		WithDescription("desc").
 		WithCode("code").
@@ -70,7 +69,6 @@ func TestNewFeeEstimateInput_SetsOptionalTransactionFields(t *testing.T) {
 		WithMetadata(map[string]any{"k": "v"})
 
 	assert.Equal(t, "pkg-1", in.PackageID)
-	assert.Equal(t, "ledger-1", in.LedgerID)
 	assert.Equal(t, "FUNDING", in.Transaction.ChartOfAccountsGroupName)
 	assert.Equal(t, "desc", in.Transaction.Description)
 	assert.Equal(t, "code", in.Transaction.Code)
@@ -88,10 +86,9 @@ func TestNewBillingCalculateInput_ValidateAccumulatesFieldKeys(t *testing.T) {
 		input   *BillingCalculateInput
 		wantErr string
 	}{
-		{name: "valid with type", input: NewBillingCalculateInput("ledger-1", "2026-01").WithType("volume"), wantErr: ""},
-		{name: "valid without type", input: NewBillingCalculateInput("ledger-1", "2026-01"), wantErr: ""},
-		{name: "missing ledgerId", input: NewBillingCalculateInput("", "2026-01"), wantErr: "ledgerId"},
-		{name: "missing period", input: NewBillingCalculateInput("ledger-1", ""), wantErr: "period"},
+		{name: "valid with type", input: NewBillingCalculateInput("2026-01").WithType("volume"), wantErr: ""},
+		{name: "valid without type", input: NewBillingCalculateInput("2026-01"), wantErr: ""},
+		{name: "missing period", input: NewBillingCalculateInput(""), wantErr: "period"},
 	}
 
 	for _, tt := range tests {
@@ -108,9 +105,8 @@ func TestNewBillingCalculateInput_ValidateAccumulatesFieldKeys(t *testing.T) {
 }
 
 func TestNewBillingCalculateInput_SetsFields(t *testing.T) {
-	in := NewBillingCalculateInput("ledger-1", "2026-W13").WithType("maintenance")
+	in := NewBillingCalculateInput("2026-W13").WithType("maintenance")
 
-	assert.Equal(t, "ledger-1", in.LedgerID)
 	assert.Equal(t, "2026-W13", in.Period)
 	assert.Equal(t, "maintenance", in.Type)
 }

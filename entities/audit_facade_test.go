@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 const auditOrgID = "11111111-1111-1111-1111-111111111111"

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 )
 
 // ExampleFieldErrors_Append demonstrates the canonical accumulator

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

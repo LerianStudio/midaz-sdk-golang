@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation/core"
 )
 
 // EnhancedValidateAssetCode checks if an asset code is valid and returns field-level errors

@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/reflectutil"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/security"
-	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/version"
 )
 
 // ServiceType represents a type of service in the Midaz API ecosystem.
@@ -142,7 +142,7 @@ type Config struct {
 
 	// Retry configuration for failed requests.
 	// Retries are off when MaxRetries == 0; there is no separate enable flag.
-	// Use [github.com/LerianStudio/midaz-sdk-golang/v5.WithoutRetries] (canonical
+	// Use [github.com/LerianStudio/midaz-sdk-golang/v6.WithoutRetries] (canonical
 	// off-switch) or [WithMaxRetries](0) to disable.
 	MaxRetries   int
 	RetryWaitMin time.Duration
@@ -178,7 +178,7 @@ type Config struct {
 
 	// Anonymous is the explicit acknowledgment that the client is being
 	// constructed without any authentication source. Programmatic callers set
-	// this via [github.com/LerianStudio/midaz-sdk-golang/v5.WithAnonymous] (the
+	// this via [github.com/LerianStudio/midaz-sdk-golang/v6.WithAnonymous] (the
 	// midaz package re-export) to prove that omitting AccessManager was
 	// intentional — typically for local development against an unsecured
 	// midaz-onboarding/midaz-transaction stack, or for tests. v4 rejects
@@ -211,8 +211,8 @@ type Option func(*Config) error
 // WithEnvironment sets the environment for the Config.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithEnvironment] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithEnvironment] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // This determines the default URLs used for services if not explicitly overridden.
@@ -246,8 +246,8 @@ func WithEnvironment(env Environment) Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithLedgerURL] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithLedgerURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // This overrides any URL derived from the Environment setting.
@@ -286,8 +286,8 @@ func WithLedgerURL(ledgerURL string) Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithTracerURL] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithTracerURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // This overrides any URL derived from the Environment setting.
@@ -332,7 +332,7 @@ func WithTracerURL(tracerURL string) Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithTracerAPIKey] is what most
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithTracerAPIKey] is what most
 // callers should use.
 //
 // Parameters:
@@ -373,8 +373,8 @@ func WithTracerAPIKey(apiKey string) Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithBaseURL] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithBaseURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // Parameters:
@@ -432,8 +432,8 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient sets a custom HTTP client for the Config.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithHTTPClient] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithHTTPClient] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // This allows for advanced customization of the HTTP client behavior.
@@ -463,8 +463,8 @@ func WithHTTPClient(client *http.Client) Option {
 // WithTimeout sets the timeout duration for HTTP requests.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithTimeout] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithTimeout] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // Parameters:
@@ -494,8 +494,8 @@ func WithTimeout(timeout time.Duration) Option {
 // WithUserAgent sets the user agent for HTTP requests.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithUserAgent] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithUserAgent] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // Parameters:
@@ -522,8 +522,8 @@ func WithUserAgent(userAgent string) Option {
 // WithDebug enables or disables debug mode.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithDebug] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithDebug] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // In debug mode, the SDK logs detailed information about requests and responses.
@@ -568,8 +568,8 @@ func WithErrorBodyExposure(enabled bool) Option {
 // WithObservabilityProvider sets the observability provider.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithObservabilityProvider] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithObservabilityProvider] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // Parameters:
@@ -596,9 +596,9 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 // WithIdempotency enables or disables automatic idempotency key generation.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithIdempotency] is what most
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithIdempotency] is what most
 // callers should use; it composes with
-// [github.com/LerianStudio/midaz-sdk-golang/v5.New] directly.
+// [github.com/LerianStudio/midaz-sdk-golang/v6.New] directly.
 //
 // Parameters:
 //   - enabled: Whether to enable idempotency key generation
@@ -620,8 +620,8 @@ func WithIdempotency(enabled bool) Option {
 // WithAccessManager sets the plugin-based authentication configuration.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithAccessManager] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithAccessManager] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // The Enabled field of the supplied AccessManager is OVERRIDDEN to true —
@@ -681,8 +681,8 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 // WithAnonymous and WithAccessManager are mutually exclusive — the last
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithAnonymous] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v5.New]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithAnonymous] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v6.New]
 // directly.
 //
 // option applied wins. Calling WithAnonymous after WithAccessManager
@@ -727,9 +727,9 @@ func WithAnonymous() Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates
 // on [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithAllowInsecureAccessManagerHTTP]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithAllowInsecureAccessManagerHTTP]
 // is what most callers should use; it composes with
-// [github.com/LerianStudio/midaz-sdk-golang/v5.New] directly.
+// [github.com/LerianStudio/midaz-sdk-golang/v6.New] directly.
 //
 // Parameters:
 //   - allow: Whether to permit plain http:// for non-loopback hosts.
@@ -786,9 +786,9 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 //
 // Two-layer surface: this is the internal/test-layer Option that operates
 // on [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v5.WithAllowInsecureHTTP]
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithAllowInsecureHTTP]
 // is what most callers should use; it composes with
-// [github.com/LerianStudio/midaz-sdk-golang/v5.New] directly.
+// [github.com/LerianStudio/midaz-sdk-golang/v6.New] directly.
 //
 // Parameters:
 //   - allow: Whether to permit plain http:// for non-loopback Ledger/Tracer hosts.
