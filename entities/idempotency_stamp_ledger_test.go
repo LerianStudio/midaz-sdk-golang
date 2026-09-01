@@ -112,7 +112,7 @@ func TestLedgerWritesStampIdempotency(t *testing.T) {
 		{"feePackages.Create", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
 			_, _ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), feePackagesOrgID, feePackagesLedgerID,
-				models.NewCreatePackageInput("Std", feePackagesLedgerID, "100.00", "1000.00", map[string]models.Fee{"admin": validFee()}).WithEnable(true))
+				models.NewCreatePackageInput("Std", "100.00", "1000.00", map[string]models.Fee{"admin": validFee()}).WithEnable(true))
 		}},
 		{"feePackages.Update", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
@@ -126,7 +126,7 @@ func TestLedgerWritesStampIdempotency(t *testing.T) {
 		{"billingPackages.Create", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
 			_, _ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID,
-				models.NewCreateVolumeBillingPackageInput("Vol", billingPkgLedgerID, "BRL", "@d", "@c").
+				models.NewCreateVolumeBillingPackageInput("Vol", "BRL", "@d", "@c").
 					WithEventFilter("route-1", "APPROVED").
 					WithPricingModel("tiered").
 					WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).

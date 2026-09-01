@@ -31,7 +31,6 @@ func feeEstimateBase() string {
 func feeEstimateInput() *models.FeeEstimateInput {
 	return &models.FeeEstimateInput{
 		PackageID: feeEstimatePackageID,
-		LedgerID:  feeEstimateLedgerID,
 		Transaction: models.FeeEstimateTransactionInput{
 			Description: "estimate",
 			Send: &models.SendInput{
@@ -85,13 +84,13 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 	if m != http.MethodPost || p != feeEstimateBase() {
 		t.Fatalf("req = %s %s, want POST %s", m, p, feeEstimateBase())
 	}
-	if !strings.Contains(body, `"packageId":"`+feeEstimatePackageID+`"`) ||
-		!strings.Contains(body, `"ledgerId":"`+feeEstimateLedgerID+`"`) {
-		t.Fatalf("body = %q, want packageId + ledgerId", body)
+	if !strings.Contains(body, `"packageId":"`+feeEstimatePackageID+`"`) {
+		t.Fatalf("body = %q, want packageId", body)
 	}
 	if !strings.Contains(body, `"value":"100.00"`) {
 		t.Fatalf("body = %q, want string send value (no float hop)", body)
 	}
+	requireNoLedgerIDInRequestBody(t, body)
 	if out.Message != "Successfully estimated fee." {
 		t.Fatalf("Message = %q", out.Message)
 	}
@@ -130,10 +129,14 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 // (components/ledger/pkg/feeshared/model.FeeEstimate embeds
 // pkg/mtransaction.Transaction, whose FromTo carries only accountAlias); money
 // rides as decimal strings; a nil source/distribute is omitted, never null.
+//
+// The golden is an EXACT whole-body comparison, so it is also the midaz v4
+// contract rail: the absent ledgerId key is asserted by construction — a body that
+// reintroduces it fails here, and the server would reject it with 400 (closed
+// schema).
 func TestFeeEstimateFacade_GoldenRequestBody(t *testing.T) {
 	want := map[string]any{
 		"packageId": feeEstimatePackageID,
-		"ledgerId":  feeEstimateLedgerID,
 		"transaction": map[string]any{
 			"description": "estimate",
 			"send": map[string]any{
@@ -193,7 +196,6 @@ func TestFeeEstimateFacade_GoldenRequestBody(t *testing.T) {
 func TestFeeEstimateFacade_GoldenRequestBodyNumericValueAndShareLeg(t *testing.T) {
 	input := &models.FeeEstimateInput{
 		PackageID: feeEstimatePackageID,
-		LedgerID:  feeEstimateLedgerID,
 		Transaction: models.FeeEstimateTransactionInput{
 			Description: "estimate",
 			Send: &models.SendInput{
@@ -215,7 +217,6 @@ func TestFeeEstimateFacade_GoldenRequestBodyNumericValueAndShareLeg(t *testing.T
 
 	want := map[string]any{
 		"packageId": feeEstimatePackageID,
-		"ledgerId":  feeEstimateLedgerID,
 		"transaction": map[string]any{
 			"description": "estimate",
 			"send": map[string]any{
@@ -383,59 +384,32 @@ func TestFeeEstimateFacade_Validation(t *testing.T) {
 	}
 }
 
-// TestFeeEstimateFacade_LedgerReconciliation covers the path-vs-body ledger: the
-// server takes the ledger from the URL AND requires ledgerId in the body, so an
-// empty body value must inherit the addressed ledger and a contradicting one must
-// never reach the wire (it would estimate fees against a ledger the caller did
-// not address).
-func TestFeeEstimateFacade_LedgerReconciliation(t *testing.T) {
-	t.Run("empty body ledgerId inherits the path ledger", func(t *testing.T) {
-		var body string
+// TestFeeEstimateFacade_LedgerIsPathOnly is the midaz v4 contract rail on the
+// estimate: the ledger scopes the request through the URL alone and the body must
+// carry NO ledgerId. The server removed the field and closed the schema
+// (additionalProperties: false), so a body still carrying it is rejected with 400
+// and every fee quote dies with it.
+func TestFeeEstimateFacade_LedgerIsPathOnly(t *testing.T) {
+	var gotPath, body string
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			b, _ := io.ReadAll(r.Body)
-			body = string(b)
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"message":"no rules matched"}`))
-		}))
-		defer srv.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"message":"no rules matched"}`))
+	}))
+	defer srv.Close()
 
-		input := feeEstimateInput()
-		input.LedgerID = ""
+	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, feeEstimateInput()); err != nil {
+		t.Fatalf("EstimateFee: %v", err)
+	}
 
-		if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, input); err != nil {
-			t.Fatalf("EstimateFee: %v", err)
-		}
+	if gotPath != feeEstimateBase() {
+		t.Fatalf("path = %q, want %q (the ledger scopes the request through the URL)", gotPath, feeEstimateBase())
+	}
 
-		if !strings.Contains(body, `"ledgerId":"`+feeEstimateLedgerID+`"`) {
-			t.Fatalf("body = %q, want the path ledger filled into ledgerId", body)
-		}
-
-		if input.LedgerID != "" {
-			t.Fatalf("caller input mutated: LedgerID = %q, want it left empty", input.LedgerID)
-		}
-	})
-
-	t.Run("mismatched body ledgerId is rejected before transport", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-			t.Fatal("no request may reach the server when the ledgers disagree")
-		}))
-		defer srv.Close()
-
-		const otherLedger = "66666666-6666-6666-6666-666666666666"
-
-		input := feeEstimateInput()
-		input.LedgerID = otherLedger
-
-		_, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateLedgerID, input)
-		if err == nil {
-			t.Fatal("EstimateFee must reject a body ledgerId that differs from the path ledger")
-		}
-
-		if !strings.Contains(err.Error(), otherLedger) || !strings.Contains(err.Error(), feeEstimateLedgerID) {
-			t.Fatalf("error = %v, want both ledger IDs named", err)
-		}
-	})
+	requireNoLedgerIDInRequestBody(t, body)
 }
 
 func newTestFeeEstimateFacade(t *testing.T, srv *httptest.Server) *feeEstimateFacade {

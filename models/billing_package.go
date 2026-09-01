@@ -99,9 +99,12 @@ type BillingDiscountTier struct {
 //
 // Money is string throughout: FeeAmount and every tier price ride the wire as
 // strings, never floats.
+//
+// The ledger is NOT part of this payload — it travels only as a path segment and
+// is the sole ledger authority. The server schema is closed
+// (additionalProperties: false), so a body carrying ledgerId is rejected.
 type CreateBillingPackageInput struct {
 	Label       string  `json:"label"`
-	LedgerID    string  `json:"ledgerId"`
 	Type        string  `json:"type"`
 	Description *string `json:"description,omitempty"`
 	Enable      *bool   `json:"enable"`
@@ -124,12 +127,12 @@ type CreateBillingPackageInput struct {
 }
 
 // NewCreateVolumeBillingPackageInput builds a volume billing-package create
-// payload with the required common + volume fields set. Chain WithEventFilter,
+// payload with the required common + volume fields set. The ledger comes from the
+// facade call's path argument, not from this payload. Chain WithEventFilter,
 // WithPricingModel, WithPricingTiers, and WithEnable to complete it.
-func NewCreateVolumeBillingPackageInput(label, ledgerID, assetCode, debitAlias, creditAlias string) *CreateBillingPackageInput {
+func NewCreateVolumeBillingPackageInput(label, assetCode, debitAlias, creditAlias string) *CreateBillingPackageInput {
 	return &CreateBillingPackageInput{
 		Label:              label,
-		LedgerID:           ledgerID,
 		Type:               BillingPackageTypeVolume,
 		AssetCode:          &assetCode,
 		DebitAccountAlias:  &debitAlias,
@@ -139,11 +142,11 @@ func NewCreateVolumeBillingPackageInput(label, ledgerID, assetCode, debitAlias, 
 
 // NewCreateMaintenanceBillingPackageInput builds a maintenance billing-package
 // create payload with the required common + maintenance fields set. FeeAmount is
-// a money string. Chain WithAccountTarget and WithEnable to complete it.
-func NewCreateMaintenanceBillingPackageInput(label, ledgerID, assetCode, feeAmount, maintenanceCreditAccount string) *CreateBillingPackageInput {
+// a money string. The ledger comes from the facade call's path argument, not from
+// this payload. Chain WithAccountTarget and WithEnable to complete it.
+func NewCreateMaintenanceBillingPackageInput(label, assetCode, feeAmount, maintenanceCreditAccount string) *CreateBillingPackageInput {
 	return &CreateBillingPackageInput{
 		Label:                    label,
-		LedgerID:                 ledgerID,
 		Type:                     BillingPackageTypeMaintenance,
 		AssetCode:                &assetCode,
 		FeeAmount:                &feeAmount,
@@ -268,10 +271,6 @@ func (input *CreateBillingPackageInput) Validate() error {
 
 	if strings.TrimSpace(input.Label) == "" {
 		errs.Append("label", "is required")
-	}
-
-	if strings.TrimSpace(input.LedgerID) == "" {
-		errs.Append("ledgerId", "is required")
 	}
 
 	if input.Enable == nil {

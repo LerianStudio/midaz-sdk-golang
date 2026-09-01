@@ -49,32 +49,48 @@ func TestBillingCalculateResponse_MoneyRoundTrip(t *testing.T) {
 	}
 }
 
-// TestBillingCalculateInput_Validate covers the required-field guards.
+// TestBillingCalculateInput_Validate covers the required-field guards. The ledger
+// is a path segment and is deliberately NOT validated here.
 func TestBillingCalculateInput_Validate(t *testing.T) {
-	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01"}).Validate(); err != nil {
+	if err := NewBillingCalculateInput("2026-01").Validate(); err != nil {
 		t.Fatalf("valid input errored: %v", err)
 	}
-	if err := (&BillingCalculateInput{Period: "2026-01"}).Validate(); err == nil {
-		t.Fatal("missing ledgerId must fail")
-	}
-	if err := (&BillingCalculateInput{LedgerID: "l"}).Validate(); err == nil {
+	if err := NewBillingCalculateInput("").Validate(); err == nil {
 		t.Fatal("missing period must fail")
 	}
 	if err := (*BillingCalculateInput)(nil).Validate(); err == nil {
 		t.Fatal("nil input must fail")
 	}
 	// Type is optional but closed-set when present: empty calculates all types.
-	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01", Type: BillingPackageTypeVolume}).Validate(); err != nil {
+	if err := NewBillingCalculateInput("2026-01").WithType(BillingPackageTypeVolume).Validate(); err != nil {
 		t.Fatalf("valid volume type errored: %v", err)
 	}
-	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01", Type: BillingPackageTypeMaintenance}).Validate(); err != nil {
+	if err := NewBillingCalculateInput("2026-01").WithType(BillingPackageTypeMaintenance).Validate(); err != nil {
 		t.Fatalf("valid maintenance type errored: %v", err)
 	}
-	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01", Type: ""}).Validate(); err != nil {
+	if err := NewBillingCalculateInput("2026-01").WithType("").Validate(); err != nil {
 		t.Fatalf("empty type must pass (calculates all): %v", err)
 	}
-	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01", Type: "bogus"}).Validate(); err == nil {
+	if err := NewBillingCalculateInput("2026-01").WithType("bogus").Validate(); err == nil {
 		t.Fatal("invalid type must fail")
+	}
+}
+
+// TestBillingCalculateInput_Wire is the midaz v4 contract rail on the billing
+// calculate body: the marshaled payload must carry the period (and type when set)
+// and NO ledgerId, which the server now rejects on a closed schema. The SDK used
+// to fill that key from the addressed ledger; that behavior is gone with the field.
+func TestBillingCalculateInput_Wire(t *testing.T) {
+	got := requireNoLedgerIDOnWire(t, NewBillingCalculateInput("2026-01").WithType(BillingPackageTypeVolume))
+
+	if !containsSub(got, `"period":"2026-01"`) || !containsSub(got, `"type":"volume"`) {
+		t.Fatalf("wire = %s, want period + type", got)
+	}
+
+	// Empty Type still omits the key (both-types calculation).
+	bare := requireNoLedgerIDOnWire(t, NewBillingCalculateInput("2026-01"))
+	if containsSub(bare, `"type"`) {
+		t.Fatalf("wire = %s, empty Type must omit the type key", bare)
 	}
 }
 

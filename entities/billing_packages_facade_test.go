@@ -127,7 +127,7 @@ func TestBillingPackagesFacade_CRUD(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		input := models.NewCreateVolumeBillingPackageInput("Vol", billingPkgLedgerID, "BRL", "@d", "@c").
+		input := models.NewCreateVolumeBillingPackageInput("Vol", "BRL", "@d", "@c").
 			WithEventFilter("route-1", "APPROVED").
 			WithPricingModel("tiered").
 			WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).
@@ -143,6 +143,7 @@ func TestBillingPackagesFacade_CRUD(t *testing.T) {
 		if !strings.Contains(body, `"label":"Vol"`) || !strings.Contains(body, `"unitPrice":"1.50"`) {
 			t.Fatalf("body = %q, want create input wire shape", body)
 		}
+		requireNoLedgerIDInRequestBody(t, body)
 		if bp.ID != id || bp.Label != "Vol" {
 			t.Fatalf("Create returned %+v", bp)
 		}
@@ -297,7 +298,7 @@ func TestBillingPackagesFacade_WriteReplaySafe(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	input := models.NewCreateVolumeBillingPackageInput("Vol", billingPkgLedgerID, "BRL", "@d", "@c").
+	input := models.NewCreateVolumeBillingPackageInput("Vol", "BRL", "@d", "@c").
 		WithEventFilter("route-1", "APPROVED").
 		WithPricingModel("tiered").
 		WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).
@@ -313,6 +314,8 @@ func TestBillingPackagesFacade_WriteReplaySafe(t *testing.T) {
 	if !strings.Contains(replayed, `"label":"Vol"`) {
 		t.Fatalf("replayed body = %q, want full JSON", replayed)
 	}
+	// The replayed body must satisfy the same contract as the first attempt.
+	requireNoLedgerIDInRequestBody(t, replayed)
 }
 
 // TestBillingPackagesFacade_Validation rejects bad input before any request leaves.
@@ -332,71 +335,40 @@ func TestBillingPackagesFacade_Validation(t *testing.T) {
 	}
 }
 
-// TestBillingPackagesFacade_LedgerReconciliation covers the path-vs-body ledger on
-// create: the server takes the ledger from the URL AND requires ledgerId in the
-// body, so an empty body value must inherit the addressed ledger and a
-// contradicting one must never reach the wire — it would register a billing
-// package (which prices money movement) against a ledger the caller did not
-// address.
-func TestBillingPackagesFacade_LedgerReconciliation(t *testing.T) {
-	newInput := func(ledgerID string) *models.CreateBillingPackageInput {
-		return models.NewCreateVolumeBillingPackageInput("Vol", ledgerID, "BRL", "@d", "@c").
-			WithEventFilter("route-1", "APPROVED").
-			WithPricingModel("tiered").
-			WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).
-			WithEnable(true)
+// TestBillingPackagesFacade_LedgerIsPathOnly is the midaz v4 contract rail on the
+// billing-package create: the ledger scopes the request through the URL alone and
+// the body must carry NO ledgerId. The server removed the field and closed the
+// schema (additionalProperties: false), so a body still carrying it is rejected
+// with 400 — no billing package (which prices money movement) could be registered
+// at all.
+func TestBillingPackagesFacade_LedgerIsPathOnly(t *testing.T) {
+	var gotPath, body string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"aaaa","label":"Vol","type":"volume"}`))
+	}))
+	defer srv.Close()
+
+	input := models.NewCreateVolumeBillingPackageInput("Vol", "BRL", "@d", "@c").
+		WithEventFilter("route-1", "APPROVED").
+		WithPricingModel("tiered").
+		WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).
+		WithEnable(true)
+
+	if _, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID, input); err != nil {
+		t.Fatalf("Create: %v", err)
 	}
 
-	t.Run("empty body ledgerId inherits the path ledger", func(t *testing.T) {
-		var body string
+	if gotPath != billingPkgBase() {
+		t.Fatalf("path = %q, want %q (the ledger scopes the request through the URL)", gotPath, billingPkgBase())
+	}
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			b, _ := io.ReadAll(r.Body)
-			body = string(b)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"aaaa","label":"Vol","type":"volume"}`))
-		}))
-		defer srv.Close()
-
-		input := newInput("")
-
-		if _, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID, input); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-
-		if !strings.Contains(body, `"ledgerId":"`+billingPkgLedgerID+`"`) {
-			t.Fatalf("body = %q, want the path ledger filled into ledgerId", body)
-		}
-
-		if input.LedgerID != "" {
-			t.Fatalf("caller input mutated: LedgerID = %q, want it left empty", input.LedgerID)
-		}
-	})
-
-	t.Run("mismatched body ledgerId is rejected before transport", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-			t.Fatal("no request may reach the server when the ledgers disagree")
-		}))
-		defer srv.Close()
-
-		const otherLedger = "66666666-6666-6666-6666-666666666666"
-
-		input := newInput(otherLedger)
-
-		_, err := newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID, billingPkgLedgerID, input)
-		if err == nil {
-			t.Fatal("Create must reject a body ledgerId that differs from the path ledger")
-		}
-
-		if !strings.Contains(err.Error(), otherLedger) || !strings.Contains(err.Error(), billingPkgLedgerID) {
-			t.Fatalf("error = %v, want both ledger IDs named", err)
-		}
-
-		if input.LedgerID != otherLedger {
-			t.Fatalf("caller input mutated: LedgerID = %q", input.LedgerID)
-		}
-	})
+	requireNoLedgerIDInRequestBody(t, body)
 }
 
 func newTestBillingPackagesFacade(t *testing.T, srv *httptest.Server) *billingPackagesFacade {

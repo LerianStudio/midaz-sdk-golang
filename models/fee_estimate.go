@@ -11,12 +11,15 @@ import (
 )
 
 // FeeEstimateInput is the dry-run fee-estimate request. It mirrors the server
-// DTO (components/ledger/pkg/feeshared/model/fees.go FeeEstimate): PackageID and
-// LedgerID are required UUIDs and Transaction is the full transaction the fee
-// engine estimates against, rendered on the wire as the transaction-input shape.
+// DTO (components/ledger/pkg/feeshared/model/fees.go FeeEstimate): PackageID is a
+// required UUID and Transaction is the full transaction the fee engine estimates
+// against, rendered on the wire as the transaction-input shape.
+//
+// The ledger is NOT part of this payload — it travels only as a path segment and
+// is the sole ledger authority. The server schema is closed
+// (additionalProperties: false), so a body carrying ledgerId is rejected.
 type FeeEstimateInput struct {
 	PackageID   string                      `json:"packageId"`
-	LedgerID    string                      `json:"ledgerId"`
 	Transaction FeeEstimateTransactionInput `json:"transaction"`
 }
 
@@ -36,7 +39,7 @@ type FeeEstimateTransactionInput struct {
 }
 
 // Validate enforces SDK-side preconditions on the estimate request: the required
-// package and ledger IDs, and a valid send leg.
+// package ID and a valid send leg.
 func (input *FeeEstimateInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
@@ -48,10 +51,6 @@ func (input *FeeEstimateInput) Validate() error {
 		errs.Append("packageId", "is required")
 	}
 
-	if strings.TrimSpace(input.LedgerID) == "" {
-		errs.Append("ledgerId", "is required")
-	}
-
 	if input.Transaction.Send == nil {
 		errs.Append("transaction.send", "is required")
 	} else if err := input.Transaction.Send.Validate(); err != nil {
@@ -61,13 +60,13 @@ func (input *FeeEstimateInput) Validate() error {
 	return errs.OrNil()
 }
 
-// NewFeeEstimateInput builds a FeeEstimateInput with the required package ID,
-// ledger ID, and the send leg the fee engine estimates against. Optional
-// transaction fields are set with the With* methods.
-func NewFeeEstimateInput(packageID, ledgerID string, send *SendInput) *FeeEstimateInput {
+// NewFeeEstimateInput builds a FeeEstimateInput with the required package ID and
+// the send leg the fee engine estimates against. The ledger comes from the facade
+// call's path argument, not from this payload. Optional transaction fields are
+// set with the With* methods.
+func NewFeeEstimateInput(packageID string, send *SendInput) *FeeEstimateInput {
 	return &FeeEstimateInput{
 		PackageID:   packageID,
-		LedgerID:    ledgerID,
 		Transaction: FeeEstimateTransactionInput{Send: send},
 	}
 }

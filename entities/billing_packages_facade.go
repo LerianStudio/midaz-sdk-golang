@@ -29,8 +29,9 @@ import (
 // discount-tier DiscountPercentage ride the wire as JSON strings and are modeled
 // as string end to end — no float hop.
 //
-// The two list filters (type/ledgerId) have native slots on the generated
-// GetAllBillingPackagesParams, so no request-editor injection is needed.
+// The type list filter has a native slot on the generated
+// GetAllBillingPackagesParams, so no request-editor injection is needed. The
+// ledger is a path segment, never a query filter.
 //
 // SUCCESS-GATE: the server returns 201 Created on create while the OAS spec says
 // 200 (CreateBillingPackageResp gates JSON200 on 200). Create/Update route through
@@ -117,9 +118,8 @@ func (f *billingPackagesFacade) ListAll(ctx context.Context, orgID, ledgerID str
 // routes through the RAW WithBody + isSuccess(2xx), so the server's 201 Created
 // is a success even though the OAS spec says 200.
 //
-// The ledger travels in the path AND in the body (the server schema requires
-// ledgerId). An empty input.LedgerID inherits the path ledger; a different one is
-// rejected — see [reconcileBodyLedgerID]. The caller's input is never mutated.
+// The ledger travels ONLY in the path — the request body carries no ledgerId and
+// the server rejects one (closed schema). The caller's input is never mutated.
 func (f *billingPackagesFacade) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateBillingPackageInput) (*models.BillingPackage, error) {
 	const operation = "BillingPackages.Create"
 
@@ -127,22 +127,11 @@ func (f *billingPackagesFacade) Create(ctx context.Context, orgID, ledgerID stri
 		return nil, err
 	}
 
-	payload := input
-
-	if input != nil {
-		reconciled := *input
-		if err := reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID); err != nil {
-			return nil, err
-		}
-
-		payload = &reconciled
-	}
-
-	if err := validationErr(operation, payload.Validate()); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
-	return writeJSON[models.BillingPackage](ctx, operation, payload, func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.BillingPackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateBillingPackageV2WithBody(ctx, orgID, ledgerID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }

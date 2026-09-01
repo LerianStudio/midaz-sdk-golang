@@ -68,11 +68,14 @@ type Calculation struct {
 // (components/ledger/pkg/feeshared/model/create_package_input.go): MinAmount and
 // MaxAmount serialize as "minimumAmount"/"maximumAmount", Fee as "fees", and
 // Enable is a required pointer.
+//
+// The ledger is NOT part of this payload — it travels only as a path segment and
+// is the sole ledger authority. The server schema is closed
+// (additionalProperties: false), so a body carrying ledgerId is rejected.
 type CreatePackageInput struct {
 	FeeGroupLabel    string         `json:"feeGroupLabel"`
 	Description      *string        `json:"description,omitempty"`
 	SegmentID        *string        `json:"segmentId"`
-	LedgerID         string         `json:"ledgerId"`
 	TransactionRoute *string        `json:"transactionRoute,omitempty"`
 	MinAmount        string         `json:"minimumAmount"`
 	MaxAmount        string         `json:"maximumAmount"`
@@ -82,12 +85,12 @@ type CreatePackageInput struct {
 }
 
 // NewCreatePackageInput builds a fee-package create payload with the required
-// fields set. Enable is required by the server and defaults to false; set it
+// fields set. The ledger comes from the facade call's path argument, not from
+// this payload. Enable is required by the server and defaults to false; set it
 // explicitly with WithEnable.
-func NewCreatePackageInput(feeGroupLabel, ledgerID, minAmount, maxAmount string, fees map[string]Fee) *CreatePackageInput {
+func NewCreatePackageInput(feeGroupLabel, minAmount, maxAmount string, fees map[string]Fee) *CreatePackageInput {
 	return &CreatePackageInput{
 		FeeGroupLabel: feeGroupLabel,
-		LedgerID:      ledgerID,
 		MinAmount:     minAmount,
 		MaxAmount:     maxAmount,
 		Fee:           fees,
@@ -161,10 +164,6 @@ func (input *CreatePackageInput) Validate() error {
 
 	if strings.TrimSpace(input.FeeGroupLabel) == "" {
 		errs.Append("feeGroupLabel", "is required")
-	}
-
-	if strings.TrimSpace(input.LedgerID) == "" {
-		errs.Append("ledgerId", "is required")
 	}
 
 	if strings.TrimSpace(input.MinAmount) == "" {

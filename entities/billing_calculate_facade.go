@@ -46,9 +46,8 @@ func newBillingCalculateFacade(ledger *genledger.ClientWithResponses) *billingCa
 // (POST /v2/organizations/{org}/ledgers/{ledger}/billing/calculate). The
 // removed /v1 route was organization-scoped; ledgerID is not optional.
 //
-// The ledger travels in the path AND in the body (the server schema requires
-// ledgerId). An empty input.LedgerID inherits the path ledger; a different one is
-// rejected — see [reconcileBodyLedgerID]. The caller's input is never mutated.
+// The ledger travels ONLY in the path — the request body carries no ledgerId and
+// the server rejects one (closed schema). The caller's input is never mutated.
 func (f *billingCalculateFacade) CalculateBilling(ctx context.Context, orgID, ledgerID string, input *models.BillingCalculateInput) (*models.BillingCalculateResponse, error) {
 	const operation = "BillingCalculate.CalculateBilling"
 
@@ -56,22 +55,11 @@ func (f *billingCalculateFacade) CalculateBilling(ctx context.Context, orgID, le
 		return nil, err
 	}
 
-	payload := input
-
-	if input != nil {
-		reconciled := *input
-		if err := reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID); err != nil {
-			return nil, err
-		}
-
-		payload = &reconciled
-	}
-
-	if err := validationErr(operation, payload.Validate()); err != nil {
+	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
 	}
 
-	return writeJSON[models.BillingCalculateResponse](ctx, operation, payload, func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.BillingCalculateResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CalculateBillingV2WithBody(ctx, orgID, ledgerID, jsonContentType, body))
 	})
 }

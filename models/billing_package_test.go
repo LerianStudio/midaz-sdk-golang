@@ -67,10 +67,11 @@ func TestBillingPackage_ReadRoundTrip(t *testing.T) {
 }
 
 // TestCreateBillingPackageInput_VolumeWire proves the volume create input
-// serializes byte-for-byte with the server model.BillingPackage DTO: money
-// fields as strings, server-owned fields (id/organizationId/timestamps) absent.
+// serializes byte-for-byte with the server DTO: money fields as strings,
+// server-owned fields (id/organizationId/timestamps) absent, and — the midaz v4
+// contract rail — NO ledgerId, which the server now rejects on a closed schema.
 func TestCreateBillingPackageInput_VolumeWire(t *testing.T) {
-	input := NewCreateVolumeBillingPackageInput("Vol", "led-1", "BRL", "@d", "@c").
+	input := NewCreateVolumeBillingPackageInput("Vol", "BRL", "@d", "@c").
 		WithEventFilter("route-1", "APPROVED").
 		WithPricingModel("tiered").
 		WithPricingTiers(
@@ -79,14 +80,10 @@ func TestCreateBillingPackageInput_VolumeWire(t *testing.T) {
 		).
 		WithEnable(true)
 
-	b, err := json.Marshal(input)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-	got := string(b)
+	got := requireNoLedgerIDOnWire(t, input)
 
 	for _, want := range []string{
-		`"label":"Vol"`, `"ledgerId":"led-1"`, `"type":"volume"`,
+		`"label":"Vol"`, `"type":"volume"`,
 		`"assetCode":"BRL"`, `"debitAccountAlias":"@d"`, `"creditAccountAlias":"@c"`,
 		`"pricingModel":"tiered"`, `"unitPrice":"1.50"`, `"unitPrice":"2.00"`,
 		`"transactionRoute":"route-1"`, `"status":"APPROVED"`, `"enable":true`,
@@ -103,18 +100,15 @@ func TestCreateBillingPackageInput_VolumeWire(t *testing.T) {
 }
 
 // TestCreateBillingPackageInput_MaintenanceWire proves the maintenance create
-// input carries feeAmount as a string and the account target.
+// input carries feeAmount as a string and the account target, and — the midaz v4
+// contract rail — NO ledgerId, which the server now rejects on a closed schema.
 func TestCreateBillingPackageInput_MaintenanceWire(t *testing.T) {
 	const precise = "0.333333333333333333"
-	input := NewCreateMaintenanceBillingPackageInput("Maint", "led-1", "BRL", precise, "@m").
+	input := NewCreateMaintenanceBillingPackageInput("Maint", "BRL", precise, "@m").
 		WithAccountTarget(BillingAccountTarget{Aliases: strSlicePtr("a1", "a2")}).
 		WithEnable(false)
 
-	b, err := json.Marshal(input)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-	got := string(b)
+	got := requireNoLedgerIDOnWire(t, input)
 
 	if !strings.Contains(got, `"type":"maintenance"`) {
 		t.Fatalf("wire = %s, want maintenance type", got)
@@ -145,32 +139,32 @@ func TestCreateBillingPackageInput_Validate(t *testing.T) {
 		{"empty", &CreateBillingPackageInput{}, true},
 		{
 			"volume-missing-tiers",
-			NewCreateVolumeBillingPackageInput("V", "led-1", "BRL", "@d", "@c").
+			NewCreateVolumeBillingPackageInput("V", "BRL", "@d", "@c").
 				WithEventFilter("r", "APPROVED").WithPricingModel("tiered").WithEnable(true),
 			true,
 		},
 		{
 			"volume-ok",
-			NewCreateVolumeBillingPackageInput("V", "led-1", "BRL", "@d", "@c").
+			NewCreateVolumeBillingPackageInput("V", "BRL", "@d", "@c").
 				WithEventFilter("r", "APPROVED").WithPricingModel("tiered").
 				WithPricingTiers(BillingPricingTier{MinQuantity: 0, UnitPrice: "1.00"}).WithEnable(true),
 			false,
 		},
 		{
 			"maintenance-missing-feeamount",
-			NewCreateMaintenanceBillingPackageInput("M", "led-1", "BRL", "", "@m").
+			NewCreateMaintenanceBillingPackageInput("M", "BRL", "", "@m").
 				WithAccountTarget(BillingAccountTarget{Aliases: strSlicePtr("a")}).WithEnable(true),
 			true,
 		},
 		{
 			"maintenance-ok",
-			NewCreateMaintenanceBillingPackageInput("M", "led-1", "BRL", "50.00", "@m").
+			NewCreateMaintenanceBillingPackageInput("M", "BRL", "50.00", "@m").
 				WithAccountTarget(BillingAccountTarget{Aliases: strSlicePtr("a")}).WithEnable(true),
 			false,
 		},
 		{
 			"enable-required",
-			NewCreateVolumeBillingPackageInput("V", "led-1", "BRL", "@d", "@c").
+			NewCreateVolumeBillingPackageInput("V", "BRL", "@d", "@c").
 				WithEventFilter("r", "APPROVED").WithPricingModel("tiered").
 				WithPricingTiers(BillingPricingTier{MinQuantity: 0, UnitPrice: "1.00"}),
 			true,
