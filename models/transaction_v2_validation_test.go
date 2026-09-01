@@ -6,6 +6,7 @@ package models
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // TestValidationJudgesTheBytesThatLeave pins the rule that local validation and
@@ -113,6 +114,12 @@ func TestV2LegDescriptionBound(t *testing.T) {
 		{name: "short", description: "card settlement"},
 		{name: "at the limit", description: strings.Repeat("x", maxTransactionDescriptionLength)},
 		{name: "one over the limit", description: strings.Repeat("x", maxTransactionDescriptionLength+1), wantErr: true},
+		// The ledger counts RUNES, not bytes. A Portuguese description of 256
+		// accented characters is 512 bytes on the wire and legal on the server;
+		// counting bytes here would refuse a money-moving request the ledger
+		// would have accepted.
+		{name: "at the limit in multi-byte characters", description: strings.Repeat("ç", maxTransactionDescriptionLength)},
+		{name: "one over the limit in multi-byte characters", description: strings.Repeat("ç", maxTransactionDescriptionLength+1), wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -120,11 +127,12 @@ func TestV2LegDescriptionBound(t *testing.T) {
 			err := newLeg(tt.description).validate()
 			if tt.wantErr && err == nil {
 				t.Fatalf("a %d-character leg description must be refused locally; the ledger caps it at %d",
-					len(tt.description), maxTransactionDescriptionLength)
+					utf8.RuneCountInString(tt.description), maxTransactionDescriptionLength)
 			}
 
 			if !tt.wantErr && err != nil {
-				t.Fatalf("a %d-character leg description must be accepted, got %v", len(tt.description), err)
+				t.Fatalf("a %d-character (%d-byte) leg description must be accepted, got %v",
+					utf8.RuneCountInString(tt.description), len(tt.description), err)
 			}
 		})
 	}

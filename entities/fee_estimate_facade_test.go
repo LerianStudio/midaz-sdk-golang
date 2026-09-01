@@ -368,6 +368,8 @@ func TestFeeEstimateFacade_WriteReplaySafe(t *testing.T) {
 	if !strings.Contains(replayed, `"packageId":"`+feeEstimatePackageID+`"`) {
 		t.Fatalf("replayed body = %q, want full JSON", replayed)
 	}
+	// The replayed body must satisfy the same contract as the first attempt.
+	requireNoLedgerIDInRequestBody(t, replayed)
 }
 
 // TestFeeEstimateFacade_Validation rejects bad input before any request leaves.

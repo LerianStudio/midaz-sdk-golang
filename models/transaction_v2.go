@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation/core"
@@ -392,8 +393,10 @@ func (leg TransactionV2Leg) validate() error {
 	}
 
 	// Same bound the transaction-level description carries, because it is the
-	// same "max=256" the ledger applies to both.
-	if len(leg.Description) > maxTransactionDescriptionLength {
+	// same "max=256" the ledger applies to both. Counted in RUNES, not bytes:
+	// the server's maxLength runs utf8.RuneCountInString, so a byte count would
+	// refuse locally a description the ledger accepts.
+	if utf8.RuneCountInString(leg.Description) > maxTransactionDescriptionLength {
 		return fmt.Errorf("description must not exceed %d characters", maxTransactionDescriptionLength)
 	}
 
@@ -470,7 +473,8 @@ func (input *UpdateTransactionV2Input) Validate() error {
 		return errors.New("update requires at least one of description or metadata")
 	}
 
-	if len(input.Description) > maxTransactionDescriptionLength {
+	// Counted in RUNES, not bytes, to match the server's maxLength.
+	if utf8.RuneCountInString(input.Description) > maxTransactionDescriptionLength {
 		return fmt.Errorf("description must not exceed %d characters", maxTransactionDescriptionLength)
 	}
 
