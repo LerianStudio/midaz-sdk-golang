@@ -229,9 +229,9 @@ func (f *instrumentsFacade) DeleteRelatedParty(ctx context.Context, orgID, holde
 // generated ListAccountsByHolderV2Params has no cursor slot); stops on an empty
 // next_cursor.
 //
-// The ledger is a parameter even though it is not a path segment: the endpoint
-// requires it as a query parameter. See listAccountsCursor for why it is
-// injected by hand.
+// The ledger is a parameter even though it is not a path segment: it travels as
+// the ledger_id query parameter, which narrows the org-wide listing to one
+// ledger. It stays required — the SDK does not expose the unnarrowed listing.
 func (f *instrumentsFacade) ListAccountsByHolder(ctx context.Context, orgID, ledgerID, holderID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
 	return f.listAccountsCursor(ctx, orgID, ledgerID, holderID, opts, "")
 }
@@ -243,9 +243,11 @@ func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, ledge
 	const operation = "Instruments.ListAccountsByHolder"
 
 	// ledgerID is guarded alongside the two path ids although it travels as a
-	// query parameter, for the same reason List guards holderID: without it the
-	// request is refused by the server, so an empty one is a 400 the caller can
-	// be told about locally.
+	// query parameter, for the same reason List guards holderID: the parameter is
+	// optional to the server, so an empty one does not 400 — it drops out of the
+	// query string and widens the request to every account the holder owns across
+	// every ledger in the organization. The caller asked for one ledger's
+	// accounts and would page through all of them instead.
 	if err := requirePathIDs(operation, "orgID", orgID, "ledgerID", ledgerID, "holderID", holderID); err != nil {
 		return nil, err
 	}
@@ -258,24 +260,16 @@ func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, ledge
 		return nil, err
 	}
 
-	// ledger_id is injected by hand rather than filled into a generated params
-	// slot, and the reason is SERVER-SIDE CONTRACT DRIFT rather than a codegen
-	// bug: the holder-accounts route REQUIRES ledger_id as a query parameter at
-	// runtime (midaz, components/ledger/internal/bootstrap/holder_wiring.go —
-	// deliberate there), while the published OpenAPI document does not declare
-	// it. oapi-codegen can only generate slots the contract names, so
-	// ListAccountsByHolderV2Params has none, and every call without the param
-	// 400s with a missing-parameter error. Reported upstream; when the contract
-	// catches up this moves into listAccountsByHolderParams and the editor goes
-	// away. The cursor below is injected the same way, for the same structural
-	// reason.
-	editors := []genledger.RequestEditorFn{setQueryParam("ledger_id", ledgerID)}
+	// The cursor has no slot in the generated params (the contract declares
+	// page-based paging on this route, which it does not honour), so it is
+	// injected as a query param rather than dropped silently.
+	var editors []genledger.RequestEditorFn
 	if cursor != "" {
 		editors = append(editors, setQueryParam("cursor", cursor))
 	}
 
 	//nolint:bodyclose // readList drains and closes the body via readRawResponse.
-	resp, err := f.ledger.ListAccountsByHolderV2(ctx, orgID, holderID, listAccountsByHolderParams(opts), editors...)
+	resp, err := f.ledger.ListAccountsByHolderV2(ctx, orgID, holderID, listAccountsByHolderParams(ledgerID, opts), editors...)
 
 	return readList[models.Account](operation, resp, err)
 }
@@ -425,10 +419,14 @@ func refuseUndeclaredHolderAccountFilters(operation string, opts models.Accounts
 }
 
 // listAccountsByHolderParams renders the fields that have a slot in the generated
-// ListAccountsByHolderV2Params (limit/sort_order). Cursor pagination is injected
-// separately via a request editor.
-func listAccountsByHolderParams(opts models.AccountsListOpts) *genledger.ListAccountsByHolderV2Params {
-	params := &genledger.ListAccountsByHolderV2Params{}
+// ListAccountsByHolderV2Params (ledger_id/limit/sort_order). Cursor pagination has
+// no slot and is injected separately via a request editor.
+//
+// ledger_id narrows the org-wide listing to one ledger. The SDK always sends it:
+// the facade requires a ledger from the caller, so the unnarrowed org-wide listing
+// is deliberately not reachable through this surface.
+func listAccountsByHolderParams(ledgerID string, opts models.AccountsListOpts) *genledger.ListAccountsByHolderV2Params {
+	params := &genledger.ListAccountsByHolderV2Params{LedgerId: strPtr(ledgerID)}
 
 	if opts.Limit > 0 {
 		params.Limit = strPtr(strconv.Itoa(opts.Limit))
