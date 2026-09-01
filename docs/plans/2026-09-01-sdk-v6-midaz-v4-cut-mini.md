@@ -119,10 +119,10 @@ Description string `json:"description,omitempty"`
 **Scope:** Four input models, four facades, their tests.
 **Dependencies:** 1.1
 **Done when:** `go test ./models/ ./entities/ -run 'Fee|Billing'` passes; no fee/billing request-body wire assertion contains `ledgerId`.
-**Status:** Pending
+**Status:** Done
 
 #### Task 1.2.1: Strip LedgerID from the fee input models
-- [ ] Done
+- [x] Done
 
 **Context:** `CreatePackageInput` and `FeeEstimateInput` carry `LedgerID string json:"ledgerId"` (required in Validate, set by constructors). RC2 rejects the field with 400.
 
@@ -137,7 +137,7 @@ Description string `json:"description,omitempty"`
 **Done when:** Tests pass and marshaling either input produces JSON without `ledgerId`.
 
 #### Task 1.2.2: Strip LedgerID from the billing input models
-- [ ] Done
+- [x] Done
 
 **Context:** Same change as 1.2.1 for `CreateBillingPackageInput` (two constructors) and `BillingCalculateInput` (the SDK auto-filled the body field from the path — that behavior dies with the field).
 
@@ -152,7 +152,7 @@ Description string `json:"description,omitempty"`
 **Done when:** Tests pass and marshaled bodies carry no `ledgerId`.
 
 #### Task 1.2.3: Drop body-ledger reconciliation from the four facades
-- [ ] Done
+- [x] Done
 
 **Context:** `fee_packages`, `fee_estimate`, `billing_packages`, `billing_calculate` facades each clone the input and call `reconcileBodyLedgerID(operation, ledgerID, &reconciled.LedgerID)`. The field no longer exists. The create-billing-package request body type in genledger changed to the new input schema — adjust any typed reference. ATENÇÃO: do NOT delete `reconcileBodyLedgerID` itself (entities/organizations_facade.go belongs to Epic 1.5).
 
@@ -174,10 +174,10 @@ Description string `json:"description,omitempty"`
 **Scope:** One facade and its test.
 **Dependencies:** 1.1
 **Done when:** `go test ./entities/ -run Instruments` passes with zero request-editor injection of `ledger_id`.
-**Status:** Pending
+**Status:** Done
 
 #### Task 1.3.1: Replace setQueryParam injection with the generated param slot
-- [ ] Done
+- [x] Done
 
 **Context:** `listAccountsCursor` injects `ledger_id` via `setQueryParam` because the old spec did not declare the param (documented in the in-file comment as temporary: "when the contract catches up this moves into listAccountsByHolderParams and the editor goes away"). Post-regen, `ListAccountsByHolderV2Params` has the slot. Public signatures stay unchanged; `ledgerID` remains required (see `## Contracts`).
 
@@ -199,10 +199,10 @@ Description string `json:"description,omitempty"`
 **Scope:** Two models, their tests, two root wire tests.
 **Dependencies:** 1.1
 **Done when:** `go test ./models/ -run 'Account|TransactionV2'` and `go test . -run 'V2'` pass.
-**Status:** Pending
+**Status:** Done — `go test ./models/ -run 'Account|TransactionV2'` and `go test . -run 'V2Surface|V2Transaction'` both green in the worktree (re-run after Epic 1.2 landed; during the wave the `models` test build was red on sibling files only). `go build ./...` still fails ONLY in `examples/mass-demo-generator/v2_phases.go` on the four changed fee/billing constructor signatures — that is Task 1.5.2's file, untouched here.
 
 #### Task 1.4.1: Expose holder fields on models.Account
-- [ ] Done
+- [x] Done
 
 **Context:** RC2 splits the response schema: `/v1` withholds holder keys, `/v2` answers with `AccountV2` carrying them. `models.Account` is shared by both facades and today has no holder fields.
 
@@ -216,7 +216,7 @@ Description string `json:"description,omitempty"`
 **Done when:** Both wire assertions pass.
 
 #### Task 1.4.2: Add optional Description to TransactionV2Leg
-- [ ] Done
+- [x] Done
 
 **Context:** RC2's `V2LegInput` gained optional `description` (maxLength 256). SDK leg type: `models.TransactionV2Leg` (models/transaction_v2.go:254).
 
