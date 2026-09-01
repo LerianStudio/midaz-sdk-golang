@@ -1,5 +1,29 @@
 # Midaz-sdk-golang Changelog
 
+## [6.0.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.0.0)
+
+Features:
+- Promoted the `develop` branch to `main`. (@fredcamaral)
+- Aligned the SDK with the Midaz `v4` contract, released as `v6.0.0`. (@fredcamaral)
+- Exposed account holder fields and updated to include `v2` leg description. (@fredcamaral)
+- Regenerated the ledger client from Midaz `v4.0.0-rc.2` specification. (@fredcamaral)
+
+Fixes:
+- Counted description length in runes to match server validation. (@fredcamaral)
+- Removed `ledgerId` from fee and billing request bodies. (@fredcamaral)
+
+Improvements:
+- Dropped stale references to ledger reconciliation in documentation. (@fredcamaral)
+- Deleted obsolete ledger reconciliation and sweep examples and documentation. (@fredcamaral)
+- Marked wave-2 epics as completed in the plan documentation. (@fredcamaral)
+- Updated wave-2 nota and `v5` absence check after Epic 1.1 in the plan documentation. (@fredcamaral)
+- Filled `ledger_id` through the generated parameters slot in instruments. (@fredcamaral)
+- Bumped module path to `v6`. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v5.0.0...v6.0.0)
+
+---
+
 ## [5.0.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v5.0.0)
 
 Features:
