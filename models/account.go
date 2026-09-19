@@ -47,8 +47,10 @@ type Account struct {
 	// so on a /v1 response HolderID is always nil and HolderCheckSkipped is
 	// always false, and neither says anything about the account.
 	//
-	// Decode-only: holder assignment is not part of account create or update,
-	// so CreateAccountInput and UpdateAccountInput carry no counterpart.
+	// Holder assignment IS part of account create on /v2: see
+	// CreateAccountInput.HolderID. It is not part of account update — the server
+	// treats the holder link as immutable once set — so UpdateAccountInput
+	// carries no counterpart.
 	HolderID           *string `json:"holderId,omitempty"`
 	HolderCheckSkipped bool    `json:"holderCheckSkipped,omitempty"`
 
@@ -100,9 +102,23 @@ type CreateAccountInput struct {
 	// Must be a valid UUID if provided.
 	ParentAccountID *string `json:"parentAccountId,omitempty"`
 
-	// EntityID is an optional external identifier for the account owner.
+	// EntityID is a free-form external reference for linking to external
+	// systems. It is NOT the ownership link: use HolderID to formally tie the
+	// account to a holder.
 	// Max length: 256 characters.
 	EntityID *string `json:"entityId,omitempty"`
+
+	// HolderID is the ID of the holder that formally owns this account.
+	// Must be a valid UUID if provided.
+	//
+	// Honoured on the /v2 account surface ONLY. The server's holder seam is
+	// versioned: a /v1 create accepts a body carrying holderId, answers 201, and
+	// stores no link at all — the account comes back from /v2 with holderId
+	// null. Because silently dropping an ownership link is worse than refusing
+	// one, the /v1 facade rejects an input that sets this field instead of
+	// sending it and letting the server discard it. Use the V2 accounts service
+	// to create an account with a holder.
+	HolderID *string `json:"holderId,omitempty"`
 
 	// Blocked indicates whether the account should start blocked.
 	Blocked *bool `json:"blocked,omitempty"`
@@ -163,6 +179,7 @@ func (input *CreateAccountInput) Validate() error {
 	appendOptionalUUID(&errs, "parentAccountId", input.ParentAccountID)
 	appendOptionalUUID(&errs, "portfolioId", input.PortfolioID)
 	appendOptionalUUID(&errs, "segmentId", input.SegmentID)
+	appendOptionalUUID(&errs, "holderId", input.HolderID)
 
 	if input.AssetCode == "" {
 		errs.Append("assetCode", "asset code is required")
@@ -277,6 +294,27 @@ func (input *CreateAccountInput) WithSegmentID(segmentID string) *CreateAccountI
 	}
 
 	input.SegmentID = &segmentID
+
+	return input
+}
+
+// WithHolderID sets the holder that formally owns this account.
+//
+// Honoured on the /v2 account surface only: the /v1 facade refuses an input
+// carrying a holder rather than sending it to a server that would answer 201
+// and store no link.
+//
+// Parameters:
+//   - holderID: The ID of the holder, a UUID
+//
+// Returns:
+//   - A pointer to the modified CreateAccountInput for method chaining
+func (input *CreateAccountInput) WithHolderID(holderID string) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.HolderID = &holderID
 
 	return input
 }
