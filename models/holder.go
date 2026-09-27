@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation/core"
@@ -243,6 +244,8 @@ func (input *CreateHolderInput) Validate() error {
 		errs.Append("document", "is required")
 	}
 
+	validateHolderFigures(&errs, input.NaturalPerson, input.LegalPerson)
+
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			errs.Append("metadata", "invalid: "+err.Error())
@@ -406,6 +409,8 @@ func (input *UpdateHolderInput) Validate() error {
 
 	var errs validation.FieldErrors
 
+	validateHolderFigures(&errs, input.NaturalPerson, input.LegalPerson)
+
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			errs.Append("metadata", "invalid: "+err.Error())
@@ -466,6 +471,8 @@ type NaturalPerson struct {
 	MotherName   *string `json:"motherName,omitempty"`
 	FatherName   *string `json:"fatherName,omitempty"`
 	Status       *string `json:"status,omitempty"`
+	// MonthlyGrossIncome is the person's gross income per month.
+	MonthlyGrossIncome *MonetaryAmount `json:"monthlyGrossIncome,omitempty"`
 }
 
 // LegalPerson stores legal-person holder details.
@@ -477,6 +484,54 @@ type LegalPerson struct {
 	Size           *string         `json:"size,omitempty"`
 	Status         *string         `json:"status,omitempty"`
 	Representative *Representative `json:"representative,omitempty"`
+	// AnnualGrossRevenue is the company's gross revenue per year.
+	AnnualGrossRevenue *MonetaryAmount `json:"annualGrossRevenue,omitempty"`
+	// TotalAssets is the company's total assets.
+	TotalAssets *MonetaryAmount `json:"totalAssets,omitempty"`
+}
+
+// MonetaryAmount is a declared financial figure: an amount in one currency as of a
+// reference date. The period it covers lives in the name of the field carrying it.
+type MonetaryAmount struct {
+	// Value is the non-negative amount; Midaz carries it as a decimal string.
+	Value *decimal.Decimal `json:"value"`
+	// Currency is the ISO 4217 code of the amount, three uppercase letters.
+	Currency string `json:"currency"`
+	// ReferenceDate is the date the amount refers to, formatted as YYYY-MM-DD.
+	ReferenceDate string `json:"referenceDate"`
+}
+
+func validateHolderFigures(errs *validation.FieldErrors, naturalPerson *NaturalPerson, legalPerson *LegalPerson) {
+	if naturalPerson != nil {
+		naturalPerson.MonthlyGrossIncome.validate(errs, "naturalPerson.monthlyGrossIncome")
+	}
+
+	if legalPerson != nil {
+		legalPerson.AnnualGrossRevenue.validate(errs, "legalPerson.annualGrossRevenue")
+		legalPerson.TotalAssets.validate(errs, "legalPerson.totalAssets")
+	}
+}
+
+// validate applies the Midaz boundary rules to a figure; an absent (nil) figure is valid.
+func (amount *MonetaryAmount) validate(errs *validation.FieldErrors, field string) {
+	if amount == nil {
+		return
+	}
+
+	switch {
+	case amount.Value == nil:
+		errs.Append(field+".value", "is required")
+	case amount.Value.IsNegative():
+		errs.Append(field+".value", "must be 0 or greater")
+	}
+
+	if len(amount.Currency) != 3 || strings.Trim(amount.Currency, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") != "" {
+		errs.Append(field+".currency", "must be an ISO 4217 code of three uppercase letters")
+	}
+
+	if _, err := time.Parse(time.DateOnly, amount.ReferenceDate); err != nil {
+		errs.Append(field+".referenceDate", "must be a date in YYYY-MM-DD format")
+	}
 }
 
 // Representative stores legal-person representative data.
