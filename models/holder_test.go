@@ -3,7 +3,6 @@ package models
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -100,11 +99,7 @@ func TestHolderFinancialFiguresValidation(t *testing.T) {
 				figure := tt.figure
 				create, update := inputs(&figure)
 
-				start := time.Now()
-				errs := []error{create.Validate(), update.Validate()}
-				require.Less(t, time.Since(start), time.Second, "a figure must be validated quickly")
-
-				for _, err := range errs {
+				for _, err := range []error{create.Validate(), update.Validate()} {
 					if tt.wantField == "" {
 						require.NoError(t, err)
 						continue

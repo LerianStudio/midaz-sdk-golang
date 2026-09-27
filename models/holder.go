@@ -545,7 +545,8 @@ type LegalPerson struct {
 // reference date. The period it covers lives in the name of the field carrying it.
 type MonetaryAmount struct {
 	// Value is the non-negative amount, at most 20 integer and 10 fraction digits; Midaz
-	// carries it as a decimal string.
+	// carries it as a decimal string. Round to at most 10 decimal places before setting;
+	// trailing zeros count.
 	Value *decimal.Decimal `json:"value"`
 	// Currency is the ISO 4217 code of the amount.
 	Currency string `json:"currency"`
