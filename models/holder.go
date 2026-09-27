@@ -311,6 +311,14 @@ func (input *UpdateHolderInput) MarshalJSON() ([]byte, error) {
 			return nil, fmt.Errorf("unsupported null field %q", field)
 		}
 
+		if parent, child, nested := strings.Cut(field, "."); nested {
+			if err := nestNullField(payload, parent, child); err != nil {
+				return nil, err
+			}
+
+			continue
+		}
+
 		payload[field] = nil
 	}
 
@@ -321,6 +329,36 @@ func (input *UpdateHolderInput) MarshalJSON() ([]byte, error) {
 	// rather than emit a duplicate error message that fragments the source
 	// of truth across two functions.
 	return json.Marshal(payload)
+}
+
+// nestNullField writes "child": null inside the parent object, merged with the parent's
+// set fields. A parent that is itself cleared already removes the child, so it wins.
+func nestNullField(payload map[string]any, parent, child string) error {
+	current, present := payload[parent]
+	if present && current == nil {
+		return nil
+	}
+
+	fields, merged := current.(map[string]json.RawMessage)
+	if !merged {
+		fields = map[string]json.RawMessage{}
+	}
+
+	if present && !merged {
+		data, err := json.Marshal(current)
+		if err != nil {
+			return fmt.Errorf("marshal %s: %w", parent, err)
+		}
+
+		if err := json.Unmarshal(data, &fields); err != nil {
+			return fmt.Errorf("merge null field into %s: %w", parent, err)
+		}
+	}
+
+	fields[child] = json.RawMessage("null")
+	payload[parent] = fields
+
+	return nil
 }
 
 func (input *UpdateHolderInput) hasChanges() bool {
@@ -353,6 +391,15 @@ func (input *UpdateHolderInput) validateNullFieldConflicts() error {
 		"metadata":      input.Metadata != nil,
 	}
 
+	if np := input.NaturalPerson; np != nil {
+		setFields["naturalPerson.monthlyGrossIncome"] = np.MonthlyGrossIncome != nil
+	}
+
+	if lp := input.LegalPerson; lp != nil {
+		setFields["legalPerson.annualGrossRevenue"] = lp.AnnualGrossRevenue != nil
+		setFields["legalPerson.totalAssets"] = lp.TotalAssets != nil
+	}
+
 	for _, field := range input.NullFields {
 		field = strings.TrimSpace(field)
 		if setFields[field] {
@@ -371,6 +418,10 @@ var validHolderNullFields = map[string]bool{
 	"naturalPerson": true,
 	"legalPerson":   true,
 	"metadata":      true,
+
+	"naturalPerson.monthlyGrossIncome": true,
+	"legalPerson.annualGrossRevenue":   true,
+	"legalPerson.totalAssets":          true,
 }
 
 func isValidHolderType(holderType string) bool {
@@ -493,9 +544,10 @@ type LegalPerson struct {
 // MonetaryAmount is a declared financial figure: an amount in one currency as of a
 // reference date. The period it covers lives in the name of the field carrying it.
 type MonetaryAmount struct {
-	// Value is the non-negative amount; Midaz carries it as a decimal string.
+	// Value is the non-negative amount, at most 20 integer and 10 fraction digits; Midaz
+	// carries it as a decimal string.
 	Value *decimal.Decimal `json:"value"`
-	// Currency is the ISO 4217 code of the amount, three uppercase letters.
+	// Currency is the ISO 4217 code of the amount.
 	Currency string `json:"currency"`
 	// ReferenceDate is the date the amount refers to, formatted as YYYY-MM-DD.
 	ReferenceDate string `json:"referenceDate"`
@@ -518,15 +570,17 @@ func (amount *MonetaryAmount) validate(errs *validation.FieldErrors, field strin
 		return
 	}
 
-	switch {
-	case amount.Value == nil:
+	// Midaz accepts at most 20 integer and 10 fraction digits. NumDigits and Exponent read
+	// the coefficient and scale without formatting the number.
+	switch value := amount.Value; {
+	case value == nil:
 		errs.Append(field+".value", "is required")
-	case amount.Value.IsNegative():
-		errs.Append(field+".value", "must be 0 or greater")
+	case value.IsNegative() || value.NumDigits()+int(value.Exponent()) > 20 || value.Exponent() < -10:
+		errs.Append(field+".value", "must be a non-negative decimal with at most 20 integer and 10 fraction digits")
 	}
 
-	if len(amount.Currency) != 3 || strings.Trim(amount.Currency, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") != "" {
-		errs.Append(field+".currency", "must be an ISO 4217 code of three uppercase letters")
+	if core.ValidateCurrencyCode(amount.Currency) != nil {
+		errs.Append(field+".currency", "must be an ISO 4217 currency code")
 	}
 
 	if _, err := time.Parse(time.DateOnly, amount.ReferenceDate); err != nil {
