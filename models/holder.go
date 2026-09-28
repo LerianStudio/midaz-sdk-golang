@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation/core"
@@ -243,6 +244,8 @@ func (input *CreateHolderInput) Validate() error {
 		errs.Append("document", "is required")
 	}
 
+	validateHolderFigures(&errs, input.NaturalPerson, input.LegalPerson)
+
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			errs.Append("metadata", "invalid: "+err.Error())
@@ -308,6 +311,14 @@ func (input *UpdateHolderInput) MarshalJSON() ([]byte, error) {
 			return nil, fmt.Errorf("unsupported null field %q", field)
 		}
 
+		if parent, child, nested := strings.Cut(field, "."); nested {
+			if err := nestNullField(payload, parent, child); err != nil {
+				return nil, err
+			}
+
+			continue
+		}
+
 		payload[field] = nil
 	}
 
@@ -318,6 +329,36 @@ func (input *UpdateHolderInput) MarshalJSON() ([]byte, error) {
 	// rather than emit a duplicate error message that fragments the source
 	// of truth across two functions.
 	return json.Marshal(payload)
+}
+
+// nestNullField writes "child": null inside the parent object, merged with the parent's
+// set fields. A parent that is itself cleared already removes the child, so it wins.
+func nestNullField(payload map[string]any, parent, child string) error {
+	current, present := payload[parent]
+	if present && current == nil {
+		return nil
+	}
+
+	fields, merged := current.(map[string]json.RawMessage)
+	if !merged {
+		fields = map[string]json.RawMessage{}
+	}
+
+	if present && !merged {
+		data, err := json.Marshal(current)
+		if err != nil {
+			return fmt.Errorf("marshal %s: %w", parent, err)
+		}
+
+		if err := json.Unmarshal(data, &fields); err != nil {
+			return fmt.Errorf("merge null field into %s: %w", parent, err)
+		}
+	}
+
+	fields[child] = json.RawMessage("null")
+	payload[parent] = fields
+
+	return nil
 }
 
 func (input *UpdateHolderInput) hasChanges() bool {
@@ -350,6 +391,15 @@ func (input *UpdateHolderInput) validateNullFieldConflicts() error {
 		"metadata":      input.Metadata != nil,
 	}
 
+	if np := input.NaturalPerson; np != nil {
+		setFields["naturalPerson.monthlyGrossIncome"] = np.MonthlyGrossIncome != nil
+	}
+
+	if lp := input.LegalPerson; lp != nil {
+		setFields["legalPerson.annualGrossRevenue"] = lp.AnnualGrossRevenue != nil
+		setFields["legalPerson.totalAssets"] = lp.TotalAssets != nil
+	}
+
 	for _, field := range input.NullFields {
 		field = strings.TrimSpace(field)
 		if setFields[field] {
@@ -368,6 +418,10 @@ var validHolderNullFields = map[string]bool{
 	"naturalPerson": true,
 	"legalPerson":   true,
 	"metadata":      true,
+
+	"naturalPerson.monthlyGrossIncome": true,
+	"legalPerson.annualGrossRevenue":   true,
+	"legalPerson.totalAssets":          true,
 }
 
 func isValidHolderType(holderType string) bool {
@@ -405,6 +459,8 @@ func (input *UpdateHolderInput) Validate() error {
 	}
 
 	var errs validation.FieldErrors
+
+	validateHolderFigures(&errs, input.NaturalPerson, input.LegalPerson)
 
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
@@ -466,6 +522,8 @@ type NaturalPerson struct {
 	MotherName   *string `json:"motherName,omitempty"`
 	FatherName   *string `json:"fatherName,omitempty"`
 	Status       *string `json:"status,omitempty"`
+	// MonthlyGrossIncome is the person's gross income per month.
+	MonthlyGrossIncome *MonetaryAmount `json:"monthlyGrossIncome,omitempty"`
 }
 
 // LegalPerson stores legal-person holder details.
@@ -477,6 +535,58 @@ type LegalPerson struct {
 	Size           *string         `json:"size,omitempty"`
 	Status         *string         `json:"status,omitempty"`
 	Representative *Representative `json:"representative,omitempty"`
+	// AnnualGrossRevenue is the company's gross revenue per year.
+	AnnualGrossRevenue *MonetaryAmount `json:"annualGrossRevenue,omitempty"`
+	// TotalAssets is the company's total assets.
+	TotalAssets *MonetaryAmount `json:"totalAssets,omitempty"`
+}
+
+// MonetaryAmount is a declared financial figure: an amount in one currency as of a
+// reference date. The period it covers lives in the name of the field carrying it.
+type MonetaryAmount struct {
+	// Value is the non-negative amount, at most 20 integer and 10 fraction digits; Midaz
+	// carries it as a decimal string. Round to at most 10 decimal places before setting;
+	// trailing zeros count.
+	Value *decimal.Decimal `json:"value"`
+	// Currency is the ISO 4217 code of the amount.
+	Currency string `json:"currency"`
+	// ReferenceDate is the date the amount refers to, formatted as YYYY-MM-DD.
+	ReferenceDate string `json:"referenceDate"`
+}
+
+func validateHolderFigures(errs *validation.FieldErrors, naturalPerson *NaturalPerson, legalPerson *LegalPerson) {
+	if naturalPerson != nil {
+		naturalPerson.MonthlyGrossIncome.validate(errs, "naturalPerson.monthlyGrossIncome")
+	}
+
+	if legalPerson != nil {
+		legalPerson.AnnualGrossRevenue.validate(errs, "legalPerson.annualGrossRevenue")
+		legalPerson.TotalAssets.validate(errs, "legalPerson.totalAssets")
+	}
+}
+
+// validate applies the Midaz boundary rules to a figure; an absent (nil) figure is valid.
+func (amount *MonetaryAmount) validate(errs *validation.FieldErrors, field string) {
+	if amount == nil {
+		return
+	}
+
+	// Midaz accepts at most 20 integer and 10 fraction digits. NumDigits and Exponent read
+	// the coefficient and scale without formatting the number.
+	switch value := amount.Value; {
+	case value == nil:
+		errs.Append(field+".value", "is required")
+	case value.IsNegative() || value.NumDigits()+int(value.Exponent()) > 20 || value.Exponent() < -10:
+		errs.Append(field+".value", "must be a non-negative decimal with at most 20 integer and 10 fraction digits")
+	}
+
+	if core.ValidateCurrencyCode(amount.Currency) != nil {
+		errs.Append(field+".currency", "must be an ISO 4217 currency code")
+	}
+
+	if _, err := time.Parse(time.DateOnly, amount.ReferenceDate); err != nil {
+		errs.Append(field+".referenceDate", "must be a date in YYYY-MM-DD format")
+	}
 }
 
 // Representative stores legal-person representative data.
