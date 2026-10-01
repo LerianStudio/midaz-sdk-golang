@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -104,6 +105,16 @@ type Provider interface {
 
 type propagatorProvider interface {
 	TextMapPropagator() propagation.TextMapPropagator
+}
+
+// Optional Provider capabilities, asserted by interface so a host provider,
+// including one that embeds *MidazProvider, keeps the SDK fast paths.
+type metricsFactoryProvider interface {
+	MetricsFactory() *obsmetrics.MetricsFactory
+}
+
+type propagationHeadersProvider interface {
+	PropagationHeaders() []string
 }
 
 // Config holds the configuration for the observability provider
@@ -427,15 +438,10 @@ type MidazProvider struct {
 	metricsFactory *obsmetrics.MetricsFactory
 	enabled        bool
 
-	// propagationHeadersOnce + propagationHeadersAllow cache the lowercased
-	// allow-set used by filterPropagationHeaders / filterPropagationMap.
-	// Building the set on every header filter call (which is itself on the
-	// hot path of every outbound request) walked PropagationHeaders +
-	// strings.ToLower for each header on each call. Caching once per
-	// provider lifetime is correct because PropagationHeaders is set at
-	// construction and the propagator's own Fields() are stable too.
-	propagationHeadersOnce  sync.Once
-	propagationHeadersAllow map[string]struct{}
+	// The allow-list is built once: PropagationHeaders and the propagator's
+	// Fields() are fixed at construction.
+	propagationHeadersOnce sync.Once
+	propagationHeaders     []string
 }
 
 // New creates a new observability provider with the given options
@@ -766,6 +772,30 @@ func (p *MidazProvider) TextMapPropagator() propagation.TextMapPropagator {
 	return p.textMapPropagatorFromConfig()
 }
 
+// MetricsFactory returns the factory bound to the provider's telemetry, or nil
+// when no collector endpoint was configured.
+func (p *MidazProvider) MetricsFactory() *obsmetrics.MetricsFactory {
+	if p == nil {
+		return nil
+	}
+
+	return p.metricsFactory
+}
+
+// PropagationHeaders returns the lowercased headers trace context may be
+// extracted from, or nil when every header is allowed. The slice is shared.
+func (p *MidazProvider) PropagationHeaders() []string {
+	if p == nil || p.config == nil || len(p.config.PropagationHeaders) == 0 {
+		return nil
+	}
+
+	p.propagationHeadersOnce.Do(func() {
+		p.propagationHeaders = buildPropagationHeaderAllowList(p)
+	})
+
+	return p.propagationHeaders
+}
+
 func (p *MidazProvider) textMapPropagatorFromConfig() propagation.TextMapPropagator {
 	if p == nil || p.config == nil {
 		return defaultTextMapPropagator()
@@ -887,8 +917,10 @@ func RecordDuration(ctx context.Context, provider Provider, name string, start t
 }
 
 func metricsFactoryForProvider(provider Provider) (*obsmetrics.MetricsFactory, error) {
-	if midazProvider, ok := provider.(*MidazProvider); ok && midazProvider != nil && midazProvider.metricsFactory != nil {
-		return midazProvider.metricsFactory, nil
+	if fp, ok := provider.(metricsFactoryProvider); ok {
+		if factory := fp.MetricsFactory(); factory != nil {
+			return factory, nil
+		}
 	}
 
 	meter := provider.Meter()
@@ -986,14 +1018,14 @@ func textMapPropagatorForProvider(provider Provider) propagation.TextMapPropagat
 }
 
 func filterPropagationMap(ctx context.Context, headers map[string]string) map[string]string {
-	allowed := propagationHeaderSet(ctx)
+	allowed := propagationHeaderAllowList(ctx)
 	if len(allowed) == 0 {
 		return headers
 	}
 
 	filtered := make(map[string]string, len(headers))
 	for key, value := range headers {
-		if _, ok := allowed[strings.ToLower(key)]; ok {
+		if propagationHeaderAllowed(allowed, key) {
 			filtered[key] = value
 		}
 	}
@@ -1002,14 +1034,14 @@ func filterPropagationMap(ctx context.Context, headers map[string]string) map[st
 }
 
 func filterPropagationHeaders(ctx context.Context, headers http.Header) http.Header {
-	allowed := propagationHeaderSet(ctx)
+	allowed := propagationHeaderAllowList(ctx)
 	if len(allowed) == 0 {
 		return headers
 	}
 
 	filtered := make(http.Header, len(headers))
 	for key, values := range headers {
-		if _, ok := allowed[strings.ToLower(key)]; ok {
+		if propagationHeaderAllowed(allowed, key) {
 			filtered[key] = append([]string(nil), values...)
 		}
 	}
@@ -1017,39 +1049,31 @@ func filterPropagationHeaders(ctx context.Context, headers http.Header) http.Hea
 	return filtered
 }
 
-func propagationHeaderSet(ctx context.Context) map[string]struct{} {
-	provider := GetProvider(ctx)
-
-	midazProvider, ok := provider.(*MidazProvider)
-	if !ok || midazProvider == nil || midazProvider.config == nil || len(midazProvider.config.PropagationHeaders) == 0 {
-		return nil
+func propagationHeaderAllowList(ctx context.Context) []string {
+	if hp, ok := GetProvider(ctx).(propagationHeadersProvider); ok {
+		return hp.PropagationHeaders()
 	}
 
-	midazProvider.propagationHeadersOnce.Do(func() {
-		midazProvider.propagationHeadersAllow = buildPropagationHeaderAllowSet(provider, midazProvider.config)
-	})
-
-	return midazProvider.propagationHeadersAllow
+	return nil
 }
 
-// buildPropagationHeaderAllowSet computes the lowercased set of permitted
-// propagation header names. It is invoked exactly once per provider via
-// sync.Once and the resulting map is shared read-only.
-func buildPropagationHeaderAllowSet(provider Provider, config *Config) map[string]struct{} {
-	allowed := make(map[string]struct{}, len(config.PropagationHeaders))
-	for _, header := range config.PropagationHeaders {
-		header = strings.ToLower(strings.TrimSpace(header))
-		if header != "" {
-			allowed[header] = struct{}{}
-		}
+func propagationHeaderAllowed(allowed []string, key string) bool {
+	return slices.ContainsFunc(allowed, func(header string) bool { return strings.EqualFold(header, key) })
+}
+
+// buildPropagationHeaderAllowList lowercases and deduplicates the configured
+// headers, adding the propagator's own fields unless the list was explicit.
+func buildPropagationHeaderAllowList(p *MidazProvider) []string {
+	headers := p.config.PropagationHeaders
+	if !p.config.propagationHeadersExplicit {
+		headers = append(slices.Clone(headers), textMapPropagatorForProvider(p).Fields()...)
 	}
 
-	if !config.propagationHeadersExplicit {
-		for _, header := range textMapPropagatorForProvider(provider).Fields() {
-			header = strings.ToLower(strings.TrimSpace(header))
-			if header != "" {
-				allowed[header] = struct{}{}
-			}
+	allowed := make([]string, 0, len(headers))
+	for _, header := range headers {
+		header = strings.ToLower(strings.TrimSpace(header))
+		if header != "" && !slices.Contains(allowed, header) {
+			allowed = append(allowed, header)
 		}
 	}
 
