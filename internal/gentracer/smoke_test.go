@@ -22,4 +22,7 @@ func TestGeneratedSurface(_ *testing.T) {
 	// The schema that collided with the client wrapper survived as its own type,
 	// distinct from the renamed wrapper.
 	var _ ListAuditEventsResponse // schema
+
+	// The dashboard operations first shipped in midaz v4.1: the client tracks that spec.
+	var _ *GetDashboardMetricsResp
 }
