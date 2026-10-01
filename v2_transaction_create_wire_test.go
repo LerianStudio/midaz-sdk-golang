@@ -9,8 +9,46 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
+
+// v2CreateActions is the four /v2 create actions, one row per endpoint, since
+// the action IS the endpoint and the body is identical across them.
+var v2CreateActions = []struct {
+	name     string
+	wantPath string
+	call     func(ctx context.Context, c *Client, orgID, ledgerID string, in *models.CreateTransactionV2Input) error
+}{
+	{
+		name: "direct", wantPath: "/v2/transactions/direct",
+		call: func(ctx context.Context, c *Client, orgID, ledgerID string, in *models.CreateTransactionV2Input) error {
+			_, err := c.V2.Transactions.CreateDirect(ctx, orgID, ledgerID, in)
+			return err
+		},
+	},
+	{
+		name: "hold", wantPath: "/v2/transactions/hold",
+		call: func(ctx context.Context, c *Client, orgID, ledgerID string, in *models.CreateTransactionV2Input) error {
+			_, err := c.V2.Transactions.CreateHold(ctx, orgID, ledgerID, in)
+			return err
+		},
+	},
+	{
+		name: "block", wantPath: "/v2/transactions/block",
+		call: func(ctx context.Context, c *Client, orgID, ledgerID string, in *models.CreateTransactionV2Input) error {
+			_, err := c.V2.Transactions.CreateBlock(ctx, orgID, ledgerID, in)
+			return err
+		},
+	},
+	{
+		name: "unblock", wantPath: "/v2/transactions/unblock",
+		call: func(ctx context.Context, c *Client, orgID, ledgerID string, in *models.CreateTransactionV2Input) error {
+			_, err := c.V2.Transactions.CreateUnblock(ctx, orgID, ledgerID, in)
+			return err
+		},
+	},
+}
 
 // TestV2TransactionCreateRouting pins the four /v2 transaction create actions:
 // the HTTP method, the top-level path, the organization and ledger the request
@@ -40,42 +78,7 @@ func TestV2TransactionCreateRouting(t *testing.T) {
 		ledgerID = "22222222-2222-2222-2222-222222222222"
 	)
 
-	tests := []struct {
-		name     string
-		wantPath string
-		call     func(context.Context, *Client, *models.CreateTransactionV2Input) error
-	}{
-		{
-			name: "direct", wantPath: "/v2/transactions/direct",
-			call: func(ctx context.Context, c *Client, in *models.CreateTransactionV2Input) error {
-				_, err := c.V2.Transactions.CreateDirect(ctx, orgID, ledgerID, in)
-				return err
-			},
-		},
-		{
-			name: "hold", wantPath: "/v2/transactions/hold",
-			call: func(ctx context.Context, c *Client, in *models.CreateTransactionV2Input) error {
-				_, err := c.V2.Transactions.CreateHold(ctx, orgID, ledgerID, in)
-				return err
-			},
-		},
-		{
-			name: "block", wantPath: "/v2/transactions/block",
-			call: func(ctx context.Context, c *Client, in *models.CreateTransactionV2Input) error {
-				_, err := c.V2.Transactions.CreateBlock(ctx, orgID, ledgerID, in)
-				return err
-			},
-		},
-		{
-			name: "unblock", wantPath: "/v2/transactions/unblock",
-			call: func(ctx context.Context, c *Client, in *models.CreateTransactionV2Input) error {
-				_, err := c.V2.Transactions.CreateUnblock(ctx, orgID, ledgerID, in)
-				return err
-			},
-		},
-	}
-
-	for _, tt := range tests {
+	for _, tt := range v2CreateActions {
 		t.Run(tt.name, func(t *testing.T) {
 			var (
 				gotMethod, gotPath, gotIdempotency string
@@ -99,7 +102,7 @@ func TestV2TransactionCreateRouting(t *testing.T) {
 			// The legs deliberately leave the scope EMPTY: filling it from the
 			// addressed pair is the facade's job, and this is what proves it
 			// happens on the wire rather than only in a unit test.
-			require.NoError(t, tt.call(context.Background(), c, &models.CreateTransactionV2Input{
+			require.NoError(t, tt.call(context.Background(), c, orgID, ledgerID, &models.CreateTransactionV2Input{
 				Asset:   "USD",
 				Amount:  "100.25",
 				Debits:  []models.TransactionV2Leg{{Alias: "@src", Amount: "100.25"}},
@@ -226,4 +229,83 @@ func TestV2TransactionCreateDoesNotMutateCallerInput(t *testing.T) {
 	require.Empty(t, input.Debits[0].LedgerID)
 	require.Empty(t, input.Credits[0].OrganizationID)
 	require.Empty(t, input.Credits[0].LedgerID)
+}
+
+// TestV2TransactionCreateSkip pins the per-call skip on all four create actions:
+// nil omits the key, an empty skip sends "skip":{} (the server's "no skip"), a
+// set flag sends only that flag, and a 0490 refusal reads as IsSkipNotPermitted.
+func TestV2TransactionCreateSkip(t *testing.T) {
+	const (
+		orgID    = "11111111-1111-1111-1111-111111111111"
+		ledgerID = "22222222-2222-2222-2222-222222222222"
+	)
+
+	newInput := func(skip *models.TransactionV2Skip) *models.CreateTransactionV2Input {
+		return &models.CreateTransactionV2Input{
+			Asset:   "USD",
+			Amount:  "10",
+			Debits:  []models.TransactionV2Leg{{Alias: "@src", Amount: "10"}},
+			Credits: []models.TransactionV2Leg{{Alias: "@dst", Amount: "10"}},
+			Skip:    skip,
+		}
+	}
+
+	cases := []struct {
+		name     string
+		skip     *models.TransactionV2Skip
+		wantSkip string // "" means the key must be absent
+	}{
+		{name: "nil", skip: nil},
+		{name: "fees", skip: &models.TransactionV2Skip{Fees: true}, wantSkip: `{"fees":true}`},
+		{name: "empty", skip: &models.TransactionV2Skip{}, wantSkip: `{}`},
+	}
+
+	for _, action := range v2CreateActions {
+		for _, tc := range cases {
+			t.Run(action.name+"/"+tc.name, func(t *testing.T) {
+				var gotBody []byte
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					gotBody, _ = io.ReadAll(r.Body)
+
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"id":"33333333-3333-3333-3333-333333333333","status":{"code":"APPROVED"}}`))
+				}))
+				defer srv.Close()
+
+				c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
+				require.NoError(t, err)
+				require.NoError(t, action.call(context.Background(), c, orgID, ledgerID, newInput(tc.skip)))
+
+				var wire map[string]json.RawMessage
+
+				require.NoError(t, json.Unmarshal(gotBody, &wire), "body: %s", gotBody)
+
+				got, present := wire["skip"]
+				if tc.wantSkip == "" {
+					require.False(t, present, "a nil skip must omit the key: %s", gotBody)
+					return
+				}
+
+				require.True(t, present, "a non-nil skip must reach the wire: %s", gotBody)
+				require.JSONEq(t, tc.wantSkip, string(got))
+			})
+		}
+
+		t.Run(action.name+"/0490", func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/problem+json")
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"title":"Skip Not Permitted","detail":"fee skip is not enabled for this ledger","code":"0490"}`))
+			}))
+			defer srv.Close()
+
+			c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
+			require.NoError(t, err)
+
+			err = action.call(context.Background(), c, orgID, ledgerID, newInput(&models.TransactionV2Skip{Fees: true}))
+			require.True(t, sdkerrors.IsSkipNotPermitted(err), "want 0490 as IsSkipNotPermitted, got %v", err)
+		})
+	}
 }

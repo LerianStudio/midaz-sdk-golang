@@ -280,6 +280,7 @@ type TransactionStatusCode string
 type TransactionV2 struct{ ... }
 type TransactionV2Leg struct{ ... }
 type TransactionV2Share struct{ ... }
+type TransactionV2Skip struct{ ... }
 type TransactionValidation struct{ ... }
 type TransactionsFilters struct{ ... }
 type TransactionsListOpts struct{ ... }
