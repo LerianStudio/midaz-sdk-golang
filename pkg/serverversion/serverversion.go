@@ -67,14 +67,14 @@ func Parse(body []byte) ServerVersion {
 func parseSemVer(s string) (ServerVersion, bool) {
 	s, _, _ = strings.Cut(strings.TrimPrefix(strings.TrimSpace(s), "v"), "+")
 
-	core, prerelease, hasPrerelease := strings.Cut(s, "-")
+	core, prerelease, _ := strings.Cut(s, "-")
 	parts := strings.Split(core, ".")
 
-	if hasPrerelease && prerelease == "" || len(parts) != 3 {
+	var nums [3]int
+
+	if len(parts) != len(nums) {
 		return ServerVersion{}, false
 	}
-
-	var nums [3]int
 
 	for i, part := range parts {
 		n, err := strconv.Atoi(part)

@@ -48,7 +48,7 @@ func main() {
 	// fees.Mode() once and keeps that mode for its retries, commit, cancel
 	// and revert, even after a refresh changes it.
 	fees := newFeeMode(ctx, c)
-	fees.refresh(ctx, refreshEvery)
+	fees.refresh(ctx)
 }
 
 // feeMode caches the fee mode of one Midaz client. Mode is a lock-free read,
@@ -91,9 +91,9 @@ func (f *feeMode) resolve(ctx context.Context) {
 	}
 }
 
-// refresh re-resolves every interval until ctx ends.
-func (f *feeMode) refresh(ctx context.Context, every time.Duration) {
-	ticker := time.NewTicker(every)
+// refresh re-resolves every refreshEvery until ctx ends.
+func (f *feeMode) refresh(ctx context.Context) {
+	ticker := time.NewTicker(refreshEvery)
 	defer ticker.Stop()
 
 	for {

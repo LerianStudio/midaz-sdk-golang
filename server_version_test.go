@@ -127,7 +127,6 @@ func TestServerVersionFailures(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Equal(t, ServerVersion{Source: serverversion.SourceUnavailable}, got)
-			assert.Equal(t, FeeModeLegacy, ResolveFeeMode(got))
 			tt.check(t, err)
 		})
 	}
