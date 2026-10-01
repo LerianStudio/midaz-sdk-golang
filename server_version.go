@@ -34,7 +34,7 @@ const (
 func (c *Client) ServerVersion(ctx context.Context) (ServerVersion, error) {
 	unavailable := ServerVersion{Source: serverversion.SourceUnavailable}
 
-	if c == nil || c.config == nil || c.GetHTTPClient() == nil {
+	if c == nil || c.config == nil {
 		return unavailable, sdkerrors.NewConfigurationError(serverVersionOperation, "client is not initialized; build it with midaz.New", nil)
 	}
 
