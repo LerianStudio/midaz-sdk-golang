@@ -2146,9 +2146,9 @@ var apiErrorCodeMappings = map[string]httpErrorMapping{
 //     ("LEDGER-0084"), so the exact-match apiErrorCodeMappings["0084"] never
 //     fires; the suffix lookup is the only path that catches the prefixed form.
 var apiCodeSuffixMappings = map[string]httpErrorMapping{
-	"0178": {CategoryNetwork, CodeServiceUnavailable, false},
-	"0177": {CategoryUnprocessable, CodeUnprocessable, false},
-	"0084": {CategoryConflict, CodeIdempotency, false},
+	"0178":                              {CategoryNetwork, CodeServiceUnavailable, false},
+	APICodeTransactionReservationDenied: {CategoryUnprocessable, CodeUnprocessable, false},
+	"0084":                              {CategoryConflict, CodeIdempotency, false},
 }
 
 // apiCodeSuffixLen is the fixed width of the NNNN suffix in an

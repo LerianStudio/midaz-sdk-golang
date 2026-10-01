@@ -148,11 +148,12 @@ Common checkers include:
 
 ## Domain-specific error predicates
 
-Beyond the category checkers above, `pkg/errors` exposes predicates that branch on specific server business conditions. They mirror the server error codes in `github.com/LerianStudio/midaz/v3/pkg/constant` and let callers react to a named condition instead of hardcoding raw `APICode` strings at call sites.
+Beyond the category checkers above, `pkg/errors` exposes predicates that branch on specific server business conditions. They mirror the server error codes in `github.com/LerianStudio/midaz/v4/pkg/constant` and let callers react to a named condition instead of hardcoding raw `APICode` strings at call sites.
 
 | Predicate | Server code | HTTP status | Condition |
 | --- | --- | --- | --- |
 | `IsSkipNotPermitted(err)` | `0490` | 422 | A per-call skip was requested without the enabling ledger override. |
+| `IsTransactionReservationDenied(err)` | `0177` | 422 | The Tracer denied the transaction's reservation. |
 | `IsHolderRequired(err)` | `0491` | 422 | Account creation requires a holder (KYC). |
 | `IsHolderNotFound(err)` | `CRM-0006` | 404 | The referenced CRM holder does not exist. |
 | `IsFeeError(err)` | `0179`–`0233` | mixed | The fee/billing engine rejected the operation. Family predicate over the whole fee-code block. |
@@ -161,7 +162,7 @@ Beyond the category checkers above, `pkg/errors` exposes predicates that branch 
 
 `IsFeeError` is a family predicate — it returns `true` when the server code suffix falls in the fee/billing block `0179`–`0233`. Callers branch on "fee/billing problem" rather than each of the ~55 internal fee codes.
 
-Retryability note: these predicates need no retryability override. `0490`/`0491` (422) and `CRM-0006` (404) are already classified non-retryable by the SDK's HTTP-status→category mapping. The predicates are ergonomic — they let callers branch on the specific business condition — not a money-path concern.
+Retryability note: `0177` is pinned non-retryable by code, even if it arrives on a 5xx. The others need no retryability override: `0490`/`0491` (422) and `CRM-0006` (404) are already classified non-retryable by the SDK's HTTP-status→category mapping. The predicates are ergonomic — they let callers branch on the specific business condition — not a money-path concern.
 
 ### Feature-availability sentinel
 

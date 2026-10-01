@@ -6,7 +6,7 @@ import "errors"
 //
 // These are the raw Midaz API error codes (the *Error.APICode field) emitted by
 // the server for transaction commit / cancel / revert preconditions and revert
-// idempotency. Values mirror github.com/LerianStudio/midaz/v3/pkg/constant
+// idempotency. Values mirror github.com/LerianStudio/midaz/v4/pkg/constant
 // (server source of truth). Prefer the predicates below over hardcoding these
 // strings at call sites.
 const (
