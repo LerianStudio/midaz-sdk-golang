@@ -1,3 +1,6 @@
+// Package serverversion parses the Midaz ledger /version body and decides who applies fees.
+// An uncertain version resolves to FeeModeLegacy: /v1 never applies fees on v3 or v4, so legacy never
+// charges twice nor skips the fee, provided the caller's legacy mode has its own fee engine configured.
 package serverversion
 
 import (
