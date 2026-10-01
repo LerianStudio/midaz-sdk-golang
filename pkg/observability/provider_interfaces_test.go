@@ -1,8 +1,6 @@
 package observability
 
 import (
-	"context"
-	"net/http"
 	"testing"
 
 	obsmetrics "github.com/LerianStudio/lib-observability/v3/metrics"
@@ -33,22 +31,4 @@ func TestWrappedProviderReusesMetricsFactory(t *testing.T) {
 
 	assert.Same(t, factory, first)
 	assert.Same(t, first, second)
-}
-
-func TestWrappedProviderKeepsPropagationAllowList(t *testing.T) {
-	provider, err := New(context.Background(),
-		WithComponentEnabled(true, false, false),
-		WithPropagationHeaders("traceparent"),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, provider.Shutdown(context.Background())) })
-
-	midazProvider, ok := provider.(*MidazProvider)
-	require.True(t, ok)
-
-	headers := http.Header{}
-	headers.Set("baggage", "tenant=blocked")
-	ctx := ExtractHTTPContext(WithProvider(context.Background(), wrappedProvider{midazProvider}), headers)
-
-	assert.Empty(t, GetBaggageItem(ctx, "tenant"))
 }

@@ -159,11 +159,24 @@ func TestProviderAwarePropagation(t *testing.T) {
 
 		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
 
-		headers := http.Header{}
-		headers.Set("baggage", "tenant=blocked")
-		ctx := ExtractHTTPContext(WithProvider(context.Background(), provider), headers)
+		midazProvider, ok := provider.(*MidazProvider)
+		require.True(t, ok)
 
-		assert.Empty(t, GetBaggageItem(ctx, "tenant"))
+		for _, tt := range []struct {
+			name     string
+			provider Provider
+		}{
+			{name: "bare", provider: provider},
+			{name: "wrapped", provider: wrappedProvider{midazProvider}},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				headers := http.Header{}
+				headers.Set("baggage", "tenant=blocked")
+				ctx := ExtractHTTPContext(WithProvider(context.Background(), tt.provider), headers)
+
+				assert.Empty(t, GetBaggageItem(ctx, "tenant"))
+			})
+		}
 	})
 }
 
