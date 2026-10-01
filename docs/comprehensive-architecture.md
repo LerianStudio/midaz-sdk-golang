@@ -727,8 +727,8 @@ otel-collector:4317           plaintext (a bare host:port is treated as plaintex
 
 When the corresponding observability components are enabled, outbound entity requests can:
 
-- create HTTP spans when tracing is enabled and a collector endpoint is configured (without one the SDK only carries the caller's span forward and never touches the host's OTel globals),
-- inject W3C trace context and baggage into request headers using the configured provider propagator,
+- create HTTP spans when tracing is enabled, exported by the SDK with a collector endpoint and by the host's OTel providers without one,
+- inject W3C trace context and baggage into request headers using the configured provider propagator, or the host's global one without a collector endpoint,
 - record request metrics through `MetricsCollector` when metrics are enabled,
 - use the provider logger for SDK warnings or errors when logging is enabled,
 - emit safe structured business events for lifecycle operations such as account creation and transaction commit/cancel flows.

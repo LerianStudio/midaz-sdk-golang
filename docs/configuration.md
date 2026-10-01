@@ -73,8 +73,8 @@ The full list (v3):
 | `WithIdempotency` | Toggle automatic `X-Idempotency` header |
 | `WithLedgerURL` | Override Ledger service URL (onboarding + transactions) |
 | `WithLogger` | Install a custom `*slog.Logger` |
-| `WithObservabilityOptions` | Build OTel provider from `observability.Option` chain; the client owns it and `Shutdown` closes it |
-| `WithObservabilityProvider` | Install a pre-built `observability.Provider`; it stays the caller's and `Shutdown` never closes it |
+| `WithObservabilityOptions` | Build OTel provider from `observability.Option` chain |
+| `WithObservabilityProvider` | Install a pre-built `observability.Provider` |
 | `WithoutRetries` | Disable the retry mechanism (`MaxRetries=0`) |
 | `WithRetryOptions` | Thread `retry.Option` chain onto entity HTTPClient |
 | `WithSlowCallThreshold` | Warn-level log when request exceeds duration |
@@ -157,7 +157,7 @@ client.GetEntityHTTPClient().SetEnableIdempotency(false)
 client.GetEntityHTTPClient().SetCustomRetryPolicy(myPolicyFn)
 
 // On *entities.Entity:
-client.SetObservability(newProvider)  // returns error; Shutdown never closes newProvider
+client.SetObservability(newProvider)  // returns error
 ```
 
 ### 1.5 `sdkctx.With*` — per-request overrides
@@ -245,16 +245,17 @@ at construction time is overwritten the first time either of these
 options runs. Subsequent calls likewise replace. No merge step. See the
 godoc on each function for the full explanation.
 
-`client.Shutdown` closes only a provider the SDK built: the `midaz.New()`
-default or one from `WithObservabilityOptions`. A provider passed through
-`WithObservabilityProvider`, `pkg/config.WithObservabilityProvider` +
-`WithConfig`, or `client.SetObservability` stays open; shut it down yourself.
+**Ownership.** `client.Shutdown` closes only the provider the SDK built (the
+`midaz.New()` default or one from `WithObservabilityOptions`). A provider you
+install, by any option or setter, stays yours: shut it down after the last
+client that uses it.
 
-The SDK is a guest in the host process. Its providers never replace the
-host's OTel globals unless you pass `observability.WithRegisterGlobally(true)`,
-and tracing and metrics export nothing without
-`observability.WithCollectorEndpoint`: one warning goes to the provider's
-logger and the SDK only carries the caller's span forward.
+**No endpoint.** The SDK is a guest in the host process and never sets the
+host's OTel globals unless you pass `observability.WithRegisterGlobally(true)`.
+Without `observability.WithCollectorEndpoint`, tracing and metrics use the
+host's global providers and propagator: SDK spans become children of the
+host's spans and the host exports them, and a host with no providers gets
+noop. One warning goes to the provider's logger.
 
 ---
 
@@ -441,7 +442,6 @@ provider, _ := observability.New(ctx,
     observability.WithCollectorEndpoint("https://otel-collector:4317"),
     observability.WithComponentEnabled(true, true, true),
 )
-// client.Shutdown never closes a shared provider: close it after the last client.
 defer provider.Shutdown(ctx)
 
 for _, am := range accessManagers {
