@@ -347,7 +347,7 @@ A V2 leg carries **exactly one** value expression: an explicit `Amount`, or a `S
 
 `CreateTransactionV2Input.Skip` (`*models.TransactionV2Skip{Fees, Tracer}`) opts one create out of the fee engine, the Tracer, or both, on all four V2 creates. Nil sends no `skip`; `&models.TransactionV2Skip{}` sends `"skip":{}`, which the server reads as no skip; a set flag sends only that flag. The server honours a flag only when the ledger's override policy allows it (`Ledgers.UpdateSettings` with `models.NewUpdateLedgerSettingsInput().WithAllowFeeSkip(true)` / `WithAllowTracerSkip(true)`) and otherwise refuses the create with `0490` (`errors.IsSkipNotPermitted`). The response's `FeesSkipped` / `TracerSkipped` report what actually ran.
 
-A create the Tracer denies (enforce mode, the reservation would exceed a limit) is refused with `0177` (`errors.IsTransactionReservationDenied`) before any balance moves. The SDK never retries it, even when it arrives on a 5xx.
+A create the Tracer denies (enforce mode, the reservation would exceed a limit) is refused with `0177` (`errors.IsTransactionReservationDenied`) before any balance moves. midaz emits `0177` only as a 422, which the SDK's retry transport does not retry.
 
 On a transaction that belongs to a cross-ledger group, V2 `Commit` and `Revert` act on the whole group and the server answers with the group; the SDK returns the member the call addressed (for `Revert`, the reversal whose `ParentTransactionID` is that transaction), and a group without it is a response-decode error naming the group.
 

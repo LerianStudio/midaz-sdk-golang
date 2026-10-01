@@ -21,7 +21,8 @@ const (
 	APICodeSkipNotPermitted = "0490"
 
 	// APICodeTransactionReservationDenied (0177): the Tracer denied the
-	// transaction's reservation. Non-retryable even on a 5xx (apiCodeSuffixMappings).
+	// transaction's reservation. midaz emits it only as a 422
+	// (UnprocessableOperationError), which the retry round tripper does not retry.
 	APICodeTransactionReservationDenied = "0177"
 
 	// APICodeHolderRequired (0491): account creation requires a holder (KYC).

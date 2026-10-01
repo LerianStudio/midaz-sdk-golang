@@ -162,7 +162,7 @@ Beyond the category checkers above, `pkg/errors` exposes predicates that branch 
 
 `IsFeeError` is a family predicate — it returns `true` when the server code suffix falls in the fee/billing block `0179`–`0233`. Callers branch on "fee/billing problem" rather than each of the ~55 internal fee codes.
 
-Retryability note: `0177` is pinned non-retryable by code, even if it arrives on a 5xx. The others need no retryability override: `0490`/`0491` (422) and `CRM-0006` (404) are already classified non-retryable by the SDK's HTTP-status→category mapping. The predicates are ergonomic — they let callers branch on the specific business condition — not a money-path concern.
+Retryability note: midaz emits `0177` only as a 422 (`UnprocessableOperationError`), which the SDK's retry transport does not retry. The others need no retryability override either: `0490`/`0491` (422) and `CRM-0006` (404) are already classified non-retryable by the SDK's HTTP-status→category mapping. The predicates are ergonomic — they let callers branch on the specific business condition — not a money-path concern.
 
 ### Feature-availability sentinel
 
