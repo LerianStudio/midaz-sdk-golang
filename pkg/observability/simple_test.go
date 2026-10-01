@@ -198,8 +198,9 @@ func TestMetricsCollectorFunctionality(t *testing.T) {
 // In a real application, you would use these functions to trace
 // the execution flow and performance of critical operations.
 func TestSpanUtilities(t *testing.T) {
-	// Create a context
-	ctx := context.Background()
+	// The host application owns the recording trace the SDK spans join
+	ctx, hostSpan := hostTracer().Start(context.Background(), "host_request")
+	defer hostSpan.End()
 
 	// Start a new span
 	// In a real application, you would wrap operations with spans
@@ -307,6 +308,7 @@ func TestContextPropagation(t *testing.T) {
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false), // Only enable tracing
 		WithPropagators(propagation.TraceContext{}),
+		WithRegisterGlobally(true),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
@@ -315,7 +317,7 @@ func TestContextPropagation(t *testing.T) {
 	// Start a span to create some trace context
 	tracer := provider.Tracer()
 
-	ctx, span := tracer.Start(ctx, "parent_service_operation")
+	ctx, span := hostTracer().Start(ctx, "parent_service_operation")
 	defer span.End()
 
 	// Simulate extracting context from an incoming request

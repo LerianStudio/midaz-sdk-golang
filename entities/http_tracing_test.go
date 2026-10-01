@@ -21,6 +21,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// hostTracer stands in for the host application's recording tracer: a provider
+// without a collector endpoint records nothing and only carries the host span.
+func hostTracer() trace.Tracer {
+	return sdktrace.NewTracerProvider().Tracer("host")
+}
+
 // TestHTTPClientTracingIntegration tests tracing integration with the HTTP client
 func TestHTTPClientTracingIntegration(t *testing.T) {
 	t.Run("HTTPClientInjectsTraceHeaders", func(t *testing.T) {
@@ -74,9 +80,7 @@ func testHTTPClientInjectsTraceHeaders(t *testing.T) {
 	}, "Bearer test-token", provider)
 
 	// Start a trace
-	tracer := provider.Tracer()
-
-	ctx, span := tracer.Start(context.Background(), "test_http_request")
+	ctx, span := hostTracer().Start(context.Background(), "test_http_request")
 	defer span.End()
 
 	// Make a request
@@ -167,9 +171,7 @@ func testHTTPClientWithCustomHeaders(t *testing.T) {
 	}, "Bearer test-token", provider)
 
 	// Start a trace
-	tracer := provider.Tracer()
-
-	ctx, span := tracer.Start(context.Background(), "test_http_request_with_headers")
+	ctx, span := hostTracer().Start(context.Background(), "test_http_request_with_headers")
 	defer span.End()
 
 	// Custom headers
@@ -225,9 +227,7 @@ func testHTTPClientErrorHandlingWithTracing(t *testing.T) {
 	}, "Bearer test-token", provider)
 
 	// Start a trace
-	tracer := provider.Tracer()
-
-	ctx, span := tracer.Start(context.Background(), "test_http_request_error")
+	ctx, span := hostTracer().Start(context.Background(), "test_http_request_error")
 	defer span.End()
 
 	// Make a request that will result in an error
@@ -300,9 +300,7 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 	}, "Bearer service1-token", provider1)
 
 	// Start trace in service 1
-	tracer1 := provider1.Tracer()
-
-	ctx, span1 := tracer1.Start(context.Background(), "service_1_operation")
+	ctx, span1 := hostTracer().Start(context.Background(), "service_1_operation")
 	defer span1.End()
 
 	originalTraceID := trace.SpanFromContext(ctx).SpanContext().TraceID()
@@ -342,9 +340,7 @@ func TestHTTPClientPropagatesExtractedIncomingTraceWithRegisterGloballyFalse(t *
 
 	defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
 
-	tracer := provider.Tracer()
-
-	incomingCtx, incomingSpan := tracer.Start(observability.WithProvider(context.Background(), provider), "client-app-request")
+	incomingCtx, incomingSpan := hostTracer().Start(observability.WithProvider(context.Background(), provider), "client-app-request")
 	defer incomingSpan.End()
 
 	incomingHeaders := http.Header{}

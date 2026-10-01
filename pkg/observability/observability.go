@@ -152,10 +152,9 @@ type Config struct {
 	PropagationHeaders         []string
 	propagationHeadersExplicit bool
 
-	// RegisterGlobally controls whether to register providers as global OpenTelemetry providers.
-	// When true (default), providers are registered globally via otel.Set*Provider calls.
-	// When false, providers are only available via this MidazProvider instance, avoiding
-	// conflicts when multiple SDK instances are used in the same process.
+	// RegisterGlobally opts into registering providers as global OpenTelemetry providers
+	// via otel.Set*Provider calls. Default false: the SDK is a guest in the host process
+	// and its providers are only available via this MidazProvider instance.
 	RegisterGlobally bool
 }
 
@@ -331,10 +330,9 @@ func WithPropagationHeaders(headers ...string) Option {
 	}
 }
 
-// WithRegisterGlobally controls whether to register providers as global OpenTelemetry providers.
-// When true (default), providers are registered globally via otel.Set*Provider calls.
-// When false, providers are only available via this MidazProvider instance, avoiding
-// conflicts when multiple SDK instances are used in the same process.
+// WithRegisterGlobally opts into registering providers as global OpenTelemetry providers
+// via otel.Set*Provider calls. Default false: the host process owns its OTel globals and
+// the SDK's providers are only available via this MidazProvider instance.
 func WithRegisterGlobally(register bool) Option {
 	return func(c *Config) error {
 		c.RegisterGlobally = register
@@ -414,7 +412,6 @@ func DefaultConfig() *Config {
 			"x-request-id",
 			"x-correlation-id",
 		},
-		RegisterGlobally: true,
 	}
 }
 
@@ -528,6 +525,15 @@ func (p *MidazProvider) initTelemetry() error {
 		return nil
 	}
 
+	// Without an endpoint there is nothing to export: keep the local noop
+	// tracer/meter and never touch the host's OTel globals.
+	enableTelemetry := strings.TrimSpace(p.config.CollectorEndpoint) != ""
+	if !enableTelemetry {
+		p.Logger().Warn("observability: tracing or metrics enabled without a collector endpoint; telemetry is not exported")
+
+		return nil
+	}
+
 	var globals telemetryGlobals
 	if !p.config.RegisterGlobally {
 		globals = captureTelemetryGlobals()
@@ -539,7 +545,7 @@ func (p *MidazProvider) initTelemetry() error {
 		ServiceVersion:            p.config.ServiceVersion,
 		DeploymentEnv:             p.config.Environment,
 		CollectorExporterEndpoint: p.config.CollectorEndpoint,
-		EnableTelemetry:           true,
+		EnableTelemetry:           enableTelemetry,
 		InsecureExporter:          p.config.CollectorInsecure,
 		Logger:                    obslog.NewNop(), //nolint:forbidigo // lib-observability/tracing requires a lib-observability logger.
 		Propagator:                p.textMapPropagatorFromConfig(),
