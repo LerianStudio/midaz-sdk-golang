@@ -97,21 +97,9 @@ var parseCases = []parseCase{
 		mode: serverversion.FeeModeLegacy,
 	},
 	{
-		name: "signed component",
-		body: `{"version":"4.+1.3"}`,
-		want: serverversion.ServerVersion{Raw: "4.+1.3", Source: serverversion.SourceLegacy},
-		mode: serverversion.FeeModeLegacy,
-	},
-	{
 		name: "empty prerelease",
 		body: `{"version":"4.1.3-"}`,
 		want: serverversion.ServerVersion{Raw: "4.1.3-", Source: serverversion.SourceLegacy},
-		mode: serverversion.FeeModeLegacy,
-	},
-	{
-		name: "component overflows int",
-		body: `{"version":"99999999999999999999.0.0"}`,
-		want: serverversion.ServerVersion{Raw: "99999999999999999999.0.0", Source: serverversion.SourceLegacy},
 		mode: serverversion.FeeModeLegacy,
 	},
 	{

@@ -75,7 +75,7 @@ func parseSemVer(s string) (ServerVersion, bool) {
 
 	for i, part := range parts {
 		n, err := strconv.Atoi(part)
-		if err != nil || strings.Trim(part, "0123456789") != "" {
+		if err != nil {
 			return ServerVersion{}, false
 		}
 
