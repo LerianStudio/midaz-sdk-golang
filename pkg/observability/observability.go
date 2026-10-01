@@ -66,6 +66,8 @@ const (
 	MetricRequestBatchLatency = "midaz.sdk.request.batch.latency"
 )
 
+const instrumentationName = "github.com/LerianStudio/midaz-sdk-golang/v6"
+
 // Provider is the interface for observability providers.
 // It allows for consistent access to tracing, metrics, and logging capabilities.
 //
@@ -531,11 +533,13 @@ func (p *MidazProvider) initTelemetry() error {
 		return nil
 	}
 
-	// Without an endpoint there is nothing to export: keep the local noop
-	// tracer/meter and never touch the host's OTel globals.
+	// Without an endpoint the SDK is a guest: it reads the host's delegating
+	// OTel globals, so providers installed later are honoured, and never sets them.
 	enableTelemetry := strings.TrimSpace(p.config.CollectorEndpoint) != ""
 	if !enableTelemetry {
-		p.Logger().Warn("observability: tracing or metrics enabled without a collector endpoint; telemetry is not exported")
+		p.Logger().Warn("observability: no collector endpoint; tracing and metrics use the host's OTel providers")
+		p.tracer = otel.GetTracerProvider().Tracer(instrumentationName)
+		p.meter = otel.GetMeterProvider().Meter(instrumentationName)
 
 		return nil
 	}
@@ -546,7 +550,7 @@ func (p *MidazProvider) initTelemetry() error {
 	}
 
 	telemetry, err := obstracing.NewTelemetry(obstracing.TelemetryConfig{
-		LibraryName:               "github.com/LerianStudio/midaz-sdk-golang/v6",
+		LibraryName:               instrumentationName,
 		ServiceName:               p.config.ServiceName,
 		ServiceVersion:            p.config.ServiceVersion,
 		DeploymentEnv:             p.config.Environment,
@@ -574,7 +578,7 @@ func (p *MidazProvider) initTelemetry() error {
 	p.metricsFactory = telemetry.MetricsFactory
 
 	if p.config.EnabledComponents.Tracing {
-		tracer, err := telemetry.Tracer("github.com/LerianStudio/midaz-sdk-golang/v6")
+		tracer, err := telemetry.Tracer(instrumentationName)
 		if err != nil {
 			return err
 		}
@@ -582,7 +586,7 @@ func (p *MidazProvider) initTelemetry() error {
 	}
 
 	if p.config.EnabledComponents.Metrics {
-		meter, err := telemetry.Meter("github.com/LerianStudio/midaz-sdk-golang/v6")
+		meter, err := telemetry.Meter(instrumentationName)
 		if err != nil {
 			return err
 		}
@@ -763,10 +767,15 @@ func (p *MidazProvider) IsEnabled() bool {
 }
 
 // TextMapPropagator returns the provider-specific propagator without requiring
-// this method on the public Provider interface.
+// this method on the public Provider interface. Without a collector endpoint or
+// explicit propagators it is the host's global propagator.
 func (p *MidazProvider) TextMapPropagator() propagation.TextMapPropagator {
 	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Tracing {
 		return propagation.NewCompositeTextMapPropagator()
+	}
+
+	if p.telemetry == nil && len(p.config.Propagators) == 0 {
+		return hostTextMapPropagator()
 	}
 
 	return p.textMapPropagatorFromConfig()
@@ -992,18 +1001,23 @@ func defaultTextMapPropagator() propagation.TextMapPropagator {
 	)
 }
 
+// hostTextMapPropagator is the host's global propagator, or the W3C default
+// while the host has installed none.
+func hostTextMapPropagator() propagation.TextMapPropagator {
+	if global := otel.GetTextMapPropagator(); global != nil && len(global.Fields()) > 0 {
+		return global
+	}
+
+	return defaultTextMapPropagator()
+}
+
 func textMapPropagatorForContext(ctx context.Context) propagation.TextMapPropagator {
 	return textMapPropagatorForProvider(GetProvider(ctx))
 }
 
 func textMapPropagatorForProvider(provider Provider) propagation.TextMapPropagator {
 	if provider == nil {
-		global := otel.GetTextMapPropagator()
-		if global == nil || len(global.Fields()) == 0 {
-			return defaultTextMapPropagator()
-		}
-
-		return global
+		return hostTextMapPropagator()
 	}
 
 	if !provider.IsEnabled() {
