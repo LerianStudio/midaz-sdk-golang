@@ -35,10 +35,17 @@ Parsing rules:
   stays on legacy until it learns the new shape.
 - `"0.0.0"`, `"dev"`, an empty string or an invalid SemVer give `Known=false`.
 - A prerelease keeps its major: `4.2.0-beta.5` is `Major=4`.
-- A 404, a non-2xx status, a timeout, a cancelled context, a refused
-  connection, a non-JSON body (a proxy HTML page) or a body over 64 KiB give
-  `Source=unavailable` plus a non-nil error to log. An unknown version is not
-  an error.
+
+`ServerVersion` returns a non-nil error if and only if `Source` is
+`unavailable`:
+
+- a transport failure (timeout, cancelled context, refused connection) or a
+  non-2xx status, such as a 404;
+- a 2xx body that is not a `/version` response: non-JSON (a proxy HTML page),
+  cut at 64 KiB, `{}`, no `version` field, or an unknown `schemaVersion`.
+
+A recognised shape with a placeholder or unparsable version (`0.0.0`, `dev`,
+`4.1.x`) keeps `Known=false` and its real `Source`, with a nil error.
 
 ## The decision rule
 
@@ -55,8 +62,8 @@ Parsing rules:
 
 Native is correct only on v4: on a v3 ledger it posts to a `/v2` that does not
 exist. Legacy posts on `/v1`, which never applies fees on either line. So when
-`/version` answers with nothing the SDK recognises, or cannot be read at boot,
-the mode is legacy.
+`/version` serves a version the SDK cannot use (`0.0.0`, `dev`, invalid), or
+cannot be read at boot, the mode is legacy.
 
 Legacy charges the fee only through the service's own fee path (an external
 fee engine such as `plugin-fees`, switched on). With that path in place,

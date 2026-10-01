@@ -2,6 +2,7 @@ package midaz
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -28,9 +29,11 @@ const (
 	maxServerVersionBody   = 64 << 10 // a real /version body is under 1 KiB
 )
 
-// ServerVersion reads the ledger's public GET /version route. Any failure gives
-// Source unavailable (legacy fees) and an error to log; an unknown version is no error.
-// Callers cache the result and refresh it periodically, never resolving it per request.
+var errNotVersionBody = errors.New("body is not a /version response")
+
+// ServerVersion reads the ledger's public GET /version route. The error is non-nil iff Source is
+// unavailable (legacy fees): transport, non-2xx, or a 2xx body that is not a /version response.
+// A placeholder version is Known=false with no error. Cache the result; never resolve per request.
 func (c *Client) ServerVersion(ctx context.Context) (ServerVersion, error) {
 	unavailable := ServerVersion{Source: serverversion.SourceUnavailable}
 
@@ -60,7 +63,11 @@ func (c *Client) ServerVersion(ctx context.Context) (ServerVersion, error) {
 		return unavailable, sdkerrors.ClassifyTransportError(serverVersionOperation, err)
 	}
 
-	return serverversion.Parse(body), nil
+	if v := serverversion.Parse(body); v.Source != serverversion.SourceUnavailable {
+		return v, nil
+	}
+
+	return unavailable, sdkerrors.NewResponseDecodeError(serverVersionOperation, resp.StatusCode, errNotVersionBody)
 }
 
 // ResolveFeeMode is the single decision rule: native iff Known && Major >= 4.

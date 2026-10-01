@@ -24,8 +24,8 @@ func newServerVersionClient(t *testing.T, ledgerURL string) *Client {
 	return c
 }
 
-// TestServerVersion pins that every 2xx body reaches the parser over a GET on
-// exactly /version, with a nil error even when the version is unknown.
+// TestServerVersion pins that a /version body reaches the parser over a GET on
+// exactly /version, with a nil error even when the version is a placeholder.
 func TestServerVersion(t *testing.T) {
 	tests := []struct {
 		name string
@@ -38,14 +38,9 @@ func TestServerVersion(t *testing.T) {
 			want: ServerVersion{Raw: "4.1.3", Major: 4, Minor: 1, Patch: 3, Known: true, Source: serverversion.SourceBuildInfoV1},
 		},
 		{
-			name: "proxy html page",
-			body: `<html><body>Welcome to nginx!</body></html>`,
-			want: ServerVersion{Source: serverversion.SourceUnavailable},
-		},
-		{
-			name: "1 MiB body is cut at the read limit",
-			body: `{"version":"4.1.0","pad":"` + strings.Repeat("x", 1<<20) + `"}`,
-			want: ServerVersion{Source: serverversion.SourceUnavailable},
+			name: "placeholder version is no error",
+			body: `{"version":"0.0.0","requestDate":"2026-09-30T12:00:00Z"}`,
+			want: ServerVersion{Raw: "0.0.0", Source: serverversion.SourceLegacy},
 		},
 	}
 
@@ -93,6 +88,16 @@ func TestServerVersionFailures(t *testing.T) {
 			},
 		},
 		{
+			name:    "2xx proxy page is not a /version response",
+			handler: writeBody(`<html><body>Welcome to nginx!</body></html>`),
+			check:   wantNotVersionBody,
+		},
+		{
+			name:    "1 MiB body is cut at the read limit",
+			handler: writeBody(`{"version":"4.1.0","pad":"` + strings.Repeat("x", 1<<20) + `"}`),
+			check:   wantNotVersionBody,
+		},
+		{
 			name: "deadline while the server hangs",
 			handler: func(_ http.ResponseWriter, r *http.Request) {
 				<-r.Context().Done()
@@ -135,4 +140,17 @@ func TestServerVersionNilClient(t *testing.T) {
 
 	assert.True(t, sdkerrors.IsConfigurationError(err), "want configuration error, got %v", err)
 	assert.Equal(t, ServerVersion{Source: serverversion.SourceUnavailable}, got)
+}
+
+func writeBody(body string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}
+}
+
+func wantNotVersionBody(t *testing.T, err error) {
+	t.Helper()
+
+	assert.True(t, sdkerrors.IsResponseDecodeError(err), "want response decode error, got %v", err)
+	require.ErrorContains(t, err, "(HTTP 200): body is not a /version response")
 }
