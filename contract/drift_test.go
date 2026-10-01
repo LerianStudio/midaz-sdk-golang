@@ -75,6 +75,8 @@ func TestLifecycleErrorCodesMatchServer(t *testing.T) {
 		{"revert-only-bidirectional", sdkerrors.APICodeRevertOnlyBidirectional, srvconst.ErrRevertOnlyBidirectional},
 		{"holder-not-found", sdkerrors.APICodeHolderNotFound, srvconst.ErrHolderNotFound},
 		{"holder-required", sdkerrors.APICodeHolderRequired, srvconst.ErrHolderRequired},
+		{"skip-not-permitted", sdkerrors.APICodeSkipNotPermitted, srvconst.ErrSkipNotPermitted},
+		{"reservation-denied", sdkerrors.APICodeTransactionReservationDenied, srvconst.ErrTransactionReservationDenied},
 	}
 
 	for _, c := range cases {
@@ -83,16 +85,4 @@ func TestLifecycleErrorCodesMatchServer(t *testing.T) {
 				"SDK lifecycle API code %q drifted from server constant", c.name)
 		})
 	}
-}
-
-// TestSkipNotPermittedCodeMatchesServer pins 0490: the /v2 create answers it when
-// a skip flag lacks the enabling ledger override (errors.IsSkipNotPermitted).
-func TestSkipNotPermittedCodeMatchesServer(t *testing.T) {
-	assert.Equal(t, sdkerrors.APICodeSkipNotPermitted, srvconst.ErrSkipNotPermitted.Error())
-}
-
-// TestReservationDeniedCodeMatchesServer pins 0177: the Tracer denied the
-// transaction's reservation (errors.IsTransactionReservationDenied).
-func TestReservationDeniedCodeMatchesServer(t *testing.T) {
-	assert.Equal(t, sdkerrors.APICodeTransactionReservationDenied, srvconst.ErrTransactionReservationDenied.Error())
 }

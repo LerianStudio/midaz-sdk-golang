@@ -292,20 +292,20 @@ func TestV2TransactionCreateSkip(t *testing.T) {
 				require.JSONEq(t, tc.wantSkip, string(got))
 			})
 		}
-
-		t.Run(action.name+"/0490", func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/problem+json")
-				w.WriteHeader(http.StatusUnprocessableEntity)
-				_, _ = w.Write([]byte(`{"title":"Skip Not Permitted","detail":"fee skip is not enabled for this ledger","code":"0490"}`))
-			}))
-			defer srv.Close()
-
-			c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
-			require.NoError(t, err)
-
-			err = action.call(context.Background(), c, orgID, ledgerID, newInput(&models.TransactionV2Skip{Fees: true}))
-			require.True(t, sdkerrors.IsSkipNotPermitted(err), "want 0490 as IsSkipNotPermitted, got %v", err)
-		})
 	}
+
+	t.Run("0490", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"title":"Skip Not Permitted","detail":"fee skip is not enabled for this ledger","code":"0490"}`))
+		}))
+		defer srv.Close()
+
+		c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
+		require.NoError(t, err)
+
+		err = v2CreateActions[0].call(context.Background(), c, orgID, ledgerID, newInput(&models.TransactionV2Skip{Fees: true}))
+		require.True(t, sdkerrors.IsSkipNotPermitted(err), "want 0490 as IsSkipNotPermitted, got %v", err)
+	})
 }
