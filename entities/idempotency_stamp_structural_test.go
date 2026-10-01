@@ -67,7 +67,8 @@ var (
 	}
 
 	stampPreparers = map[string]bool{
-		"prepareCreate": true,
+		"prepareCreate":         true,
+		"bodilessActionEditors": true,
 	}
 )
 

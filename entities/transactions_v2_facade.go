@@ -474,7 +474,7 @@ func (f *transactionsV2Facade) Commit(ctx context.Context, orgID, ledgerID, tran
 	}
 
 	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
-	resp, err := f.ledger.CommitTransactionV2(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...)
+	resp, err := f.ledger.CommitTransactionV2WithBody(ctx, orgID, ledgerID, transactionID, "", nil, bodilessActionEditors(ctx)...)
 
 	return readOne[models.TransactionV2](operation, resp, err)
 }
@@ -490,9 +490,19 @@ func (f *transactionsV2Facade) Revert(ctx context.Context, orgID, ledgerID, tran
 	}
 
 	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
-	resp, err := f.ledger.RevertTransactionV2(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...)
+	resp, err := f.ledger.RevertTransactionV2WithBody(ctx, orgID, ledgerID, transactionID, "", nil, bodilessActionEditors(ctx)...)
 
 	return readOne[models.TransactionV2](operation, resp, err)
+}
+
+// bodilessActionEditors sends a lifecycle action without its optional body, as
+// it shipped: the generated WithBody builder always stamps Content-Type.
+func bodilessActionEditors(ctx context.Context) []genledger.RequestEditorFn {
+	return append(actionIdempotencyEditors(ctx), func(_ context.Context, req *http.Request) error {
+		req.Header.Del("Content-Type")
+
+		return nil
+	})
 }
 
 // Cancel aborts a PENDING transaction (PENDING → CANCELED), releasing the value

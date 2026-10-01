@@ -213,6 +213,47 @@ func TestTransactionsV2Facade_CancelSynthesizesOnEmptyBody(t *testing.T) {
 	}
 }
 
+// TestTransactionsV2Facade_CommitAndRevertStayBodiless pins the wire commit and
+// revert shipped with: no body and no Content-Type. The server's lifecycle body
+// is optional and only carries an account-block grant the SDK never sends.
+func TestTransactionsV2Facade_CommitAndRevertStayBodiless(t *testing.T) {
+	actions := map[string]func(*transactionsV2Facade) (*models.TransactionV2, error){
+		"commit": func(f *transactionsV2Facade) (*models.TransactionV2, error) {
+			return f.Commit(context.Background(), txOrgID, txLedgerID, txID)
+		},
+		"revert": func(f *transactionsV2Facade) (*models.TransactionV2, error) {
+			return f.Revert(context.Background(), txOrgID, txLedgerID, txID)
+		},
+	}
+
+	for name, action := range actions {
+		t.Run(name, func(t *testing.T) {
+			var (
+				body        []byte
+				contentType []string
+			)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ = io.ReadAll(r.Body)
+				contentType = r.Header.Values("Content-Type")
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{"id":"tx-1","status":{"code":"APPROVED"}}`))
+			}))
+			defer srv.Close()
+
+			if _, err := action(newTestTransactionsV2Facade(t, srv)); err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+
+			if len(body) != 0 || len(contentType) != 0 {
+				t.Fatalf("%s sent body %q with Content-Type %q, want neither", name, body, contentType)
+			}
+		})
+	}
+}
+
 // TestTransactionsV2Facade_CreateRefusesInvalidPayloadLocally pins that a payload
 // the SDK can see is wrong is classified as a validation failure and never
 // reaches the wire. On a create, an unclassified failure is the one a caller

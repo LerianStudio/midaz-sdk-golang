@@ -40,6 +40,24 @@ func (e AccountRuleRuleType) Valid() bool {
 	}
 }
 
+// Defines values for CreateAtomicTransactionBatchV2ItemRequestAction.
+const (
+	Direct CreateAtomicTransactionBatchV2ItemRequestAction = "direct"
+	Hold   CreateAtomicTransactionBatchV2ItemRequestAction = "hold"
+)
+
+// Valid indicates whether the value is a known member of the CreateAtomicTransactionBatchV2ItemRequestAction enum.
+func (e CreateAtomicTransactionBatchV2ItemRequestAction) Valid() bool {
+	switch e {
+	case Direct:
+		return true
+	case Hold:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateOperationRouteInputOperationType.
 const (
 	CreateOperationRouteInputOperationTypeBidirectional CreateOperationRouteInputOperationType = "bidirectional"
@@ -55,6 +73,36 @@ func (e CreateOperationRouteInputOperationType) Valid() bool {
 	case CreateOperationRouteInputOperationTypeDestination:
 		return true
 	case CreateOperationRouteInputOperationTypeSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RegulatoryFieldsAccountType.
+const (
+	DEPOSIT                   RegulatoryFieldsAccountType = "DEPOSIT"
+	INVESTMENT                RegulatoryFieldsAccountType = "INVESTMENT"
+	NONRESIDENT               RegulatoryFieldsAccountType = "NON_RESIDENT"
+	OTHERFINANCIALINVESTMENTS RegulatoryFieldsAccountType = "OTHER_FINANCIAL_INVESTMENTS"
+	PAYMENT                   RegulatoryFieldsAccountType = "PAYMENT"
+	SAVINGS                   RegulatoryFieldsAccountType = "SAVINGS"
+)
+
+// Valid indicates whether the value is a known member of the RegulatoryFieldsAccountType enum.
+func (e RegulatoryFieldsAccountType) Valid() bool {
+	switch e {
+	case DEPOSIT:
+		return true
+	case INVESTMENT:
+		return true
+	case NONRESIDENT:
+		return true
+	case OTHERFINANCIALINVESTMENTS:
+		return true
+	case PAYMENT:
+		return true
+	case SAVINGS:
 		return true
 	default:
 		return false
@@ -90,9 +138,12 @@ func (e StatusCode) Valid() bool {
 
 // Account defines model for Account.
 type Account struct {
-	Alias           *string                 `json:"alias"`
-	AssetCode       string                  `json:"assetCode"`
-	Blocked         *bool                   `json:"blocked"`
+	Alias     *string `json:"alias"`
+	AssetCode string  `json:"assetCode"`
+	Blocked   *bool   `json:"blocked"`
+
+	// ClosedAt Instant the account was closed, null while it is still open. Output only: it is written exclusively by the close command and is refused as an input field on create and update
+	ClosedAt        *time.Time              `json:"closedAt"`
 	CreatedAt       time.Time               `json:"createdAt"`
 	DeletedAt       *time.Time              `json:"deletedAt"`
 	EntityId        *string                 `json:"entityId"`
@@ -107,6 +158,27 @@ type Account struct {
 	Status          Status                  `json:"status"`
 	Type            string                  `json:"type"`
 	UpdatedAt       time.Time               `json:"updatedAt"`
+}
+
+// AccountBlockException defines model for AccountBlockException.
+type AccountBlockException struct {
+	// AccountAlias Alias of the source account the exception authorizes
+	AccountAlias string `json:"accountAlias"`
+
+	// AccountBlockExceptionId Single-use exception identifier
+	AccountBlockExceptionId string `json:"accountBlockExceptionId"`
+
+	// Amount Authorized amount, echoed from the request
+	Amount string `json:"amount"`
+
+	// ExpiresAt Instant the exception expires, derived from the applied TTL
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// AccountBlockExceptions defines model for AccountBlockExceptions.
+type AccountBlockExceptions struct {
+	// Exceptions Created exceptions, in request order
+	Exceptions *[]AccountBlockException `json:"exceptions"`
 }
 
 // AccountRule defines model for AccountRule.
@@ -140,9 +212,12 @@ type AccountType struct {
 
 // AccountV2 defines model for AccountV2.
 type AccountV2 struct {
-	Alias              *string                 `json:"alias"`
-	AssetCode          string                  `json:"assetCode"`
-	Blocked            *bool                   `json:"blocked"`
+	Alias     *string `json:"alias"`
+	AssetCode string  `json:"assetCode"`
+	Blocked   *bool   `json:"blocked"`
+
+	// ClosedAt Instant the account was closed, null while it is still open. Output only: it is written exclusively by the close command and is refused as an input field on create and update
+	ClosedAt           *time.Time              `json:"closedAt"`
 	CreatedAt          time.Time               `json:"createdAt"`
 	DeletedAt          *time.Time              `json:"deletedAt"`
 	EntityId           *string                 `json:"entityId"`
@@ -163,14 +238,15 @@ type AccountV2 struct {
 
 // AccountingEntries defines model for AccountingEntries.
 type AccountingEntries struct {
-	Block     *AccountingEntry `json:"block,omitempty"`
-	Cancel    *AccountingEntry `json:"cancel,omitempty"`
-	Commit    *AccountingEntry `json:"commit,omitempty"`
-	Direct    *AccountingEntry `json:"direct,omitempty"`
-	Hold      *AccountingEntry `json:"hold,omitempty"`
-	Overdraft *AccountingEntry `json:"overdraft,omitempty"`
-	Revert    *AccountingEntry `json:"revert,omitempty"`
-	Unblock   *AccountingEntry `json:"unblock,omitempty"`
+	Block       *AccountingEntry `json:"block,omitempty"`
+	Cancel      *AccountingEntry `json:"cancel,omitempty"`
+	Commit      *AccountingEntry `json:"commit,omitempty"`
+	CrossLedger *AccountingEntry `json:"crossLedger,omitempty"`
+	Direct      *AccountingEntry `json:"direct,omitempty"`
+	Hold        *AccountingEntry `json:"hold,omitempty"`
+	Overdraft   *AccountingEntry `json:"overdraft,omitempty"`
+	Revert      *AccountingEntry `json:"revert,omitempty"`
+	Unblock     *AccountingEntry `json:"unblock,omitempty"`
 }
 
 // AccountingEntry defines model for AccountingEntry.
@@ -253,6 +329,34 @@ type AssetRate struct {
 	To             string                 `json:"to"`
 	Ttl            int64                  `json:"ttl"`
 	UpdatedAt      time.Time              `json:"updatedAt"`
+}
+
+// AtomicTransactionBatchV2Transaction defines model for AtomicTransactionBatchV2Transaction.
+type AtomicTransactionBatchV2Transaction struct {
+	Amount      *string             `json:"amount"`
+	AssetCode   string              `json:"assetCode"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	Credit      *[]string           `json:"credit"`
+	Debit       *[]string           `json:"debit"`
+	DeletedAt   *time.Time          `json:"deletedAt"`
+	Description string              `json:"description"`
+	FeesSkipped bool                `json:"feesSkipped"`
+	GroupId     *openapi_types.UUID `json:"groupId,omitempty"`
+	Id          openapi_types.UUID  `json:"id"`
+	LedgerId    openapi_types.UUID  `json:"ledgerId"`
+
+	// Metadata Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.
+	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
+	Operations *[]OperationV2          `json:"operations"`
+
+	// Order Logical order used to execute this transaction.
+	Order               int64               `json:"order"`
+	OrganizationId      openapi_types.UUID  `json:"organizationId"`
+	ParentTransactionId *openapi_types.UUID `json:"parentTransactionId,omitempty"`
+	RouteId             *openapi_types.UUID `json:"routeId,omitempty"`
+	Status              TransactionStatus   `json:"status"`
+	TracerSkipped       bool                `json:"tracerSkipped"`
+	UpdatedAt           time.Time           `json:"updatedAt"`
 }
 
 // AuditEventResponse defines model for AuditEventResponse.
@@ -349,6 +453,24 @@ type Contact struct {
 	SecondaryEmail *string `json:"secondaryEmail,omitempty"`
 }
 
+// CreateAccountBlockExceptionInput defines model for CreateAccountBlockExceptionInput.
+type CreateAccountBlockExceptionInput struct {
+	// AccountAlias Alias of the source account the exception authorizes
+	AccountAlias string `json:"accountAlias"`
+
+	// Amount Exact amount of the authorized debit, as a positive decimal string
+	Amount string `json:"amount"`
+
+	// Ttl Lifetime in seconds (1-86400, default 300)
+	Ttl *int64 `json:"ttl,omitempty"`
+}
+
+// CreateAccountBlockExceptionsInput defines model for CreateAccountBlockExceptionsInput.
+type CreateAccountBlockExceptionsInput struct {
+	// Exceptions Exceptions to create (1-100 per request)
+	Exceptions *[]CreateAccountBlockExceptionInput `json:"exceptions"`
+}
+
 // CreateAccountInput defines model for CreateAccountInput.
 type CreateAccountInput struct {
 	Alias           *string                `json:"alias"`
@@ -403,6 +525,43 @@ type CreateAssetRateInput struct {
 	Source     *string                `json:"source,omitempty"`
 	To         string                 `json:"to"`
 	Ttl        *int64                 `json:"ttl,omitempty"`
+}
+
+// CreateAtomicTransactionBatchV2ItemRequest defines model for CreateAtomicTransactionBatchV2ItemRequest.
+type CreateAtomicTransactionBatchV2ItemRequest struct {
+	// AccountBlockExceptionId Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.
+	AccountBlockExceptionId *openapi_types.UUID `json:"accountBlockExceptionId,omitempty"`
+
+	// Action Transaction action.
+	Action           CreateAtomicTransactionBatchV2ItemRequestAction `json:"action"`
+	Amount           string                                          `json:"amount"`
+	Asset            string                                          `json:"asset"`
+	Code             *string                                         `json:"code,omitempty"`
+	Credits          []V2LegInput                                    `json:"credits"`
+	Debits           []V2LegInput                                    `json:"debits"`
+	Description      *string                                         `json:"description,omitempty"`
+	Metadata         *map[string]interface{}                         `json:"metadata,omitempty"`
+	OperationRouteId *openapi_types.UUID                             `json:"operationRouteId,omitempty"`
+
+	// Order One-based logical execution order.
+	Order   int64               `json:"order"`
+	RouteId *openapi_types.UUID `json:"routeId,omitempty"`
+	Skip    *TransactionSkip    `json:"skip,omitempty"`
+}
+
+// CreateAtomicTransactionBatchV2ItemRequestAction Transaction action.
+type CreateAtomicTransactionBatchV2ItemRequestAction string
+
+// CreateAtomicTransactionBatchV2Request defines model for CreateAtomicTransactionBatchV2Request.
+type CreateAtomicTransactionBatchV2Request struct {
+	// Transactions Direct or hold transactions with unique consecutive order. All items succeed atomically or none is applied.
+	Transactions []CreateAtomicTransactionBatchV2ItemRequest `json:"transactions"`
+}
+
+// CreateAtomicTransactionBatchV2Response defines model for CreateAtomicTransactionBatchV2Response.
+type CreateAtomicTransactionBatchV2Response struct {
+	// Transactions Created transactions in increasing logical order.
+	Transactions []AtomicTransactionBatchV2Transaction `json:"transactions"`
 }
 
 // CreateHolderAccountInput defines model for CreateHolderAccountInput.
@@ -511,7 +670,6 @@ type CreateTransactionInflowInput struct {
 	Route                    *string                `json:"route,omitempty"`
 	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
 	Send                     SendInflow             `json:"send"`
-	Skip                     *TransactionSkip       `json:"skip,omitempty"`
 	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
 }
 
@@ -525,7 +683,6 @@ type CreateTransactionInput struct {
 	Route                    *string                `json:"route,omitempty"`
 	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
 	Send                     Send                   `json:"send"`
-	Skip                     *TransactionSkip       `json:"skip,omitempty"`
 	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
 }
 
@@ -539,7 +696,6 @@ type CreateTransactionOutflowInput struct {
 	Route                    *string                `json:"route,omitempty"`
 	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
 	Send                     SendOutflow            `json:"send"`
-	Skip                     *TransactionSkip       `json:"skip,omitempty"`
 	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
 }
 
@@ -551,17 +707,41 @@ type CreateTransactionRouteInput struct {
 	Title           *string                `json:"title,omitempty"`
 }
 
-// CreateTransactionV2Input Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
+// CreateTransactionV2Input Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to. The direct and hold actions accept multiple enabled ledgers and return an atomic group; block and unblock still require every leg to name the same pair. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
 type CreateTransactionV2Input struct {
-	Amount           string                  `json:"amount"`
-	Asset            string                  `json:"asset"`
-	Code             *string                 `json:"code,omitempty"`
-	Credits          []V2LegInput            `json:"credits"`
-	Debits           []V2LegInput            `json:"debits"`
-	Description      *string                 `json:"description,omitempty"`
-	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
-	OperationRouteId *openapi_types.UUID     `json:"operationRouteId,omitempty"`
-	RouteId          *openapi_types.UUID     `json:"routeId,omitempty"`
+	// AccountBlockExceptionId Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.
+	AccountBlockExceptionId *openapi_types.UUID     `json:"accountBlockExceptionId,omitempty"`
+	Amount                  string                  `json:"amount"`
+	Asset                   string                  `json:"asset"`
+	Code                    *string                 `json:"code,omitempty"`
+	Credits                 []V2LegInput            `json:"credits"`
+	Debits                  []V2LegInput            `json:"debits"`
+	Description             *string                 `json:"description,omitempty"`
+	Metadata                *map[string]interface{} `json:"metadata,omitempty"`
+	OperationRouteId        *openapi_types.UUID     `json:"operationRouteId,omitempty"`
+	RouteId                 *openapi_types.UUID     `json:"routeId,omitempty"`
+	Skip                    *TransactionSkip        `json:"skip,omitempty"`
+}
+
+// CrossLedgerSettings defines model for CrossLedgerSettings.
+type CrossLedgerSettings struct {
+	Enabled bool `json:"enabled"`
+}
+
+// CrossLedgerSettingsInput defines model for CrossLedgerSettingsInput.
+type CrossLedgerSettingsInput struct {
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// CrossLedgerTransactionGroupV2 defines model for CrossLedgerTransactionGroupV2.
+type CrossLedgerTransactionGroupV2 struct {
+	GroupId openapi_types.UUID `json:"groupId"`
+
+	// RevertedGroupId Original group reversed by this group. Present only on grouped revert responses.
+	RevertedGroupId *openapi_types.UUID `json:"revertedGroupId,omitempty"`
+
+	// Transactions Created per-ledger transactions in deterministic decomposition order.
+	Transactions []AtomicTransactionBatchV2Transaction `json:"transactions"`
 }
 
 // Distribute defines model for Distribute.
@@ -591,8 +771,9 @@ type Error struct {
 	Title *string `json:"title,omitempty"`
 
 	// Type A URI reference to human-readable documentation for the error.
-	Type     *string   `json:"type,omitempty"`
-	Upstream *Upstream `json:"upstream,omitempty"`
+	Type                 *string                `json:"type,omitempty"`
+	Upstream             *Upstream              `json:"upstream,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
 // ErrorDetail defines model for ErrorDetail.
@@ -731,15 +912,17 @@ type FeeCreateBillingPackageInput struct {
 
 // FeeCreatePackageInput defines model for FeeCreatePackageInput.
 type FeeCreatePackageInput struct {
-	Description      *string        `json:"description,omitempty"`
-	Enable           *bool          `json:"enable"`
-	FeeGroupLabel    string         `json:"feeGroupLabel"`
-	Fees             map[string]Fee `json:"fees"`
-	MaximumAmount    string         `json:"maximumAmount"`
-	MinimumAmount    string         `json:"minimumAmount"`
-	SegmentId        *string        `json:"segmentId"`
-	TransactionRoute *string        `json:"transactionRoute,omitempty"`
-	WaivedAccounts   *[]string      `json:"waivedAccounts,omitempty"`
+	Description   *string        `json:"description,omitempty"`
+	Enable        *bool          `json:"enable"`
+	FeeGroupLabel string         `json:"feeGroupLabel"`
+	Fees          map[string]Fee `json:"fees"`
+	MaximumAmount string         `json:"maximumAmount"`
+	MinimumAmount string         `json:"minimumAmount"`
+	SegmentId     *string        `json:"segmentId"`
+
+	// TransactionRoute Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. Omit it, or send it empty, to apply the package to every payment.
+	TransactionRoute *string   `json:"transactionRoute,omitempty"`
+	WaivedAccounts   *[]string `json:"waivedAccounts,omitempty"`
 }
 
 // FeeDiscountTier defines model for FeeDiscountTier.
@@ -762,20 +945,22 @@ type FeeEventFilter struct {
 
 // FeePackage defines model for FeePackage.
 type FeePackage struct {
-	CreatedAt        time.Time      `json:"createdAt"`
-	DeletedAt        *time.Time     `json:"deletedAt"`
-	Description      *string        `json:"description"`
-	Enable           *bool          `json:"enable"`
-	FeeGroupLabel    string         `json:"feeGroupLabel"`
-	Fees             map[string]Fee `json:"fees"`
-	Id               string         `json:"id"`
-	LedgerId         string         `json:"ledgerId"`
-	MaximumAmount    string         `json:"maximumAmount"`
-	MinimumAmount    string         `json:"minimumAmount"`
-	SegmentId        string         `json:"segmentId"`
-	TransactionRoute *string        `json:"transactionRoute"`
-	UpdatedAt        time.Time      `json:"updatedAt"`
-	WaivedAccounts   *[]string      `json:"waivedAccounts"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	DeletedAt     *time.Time     `json:"deletedAt"`
+	Description   *string        `json:"description"`
+	Enable        *bool          `json:"enable"`
+	FeeGroupLabel string         `json:"feeGroupLabel"`
+	Fees          map[string]Fee `json:"fees"`
+	Id            string         `json:"id"`
+	LedgerId      string         `json:"ledgerId"`
+	MaximumAmount string         `json:"maximumAmount"`
+	MinimumAmount string         `json:"minimumAmount"`
+	SegmentId     string         `json:"segmentId"`
+
+	// TransactionRoute Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. An absent or empty value applies the package to every payment.
+	TransactionRoute *string   `json:"transactionRoute"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+	WaivedAccounts   *[]string `json:"waivedAccounts"`
 }
 
 // FeePagination defines model for FeePagination.
@@ -886,18 +1071,69 @@ type Ledger struct {
 	UpdatedAt      time.Time               `json:"updatedAt"`
 }
 
+// LedgerDashboardAssetPosition defines model for LedgerDashboardAssetPosition.
+type LedgerDashboardAssetPosition struct {
+	Accounts  int64  `json:"accounts"`
+	Asset     string `json:"asset"`
+	Available string `json:"available"`
+	OnHold    string `json:"onHold"`
+}
+
+// LedgerDashboardAssetVolume defines model for LedgerDashboardAssetVolume.
+type LedgerDashboardAssetVolume struct {
+	Amount       string `json:"amount"`
+	Asset        string `json:"asset"`
+	Transactions int64  `json:"transactions"`
+}
+
+// LedgerDashboardAssets defines model for LedgerDashboardAssets.
+type LedgerDashboardAssets struct {
+	Assets    *[]LedgerDashboardAssetPosition `json:"assets"`
+	UpdatedAt time.Time                       `json:"updatedAt"`
+}
+
+// LedgerDashboardMetrics defines model for LedgerDashboardMetrics.
+type LedgerDashboardMetrics struct {
+	ByStatus map[string]int64 `json:"byStatus"`
+
+	// ReversalsByAsset The part of the gross volume made of reversal legs: settled transactions inside the window whose parent_transaction_id is set, per asset. A true net is not derivable from volume and reversals alone, because it depends on whether each reversed original also falls inside the window.
+	ReversalsByAsset *[]LedgerDashboardAssetVolume `json:"reversalsByAsset"`
+	Total            int64                         `json:"total"`
+	UpdatedAt        time.Time                     `json:"updatedAt"`
+	VolumeByAsset    *[]LedgerDashboardAssetVolume `json:"volumeByAsset"`
+	WindowEnd        time.Time                     `json:"windowEnd"`
+	WindowStart      time.Time                     `json:"windowStart"`
+}
+
+// LedgerDashboardVolume defines model for LedgerDashboardVolume.
+type LedgerDashboardVolume struct {
+	Points      *[]LedgerDashboardVolumePoint `json:"points"`
+	UpdatedAt   time.Time                     `json:"updatedAt"`
+	WindowEnd   time.Time                     `json:"windowEnd"`
+	WindowStart time.Time                     `json:"windowStart"`
+}
+
+// LedgerDashboardVolumePoint defines model for LedgerDashboardVolumePoint.
+type LedgerDashboardVolumePoint struct {
+	ByAsset      *[]LedgerDashboardAssetVolume `json:"byAsset"`
+	Date         string                        `json:"date"`
+	Transactions int64                         `json:"transactions"`
+}
+
 // LedgerSettings defines model for LedgerSettings.
 type LedgerSettings struct {
-	Accounting AccountingValidation `json:"accounting"`
-	Overrides  OverridePolicy       `json:"overrides"`
-	Tracer     TracerSettings       `json:"tracer"`
+	Accounting  AccountingValidation `json:"accounting"`
+	CrossLedger CrossLedgerSettings  `json:"crossLedger"`
+	Overrides   OverridePolicy       `json:"overrides"`
+	Tracer      TracerSettings       `json:"tracer"`
 }
 
 // LedgerSettingsInput defines model for LedgerSettingsInput.
 type LedgerSettingsInput struct {
-	Accounting *AccountingValidationInput `json:"accounting,omitempty"`
-	Overrides  *OverridePolicyInput       `json:"overrides,omitempty"`
-	Tracer     *TracerSettingsInput       `json:"tracer,omitempty"`
+	Accounting  *AccountingValidationInput `json:"accounting,omitempty"`
+	CrossLedger *CrossLedgerSettingsInput  `json:"crossLedger,omitempty"`
+	Overrides   *OverridePolicyInput       `json:"overrides,omitempty"`
+	Tracer      *TracerSettingsInput       `json:"tracer,omitempty"`
 }
 
 // LegacyError defines model for LegacyError.
@@ -920,13 +1156,21 @@ type LegacyError struct {
 
 // LegalPerson defines model for LegalPerson.
 type LegalPerson struct {
-	Activity       *string             `json:"activity,omitempty"`
-	FoundingDate   *openapi_types.Date `json:"foundingDate,omitempty"`
-	Representative *Representative     `json:"representative,omitempty"`
-	Size           *string             `json:"size,omitempty"`
-	Status         *string             `json:"status,omitempty"`
-	TradeName      *string             `json:"tradeName,omitempty"`
-	Type           *string             `json:"type,omitempty"`
+	Activity           *string             `json:"activity,omitempty"`
+	AnnualGrossRevenue *MonetaryAmount     `json:"annualGrossRevenue,omitempty"`
+	FoundingDate       *openapi_types.Date `json:"foundingDate,omitempty"`
+	Representative     *Representative     `json:"representative,omitempty"`
+	Size               *string             `json:"size,omitempty"`
+	Status             *string             `json:"status,omitempty"`
+	TotalAssets        *MonetaryAmount     `json:"totalAssets,omitempty"`
+	TradeName          *string             `json:"tradeName,omitempty"`
+	Type               *string             `json:"type,omitempty"`
+}
+
+// LifecycleV2Input defines model for LifecycleV2Input.
+type LifecycleV2Input struct {
+	// AccountBlockExceptionId Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.
+	AccountBlockExceptionId *openapi_types.UUID `json:"accountBlockExceptionId,omitempty"`
 }
 
 // MetadataIndex defines model for MetadataIndex.
@@ -939,17 +1183,25 @@ type MetadataIndex struct {
 	Unique      bool        `json:"unique"`
 }
 
+// MonetaryAmount defines model for MonetaryAmount.
+type MonetaryAmount struct {
+	Currency      string             `json:"currency"`
+	ReferenceDate openapi_types.Date `json:"referenceDate"`
+	Value         string             `json:"value"`
+}
+
 // NaturalPerson defines model for NaturalPerson.
 type NaturalPerson struct {
-	BirthDate    *openapi_types.Date `json:"birthDate,omitempty"`
-	CivilStatus  *string             `json:"civilStatus,omitempty"`
-	FatherName   *string             `json:"fatherName,omitempty"`
-	FavoriteName *string             `json:"favoriteName,omitempty"`
-	Gender       *string             `json:"gender,omitempty"`
-	MotherName   *string             `json:"motherName,omitempty"`
-	Nationality  *string             `json:"nationality,omitempty"`
-	SocialName   *string             `json:"socialName,omitempty"`
-	Status       *string             `json:"status,omitempty"`
+	BirthDate          *openapi_types.Date `json:"birthDate,omitempty"`
+	CivilStatus        *string             `json:"civilStatus,omitempty"`
+	FatherName         *string             `json:"fatherName,omitempty"`
+	FavoriteName       *string             `json:"favoriteName,omitempty"`
+	Gender             *string             `json:"gender,omitempty"`
+	MonthlyGrossIncome *MonetaryAmount     `json:"monthlyGrossIncome,omitempty"`
+	MotherName         *string             `json:"motherName,omitempty"`
+	Nationality        *string             `json:"nationality,omitempty"`
+	SocialName         *string             `json:"socialName,omitempty"`
+	Status             *string             `json:"status,omitempty"`
 }
 
 // Operation defines model for Operation.
@@ -1026,21 +1278,23 @@ type OperationUpdateOperationInput struct {
 
 // OperationV2 defines model for OperationV2.
 type OperationV2 struct {
-	AccountAlias     string                 `json:"accountAlias"`
-	AccountId        openapi_types.UUID     `json:"accountId"`
-	Amount           OperationAmount        `json:"amount"`
-	AssetCode        string                 `json:"assetCode"`
-	Balance          OperationBalance       `json:"balance"`
-	BalanceAffected  bool                   `json:"balanceAffected"`
-	BalanceAfter     OperationBalance       `json:"balanceAfter"`
-	BalanceId        openapi_types.UUID     `json:"balanceId"`
-	BalanceKey       string                 `json:"balanceKey"`
-	CreatedAt        time.Time              `json:"createdAt"`
-	DeletedAt        *time.Time             `json:"deletedAt"`
-	Description      string                 `json:"description"`
-	Direction        *string                `json:"direction,omitempty"`
-	Id               openapi_types.UUID     `json:"id"`
-	LedgerId         openapi_types.UUID     `json:"ledgerId"`
+	AccountAlias    string             `json:"accountAlias"`
+	AccountId       openapi_types.UUID `json:"accountId"`
+	Amount          OperationAmount    `json:"amount"`
+	AssetCode       string             `json:"assetCode"`
+	Balance         OperationBalance   `json:"balance"`
+	BalanceAffected bool               `json:"balanceAffected"`
+	BalanceAfter    OperationBalance   `json:"balanceAfter"`
+	BalanceId       openapi_types.UUID `json:"balanceId"`
+	BalanceKey      string             `json:"balanceKey"`
+	CreatedAt       time.Time          `json:"createdAt"`
+	DeletedAt       *time.Time         `json:"deletedAt"`
+	Description     string             `json:"description"`
+	Direction       *string            `json:"direction,omitempty"`
+	Id              openapi_types.UUID `json:"id"`
+	LedgerId        openapi_types.UUID `json:"ledgerId"`
+
+	// Metadata Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries the key is refused rather than silently stripped. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys on an operation are returned as sent on a transaction no fee package was applied to; once a package is applied the engine rebuilds every movement of both sides, including when it prices the transaction at zero because every account is exempt, and the rebuilt movements carry only the ledger keys, so do not rely on a per-movement caller reference surviving a payment a fee package was applied to.
 	Metadata         map[string]interface{} `json:"metadata"`
 	OrganizationId   openapi_types.UUID     `json:"organizationId"`
 	RouteCode        *string                `json:"routeCode,omitempty"`
@@ -1136,8 +1390,13 @@ type Rate struct {
 
 // RegulatoryFields defines model for RegulatoryFields.
 type RegulatoryFields struct {
-	ParticipantDocument *string `json:"participantDocument,omitempty"`
+	// AccountType Bacen account type classification. Codes: 1 DEPOSIT, 2 SAVINGS, 3 INVESTMENT, 4 OTHER_FINANCIAL_INVESTMENTS, 5 NON_RESIDENT, 6 PAYMENT. Input is trimmed and case-insensitive; blank input is treated as absent.
+	AccountType         *RegulatoryFieldsAccountType `json:"accountType,omitempty"`
+	ParticipantDocument *string                      `json:"participantDocument,omitempty"`
 }
+
+// RegulatoryFieldsAccountType Bacen account type classification. Codes: 1 DEPOSIT, 2 SAVINGS, 3 INVESTMENT, 4 OTHER_FINANCIAL_INVESTMENTS, 5 NON_RESIDENT, 6 PAYMENT. Input is trimmed and case-insensitive; blank input is treated as absent.
+type RegulatoryFieldsAccountType string
 
 // RelatedParty defines model for RelatedParty.
 type RelatedParty struct {
@@ -1236,6 +1495,7 @@ type Transaction struct {
 	DeletedAt                *time.Time              `json:"deletedAt"`
 	Description              string                  `json:"description"`
 	Destination              *[]string               `json:"destination"`
+	GroupId                  *openapi_types.UUID     `json:"groupId,omitempty"`
 	Id                       openapi_types.UUID      `json:"id"`
 	LedgerId                 openapi_types.UUID      `json:"ledgerId"`
 	Metadata                 *map[string]interface{} `json:"metadata,omitempty"`
@@ -1296,16 +1556,19 @@ type TransactionUpdateTransactionInput struct {
 
 // TransactionV2 defines model for TransactionV2.
 type TransactionV2 struct {
-	Amount              *string                 `json:"amount"`
-	AssetCode           string                  `json:"assetCode"`
-	CreatedAt           time.Time               `json:"createdAt"`
-	Credit              *[]string               `json:"credit"`
-	Debit               *[]string               `json:"debit"`
-	DeletedAt           *time.Time              `json:"deletedAt"`
-	Description         string                  `json:"description"`
-	FeesSkipped         bool                    `json:"feesSkipped"`
-	Id                  openapi_types.UUID      `json:"id"`
-	LedgerId            openapi_types.UUID      `json:"ledgerId"`
+	Amount      *string             `json:"amount"`
+	AssetCode   string              `json:"assetCode"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	Credit      *[]string           `json:"credit"`
+	Debit       *[]string           `json:"debit"`
+	DeletedAt   *time.Time          `json:"deletedAt"`
+	Description string              `json:"description"`
+	FeesSkipped bool                `json:"feesSkipped"`
+	GroupId     *openapi_types.UUID `json:"groupId,omitempty"`
+	Id          openapi_types.UUID  `json:"id"`
+	LedgerId    openapi_types.UUID  `json:"ledgerId"`
+
+	// Metadata Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.
 	Metadata            *map[string]interface{} `json:"metadata,omitempty"`
 	Operations          *[]OperationV2          `json:"operations"`
 	OrganizationId      openapi_types.UUID      `json:"organizationId"`
@@ -1436,10 +1699,14 @@ type Upstream struct {
 	Message *string `json:"message,omitempty"`
 }
 
-// V2LegInput One leg of a transaction side. Fill EXACTLY ONE value expression per leg: `amount` for an explicit value, or `share` for a percentage of the transaction total. A leg carrying both, or neither, is rejected.
+// V2LegInput One leg of a transaction side. Fill EXACTLY ONE value expression per leg: `amount` for an explicit value, or `share` for a percentage of the transaction total. A leg carrying both, or neither, is rejected. `balanceKey` optionally selects one of the account's balances; when omitted, the `default` balance is used.
 type V2LegInput struct {
-	Alias            string              `json:"alias"`
-	Amount           *string             `json:"amount,omitempty"`
+	// Alias The leg's account alias. Accepts letters, digits and the characters @ : _ and -, or an external account alias spelled @external/ followed by the uppercase asset code. Any other spelling is refused with 400 before the transaction is calculated.
+	Alias  string  `json:"alias"`
+	Amount *string `json:"amount,omitempty"`
+
+	// BalanceKey Optional balance key for this leg. When omitted, the transaction uses the account's default balance.
+	BalanceKey       *string             `json:"balanceKey,omitempty"`
 	Description      *string             `json:"description,omitempty"`
 	LedgerId         openapi_types.UUID  `json:"ledgerId"`
 	OperationRouteId *openapi_types.UUID `json:"operationRouteId,omitempty"`
@@ -1620,7 +1887,7 @@ type GetAllBalancesByAccountIDParams struct {
 
 // GetAccountBalancesAtTimestampParams defines parameters for GetAccountBalancesAtTimestamp.
 type GetAccountBalancesAtTimestampParams struct {
-	// Date Point in time (format: yyyy-mm-dd hh:mm:ss)
+	// Date Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)
 	Date *string `form:"date,omitempty" json:"date,omitempty"`
 }
 
@@ -1731,8 +1998,32 @@ type GetAllBalancesParams struct {
 
 // GetBalanceAtTimestampParams defines parameters for GetBalanceAtTimestamp.
 type GetBalanceAtTimestampParams struct {
-	// Date Point in time (format: yyyy-mm-dd hh:mm:ss)
+	// Date Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)
 	Date *string `form:"date,omitempty" json:"date,omitempty"`
+}
+
+// GetLedgerDashboardMetricsParams defines parameters for GetLedgerDashboardMetrics.
+type GetLedgerDashboardMetricsParams struct {
+	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// StartDate Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+}
+
+// GetLedgerDashboardVolumeParams defines parameters for GetLedgerDashboardVolume.
+type GetLedgerDashboardVolumeParams struct {
+	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// StartDate Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 }
 
 // ListOperationRoutesParams defines parameters for ListOperationRoutes.
@@ -1841,11 +2132,14 @@ type GetAllTransactionsParams struct {
 
 	// Cursor Pagination cursor
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// GroupId Filter transactions by atomic cross-ledger group UUID
+	GroupId *string `form:"groupId,omitempty" json:"groupId,omitempty"`
 }
 
 // CreateTransactionAnnotationParams defines parameters for CreateTransactionAnnotation.
 type CreateTransactionAnnotationParams struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
@@ -1854,7 +2148,7 @@ type CreateTransactionAnnotationParams struct {
 
 // CreateTransactionBlockParams defines parameters for CreateTransactionBlock.
 type CreateTransactionBlockParams struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
@@ -1863,7 +2157,7 @@ type CreateTransactionBlockParams struct {
 
 // CreateTransactionInflowParams defines parameters for CreateTransactionInflow.
 type CreateTransactionInflowParams struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
@@ -1872,7 +2166,7 @@ type CreateTransactionInflowParams struct {
 
 // CreateTransactionJSONParams defines parameters for CreateTransactionJSON.
 type CreateTransactionJSONParams struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
@@ -1896,7 +2190,7 @@ type CountTransactionsByFiltersParams struct {
 
 // CreateTransactionOutflowParams defines parameters for CreateTransactionOutflow.
 type CreateTransactionOutflowParams struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
@@ -1905,7 +2199,7 @@ type CreateTransactionOutflowParams struct {
 
 // CreateTransactionUnblockParams defines parameters for CreateTransactionUnblock.
 type CreateTransactionUnblockParams struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
@@ -2205,7 +2499,7 @@ type GetAllBalancesByAccountIDV2Params struct {
 
 // GetAccountBalancesAtTimestampV2Params defines parameters for GetAccountBalancesAtTimestampV2.
 type GetAccountBalancesAtTimestampV2Params struct {
-	// Date Point in time (format: yyyy-mm-dd hh:mm:ss)
+	// Date Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)
 	Date *string `form:"date,omitempty" json:"date,omitempty"`
 }
 
@@ -2295,7 +2589,7 @@ type GetAllBalancesV2Params struct {
 
 // GetBalanceAtTimestampV2Params defines parameters for GetBalanceAtTimestampV2.
 type GetBalanceAtTimestampV2Params struct {
-	// Date Point in time (format: yyyy-mm-dd hh:mm:ss)
+	// Date Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)
 	Date *string `form:"date,omitempty" json:"date,omitempty"`
 }
 
@@ -2309,6 +2603,30 @@ type GetAllBillingPackagesV2Params struct {
 
 	// Page Page number (default 1)
 	Page *string `form:"page,omitempty" json:"page,omitempty"`
+}
+
+// GetLedgerDashboardMetricsV2Params defines parameters for GetLedgerDashboardMetricsV2.
+type GetLedgerDashboardMetricsV2Params struct {
+	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// StartDate Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+}
+
+// GetLedgerDashboardVolumeV2Params defines parameters for GetLedgerDashboardVolumeV2.
+type GetLedgerDashboardVolumeV2Params struct {
+	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// StartDate Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 }
 
 // CreateHolderAccountV2Params defines parameters for CreateHolderAccountV2.
@@ -2441,6 +2759,9 @@ type GetAllTransactionsV2Params struct {
 
 	// Cursor Pagination cursor
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// GroupId Filter transactions by atomic cross-ledger group UUID
+	GroupId *string `form:"groupId,omitempty" json:"groupId,omitempty"`
 }
 
 // CountTransactionsByFiltersV2Params defines parameters for CountTransactionsByFiltersV2.
@@ -2456,6 +2777,39 @@ type CountTransactionsByFiltersV2Params struct {
 
 	// EndDate End of date range (RFC 3339, defaults to today 23:59:59 UTC)
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+}
+
+// CancelTransactionV2201JSONResponseBody defines parameters for CancelTransactionV2.
+type CancelTransactionV2201JSONResponseBody struct {
+	union json.RawMessage
+}
+
+// CommitTransactionV2201JSONResponseBody defines parameters for CommitTransactionV2.
+type CommitTransactionV2201JSONResponseBody struct {
+	union json.RawMessage
+}
+
+// RevertTransactionV2201JSONResponseBody defines parameters for RevertTransactionV2.
+type RevertTransactionV2201JSONResponseBody struct {
+	union json.RawMessage
+}
+
+// ListOrganizationOperationRoutesV2Params defines parameters for ListOrganizationOperationRoutesV2.
+type ListOrganizationOperationRoutesV2Params struct {
+	// Limit Max items per page (default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartDate Filter created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Cursor Opaque cursor token for pagination
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // GetAuditEventsV2Params defines parameters for GetAuditEventsV2.
@@ -2488,15 +2842,42 @@ type GetAuditEventsV2Params struct {
 	Authorization *string `json:"Authorization,omitempty"`
 }
 
+// ListOrganizationTransactionRoutesV2Params defines parameters for ListOrganizationTransactionRoutesV2.
+type ListOrganizationTransactionRoutesV2Params struct {
+	// Limit Max items per page (default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartDate Filter created on/after this date (YYYY-MM-DD)
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Filter created on/before this date (YYYY-MM-DD)
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+
+	// SortOrder Sort direction (asc, desc)
+	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+
+	// Cursor Opaque cursor token for pagination
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // GetAllMetadataIndexesV2Params defines parameters for GetAllMetadataIndexesV2.
 type GetAllMetadataIndexesV2Params struct {
 	// EntityName Optional entity name filter
 	EntityName *string `form:"entity_name,omitempty" json:"entity_name,omitempty"`
 }
 
+// CreateAtomicTransactionBatchV2Params defines parameters for CreateAtomicTransactionBatchV2.
+type CreateAtomicTransactionBatchV2Params struct {
+	// XIdempotency Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds (default 300)
+	XTTL *string `json:"X-TTL,omitempty"`
+}
+
 // CreateTransactionBlockV2Params defines parameters for CreateTransactionBlockV2.
 type CreateTransactionBlockV2Params struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
@@ -2505,25 +2886,35 @@ type CreateTransactionBlockV2Params struct {
 
 // CreateTransactionDirectV2Params defines parameters for CreateTransactionDirectV2.
 type CreateTransactionDirectV2Params struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
 	XTTL *string `json:"X-TTL,omitempty"`
+}
+
+// CreateTransactionDirectV2201JSONResponseBody defines parameters for CreateTransactionDirectV2.
+type CreateTransactionDirectV2201JSONResponseBody struct {
+	union json.RawMessage
 }
 
 // CreateTransactionHoldV2Params defines parameters for CreateTransactionHoldV2.
 type CreateTransactionHoldV2Params struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
 	XTTL *string `json:"X-TTL,omitempty"`
 }
 
+// CreateTransactionHoldV2201JSONResponseBody defines parameters for CreateTransactionHoldV2.
+type CreateTransactionHoldV2201JSONResponseBody struct {
+	union json.RawMessage
+}
+
 // CreateTransactionUnblockV2Params defines parameters for CreateTransactionUnblockV2.
 type CreateTransactionUnblockV2Params struct {
-	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction
+	// XIdempotency Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
 	XIdempotency *string `json:"X-Idempotency,omitempty"`
 
 	// XTTL Idempotency slot TTL in seconds (default 300)
@@ -2659,6 +3050,9 @@ type UpdateAccountTypeV2JSONRequestBody = UpdateAccountTypeInput
 // CreateAccountV2JSONRequestBody defines body for CreateAccountV2 for application/json ContentType.
 type CreateAccountV2JSONRequestBody = CreateAccountInput
 
+// CreateAccountBlockExceptionsV2JSONRequestBody defines body for CreateAccountBlockExceptionsV2 for application/json ContentType.
+type CreateAccountBlockExceptionsV2JSONRequestBody = CreateAccountBlockExceptionsInput
+
 // CreateAdditionalBalanceV2JSONRequestBody defines body for CreateAdditionalBalanceV2 for application/json ContentType.
 type CreateAdditionalBalanceV2JSONRequestBody = CreateAdditionalBalance
 
@@ -2725,11 +3119,32 @@ type UpdateTransactionRouteV2JSONRequestBody = UpdateTransactionRouteInput
 // UpdateTransactionV2JSONRequestBody defines body for UpdateTransactionV2 for application/json ContentType.
 type UpdateTransactionV2JSONRequestBody = TransactionUpdateTransactionInput
 
+// CommitTransactionV2JSONRequestBody defines body for CommitTransactionV2 for application/json ContentType.
+type CommitTransactionV2JSONRequestBody = LifecycleV2Input
+
 // UpdateOperationV2JSONRequestBody defines body for UpdateOperationV2 for application/json ContentType.
 type UpdateOperationV2JSONRequestBody = OperationUpdateOperationInput
 
+// RevertTransactionV2JSONRequestBody defines body for RevertTransactionV2 for application/json ContentType.
+type RevertTransactionV2JSONRequestBody = LifecycleV2Input
+
+// CreateOrganizationOperationRouteV2JSONRequestBody defines body for CreateOrganizationOperationRouteV2 for application/json ContentType.
+type CreateOrganizationOperationRouteV2JSONRequestBody = CreateOperationRouteInput
+
+// UpdateOrganizationOperationRouteV2JSONRequestBody defines body for UpdateOrganizationOperationRouteV2 for application/json ContentType.
+type UpdateOrganizationOperationRouteV2JSONRequestBody = UpdateOperationRouteInput
+
+// CreateOrganizationTransactionRouteV2JSONRequestBody defines body for CreateOrganizationTransactionRouteV2 for application/json ContentType.
+type CreateOrganizationTransactionRouteV2JSONRequestBody = CreateTransactionRouteInput
+
+// UpdateOrganizationTransactionRouteV2JSONRequestBody defines body for UpdateOrganizationTransactionRouteV2 for application/json ContentType.
+type UpdateOrganizationTransactionRouteV2JSONRequestBody = UpdateTransactionRouteInput
+
 // CreateMetadataIndexV2JSONRequestBody defines body for CreateMetadataIndexV2 for application/json ContentType.
 type CreateMetadataIndexV2JSONRequestBody = CreateMetadataIndexInput
+
+// CreateAtomicTransactionBatchV2JSONRequestBody defines body for CreateAtomicTransactionBatchV2 for application/json ContentType.
+type CreateAtomicTransactionBatchV2JSONRequestBody = CreateAtomicTransactionBatchV2Request
 
 // CreateTransactionBlockV2JSONRequestBody defines body for CreateTransactionBlockV2 for application/json ContentType.
 type CreateTransactionBlockV2JSONRequestBody = CreateTransactionV2Input
@@ -2742,6 +3157,489 @@ type CreateTransactionHoldV2JSONRequestBody = CreateTransactionV2Input
 
 // CreateTransactionUnblockV2JSONRequestBody defines body for CreateTransactionUnblockV2 for application/json ContentType.
 type CreateTransactionUnblockV2JSONRequestBody = CreateTransactionV2Input
+
+// Getter for additional properties for Error. Returns the specified
+// element and whether it was found
+func (a Error) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for Error
+func (a *Error) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for Error to handle AdditionalProperties
+func (a *Error) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["code"]; found {
+		err = json.Unmarshal(raw, &a.Code)
+		if err != nil {
+			return fmt.Errorf("error reading 'code': %w", err)
+		}
+		delete(object, "code")
+	}
+
+	if raw, found := object["detail"]; found {
+		err = json.Unmarshal(raw, &a.Detail)
+		if err != nil {
+			return fmt.Errorf("error reading 'detail': %w", err)
+		}
+		delete(object, "detail")
+	}
+
+	if raw, found := object["errors"]; found {
+		err = json.Unmarshal(raw, &a.Errors)
+		if err != nil {
+			return fmt.Errorf("error reading 'errors': %w", err)
+		}
+		delete(object, "errors")
+	}
+
+	if raw, found := object["instance"]; found {
+		err = json.Unmarshal(raw, &a.Instance)
+		if err != nil {
+			return fmt.Errorf("error reading 'instance': %w", err)
+		}
+		delete(object, "instance")
+	}
+
+	if raw, found := object["status"]; found {
+		err = json.Unmarshal(raw, &a.Status)
+		if err != nil {
+			return fmt.Errorf("error reading 'status': %w", err)
+		}
+		delete(object, "status")
+	}
+
+	if raw, found := object["title"]; found {
+		err = json.Unmarshal(raw, &a.Title)
+		if err != nil {
+			return fmt.Errorf("error reading 'title': %w", err)
+		}
+		delete(object, "title")
+	}
+
+	if raw, found := object["type"]; found {
+		err = json.Unmarshal(raw, &a.Type)
+		if err != nil {
+			return fmt.Errorf("error reading 'type': %w", err)
+		}
+		delete(object, "type")
+	}
+
+	if raw, found := object["upstream"]; found {
+		err = json.Unmarshal(raw, &a.Upstream)
+		if err != nil {
+			return fmt.Errorf("error reading 'upstream': %w", err)
+		}
+		delete(object, "upstream")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for Error to handle AdditionalProperties
+func (a Error) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Code != nil {
+		object["code"], err = json.Marshal(a.Code)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'code': %w", err)
+		}
+	}
+
+	if a.Detail != nil {
+		object["detail"], err = json.Marshal(a.Detail)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'detail': %w", err)
+		}
+	}
+
+	if a.Errors != nil {
+		object["errors"], err = json.Marshal(a.Errors)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'errors': %w", err)
+		}
+	}
+
+	if a.Instance != nil {
+		object["instance"], err = json.Marshal(a.Instance)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'instance': %w", err)
+		}
+	}
+
+	if a.Status != nil {
+		object["status"], err = json.Marshal(a.Status)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'status': %w", err)
+		}
+	}
+
+	if a.Title != nil {
+		object["title"], err = json.Marshal(a.Title)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'title': %w", err)
+		}
+	}
+
+	if a.Type != nil {
+		object["type"], err = json.Marshal(a.Type)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'type': %w", err)
+		}
+	}
+
+	if a.Upstream != nil {
+		object["upstream"], err = json.Marshal(a.Upstream)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'upstream': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// AsTransactionV2 returns the union data inside the CancelTransactionV2201JSONResponseBody as a TransactionV2
+func (t CancelTransactionV2201JSONResponseBody) AsTransactionV2() (TransactionV2, error) {
+	var body TransactionV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTransactionV2 overwrites any union data inside the CancelTransactionV2201JSONResponseBody as the provided TransactionV2
+func (t *CancelTransactionV2201JSONResponseBody) FromTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTransactionV2 performs a merge with any union data inside the CancelTransactionV2201JSONResponseBody, using the provided TransactionV2
+func (t *CancelTransactionV2201JSONResponseBody) MergeTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCrossLedgerTransactionGroupV2 returns the union data inside the CancelTransactionV2201JSONResponseBody as a CrossLedgerTransactionGroupV2
+func (t CancelTransactionV2201JSONResponseBody) AsCrossLedgerTransactionGroupV2() (CrossLedgerTransactionGroupV2, error) {
+	var body CrossLedgerTransactionGroupV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCrossLedgerTransactionGroupV2 overwrites any union data inside the CancelTransactionV2201JSONResponseBody as the provided CrossLedgerTransactionGroupV2
+func (t *CancelTransactionV2201JSONResponseBody) FromCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCrossLedgerTransactionGroupV2 performs a merge with any union data inside the CancelTransactionV2201JSONResponseBody, using the provided CrossLedgerTransactionGroupV2
+func (t *CancelTransactionV2201JSONResponseBody) MergeCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CancelTransactionV2201JSONResponseBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CancelTransactionV2201JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTransactionV2 returns the union data inside the CommitTransactionV2201JSONResponseBody as a TransactionV2
+func (t CommitTransactionV2201JSONResponseBody) AsTransactionV2() (TransactionV2, error) {
+	var body TransactionV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTransactionV2 overwrites any union data inside the CommitTransactionV2201JSONResponseBody as the provided TransactionV2
+func (t *CommitTransactionV2201JSONResponseBody) FromTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTransactionV2 performs a merge with any union data inside the CommitTransactionV2201JSONResponseBody, using the provided TransactionV2
+func (t *CommitTransactionV2201JSONResponseBody) MergeTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCrossLedgerTransactionGroupV2 returns the union data inside the CommitTransactionV2201JSONResponseBody as a CrossLedgerTransactionGroupV2
+func (t CommitTransactionV2201JSONResponseBody) AsCrossLedgerTransactionGroupV2() (CrossLedgerTransactionGroupV2, error) {
+	var body CrossLedgerTransactionGroupV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCrossLedgerTransactionGroupV2 overwrites any union data inside the CommitTransactionV2201JSONResponseBody as the provided CrossLedgerTransactionGroupV2
+func (t *CommitTransactionV2201JSONResponseBody) FromCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCrossLedgerTransactionGroupV2 performs a merge with any union data inside the CommitTransactionV2201JSONResponseBody, using the provided CrossLedgerTransactionGroupV2
+func (t *CommitTransactionV2201JSONResponseBody) MergeCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CommitTransactionV2201JSONResponseBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CommitTransactionV2201JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTransactionV2 returns the union data inside the RevertTransactionV2201JSONResponseBody as a TransactionV2
+func (t RevertTransactionV2201JSONResponseBody) AsTransactionV2() (TransactionV2, error) {
+	var body TransactionV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTransactionV2 overwrites any union data inside the RevertTransactionV2201JSONResponseBody as the provided TransactionV2
+func (t *RevertTransactionV2201JSONResponseBody) FromTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTransactionV2 performs a merge with any union data inside the RevertTransactionV2201JSONResponseBody, using the provided TransactionV2
+func (t *RevertTransactionV2201JSONResponseBody) MergeTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCrossLedgerTransactionGroupV2 returns the union data inside the RevertTransactionV2201JSONResponseBody as a CrossLedgerTransactionGroupV2
+func (t RevertTransactionV2201JSONResponseBody) AsCrossLedgerTransactionGroupV2() (CrossLedgerTransactionGroupV2, error) {
+	var body CrossLedgerTransactionGroupV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCrossLedgerTransactionGroupV2 overwrites any union data inside the RevertTransactionV2201JSONResponseBody as the provided CrossLedgerTransactionGroupV2
+func (t *RevertTransactionV2201JSONResponseBody) FromCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCrossLedgerTransactionGroupV2 performs a merge with any union data inside the RevertTransactionV2201JSONResponseBody, using the provided CrossLedgerTransactionGroupV2
+func (t *RevertTransactionV2201JSONResponseBody) MergeCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t RevertTransactionV2201JSONResponseBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *RevertTransactionV2201JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTransactionV2 returns the union data inside the CreateTransactionDirectV2201JSONResponseBody as a TransactionV2
+func (t CreateTransactionDirectV2201JSONResponseBody) AsTransactionV2() (TransactionV2, error) {
+	var body TransactionV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTransactionV2 overwrites any union data inside the CreateTransactionDirectV2201JSONResponseBody as the provided TransactionV2
+func (t *CreateTransactionDirectV2201JSONResponseBody) FromTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTransactionV2 performs a merge with any union data inside the CreateTransactionDirectV2201JSONResponseBody, using the provided TransactionV2
+func (t *CreateTransactionDirectV2201JSONResponseBody) MergeTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCrossLedgerTransactionGroupV2 returns the union data inside the CreateTransactionDirectV2201JSONResponseBody as a CrossLedgerTransactionGroupV2
+func (t CreateTransactionDirectV2201JSONResponseBody) AsCrossLedgerTransactionGroupV2() (CrossLedgerTransactionGroupV2, error) {
+	var body CrossLedgerTransactionGroupV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCrossLedgerTransactionGroupV2 overwrites any union data inside the CreateTransactionDirectV2201JSONResponseBody as the provided CrossLedgerTransactionGroupV2
+func (t *CreateTransactionDirectV2201JSONResponseBody) FromCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCrossLedgerTransactionGroupV2 performs a merge with any union data inside the CreateTransactionDirectV2201JSONResponseBody, using the provided CrossLedgerTransactionGroupV2
+func (t *CreateTransactionDirectV2201JSONResponseBody) MergeCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateTransactionDirectV2201JSONResponseBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateTransactionDirectV2201JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTransactionV2 returns the union data inside the CreateTransactionHoldV2201JSONResponseBody as a TransactionV2
+func (t CreateTransactionHoldV2201JSONResponseBody) AsTransactionV2() (TransactionV2, error) {
+	var body TransactionV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTransactionV2 overwrites any union data inside the CreateTransactionHoldV2201JSONResponseBody as the provided TransactionV2
+func (t *CreateTransactionHoldV2201JSONResponseBody) FromTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTransactionV2 performs a merge with any union data inside the CreateTransactionHoldV2201JSONResponseBody, using the provided TransactionV2
+func (t *CreateTransactionHoldV2201JSONResponseBody) MergeTransactionV2(v TransactionV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCrossLedgerTransactionGroupV2 returns the union data inside the CreateTransactionHoldV2201JSONResponseBody as a CrossLedgerTransactionGroupV2
+func (t CreateTransactionHoldV2201JSONResponseBody) AsCrossLedgerTransactionGroupV2() (CrossLedgerTransactionGroupV2, error) {
+	var body CrossLedgerTransactionGroupV2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCrossLedgerTransactionGroupV2 overwrites any union data inside the CreateTransactionHoldV2201JSONResponseBody as the provided CrossLedgerTransactionGroupV2
+func (t *CreateTransactionHoldV2201JSONResponseBody) FromCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCrossLedgerTransactionGroupV2 performs a merge with any union data inside the CreateTransactionHoldV2201JSONResponseBody, using the provided CrossLedgerTransactionGroupV2
+func (t *CreateTransactionHoldV2201JSONResponseBody) MergeCrossLedgerTransactionGroupV2(v CrossLedgerTransactionGroupV2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateTransactionHoldV2201JSONResponseBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateTransactionHoldV2201JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -2979,6 +3877,15 @@ type ClientInterface interface {
 
 	// GetBalanceAtTimestamp request
 	GetBalanceAtTimestamp(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLedgerDashboardAssets request
+	GetLedgerDashboardAssets(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLedgerDashboardMetrics request
+	GetLedgerDashboardMetrics(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLedgerDashboardVolume request
+	GetLedgerDashboardVolume(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListOperationRoutes request
 	ListOperationRoutes(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3268,6 +4175,11 @@ type ClientInterface interface {
 	// GetBalancesByAliasV2 request
 	GetBalancesByAliasV2(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateAccountBlockExceptionsV2WithBody request with any body
+	CreateAccountBlockExceptionsV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAccountBlockExceptionsV2(ctx context.Context, organizationId string, ledgerId string, body CreateAccountBlockExceptionsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAccountExternalByCodeV2 request
 	GetAccountExternalByCodeV2(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3287,6 +4199,9 @@ type ClientInterface interface {
 
 	// GetAccountBalancesAtTimestampV2 request
 	GetAccountBalancesAtTimestampV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountBalancesAtTimestampV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CloseAccountV2 request
+	CloseAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAllOperationsByAccountV2 request
 	GetAllOperationsByAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3367,6 +4282,15 @@ type ClientInterface interface {
 	CalculateBillingV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CalculateBillingV2(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLedgerDashboardAssetsV2 request
+	GetLedgerDashboardAssetsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLedgerDashboardMetricsV2 request
+	GetLedgerDashboardMetricsV2(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLedgerDashboardVolumeV2 request
+	GetLedgerDashboardVolumeV2(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EstimateFeeCalculationV2WithBody request with any body
 	EstimateFeeCalculationV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3504,19 +4428,61 @@ type ClientInterface interface {
 	// CancelTransactionV2 request
 	CancelTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CommitTransactionV2 request
-	CommitTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CommitTransactionV2WithBody request with any body
+	CommitTransactionV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CommitTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, body CommitTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateOperationV2WithBody request with any body
 	UpdateOperationV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateOperationV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, body UpdateOperationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RevertTransactionV2 request
-	RevertTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// RevertTransactionV2WithBody request with any body
+	RevertTransactionV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RevertTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, body RevertTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOrganizationOperationRoutesV2 request
+	ListOrganizationOperationRoutesV2(ctx context.Context, organizationId string, params *ListOrganizationOperationRoutesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateOrganizationOperationRouteV2WithBody request with any body
+	CreateOrganizationOperationRouteV2WithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateOrganizationOperationRouteV2(ctx context.Context, organizationId string, body CreateOrganizationOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteOrganizationOperationRouteV2 request
+	DeleteOrganizationOperationRouteV2(ctx context.Context, organizationId string, operationRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetOrganizationOperationRouteByIDV2 request
+	GetOrganizationOperationRouteByIDV2(ctx context.Context, organizationId string, operationRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateOrganizationOperationRouteV2WithBody request with any body
+	UpdateOrganizationOperationRouteV2WithBody(ctx context.Context, organizationId string, operationRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateOrganizationOperationRouteV2(ctx context.Context, organizationId string, operationRouteId string, body UpdateOrganizationOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAuditEventsV2 request
 	GetAuditEventsV2(ctx context.Context, organizationId string, params *GetAuditEventsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOrganizationTransactionRoutesV2 request
+	ListOrganizationTransactionRoutesV2(ctx context.Context, organizationId string, params *ListOrganizationTransactionRoutesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateOrganizationTransactionRouteV2WithBody request with any body
+	CreateOrganizationTransactionRouteV2WithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateOrganizationTransactionRouteV2(ctx context.Context, organizationId string, body CreateOrganizationTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteOrganizationTransactionRouteV2 request
+	DeleteOrganizationTransactionRouteV2(ctx context.Context, organizationId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetOrganizationTransactionRouteByIDV2 request
+	GetOrganizationTransactionRouteByIDV2(ctx context.Context, organizationId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateOrganizationTransactionRouteV2WithBody request with any body
+	UpdateOrganizationTransactionRouteV2WithBody(ctx context.Context, organizationId string, transactionRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateOrganizationTransactionRouteV2(ctx context.Context, organizationId string, transactionRouteId string, body UpdateOrganizationTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAllMetadataIndexesV2 request
 	GetAllMetadataIndexesV2(ctx context.Context, params *GetAllMetadataIndexesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3528,6 +4494,11 @@ type ClientInterface interface {
 
 	// DeleteMetadataIndexV2 request
 	DeleteMetadataIndexV2(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAtomicTransactionBatchV2WithBody request with any body
+	CreateAtomicTransactionBatchV2WithBody(ctx context.Context, params *CreateAtomicTransactionBatchV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateAtomicTransactionBatchV2(ctx context.Context, params *CreateAtomicTransactionBatchV2Params, body CreateAtomicTransactionBatchV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateTransactionBlockV2WithBody request with any body
 	CreateTransactionBlockV2WithBody(ctx context.Context, params *CreateTransactionBlockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4248,6 +5219,42 @@ func (c *Client) UpdateBalance(ctx context.Context, organizationId string, ledge
 
 func (c *Client) GetBalanceAtTimestamp(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetBalanceAtTimestampRequest(c.Server, organizationId, ledgerId, balanceId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLedgerDashboardAssets(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLedgerDashboardAssetsRequest(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLedgerDashboardMetrics(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLedgerDashboardMetricsRequest(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLedgerDashboardVolume(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLedgerDashboardVolumeRequest(c.Server, organizationId, ledgerId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5530,6 +6537,30 @@ func (c *Client) GetBalancesByAliasV2(ctx context.Context, organizationId string
 	return c.Client.Do(req)
 }
 
+func (c *Client) CreateAccountBlockExceptionsV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAccountBlockExceptionsV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAccountBlockExceptionsV2(ctx context.Context, organizationId string, ledgerId string, body CreateAccountBlockExceptionsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAccountBlockExceptionsV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetAccountExternalByCodeV2(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAccountExternalByCodeV2Request(c.Server, organizationId, ledgerId, code)
 	if err != nil {
@@ -5604,6 +6635,18 @@ func (c *Client) CreateAdditionalBalanceV2(ctx context.Context, organizationId s
 
 func (c *Client) GetAccountBalancesAtTimestampV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountBalancesAtTimestampV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAccountBalancesAtTimestampV2Request(c.Server, organizationId, ledgerId, accountId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CloseAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCloseAccountV2Request(c.Server, organizationId, ledgerId, accountId)
 	if err != nil {
 		return nil, err
 	}
@@ -5952,6 +6995,42 @@ func (c *Client) CalculateBillingV2WithBody(ctx context.Context, organizationId 
 
 func (c *Client) CalculateBillingV2(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCalculateBillingV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLedgerDashboardAssetsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLedgerDashboardAssetsV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLedgerDashboardMetricsV2(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLedgerDashboardMetricsV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLedgerDashboardVolumeV2(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLedgerDashboardVolumeV2Request(c.Server, organizationId, ledgerId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6562,8 +7641,20 @@ func (c *Client) CancelTransactionV2(ctx context.Context, organizationId string,
 	return c.Client.Do(req)
 }
 
-func (c *Client) CommitTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCommitTransactionV2Request(c.Server, organizationId, ledgerId, transactionId)
+func (c *Client) CommitTransactionV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCommitTransactionV2RequestWithBody(c.Server, organizationId, ledgerId, transactionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CommitTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, body CommitTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCommitTransactionV2Request(c.Server, organizationId, ledgerId, transactionId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6598,8 +7689,104 @@ func (c *Client) UpdateOperationV2(ctx context.Context, organizationId string, l
 	return c.Client.Do(req)
 }
 
-func (c *Client) RevertTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRevertTransactionV2Request(c.Server, organizationId, ledgerId, transactionId)
+func (c *Client) RevertTransactionV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevertTransactionV2RequestWithBody(c.Server, organizationId, ledgerId, transactionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevertTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, body RevertTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevertTransactionV2Request(c.Server, organizationId, ledgerId, transactionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOrganizationOperationRoutesV2(ctx context.Context, organizationId string, params *ListOrganizationOperationRoutesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrganizationOperationRoutesV2Request(c.Server, organizationId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrganizationOperationRouteV2WithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrganizationOperationRouteV2RequestWithBody(c.Server, organizationId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrganizationOperationRouteV2(ctx context.Context, organizationId string, body CreateOrganizationOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrganizationOperationRouteV2Request(c.Server, organizationId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteOrganizationOperationRouteV2(ctx context.Context, organizationId string, operationRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteOrganizationOperationRouteV2Request(c.Server, organizationId, operationRouteId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetOrganizationOperationRouteByIDV2(ctx context.Context, organizationId string, operationRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOrganizationOperationRouteByIDV2Request(c.Server, organizationId, operationRouteId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrganizationOperationRouteV2WithBody(ctx context.Context, organizationId string, operationRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrganizationOperationRouteV2RequestWithBody(c.Server, organizationId, operationRouteId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrganizationOperationRouteV2(ctx context.Context, organizationId string, operationRouteId string, body UpdateOrganizationOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrganizationOperationRouteV2Request(c.Server, organizationId, operationRouteId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6612,6 +7799,90 @@ func (c *Client) RevertTransactionV2(ctx context.Context, organizationId string,
 
 func (c *Client) GetAuditEventsV2(ctx context.Context, organizationId string, params *GetAuditEventsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAuditEventsV2Request(c.Server, organizationId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListOrganizationTransactionRoutesV2(ctx context.Context, organizationId string, params *ListOrganizationTransactionRoutesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrganizationTransactionRoutesV2Request(c.Server, organizationId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrganizationTransactionRouteV2WithBody(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrganizationTransactionRouteV2RequestWithBody(c.Server, organizationId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateOrganizationTransactionRouteV2(ctx context.Context, organizationId string, body CreateOrganizationTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateOrganizationTransactionRouteV2Request(c.Server, organizationId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteOrganizationTransactionRouteV2(ctx context.Context, organizationId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteOrganizationTransactionRouteV2Request(c.Server, organizationId, transactionRouteId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetOrganizationTransactionRouteByIDV2(ctx context.Context, organizationId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOrganizationTransactionRouteByIDV2Request(c.Server, organizationId, transactionRouteId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrganizationTransactionRouteV2WithBody(ctx context.Context, organizationId string, transactionRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrganizationTransactionRouteV2RequestWithBody(c.Server, organizationId, transactionRouteId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateOrganizationTransactionRouteV2(ctx context.Context, organizationId string, transactionRouteId string, body UpdateOrganizationTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateOrganizationTransactionRouteV2Request(c.Server, organizationId, transactionRouteId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6660,6 +7931,30 @@ func (c *Client) CreateMetadataIndexV2(ctx context.Context, entityName string, b
 
 func (c *Client) DeleteMetadataIndexV2(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteMetadataIndexV2Request(c.Server, entityName, indexKey)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAtomicTransactionBatchV2WithBody(ctx context.Context, params *CreateAtomicTransactionBatchV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAtomicTransactionBatchV2RequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateAtomicTransactionBatchV2(ctx context.Context, params *CreateAtomicTransactionBatchV2Params, body CreateAtomicTransactionBatchV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAtomicTransactionBatchV2Request(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10034,6 +11329,231 @@ func NewGetBalanceAtTimestampRequest(server string, organizationId string, ledge
 	return req, nil
 }
 
+// NewGetLedgerDashboardAssetsRequest generates requests for GetLedgerDashboardAssets
+func NewGetLedgerDashboardAssetsRequest(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/dashboard/assets", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLedgerDashboardMetricsRequest generates requests for GetLedgerDashboardMetrics
+func NewGetLedgerDashboardMetricsRequest(server string, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/dashboard/metrics", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLedgerDashboardVolumeRequest generates requests for GetLedgerDashboardVolume
+func NewGetLedgerDashboardVolumeRequest(server string, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/dashboard/volume", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListOperationRoutesRequest generates requests for ListOperationRoutes
 func NewListOperationRoutesRequest(server string, organizationId string, ledgerId string, params *ListOperationRoutesParams) (*http.Request, error) {
 	var err error
@@ -11672,6 +13192,18 @@ func NewGetAllTransactionsRequest(server string, organizationId string, ledgerId
 		if params.Cursor != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.GroupId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "groupId", *params.GroupId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15338,6 +16870,60 @@ func NewGetBalancesByAliasV2Request(server string, organizationId string, ledger
 	return req, nil
 }
 
+// NewCreateAccountBlockExceptionsV2Request calls the generic CreateAccountBlockExceptionsV2 builder with application/json body
+func NewCreateAccountBlockExceptionsV2Request(server string, organizationId string, ledgerId string, body CreateAccountBlockExceptionsV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAccountBlockExceptionsV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewCreateAccountBlockExceptionsV2RequestWithBody generates requests for CreateAccountBlockExceptionsV2 with any type of body
+func NewCreateAccountBlockExceptionsV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/block-exceptions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetAccountExternalByCodeV2Request generates requests for GetAccountExternalByCodeV2
 func NewGetAccountExternalByCodeV2Request(server string, organizationId string, ledgerId string, code string) (*http.Request, error) {
 	var err error
@@ -15727,6 +17313,54 @@ func NewGetAccountBalancesAtTimestampV2Request(server string, organizationId str
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCloseAccountV2Request generates requests for CloseAccountV2
+func NewCloseAccountV2Request(server string, organizationId string, ledgerId string, accountId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/close", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -17240,6 +18874,231 @@ func NewCalculateBillingV2RequestWithBody(server string, organizationId string, 
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetLedgerDashboardAssetsV2Request generates requests for GetLedgerDashboardAssetsV2
+func NewGetLedgerDashboardAssetsV2Request(server string, organizationId string, ledgerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/dashboard/assets", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLedgerDashboardMetricsV2Request generates requests for GetLedgerDashboardMetricsV2
+func NewGetLedgerDashboardMetricsV2Request(server string, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/dashboard/metrics", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLedgerDashboardVolumeV2Request generates requests for GetLedgerDashboardVolumeV2
+func NewGetLedgerDashboardVolumeV2Request(server string, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/dashboard/volume", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -19348,6 +21207,18 @@ func NewGetAllTransactionsV2Request(server string, organizationId string, ledger
 
 		}
 
+		if params.GroupId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "groupId", *params.GroupId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -19623,8 +21494,19 @@ func NewCancelTransactionV2Request(server string, organizationId string, ledgerI
 	return req, nil
 }
 
-// NewCommitTransactionV2Request generates requests for CommitTransactionV2
-func NewCommitTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string) (*http.Request, error) {
+// NewCommitTransactionV2Request calls the generic CommitTransactionV2 builder with application/json body
+func NewCommitTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string, body CommitTransactionV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCommitTransactionV2RequestWithBody(server, organizationId, ledgerId, transactionId, "application/json", bodyReader)
+}
+
+// NewCommitTransactionV2RequestWithBody generates requests for CommitTransactionV2 with any type of body
+func NewCommitTransactionV2RequestWithBody(server string, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -19663,10 +21545,12 @@ func NewCommitTransactionV2Request(server string, organizationId string, ledgerI
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -19739,8 +21623,19 @@ func NewUpdateOperationV2RequestWithBody(server string, organizationId string, l
 	return req, nil
 }
 
-// NewRevertTransactionV2Request generates requests for RevertTransactionV2
-func NewRevertTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string) (*http.Request, error) {
+// NewRevertTransactionV2Request calls the generic RevertTransactionV2 builder with application/json body
+func NewRevertTransactionV2Request(server string, organizationId string, ledgerId string, transactionId string, body RevertTransactionV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRevertTransactionV2RequestWithBody(server, organizationId, ledgerId, transactionId, "application/json", bodyReader)
+}
+
+// NewRevertTransactionV2RequestWithBody generates requests for RevertTransactionV2 with any type of body
+func NewRevertTransactionV2RequestWithBody(server string, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -19779,10 +21674,304 @@ func NewRevertTransactionV2Request(server string, organizationId string, ledgerI
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListOrganizationOperationRoutesV2Request generates requests for ListOrganizationOperationRoutesV2
+func NewListOrganizationOperationRoutesV2Request(server string, organizationId string, params *ListOrganizationOperationRoutesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/operation-routes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "sort_order", *params.SortOrder, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateOrganizationOperationRouteV2Request calls the generic CreateOrganizationOperationRouteV2 builder with application/json body
+func NewCreateOrganizationOperationRouteV2Request(server string, organizationId string, body CreateOrganizationOperationRouteV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateOrganizationOperationRouteV2RequestWithBody(server, organizationId, "application/json", bodyReader)
+}
+
+// NewCreateOrganizationOperationRouteV2RequestWithBody generates requests for CreateOrganizationOperationRouteV2 with any type of body
+func NewCreateOrganizationOperationRouteV2RequestWithBody(server string, organizationId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/operation-routes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteOrganizationOperationRouteV2Request generates requests for DeleteOrganizationOperationRouteV2
+func NewDeleteOrganizationOperationRouteV2Request(server string, organizationId string, operationRouteId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "operation_route_id", operationRouteId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/operation-routes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetOrganizationOperationRouteByIDV2Request generates requests for GetOrganizationOperationRouteByIDV2
+func NewGetOrganizationOperationRouteByIDV2Request(server string, organizationId string, operationRouteId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "operation_route_id", operationRouteId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/operation-routes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateOrganizationOperationRouteV2Request calls the generic UpdateOrganizationOperationRouteV2 builder with application/json body
+func NewUpdateOrganizationOperationRouteV2Request(server string, organizationId string, operationRouteId string, body UpdateOrganizationOperationRouteV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateOrganizationOperationRouteV2RequestWithBody(server, organizationId, operationRouteId, "application/json", bodyReader)
+}
+
+// NewUpdateOrganizationOperationRouteV2RequestWithBody generates requests for UpdateOrganizationOperationRouteV2 with any type of body
+func NewUpdateOrganizationOperationRouteV2RequestWithBody(server string, organizationId string, operationRouteId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "operation_route_id", operationRouteId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/operation-routes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -19947,6 +22136,298 @@ func NewGetAuditEventsV2Request(server string, organizationId string, params *Ge
 	return req, nil
 }
 
+// NewListOrganizationTransactionRoutesV2Request generates requests for ListOrganizationTransactionRoutesV2
+func NewListOrganizationTransactionRoutesV2Request(server string, organizationId string, params *ListOrganizationTransactionRoutesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/transaction-routes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SortOrder != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "sort_order", *params.SortOrder, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateOrganizationTransactionRouteV2Request calls the generic CreateOrganizationTransactionRouteV2 builder with application/json body
+func NewCreateOrganizationTransactionRouteV2Request(server string, organizationId string, body CreateOrganizationTransactionRouteV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateOrganizationTransactionRouteV2RequestWithBody(server, organizationId, "application/json", bodyReader)
+}
+
+// NewCreateOrganizationTransactionRouteV2RequestWithBody generates requests for CreateOrganizationTransactionRouteV2 with any type of body
+func NewCreateOrganizationTransactionRouteV2RequestWithBody(server string, organizationId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/transaction-routes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteOrganizationTransactionRouteV2Request generates requests for DeleteOrganizationTransactionRouteV2
+func NewDeleteOrganizationTransactionRouteV2Request(server string, organizationId string, transactionRouteId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "transaction_route_id", transactionRouteId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/transaction-routes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetOrganizationTransactionRouteByIDV2Request generates requests for GetOrganizationTransactionRouteByIDV2
+func NewGetOrganizationTransactionRouteByIDV2Request(server string, organizationId string, transactionRouteId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "transaction_route_id", transactionRouteId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/transaction-routes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateOrganizationTransactionRouteV2Request calls the generic UpdateOrganizationTransactionRouteV2 builder with application/json body
+func NewUpdateOrganizationTransactionRouteV2Request(server string, organizationId string, transactionRouteId string, body UpdateOrganizationTransactionRouteV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateOrganizationTransactionRouteV2RequestWithBody(server, organizationId, transactionRouteId, "application/json", bodyReader)
+}
+
+// NewUpdateOrganizationTransactionRouteV2RequestWithBody generates requests for UpdateOrganizationTransactionRouteV2 with any type of body
+func NewUpdateOrganizationTransactionRouteV2RequestWithBody(server string, organizationId string, transactionRouteId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "transaction_route_id", transactionRouteId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/transaction-routes/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetAllMetadataIndexesV2Request generates requests for GetAllMetadataIndexesV2
 func NewGetAllMetadataIndexesV2Request(server string, params *GetAllMetadataIndexesV2Params) (*http.Request, error) {
 	var err error
@@ -20084,6 +22565,72 @@ func NewDeleteMetadataIndexV2Request(server string, entityName string, indexKey 
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAtomicTransactionBatchV2Request calls the generic CreateAtomicTransactionBatchV2 builder with application/json body
+func NewCreateAtomicTransactionBatchV2Request(server string, params *CreateAtomicTransactionBatchV2Params, body CreateAtomicTransactionBatchV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAtomicTransactionBatchV2RequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateAtomicTransactionBatchV2RequestWithBody generates requests for CreateAtomicTransactionBatchV2 with any type of body
+func NewCreateAtomicTransactionBatchV2RequestWithBody(server string, params *CreateAtomicTransactionBatchV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/transactions/batch")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Idempotency", *params.XIdempotency, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-TTL", *params.XTTL, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
 	}
 
 	return req, nil
@@ -20560,6 +23107,15 @@ type ClientWithResponsesInterface interface {
 	// GetBalanceAtTimestampWithResponse request
 	GetBalanceAtTimestampWithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, params *GetBalanceAtTimestampParams, reqEditors ...RequestEditorFn) (*GetBalanceAtTimestampResp, error)
 
+	// GetLedgerDashboardAssetsWithResponse request
+	GetLedgerDashboardAssetsWithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerDashboardAssetsResp, error)
+
+	// GetLedgerDashboardMetricsWithResponse request
+	GetLedgerDashboardMetricsWithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsParams, reqEditors ...RequestEditorFn) (*GetLedgerDashboardMetricsResp, error)
+
+	// GetLedgerDashboardVolumeWithResponse request
+	GetLedgerDashboardVolumeWithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeParams, reqEditors ...RequestEditorFn) (*GetLedgerDashboardVolumeResp, error)
+
 	// ListOperationRoutesWithResponse request
 	ListOperationRoutesWithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListOperationRoutesParams, reqEditors ...RequestEditorFn) (*ListOperationRoutesResp, error)
 
@@ -20848,6 +23404,11 @@ type ClientWithResponsesInterface interface {
 	// GetBalancesByAliasV2WithResponse request
 	GetBalancesByAliasV2WithResponse(ctx context.Context, organizationId string, ledgerId string, alias string, reqEditors ...RequestEditorFn) (*GetBalancesByAliasV2Resp, error)
 
+	// CreateAccountBlockExceptionsV2WithBodyWithResponse request with any body
+	CreateAccountBlockExceptionsV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAccountBlockExceptionsV2Resp, error)
+
+	CreateAccountBlockExceptionsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateAccountBlockExceptionsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAccountBlockExceptionsV2Resp, error)
+
 	// GetAccountExternalByCodeV2WithResponse request
 	GetAccountExternalByCodeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*GetAccountExternalByCodeV2Resp, error)
 
@@ -20867,6 +23428,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetAccountBalancesAtTimestampV2WithResponse request
 	GetAccountBalancesAtTimestampV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountBalancesAtTimestampV2Params, reqEditors ...RequestEditorFn) (*GetAccountBalancesAtTimestampV2Resp, error)
+
+	// CloseAccountV2WithResponse request
+	CloseAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*CloseAccountV2Resp, error)
 
 	// GetAllOperationsByAccountV2WithResponse request
 	GetAllOperationsByAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*GetAllOperationsByAccountV2Resp, error)
@@ -20947,6 +23511,15 @@ type ClientWithResponsesInterface interface {
 	CalculateBillingV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CalculateBillingV2Resp, error)
 
 	CalculateBillingV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CalculateBillingV2Resp, error)
+
+	// GetLedgerDashboardAssetsV2WithResponse request
+	GetLedgerDashboardAssetsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerDashboardAssetsV2Resp, error)
+
+	// GetLedgerDashboardMetricsV2WithResponse request
+	GetLedgerDashboardMetricsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsV2Params, reqEditors ...RequestEditorFn) (*GetLedgerDashboardMetricsV2Resp, error)
+
+	// GetLedgerDashboardVolumeV2WithResponse request
+	GetLedgerDashboardVolumeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeV2Params, reqEditors ...RequestEditorFn) (*GetLedgerDashboardVolumeV2Resp, error)
 
 	// EstimateFeeCalculationV2WithBodyWithResponse request with any body
 	EstimateFeeCalculationV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationV2Resp, error)
@@ -21084,19 +23657,61 @@ type ClientWithResponsesInterface interface {
 	// CancelTransactionV2WithResponse request
 	CancelTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*CancelTransactionV2Resp, error)
 
-	// CommitTransactionV2WithResponse request
-	CommitTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error)
+	// CommitTransactionV2WithBodyWithResponse request with any body
+	CommitTransactionV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error)
+
+	CommitTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, body CommitTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error)
 
 	// UpdateOperationV2WithBodyWithResponse request with any body
 	UpdateOperationV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOperationV2Resp, error)
 
 	UpdateOperationV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, body UpdateOperationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOperationV2Resp, error)
 
-	// RevertTransactionV2WithResponse request
-	RevertTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*RevertTransactionV2Resp, error)
+	// RevertTransactionV2WithBodyWithResponse request with any body
+	RevertTransactionV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RevertTransactionV2Resp, error)
+
+	RevertTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, body RevertTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*RevertTransactionV2Resp, error)
+
+	// ListOrganizationOperationRoutesV2WithResponse request
+	ListOrganizationOperationRoutesV2WithResponse(ctx context.Context, organizationId string, params *ListOrganizationOperationRoutesV2Params, reqEditors ...RequestEditorFn) (*ListOrganizationOperationRoutesV2Resp, error)
+
+	// CreateOrganizationOperationRouteV2WithBodyWithResponse request with any body
+	CreateOrganizationOperationRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationOperationRouteV2Resp, error)
+
+	CreateOrganizationOperationRouteV2WithResponse(ctx context.Context, organizationId string, body CreateOrganizationOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationOperationRouteV2Resp, error)
+
+	// DeleteOrganizationOperationRouteV2WithResponse request
+	DeleteOrganizationOperationRouteV2WithResponse(ctx context.Context, organizationId string, operationRouteId string, reqEditors ...RequestEditorFn) (*DeleteOrganizationOperationRouteV2Resp, error)
+
+	// GetOrganizationOperationRouteByIDV2WithResponse request
+	GetOrganizationOperationRouteByIDV2WithResponse(ctx context.Context, organizationId string, operationRouteId string, reqEditors ...RequestEditorFn) (*GetOrganizationOperationRouteByIDV2Resp, error)
+
+	// UpdateOrganizationOperationRouteV2WithBodyWithResponse request with any body
+	UpdateOrganizationOperationRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, operationRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrganizationOperationRouteV2Resp, error)
+
+	UpdateOrganizationOperationRouteV2WithResponse(ctx context.Context, organizationId string, operationRouteId string, body UpdateOrganizationOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrganizationOperationRouteV2Resp, error)
 
 	// GetAuditEventsV2WithResponse request
 	GetAuditEventsV2WithResponse(ctx context.Context, organizationId string, params *GetAuditEventsV2Params, reqEditors ...RequestEditorFn) (*GetAuditEventsV2Resp, error)
+
+	// ListOrganizationTransactionRoutesV2WithResponse request
+	ListOrganizationTransactionRoutesV2WithResponse(ctx context.Context, organizationId string, params *ListOrganizationTransactionRoutesV2Params, reqEditors ...RequestEditorFn) (*ListOrganizationTransactionRoutesV2Resp, error)
+
+	// CreateOrganizationTransactionRouteV2WithBodyWithResponse request with any body
+	CreateOrganizationTransactionRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationTransactionRouteV2Resp, error)
+
+	CreateOrganizationTransactionRouteV2WithResponse(ctx context.Context, organizationId string, body CreateOrganizationTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationTransactionRouteV2Resp, error)
+
+	// DeleteOrganizationTransactionRouteV2WithResponse request
+	DeleteOrganizationTransactionRouteV2WithResponse(ctx context.Context, organizationId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*DeleteOrganizationTransactionRouteV2Resp, error)
+
+	// GetOrganizationTransactionRouteByIDV2WithResponse request
+	GetOrganizationTransactionRouteByIDV2WithResponse(ctx context.Context, organizationId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*GetOrganizationTransactionRouteByIDV2Resp, error)
+
+	// UpdateOrganizationTransactionRouteV2WithBodyWithResponse request with any body
+	UpdateOrganizationTransactionRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, transactionRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrganizationTransactionRouteV2Resp, error)
+
+	UpdateOrganizationTransactionRouteV2WithResponse(ctx context.Context, organizationId string, transactionRouteId string, body UpdateOrganizationTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrganizationTransactionRouteV2Resp, error)
 
 	// GetAllMetadataIndexesV2WithResponse request
 	GetAllMetadataIndexesV2WithResponse(ctx context.Context, params *GetAllMetadataIndexesV2Params, reqEditors ...RequestEditorFn) (*GetAllMetadataIndexesV2Resp, error)
@@ -21108,6 +23723,11 @@ type ClientWithResponsesInterface interface {
 
 	// DeleteMetadataIndexV2WithResponse request
 	DeleteMetadataIndexV2WithResponse(ctx context.Context, entityName string, indexKey string, reqEditors ...RequestEditorFn) (*DeleteMetadataIndexV2Resp, error)
+
+	// CreateAtomicTransactionBatchV2WithBodyWithResponse request with any body
+	CreateAtomicTransactionBatchV2WithBodyWithResponse(ctx context.Context, params *CreateAtomicTransactionBatchV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAtomicTransactionBatchV2Resp, error)
+
+	CreateAtomicTransactionBatchV2WithResponse(ctx context.Context, params *CreateAtomicTransactionBatchV2Params, body CreateAtomicTransactionBatchV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAtomicTransactionBatchV2Resp, error)
 
 	// CreateTransactionBlockV2WithBodyWithResponse request with any body
 	CreateTransactionBlockV2WithBodyWithResponse(ctx context.Context, params *CreateTransactionBlockV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTransactionBlockV2Resp, error)
@@ -21134,6 +23754,8 @@ type ListOrganizationsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21165,6 +23787,8 @@ type CreateOrganizationResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Organization
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21195,7 +23819,6 @@ func (r CreateOrganizationResp) ContentType() string {
 type CountOrganizationsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -21225,6 +23848,8 @@ func (r CountOrganizationsResp) ContentType() string {
 type DeleteOrganizationResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21256,6 +23881,8 @@ type GetOrganizationByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Organization
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21287,6 +23914,8 @@ type UpdateOrganizationResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Organization
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21318,6 +23947,8 @@ type ListLedgersResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21349,6 +23980,8 @@ type CreateLedgerResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Ledger
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21379,7 +24012,6 @@ func (r CreateLedgerResp) ContentType() string {
 type CountLedgersResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -21409,6 +24041,8 @@ func (r CountLedgersResp) ContentType() string {
 type DeleteLedgerResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21440,6 +24074,8 @@ type GetLedgerByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Ledger
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21471,6 +24107,8 @@ type UpdateLedgerResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Ledger
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21502,6 +24140,8 @@ type ListAccountTypesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21533,6 +24173,8 @@ type CreateAccountTypeResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *AccountType
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21563,6 +24205,8 @@ func (r CreateAccountTypeResp) ContentType() string {
 type DeleteAccountTypeResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21594,6 +24238,8 @@ type GetAccountTypeByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AccountType
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21625,6 +24271,8 @@ type UpdateAccountTypeResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AccountType
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21656,6 +24304,8 @@ type ListAccountsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21687,6 +24337,8 @@ type CreateAccountResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Account
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21718,6 +24370,8 @@ type GetAccountByAliasResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Account
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21749,6 +24403,8 @@ type GetBalancesByAliasResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21780,6 +24436,8 @@ type GetAccountExternalByCodeResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Account
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21811,6 +24469,8 @@ type GetBalancesExternalByCodeResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21841,7 +24501,6 @@ func (r GetBalancesExternalByCodeResp) ContentType() string {
 type CountAccountsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -21872,6 +24531,8 @@ type GetAllBalancesByAccountIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21903,6 +24564,8 @@ type CreateAdditionalBalanceResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Balance
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21934,6 +24597,8 @@ type GetAccountBalancesAtTimestampResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *[]BalanceHistory
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21965,6 +24630,8 @@ type GetAllOperationsByAccountResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -21996,6 +24663,8 @@ type GetOperationByAccountResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Operation
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22026,6 +24695,8 @@ func (r GetOperationByAccountResp) ContentType() string {
 type DeleteAccountResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22057,6 +24728,8 @@ type GetAccountByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Account
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22088,6 +24761,8 @@ type UpdateAccountResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Account
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22119,6 +24794,8 @@ type CreateOrUpdateAssetRateResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *AssetRate
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22150,6 +24827,8 @@ type GetAllAssetRatesByAssetCodeResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22181,6 +24860,8 @@ type GetAssetRateByExternalIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AssetRate
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22212,6 +24893,8 @@ type ListAssetsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22243,6 +24926,8 @@ type CreateAssetResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Asset
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22273,7 +24958,6 @@ func (r CreateAssetResp) ContentType() string {
 type CountAssetsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -22303,6 +24987,8 @@ func (r CountAssetsResp) ContentType() string {
 type DeleteAssetResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22334,6 +25020,8 @@ type GetAssetByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Asset
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22365,6 +25053,8 @@ type UpdateAssetResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Asset
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22396,6 +25086,8 @@ type GetAllBalancesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22426,6 +25118,8 @@ func (r GetAllBalancesResp) ContentType() string {
 type DeleteBalanceResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22457,6 +25151,8 @@ type GetBalanceByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Balance
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22488,6 +25184,8 @@ type UpdateBalanceResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Balance
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22519,6 +25217,8 @@ type GetBalanceAtTimestampResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *BalanceHistory
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22546,10 +25246,111 @@ func (r GetBalanceAtTimestampResp) ContentType() string {
 	return ""
 }
 
+type GetLedgerDashboardAssetsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LedgerDashboardAssets
+	JSON422      *LegacyError
+	JSON500      *LegacyError
+	JSONDefault  *LegacyError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLedgerDashboardAssetsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLedgerDashboardAssetsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLedgerDashboardAssetsResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLedgerDashboardMetricsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LedgerDashboardMetrics
+	JSON422      *LegacyError
+	JSON500      *LegacyError
+	JSONDefault  *LegacyError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLedgerDashboardMetricsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLedgerDashboardMetricsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLedgerDashboardMetricsResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLedgerDashboardVolumeResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LedgerDashboardVolume
+	JSON422      *LegacyError
+	JSON500      *LegacyError
+	JSONDefault  *LegacyError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLedgerDashboardVolumeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLedgerDashboardVolumeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLedgerDashboardVolumeResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListOperationRoutesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22581,6 +25382,8 @@ type CreateOperationRouteResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *OperationRoute
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22611,6 +25414,8 @@ func (r CreateOperationRouteResp) ContentType() string {
 type DeleteOperationRouteResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22642,6 +25447,8 @@ type GetOperationRouteByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *OperationRoute
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22673,6 +25480,8 @@ type UpdateOperationRouteResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *OperationRoute
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22704,6 +25513,8 @@ type ListPortfoliosResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22735,6 +25546,8 @@ type CreatePortfolioResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Portfolio
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22765,7 +25578,6 @@ func (r CreatePortfolioResp) ContentType() string {
 type CountPortfoliosResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -22795,6 +25607,8 @@ func (r CountPortfoliosResp) ContentType() string {
 type DeletePortfolioResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22826,6 +25640,8 @@ type GetPortfolioByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Portfolio
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22857,6 +25673,8 @@ type UpdatePortfolioResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Portfolio
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22888,6 +25706,8 @@ type ListSegmentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22919,6 +25739,8 @@ type CreateSegmentResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Segment
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -22949,7 +25771,6 @@ func (r CreateSegmentResp) ContentType() string {
 type CountSegmentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -22979,6 +25800,8 @@ func (r CountSegmentsResp) ContentType() string {
 type DeleteSegmentResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23010,6 +25833,8 @@ type GetSegmentByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Segment
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23041,6 +25866,8 @@ type UpdateSegmentResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Segment
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23072,6 +25899,8 @@ type GetLedgerSettingsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *LedgerSettings
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23103,6 +25932,8 @@ type UpdateLedgerSettingsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *LedgerSettings
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23134,6 +25965,8 @@ type ListTransactionRoutesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23165,6 +25998,8 @@ type CreateTransactionRouteResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *TransactionRoute
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23195,6 +26030,8 @@ func (r CreateTransactionRouteResp) ContentType() string {
 type DeleteTransactionRouteResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23226,6 +26063,8 @@ type GetTransactionRouteByIDResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TransactionRoute
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23257,6 +26096,8 @@ type UpdateTransactionRouteResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TransactionRoute
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23288,6 +26129,8 @@ type GetAllTransactionsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Pagination
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23319,6 +26162,8 @@ type CreateTransactionAnnotationResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23350,6 +26195,8 @@ type CreateTransactionBlockResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23381,6 +26228,8 @@ type CreateTransactionInflowResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23412,6 +26261,8 @@ type CreateTransactionJSONResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23442,7 +26293,6 @@ func (r CreateTransactionJSONResp) ContentType() string {
 type CountTransactionsByFiltersResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSONDefault  *LegacyError
 }
 
 // Status returns HTTPResponse.Status
@@ -23473,6 +26323,8 @@ type CreateTransactionOutflowResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23504,6 +26356,8 @@ type CreateTransactionUnblockResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23535,6 +26389,8 @@ type GetTransactionResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23566,6 +26422,8 @@ type UpdateTransactionResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23597,6 +26455,8 @@ type CancelTransactionResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23628,6 +26488,8 @@ type CommitTransactionResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23659,6 +26521,8 @@ type UpdateOperationResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Operation
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23690,6 +26554,8 @@ type RevertTransactionResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Transaction
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23721,6 +26587,8 @@ type GetAllMetadataIndexesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *[]MetadataIndex
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23752,6 +26620,8 @@ type CreateMetadataIndexResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *MetadataIndex
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23782,6 +26652,8 @@ func (r CreateMetadataIndexResp) ContentType() string {
 type DeleteMetadataIndexResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON422      *LegacyError
+	JSON500      *LegacyError
 	JSONDefault  *LegacyError
 }
 
@@ -23813,6 +26685,8 @@ type ListOrganizationsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -23844,6 +26718,8 @@ type CreateOrganizationV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Organization
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -23872,9 +26748,8 @@ func (r CreateOrganizationV2Resp) ContentType() string {
 }
 
 type CountOrganizationsV2Resp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
@@ -23904,6 +26779,8 @@ func (r CountOrganizationsV2Resp) ContentType() string {
 type DeleteOrganizationV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -23935,6 +26812,8 @@ type GetOrganizationByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Organization
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -23966,6 +26845,8 @@ type UpdateOrganizationV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Organization
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -23997,6 +26878,8 @@ type ProvisionEncryptionV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *ProvisionEncryptionResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24028,6 +26911,8 @@ type GetProvisioningStatusV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ProvisioningStatusResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24059,6 +26944,8 @@ type ListHoldersV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24090,6 +26977,8 @@ type CreateHolderV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Holder
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24121,6 +27010,8 @@ type CreateInstrumentV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Instrument
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24151,6 +27042,8 @@ func (r CreateInstrumentV2Resp) ContentType() string {
 type DeleteInstrumentV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24182,6 +27075,8 @@ type GetInstrumentByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Instrument
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24213,6 +27108,8 @@ type UpdateInstrumentV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Instrument
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24243,6 +27140,8 @@ func (r UpdateInstrumentV2Resp) ContentType() string {
 type DeleteRelatedPartyV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24273,6 +27172,8 @@ func (r DeleteRelatedPartyV2Resp) ContentType() string {
 type DeleteHolderV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24304,6 +27205,8 @@ type GetHolderByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Holder
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24335,6 +27238,8 @@ type UpdateHolderV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Holder
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24366,6 +27271,8 @@ type ListAccountsByHolderV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24397,6 +27304,8 @@ type ListInstrumentsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24428,6 +27337,8 @@ type ListLedgersV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24459,6 +27370,8 @@ type CreateLedgerV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Ledger
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24487,9 +27400,8 @@ func (r CreateLedgerV2Resp) ContentType() string {
 }
 
 type CountLedgersV2Resp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
@@ -24519,6 +27431,8 @@ func (r CountLedgersV2Resp) ContentType() string {
 type DeleteLedgerV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24550,6 +27464,8 @@ type GetLedgerByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Ledger
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24581,6 +27497,8 @@ type UpdateLedgerV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Ledger
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24612,6 +27530,8 @@ type ListAccountTypesV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24643,6 +27563,8 @@ type CreateAccountTypeV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *AccountType
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24673,6 +27595,8 @@ func (r CreateAccountTypeV2Resp) ContentType() string {
 type DeleteAccountTypeV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24704,6 +27628,8 @@ type GetAccountTypeByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AccountType
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24735,6 +27661,8 @@ type UpdateAccountTypeV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AccountType
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24766,6 +27694,8 @@ type ListAccountsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24797,6 +27727,8 @@ type CreateAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *AccountV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24828,6 +27760,8 @@ type GetAccountByAliasV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AccountV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24859,6 +27793,8 @@ type GetBalancesByAliasV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24886,10 +27822,45 @@ func (r GetBalancesByAliasV2Resp) ContentType() string {
 	return ""
 }
 
+type CreateAccountBlockExceptionsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *AccountBlockExceptions
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAccountBlockExceptionsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAccountBlockExceptionsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateAccountBlockExceptionsV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetAccountExternalByCodeV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AccountV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24921,6 +27892,8 @@ type GetBalancesExternalByCodeV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -24949,9 +27922,8 @@ func (r GetBalancesExternalByCodeV2Resp) ContentType() string {
 }
 
 type CountAccountsV2Resp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
@@ -24982,6 +27954,8 @@ type GetAllBalancesByAccountIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25013,6 +27987,8 @@ type CreateAdditionalBalanceV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Balance
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25044,6 +28020,8 @@ type GetAccountBalancesAtTimestampV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *[]BalanceHistory
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25071,10 +28049,44 @@ func (r GetAccountBalancesAtTimestampV2Resp) ContentType() string {
 	return ""
 }
 
+type CloseAccountV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CloseAccountV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CloseAccountV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CloseAccountV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetAllOperationsByAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25106,6 +28118,8 @@ type GetOperationByAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Operation
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25136,6 +28150,8 @@ func (r GetOperationByAccountV2Resp) ContentType() string {
 type DeleteAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25167,6 +28183,8 @@ type GetAccountByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AccountV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25198,6 +28216,8 @@ type UpdateAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AccountV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25229,6 +28249,8 @@ type ListAssetsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25260,6 +28282,8 @@ type CreateAssetV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Asset
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25288,9 +28312,8 @@ func (r CreateAssetV2Resp) ContentType() string {
 }
 
 type CountAssetsV2Resp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
@@ -25320,6 +28343,8 @@ func (r CountAssetsV2Resp) ContentType() string {
 type DeleteAssetV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25351,6 +28376,8 @@ type GetAssetByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Asset
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25382,6 +28409,8 @@ type UpdateAssetV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Asset
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25413,6 +28442,8 @@ type GetAllBalancesV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25443,6 +28474,8 @@ func (r GetAllBalancesV2Resp) ContentType() string {
 type DeleteBalanceV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25474,6 +28507,8 @@ type GetBalanceByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Balance
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25505,6 +28540,8 @@ type UpdateBalanceV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Balance
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25536,6 +28573,8 @@ type GetBalanceAtTimestampV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *BalanceHistory
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25567,6 +28606,8 @@ type GetAllBillingPackagesV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *FeePagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25598,6 +28639,8 @@ type CreateBillingPackageV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *FeeBillingPackage
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25628,6 +28671,8 @@ func (r CreateBillingPackageV2Resp) ContentType() string {
 type DeleteBillingPackageV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25659,6 +28704,8 @@ type GetBillingPackageByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *FeeBillingPackage
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25690,6 +28737,8 @@ type UpdateBillingPackageV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *FeeBillingPackage
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25721,6 +28770,8 @@ type CalculateBillingV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *FeeBillingCalculateResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25748,10 +28799,111 @@ func (r CalculateBillingV2Resp) ContentType() string {
 	return ""
 }
 
+type GetLedgerDashboardAssetsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *LedgerDashboardAssets
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLedgerDashboardAssetsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLedgerDashboardAssetsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLedgerDashboardAssetsV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLedgerDashboardMetricsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *LedgerDashboardMetrics
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLedgerDashboardMetricsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLedgerDashboardMetricsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLedgerDashboardMetricsV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLedgerDashboardVolumeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *LedgerDashboardVolume
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLedgerDashboardVolumeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLedgerDashboardVolumeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLedgerDashboardVolumeV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type EstimateFeeCalculationV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *[]byte
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25783,6 +28935,8 @@ type CreateHolderAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *HolderAccountResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25814,6 +28968,8 @@ type ListOperationRoutesV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25845,6 +29001,8 @@ type CreateOperationRouteV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *OperationRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25875,6 +29033,8 @@ func (r CreateOperationRouteV2Resp) ContentType() string {
 type DeleteOperationRouteV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25906,6 +29066,8 @@ type GetOperationRouteByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *OperationRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25937,6 +29099,8 @@ type UpdateOperationRouteV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *OperationRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25968,6 +29132,8 @@ type GetAllPackagesV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *FeePagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -25999,6 +29165,8 @@ type CreatePackageV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *FeePackage
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26029,6 +29197,8 @@ func (r CreatePackageV2Resp) ContentType() string {
 type DeletePackageV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26060,6 +29230,8 @@ type GetPackageByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *FeePackage
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26091,6 +29263,8 @@ type UpdatePackageV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *FeePackage
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26122,6 +29296,8 @@ type ListPortfoliosV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26153,6 +29329,8 @@ type CreatePortfolioV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Portfolio
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26181,9 +29359,8 @@ func (r CreatePortfolioV2Resp) ContentType() string {
 }
 
 type CountPortfoliosV2Resp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
@@ -26213,6 +29390,8 @@ func (r CountPortfoliosV2Resp) ContentType() string {
 type DeletePortfolioV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26244,6 +29423,8 @@ type GetPortfolioByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Portfolio
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26275,6 +29456,8 @@ type UpdatePortfolioV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Portfolio
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26306,6 +29489,8 @@ type ListSegmentsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26337,6 +29522,8 @@ type CreateSegmentV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Segment
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26365,9 +29552,8 @@ func (r CreateSegmentV2Resp) ContentType() string {
 }
 
 type CountSegmentsV2Resp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
@@ -26397,6 +29583,8 @@ func (r CountSegmentsV2Resp) ContentType() string {
 type DeleteSegmentV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26428,6 +29616,8 @@ type GetSegmentByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Segment
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26459,6 +29649,8 @@ type UpdateSegmentV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Segment
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26490,6 +29682,8 @@ type GetLedgerSettingsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *LedgerSettings
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26521,6 +29715,8 @@ type UpdateLedgerSettingsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *LedgerSettings
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26552,6 +29748,8 @@ type ListTransactionRoutesV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26583,6 +29781,8 @@ type CreateTransactionRouteV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *TransactionRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26613,6 +29813,8 @@ func (r CreateTransactionRouteV2Resp) ContentType() string {
 type DeleteTransactionRouteV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26644,6 +29846,8 @@ type GetTransactionRouteByIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26675,6 +29879,8 @@ type UpdateTransactionRouteV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26706,6 +29912,8 @@ type GetAllTransactionsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionV2ListBody
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26734,9 +29942,8 @@ func (r GetAllTransactionsV2Resp) ContentType() string {
 }
 
 type CountTransactionsByFiltersV2Resp struct {
-	Body                          []byte
-	HTTPResponse                  *http.Response
-	ApplicationproblemJSONDefault *Error
+	Body         []byte
+	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
@@ -26767,6 +29974,8 @@ type GetTransactionV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26798,6 +30007,8 @@ type UpdateTransactionV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26828,7 +30039,9 @@ func (r UpdateTransactionV2Resp) ContentType() string {
 type CancelTransactionV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON201                       *TransactionV2
+	JSON201                       *CancelTransactionV2201JSONResponseBody
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26859,7 +30072,9 @@ func (r CancelTransactionV2Resp) ContentType() string {
 type CommitTransactionV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON201                       *TransactionV2
+	JSON201                       *CommitTransactionV2201JSONResponseBody
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26891,6 +30106,8 @@ type UpdateOperationV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Operation
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26921,7 +30138,9 @@ func (r UpdateOperationV2Resp) ContentType() string {
 type RevertTransactionV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON201                       *TransactionV2
+	JSON201                       *RevertTransactionV2201JSONResponseBody
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26949,10 +30168,176 @@ func (r RevertTransactionV2Resp) ContentType() string {
 	return ""
 }
 
+type ListOrganizationOperationRoutesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOrganizationOperationRoutesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOrganizationOperationRoutesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListOrganizationOperationRoutesV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateOrganizationOperationRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *OperationRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateOrganizationOperationRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateOrganizationOperationRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateOrganizationOperationRouteV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteOrganizationOperationRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteOrganizationOperationRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteOrganizationOperationRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteOrganizationOperationRouteV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetOrganizationOperationRouteByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *OperationRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOrganizationOperationRouteByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOrganizationOperationRouteByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetOrganizationOperationRouteByIDV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateOrganizationOperationRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *OperationRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateOrganizationOperationRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateOrganizationOperationRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateOrganizationOperationRouteV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetAuditEventsV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AuditEventsEnvelope
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -26980,10 +30365,176 @@ func (r GetAuditEventsV2Resp) ContentType() string {
 	return ""
 }
 
+type ListOrganizationTransactionRoutesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOrganizationTransactionRoutesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOrganizationTransactionRoutesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListOrganizationTransactionRoutesV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateOrganizationTransactionRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *TransactionRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateOrganizationTransactionRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateOrganizationTransactionRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateOrganizationTransactionRouteV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteOrganizationTransactionRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteOrganizationTransactionRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteOrganizationTransactionRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteOrganizationTransactionRouteV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetOrganizationTransactionRouteByIDV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *TransactionRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetOrganizationTransactionRouteByIDV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetOrganizationTransactionRouteByIDV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetOrganizationTransactionRouteByIDV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateOrganizationTransactionRouteV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *TransactionRoute
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateOrganizationTransactionRouteV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateOrganizationTransactionRouteV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateOrganizationTransactionRouteV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetAllMetadataIndexesV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *[]MetadataIndex
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -27015,6 +30566,8 @@ type CreateMetadataIndexV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *MetadataIndex
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -27045,6 +30598,8 @@ func (r CreateMetadataIndexV2Resp) ContentType() string {
 type DeleteMetadataIndexV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -27072,10 +30627,45 @@ func (r DeleteMetadataIndexV2Resp) ContentType() string {
 	return ""
 }
 
+type CreateAtomicTransactionBatchV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *CreateAtomicTransactionBatchV2Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAtomicTransactionBatchV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAtomicTransactionBatchV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateAtomicTransactionBatchV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type CreateTransactionBlockV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *TransactionV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -27106,7 +30696,9 @@ func (r CreateTransactionBlockV2Resp) ContentType() string {
 type CreateTransactionDirectV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON201                       *TransactionV2
+	JSON201                       *CreateTransactionDirectV2201JSONResponseBody
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -27137,7 +30729,9 @@ func (r CreateTransactionDirectV2Resp) ContentType() string {
 type CreateTransactionHoldV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON201                       *TransactionV2
+	JSON201                       *CreateTransactionHoldV2201JSONResponseBody
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -27169,6 +30763,8 @@ type CreateTransactionUnblockV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *TransactionV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -27712,6 +31308,33 @@ func (c *ClientWithResponses) GetBalanceAtTimestampWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseGetBalanceAtTimestampResp(rsp)
+}
+
+// GetLedgerDashboardAssetsWithResponse request returning *GetLedgerDashboardAssetsResp
+func (c *ClientWithResponses) GetLedgerDashboardAssetsWithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerDashboardAssetsResp, error) {
+	rsp, err := c.GetLedgerDashboardAssets(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLedgerDashboardAssetsResp(rsp)
+}
+
+// GetLedgerDashboardMetricsWithResponse request returning *GetLedgerDashboardMetricsResp
+func (c *ClientWithResponses) GetLedgerDashboardMetricsWithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsParams, reqEditors ...RequestEditorFn) (*GetLedgerDashboardMetricsResp, error) {
+	rsp, err := c.GetLedgerDashboardMetrics(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLedgerDashboardMetricsResp(rsp)
+}
+
+// GetLedgerDashboardVolumeWithResponse request returning *GetLedgerDashboardVolumeResp
+func (c *ClientWithResponses) GetLedgerDashboardVolumeWithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeParams, reqEditors ...RequestEditorFn) (*GetLedgerDashboardVolumeResp, error) {
+	rsp, err := c.GetLedgerDashboardVolume(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLedgerDashboardVolumeResp(rsp)
 }
 
 // ListOperationRoutesWithResponse request returning *ListOperationRoutesResp
@@ -28638,6 +32261,23 @@ func (c *ClientWithResponses) GetBalancesByAliasV2WithResponse(ctx context.Conte
 	return ParseGetBalancesByAliasV2Resp(rsp)
 }
 
+// CreateAccountBlockExceptionsV2WithBodyWithResponse request with arbitrary body returning *CreateAccountBlockExceptionsV2Resp
+func (c *ClientWithResponses) CreateAccountBlockExceptionsV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAccountBlockExceptionsV2Resp, error) {
+	rsp, err := c.CreateAccountBlockExceptionsV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAccountBlockExceptionsV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAccountBlockExceptionsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CreateAccountBlockExceptionsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAccountBlockExceptionsV2Resp, error) {
+	rsp, err := c.CreateAccountBlockExceptionsV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAccountBlockExceptionsV2Resp(rsp)
+}
+
 // GetAccountExternalByCodeV2WithResponse request returning *GetAccountExternalByCodeV2Resp
 func (c *ClientWithResponses) GetAccountExternalByCodeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, code string, reqEditors ...RequestEditorFn) (*GetAccountExternalByCodeV2Resp, error) {
 	rsp, err := c.GetAccountExternalByCodeV2(ctx, organizationId, ledgerId, code, reqEditors...)
@@ -28698,6 +32338,15 @@ func (c *ClientWithResponses) GetAccountBalancesAtTimestampV2WithResponse(ctx co
 		return nil, err
 	}
 	return ParseGetAccountBalancesAtTimestampV2Resp(rsp)
+}
+
+// CloseAccountV2WithResponse request returning *CloseAccountV2Resp
+func (c *ClientWithResponses) CloseAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*CloseAccountV2Resp, error) {
+	rsp, err := c.CloseAccountV2(ctx, organizationId, ledgerId, accountId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCloseAccountV2Resp(rsp)
 }
 
 // GetAllOperationsByAccountV2WithResponse request returning *GetAllOperationsByAccountV2Resp
@@ -28952,6 +32601,33 @@ func (c *ClientWithResponses) CalculateBillingV2WithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseCalculateBillingV2Resp(rsp)
+}
+
+// GetLedgerDashboardAssetsV2WithResponse request returning *GetLedgerDashboardAssetsV2Resp
+func (c *ClientWithResponses) GetLedgerDashboardAssetsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerDashboardAssetsV2Resp, error) {
+	rsp, err := c.GetLedgerDashboardAssetsV2(ctx, organizationId, ledgerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLedgerDashboardAssetsV2Resp(rsp)
+}
+
+// GetLedgerDashboardMetricsV2WithResponse request returning *GetLedgerDashboardMetricsV2Resp
+func (c *ClientWithResponses) GetLedgerDashboardMetricsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardMetricsV2Params, reqEditors ...RequestEditorFn) (*GetLedgerDashboardMetricsV2Resp, error) {
+	rsp, err := c.GetLedgerDashboardMetricsV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLedgerDashboardMetricsV2Resp(rsp)
+}
+
+// GetLedgerDashboardVolumeV2WithResponse request returning *GetLedgerDashboardVolumeV2Resp
+func (c *ClientWithResponses) GetLedgerDashboardVolumeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetLedgerDashboardVolumeV2Params, reqEditors ...RequestEditorFn) (*GetLedgerDashboardVolumeV2Resp, error) {
+	rsp, err := c.GetLedgerDashboardVolumeV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLedgerDashboardVolumeV2Resp(rsp)
 }
 
 // EstimateFeeCalculationV2WithBodyWithResponse request with arbitrary body returning *EstimateFeeCalculationV2Resp
@@ -29390,9 +33066,17 @@ func (c *ClientWithResponses) CancelTransactionV2WithResponse(ctx context.Contex
 	return ParseCancelTransactionV2Resp(rsp)
 }
 
-// CommitTransactionV2WithResponse request returning *CommitTransactionV2Resp
-func (c *ClientWithResponses) CommitTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error) {
-	rsp, err := c.CommitTransactionV2(ctx, organizationId, ledgerId, transactionId, reqEditors...)
+// CommitTransactionV2WithBodyWithResponse request with arbitrary body returning *CommitTransactionV2Resp
+func (c *ClientWithResponses) CommitTransactionV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error) {
+	rsp, err := c.CommitTransactionV2WithBody(ctx, organizationId, ledgerId, transactionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCommitTransactionV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CommitTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, body CommitTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error) {
+	rsp, err := c.CommitTransactionV2(ctx, organizationId, ledgerId, transactionId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -29416,13 +33100,82 @@ func (c *ClientWithResponses) UpdateOperationV2WithResponse(ctx context.Context,
 	return ParseUpdateOperationV2Resp(rsp)
 }
 
-// RevertTransactionV2WithResponse request returning *RevertTransactionV2Resp
-func (c *ClientWithResponses) RevertTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*RevertTransactionV2Resp, error) {
-	rsp, err := c.RevertTransactionV2(ctx, organizationId, ledgerId, transactionId, reqEditors...)
+// RevertTransactionV2WithBodyWithResponse request with arbitrary body returning *RevertTransactionV2Resp
+func (c *ClientWithResponses) RevertTransactionV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RevertTransactionV2Resp, error) {
+	rsp, err := c.RevertTransactionV2WithBody(ctx, organizationId, ledgerId, transactionId, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseRevertTransactionV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) RevertTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, body RevertTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*RevertTransactionV2Resp, error) {
+	rsp, err := c.RevertTransactionV2(ctx, organizationId, ledgerId, transactionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevertTransactionV2Resp(rsp)
+}
+
+// ListOrganizationOperationRoutesV2WithResponse request returning *ListOrganizationOperationRoutesV2Resp
+func (c *ClientWithResponses) ListOrganizationOperationRoutesV2WithResponse(ctx context.Context, organizationId string, params *ListOrganizationOperationRoutesV2Params, reqEditors ...RequestEditorFn) (*ListOrganizationOperationRoutesV2Resp, error) {
+	rsp, err := c.ListOrganizationOperationRoutesV2(ctx, organizationId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOrganizationOperationRoutesV2Resp(rsp)
+}
+
+// CreateOrganizationOperationRouteV2WithBodyWithResponse request with arbitrary body returning *CreateOrganizationOperationRouteV2Resp
+func (c *ClientWithResponses) CreateOrganizationOperationRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationOperationRouteV2Resp, error) {
+	rsp, err := c.CreateOrganizationOperationRouteV2WithBody(ctx, organizationId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrganizationOperationRouteV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateOrganizationOperationRouteV2WithResponse(ctx context.Context, organizationId string, body CreateOrganizationOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationOperationRouteV2Resp, error) {
+	rsp, err := c.CreateOrganizationOperationRouteV2(ctx, organizationId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrganizationOperationRouteV2Resp(rsp)
+}
+
+// DeleteOrganizationOperationRouteV2WithResponse request returning *DeleteOrganizationOperationRouteV2Resp
+func (c *ClientWithResponses) DeleteOrganizationOperationRouteV2WithResponse(ctx context.Context, organizationId string, operationRouteId string, reqEditors ...RequestEditorFn) (*DeleteOrganizationOperationRouteV2Resp, error) {
+	rsp, err := c.DeleteOrganizationOperationRouteV2(ctx, organizationId, operationRouteId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteOrganizationOperationRouteV2Resp(rsp)
+}
+
+// GetOrganizationOperationRouteByIDV2WithResponse request returning *GetOrganizationOperationRouteByIDV2Resp
+func (c *ClientWithResponses) GetOrganizationOperationRouteByIDV2WithResponse(ctx context.Context, organizationId string, operationRouteId string, reqEditors ...RequestEditorFn) (*GetOrganizationOperationRouteByIDV2Resp, error) {
+	rsp, err := c.GetOrganizationOperationRouteByIDV2(ctx, organizationId, operationRouteId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOrganizationOperationRouteByIDV2Resp(rsp)
+}
+
+// UpdateOrganizationOperationRouteV2WithBodyWithResponse request with arbitrary body returning *UpdateOrganizationOperationRouteV2Resp
+func (c *ClientWithResponses) UpdateOrganizationOperationRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, operationRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrganizationOperationRouteV2Resp, error) {
+	rsp, err := c.UpdateOrganizationOperationRouteV2WithBody(ctx, organizationId, operationRouteId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrganizationOperationRouteV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateOrganizationOperationRouteV2WithResponse(ctx context.Context, organizationId string, operationRouteId string, body UpdateOrganizationOperationRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrganizationOperationRouteV2Resp, error) {
+	rsp, err := c.UpdateOrganizationOperationRouteV2(ctx, organizationId, operationRouteId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrganizationOperationRouteV2Resp(rsp)
 }
 
 // GetAuditEventsV2WithResponse request returning *GetAuditEventsV2Resp
@@ -29432,6 +33185,67 @@ func (c *ClientWithResponses) GetAuditEventsV2WithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseGetAuditEventsV2Resp(rsp)
+}
+
+// ListOrganizationTransactionRoutesV2WithResponse request returning *ListOrganizationTransactionRoutesV2Resp
+func (c *ClientWithResponses) ListOrganizationTransactionRoutesV2WithResponse(ctx context.Context, organizationId string, params *ListOrganizationTransactionRoutesV2Params, reqEditors ...RequestEditorFn) (*ListOrganizationTransactionRoutesV2Resp, error) {
+	rsp, err := c.ListOrganizationTransactionRoutesV2(ctx, organizationId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOrganizationTransactionRoutesV2Resp(rsp)
+}
+
+// CreateOrganizationTransactionRouteV2WithBodyWithResponse request with arbitrary body returning *CreateOrganizationTransactionRouteV2Resp
+func (c *ClientWithResponses) CreateOrganizationTransactionRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateOrganizationTransactionRouteV2Resp, error) {
+	rsp, err := c.CreateOrganizationTransactionRouteV2WithBody(ctx, organizationId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrganizationTransactionRouteV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateOrganizationTransactionRouteV2WithResponse(ctx context.Context, organizationId string, body CreateOrganizationTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateOrganizationTransactionRouteV2Resp, error) {
+	rsp, err := c.CreateOrganizationTransactionRouteV2(ctx, organizationId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateOrganizationTransactionRouteV2Resp(rsp)
+}
+
+// DeleteOrganizationTransactionRouteV2WithResponse request returning *DeleteOrganizationTransactionRouteV2Resp
+func (c *ClientWithResponses) DeleteOrganizationTransactionRouteV2WithResponse(ctx context.Context, organizationId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*DeleteOrganizationTransactionRouteV2Resp, error) {
+	rsp, err := c.DeleteOrganizationTransactionRouteV2(ctx, organizationId, transactionRouteId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteOrganizationTransactionRouteV2Resp(rsp)
+}
+
+// GetOrganizationTransactionRouteByIDV2WithResponse request returning *GetOrganizationTransactionRouteByIDV2Resp
+func (c *ClientWithResponses) GetOrganizationTransactionRouteByIDV2WithResponse(ctx context.Context, organizationId string, transactionRouteId string, reqEditors ...RequestEditorFn) (*GetOrganizationTransactionRouteByIDV2Resp, error) {
+	rsp, err := c.GetOrganizationTransactionRouteByIDV2(ctx, organizationId, transactionRouteId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetOrganizationTransactionRouteByIDV2Resp(rsp)
+}
+
+// UpdateOrganizationTransactionRouteV2WithBodyWithResponse request with arbitrary body returning *UpdateOrganizationTransactionRouteV2Resp
+func (c *ClientWithResponses) UpdateOrganizationTransactionRouteV2WithBodyWithResponse(ctx context.Context, organizationId string, transactionRouteId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOrganizationTransactionRouteV2Resp, error) {
+	rsp, err := c.UpdateOrganizationTransactionRouteV2WithBody(ctx, organizationId, transactionRouteId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrganizationTransactionRouteV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateOrganizationTransactionRouteV2WithResponse(ctx context.Context, organizationId string, transactionRouteId string, body UpdateOrganizationTransactionRouteV2JSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateOrganizationTransactionRouteV2Resp, error) {
+	rsp, err := c.UpdateOrganizationTransactionRouteV2(ctx, organizationId, transactionRouteId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateOrganizationTransactionRouteV2Resp(rsp)
 }
 
 // GetAllMetadataIndexesV2WithResponse request returning *GetAllMetadataIndexesV2Resp
@@ -29467,6 +33281,23 @@ func (c *ClientWithResponses) DeleteMetadataIndexV2WithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseDeleteMetadataIndexV2Resp(rsp)
+}
+
+// CreateAtomicTransactionBatchV2WithBodyWithResponse request with arbitrary body returning *CreateAtomicTransactionBatchV2Resp
+func (c *ClientWithResponses) CreateAtomicTransactionBatchV2WithBodyWithResponse(ctx context.Context, params *CreateAtomicTransactionBatchV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAtomicTransactionBatchV2Resp, error) {
+	rsp, err := c.CreateAtomicTransactionBatchV2WithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAtomicTransactionBatchV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CreateAtomicTransactionBatchV2WithResponse(ctx context.Context, params *CreateAtomicTransactionBatchV2Params, body CreateAtomicTransactionBatchV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAtomicTransactionBatchV2Resp, error) {
+	rsp, err := c.CreateAtomicTransactionBatchV2(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAtomicTransactionBatchV2Resp(rsp)
 }
 
 // CreateTransactionBlockV2WithBodyWithResponse request with arbitrary body returning *CreateTransactionBlockV2Resp
@@ -29558,6 +33389,20 @@ func ParseListOrganizationsResp(rsp *http.Response) (*ListOrganizationsResp, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29591,6 +33436,20 @@ func ParseCreateOrganizationResp(rsp *http.Response) (*CreateOrganizationResp, e
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29616,16 +33475,6 @@ func ParseCountOrganizationsResp(rsp *http.Response) (*CountOrganizationsResp, e
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest LegacyError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -29643,6 +33492,20 @@ func ParseDeleteOrganizationResp(rsp *http.Response) (*DeleteOrganizationResp, e
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29675,6 +33538,20 @@ func ParseGetOrganizationByIDResp(rsp *http.Response) (*GetOrganizationByIDResp,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -29709,6 +33586,20 @@ func ParseUpdateOrganizationResp(rsp *http.Response) (*UpdateOrganizationResp, e
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29741,6 +33632,20 @@ func ParseListLedgersResp(rsp *http.Response) (*ListLedgersResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -29775,6 +33680,20 @@ func ParseCreateLedgerResp(rsp *http.Response) (*CreateLedgerResp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29800,16 +33719,6 @@ func ParseCountLedgersResp(rsp *http.Response) (*CountLedgersResp, error) {
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest LegacyError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -29827,6 +33736,20 @@ func ParseDeleteLedgerResp(rsp *http.Response) (*DeleteLedgerResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29859,6 +33782,20 @@ func ParseGetLedgerByIDResp(rsp *http.Response) (*GetLedgerByIDResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -29893,6 +33830,20 @@ func ParseUpdateLedgerResp(rsp *http.Response) (*UpdateLedgerResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29925,6 +33876,20 @@ func ParseListAccountTypesResp(rsp *http.Response) (*ListAccountTypesResp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -29959,6 +33924,20 @@ func ParseCreateAccountTypeResp(rsp *http.Response) (*CreateAccountTypeResp, err
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -29985,6 +33964,20 @@ func ParseDeleteAccountTypeResp(rsp *http.Response) (*DeleteAccountTypeResp, err
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30017,6 +34010,20 @@ func ParseGetAccountTypeByIDResp(rsp *http.Response) (*GetAccountTypeByIDResp, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30051,6 +34058,20 @@ func ParseUpdateAccountTypeResp(rsp *http.Response) (*UpdateAccountTypeResp, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30083,6 +34104,20 @@ func ParseListAccountsResp(rsp *http.Response) (*ListAccountsResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30117,6 +34152,20 @@ func ParseCreateAccountResp(rsp *http.Response) (*CreateAccountResp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30149,6 +34198,20 @@ func ParseGetAccountByAliasResp(rsp *http.Response) (*GetAccountByAliasResp, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30183,6 +34246,20 @@ func ParseGetBalancesByAliasResp(rsp *http.Response) (*GetBalancesByAliasResp, e
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30215,6 +34292,20 @@ func ParseGetAccountExternalByCodeResp(rsp *http.Response) (*GetAccountExternalB
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30249,6 +34340,20 @@ func ParseGetBalancesExternalByCodeResp(rsp *http.Response) (*GetBalancesExterna
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30274,16 +34379,6 @@ func ParseCountAccountsResp(rsp *http.Response) (*CountAccountsResp, error) {
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest LegacyError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -30307,6 +34402,20 @@ func ParseGetAllBalancesByAccountIDResp(rsp *http.Response) (*GetAllBalancesByAc
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30341,6 +34450,20 @@ func ParseCreateAdditionalBalanceResp(rsp *http.Response) (*CreateAdditionalBala
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30373,6 +34496,20 @@ func ParseGetAccountBalancesAtTimestampResp(rsp *http.Response) (*GetAccountBala
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30407,6 +34544,20 @@ func ParseGetAllOperationsByAccountResp(rsp *http.Response) (*GetAllOperationsBy
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30440,6 +34591,20 @@ func ParseGetOperationByAccountResp(rsp *http.Response) (*GetOperationByAccountR
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30466,6 +34631,20 @@ func ParseDeleteAccountResp(rsp *http.Response) (*DeleteAccountResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30498,6 +34677,20 @@ func ParseGetAccountByIDResp(rsp *http.Response) (*GetAccountByIDResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30532,6 +34725,20 @@ func ParseUpdateAccountResp(rsp *http.Response) (*UpdateAccountResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30564,6 +34771,20 @@ func ParseCreateOrUpdateAssetRateResp(rsp *http.Response) (*CreateOrUpdateAssetR
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30598,6 +34819,20 @@ func ParseGetAllAssetRatesByAssetCodeResp(rsp *http.Response) (*GetAllAssetRates
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30630,6 +34865,20 @@ func ParseGetAssetRateByExternalIDResp(rsp *http.Response) (*GetAssetRateByExter
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30664,6 +34913,20 @@ func ParseListAssetsResp(rsp *http.Response) (*ListAssetsResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30697,6 +34960,20 @@ func ParseCreateAssetResp(rsp *http.Response) (*CreateAssetResp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30722,16 +34999,6 @@ func ParseCountAssetsResp(rsp *http.Response) (*CountAssetsResp, error) {
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest LegacyError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -30749,6 +35016,20 @@ func ParseDeleteAssetResp(rsp *http.Response) (*DeleteAssetResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30781,6 +35062,20 @@ func ParseGetAssetByIDResp(rsp *http.Response) (*GetAssetByIDResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30815,6 +35110,20 @@ func ParseUpdateAssetResp(rsp *http.Response) (*UpdateAssetResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30848,6 +35157,20 @@ func ParseGetAllBalancesResp(rsp *http.Response) (*GetAllBalancesResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30874,6 +35197,20 @@ func ParseDeleteBalanceResp(rsp *http.Response) (*DeleteBalanceResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30906,6 +35243,20 @@ func ParseGetBalanceByIDResp(rsp *http.Response) (*GetBalanceByIDResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -30940,6 +35291,20 @@ func ParseUpdateBalanceResp(rsp *http.Response) (*UpdateBalanceResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -30972,6 +35337,161 @@ func ParseGetBalanceAtTimestampResp(rsp *http.Response) (*GetBalanceAtTimestampR
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLedgerDashboardAssetsResp parses an HTTP response from a GetLedgerDashboardAssetsWithResponse call
+func ParseGetLedgerDashboardAssetsResp(rsp *http.Response) (*GetLedgerDashboardAssetsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLedgerDashboardAssetsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LedgerDashboardAssets
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLedgerDashboardMetricsResp parses an HTTP response from a GetLedgerDashboardMetricsWithResponse call
+func ParseGetLedgerDashboardMetricsResp(rsp *http.Response) (*GetLedgerDashboardMetricsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLedgerDashboardMetricsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LedgerDashboardMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLedgerDashboardVolumeResp parses an HTTP response from a GetLedgerDashboardVolumeWithResponse call
+func ParseGetLedgerDashboardVolumeResp(rsp *http.Response) (*GetLedgerDashboardVolumeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLedgerDashboardVolumeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LedgerDashboardVolume
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31006,6 +35526,20 @@ func ParseListOperationRoutesResp(rsp *http.Response) (*ListOperationRoutesResp,
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31039,6 +35573,20 @@ func ParseCreateOperationRouteResp(rsp *http.Response) (*CreateOperationRouteRes
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31065,6 +35613,20 @@ func ParseDeleteOperationRouteResp(rsp *http.Response) (*DeleteOperationRouteRes
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31097,6 +35659,20 @@ func ParseGetOperationRouteByIDResp(rsp *http.Response) (*GetOperationRouteByIDR
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31131,6 +35707,20 @@ func ParseUpdateOperationRouteResp(rsp *http.Response) (*UpdateOperationRouteRes
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31163,6 +35753,20 @@ func ParseListPortfoliosResp(rsp *http.Response) (*ListPortfoliosResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31197,6 +35801,20 @@ func ParseCreatePortfolioResp(rsp *http.Response) (*CreatePortfolioResp, error) 
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31222,16 +35840,6 @@ func ParseCountPortfoliosResp(rsp *http.Response) (*CountPortfoliosResp, error) 
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest LegacyError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -31249,6 +35857,20 @@ func ParseDeletePortfolioResp(rsp *http.Response) (*DeletePortfolioResp, error) 
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31281,6 +35903,20 @@ func ParseGetPortfolioByIDResp(rsp *http.Response) (*GetPortfolioByIDResp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31315,6 +35951,20 @@ func ParseUpdatePortfolioResp(rsp *http.Response) (*UpdatePortfolioResp, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31347,6 +35997,20 @@ func ParseListSegmentsResp(rsp *http.Response) (*ListSegmentsResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31381,6 +36045,20 @@ func ParseCreateSegmentResp(rsp *http.Response) (*CreateSegmentResp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31406,16 +36084,6 @@ func ParseCountSegmentsResp(rsp *http.Response) (*CountSegmentsResp, error) {
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest LegacyError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -31433,6 +36101,20 @@ func ParseDeleteSegmentResp(rsp *http.Response) (*DeleteSegmentResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31465,6 +36147,20 @@ func ParseGetSegmentByIDResp(rsp *http.Response) (*GetSegmentByIDResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31499,6 +36195,20 @@ func ParseUpdateSegmentResp(rsp *http.Response) (*UpdateSegmentResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31531,6 +36241,20 @@ func ParseGetLedgerSettingsResp(rsp *http.Response) (*GetLedgerSettingsResp, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31565,6 +36289,20 @@ func ParseUpdateLedgerSettingsResp(rsp *http.Response) (*UpdateLedgerSettingsRes
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31597,6 +36335,20 @@ func ParseListTransactionRoutesResp(rsp *http.Response) (*ListTransactionRoutesR
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31631,6 +36383,20 @@ func ParseCreateTransactionRouteResp(rsp *http.Response) (*CreateTransactionRout
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31657,6 +36423,20 @@ func ParseDeleteTransactionRouteResp(rsp *http.Response) (*DeleteTransactionRout
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31689,6 +36469,20 @@ func ParseGetTransactionRouteByIDResp(rsp *http.Response) (*GetTransactionRouteB
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31723,6 +36517,20 @@ func ParseUpdateTransactionRouteResp(rsp *http.Response) (*UpdateTransactionRout
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31755,6 +36563,20 @@ func ParseGetAllTransactionsResp(rsp *http.Response) (*GetAllTransactionsResp, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31789,6 +36611,20 @@ func ParseCreateTransactionAnnotationResp(rsp *http.Response) (*CreateTransactio
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31821,6 +36657,20 @@ func ParseCreateTransactionBlockResp(rsp *http.Response) (*CreateTransactionBloc
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31855,6 +36705,20 @@ func ParseCreateTransactionInflowResp(rsp *http.Response) (*CreateTransactionInf
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31888,6 +36752,20 @@ func ParseCreateTransactionJSONResp(rsp *http.Response) (*CreateTransactionJSONR
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -31913,16 +36791,6 @@ func ParseCountTransactionsByFiltersResp(rsp *http.Response) (*CountTransactions
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest LegacyError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -31946,6 +36814,20 @@ func ParseCreateTransactionOutflowResp(rsp *http.Response) (*CreateTransactionOu
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -31980,6 +36862,20 @@ func ParseCreateTransactionUnblockResp(rsp *http.Response) (*CreateTransactionUn
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32012,6 +36908,20 @@ func ParseGetTransactionResp(rsp *http.Response) (*GetTransactionResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -32046,6 +36956,20 @@ func ParseUpdateTransactionResp(rsp *http.Response) (*UpdateTransactionResp, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32078,6 +37002,20 @@ func ParseCancelTransactionResp(rsp *http.Response) (*CancelTransactionResp, err
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -32112,6 +37050,20 @@ func ParseCommitTransactionResp(rsp *http.Response) (*CommitTransactionResp, err
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32144,6 +37096,20 @@ func ParseUpdateOperationResp(rsp *http.Response) (*UpdateOperationResp, error) 
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -32178,6 +37144,20 @@ func ParseRevertTransactionResp(rsp *http.Response) (*RevertTransactionResp, err
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32210,6 +37190,20 @@ func ParseGetAllMetadataIndexesResp(rsp *http.Response) (*GetAllMetadataIndexesR
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
@@ -32244,6 +37238,20 @@ func ParseCreateMetadataIndexResp(rsp *http.Response) (*CreateMetadataIndexResp,
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32270,6 +37278,20 @@ func ParseDeleteMetadataIndexResp(rsp *http.Response) (*DeleteMetadataIndexResp,
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest LegacyError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32302,6 +37324,20 @@ func ParseListOrganizationsV2Resp(rsp *http.Response) (*ListOrganizationsV2Resp,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -32336,6 +37372,20 @@ func ParseCreateOrganizationV2Resp(rsp *http.Response) (*CreateOrganizationV2Res
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32361,16 +37411,6 @@ func ParseCountOrganizationsV2Resp(rsp *http.Response) (*CountOrganizationsV2Res
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -32388,6 +37428,20 @@ func ParseDeleteOrganizationV2Resp(rsp *http.Response) (*DeleteOrganizationV2Res
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32420,6 +37474,20 @@ func ParseGetOrganizationByIDV2Resp(rsp *http.Response) (*GetOrganizationByIDV2R
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -32454,6 +37522,20 @@ func ParseUpdateOrganizationV2Resp(rsp *http.Response) (*UpdateOrganizationV2Res
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32486,6 +37568,20 @@ func ParseProvisionEncryptionV2Resp(rsp *http.Response) (*ProvisionEncryptionV2R
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -32520,6 +37616,20 @@ func ParseGetProvisioningStatusV2Resp(rsp *http.Response) (*GetProvisioningStatu
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32552,6 +37662,20 @@ func ParseListHoldersV2Resp(rsp *http.Response) (*ListHoldersV2Resp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -32586,6 +37710,20 @@ func ParseCreateHolderV2Resp(rsp *http.Response) (*CreateHolderV2Resp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32619,6 +37757,20 @@ func ParseCreateInstrumentV2Resp(rsp *http.Response) (*CreateInstrumentV2Resp, e
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32645,6 +37797,20 @@ func ParseDeleteInstrumentV2Resp(rsp *http.Response) (*DeleteInstrumentV2Resp, e
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32677,6 +37843,20 @@ func ParseGetInstrumentByIDV2Resp(rsp *http.Response) (*GetInstrumentByIDV2Resp,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -32711,6 +37891,20 @@ func ParseUpdateInstrumentV2Resp(rsp *http.Response) (*UpdateInstrumentV2Resp, e
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32737,6 +37931,20 @@ func ParseDeleteRelatedPartyV2Resp(rsp *http.Response) (*DeleteRelatedPartyV2Res
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32763,6 +37971,20 @@ func ParseDeleteHolderV2Resp(rsp *http.Response) (*DeleteHolderV2Resp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32795,6 +38017,20 @@ func ParseGetHolderByIDV2Resp(rsp *http.Response) (*GetHolderByIDV2Resp, error) 
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -32829,6 +38065,20 @@ func ParseUpdateHolderV2Resp(rsp *http.Response) (*UpdateHolderV2Resp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32861,6 +38111,20 @@ func ParseListAccountsByHolderV2Resp(rsp *http.Response) (*ListAccountsByHolderV
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -32895,6 +38159,20 @@ func ParseListInstrumentsV2Resp(rsp *http.Response) (*ListInstrumentsV2Resp, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32927,6 +38205,20 @@ func ParseListLedgersV2Resp(rsp *http.Response) (*ListLedgersV2Resp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -32961,6 +38253,20 @@ func ParseCreateLedgerV2Resp(rsp *http.Response) (*CreateLedgerV2Resp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -32986,16 +38292,6 @@ func ParseCountLedgersV2Resp(rsp *http.Response) (*CountLedgersV2Resp, error) {
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -33013,6 +38309,20 @@ func ParseDeleteLedgerV2Resp(rsp *http.Response) (*DeleteLedgerV2Resp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33045,6 +38355,20 @@ func ParseGetLedgerByIDV2Resp(rsp *http.Response) (*GetLedgerByIDV2Resp, error) 
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33079,6 +38403,20 @@ func ParseUpdateLedgerV2Resp(rsp *http.Response) (*UpdateLedgerV2Resp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33111,6 +38449,20 @@ func ParseListAccountTypesV2Resp(rsp *http.Response) (*ListAccountTypesV2Resp, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33145,6 +38497,20 @@ func ParseCreateAccountTypeV2Resp(rsp *http.Response) (*CreateAccountTypeV2Resp,
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33171,6 +38537,20 @@ func ParseDeleteAccountTypeV2Resp(rsp *http.Response) (*DeleteAccountTypeV2Resp,
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33203,6 +38583,20 @@ func ParseGetAccountTypeByIDV2Resp(rsp *http.Response) (*GetAccountTypeByIDV2Res
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33237,6 +38631,20 @@ func ParseUpdateAccountTypeV2Resp(rsp *http.Response) (*UpdateAccountTypeV2Resp,
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33269,6 +38677,20 @@ func ParseListAccountsV2Resp(rsp *http.Response) (*ListAccountsV2Resp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33303,6 +38725,20 @@ func ParseCreateAccountV2Resp(rsp *http.Response) (*CreateAccountV2Resp, error) 
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33335,6 +38771,20 @@ func ParseGetAccountByAliasV2Resp(rsp *http.Response) (*GetAccountByAliasV2Resp,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33369,6 +38819,67 @@ func ParseGetBalancesByAliasV2Resp(rsp *http.Response) (*GetBalancesByAliasV2Res
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAccountBlockExceptionsV2Resp parses an HTTP response from a CreateAccountBlockExceptionsV2WithResponse call
+func ParseCreateAccountBlockExceptionsV2Resp(rsp *http.Response) (*CreateAccountBlockExceptionsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAccountBlockExceptionsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AccountBlockExceptions
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33401,6 +38912,20 @@ func ParseGetAccountExternalByCodeV2Resp(rsp *http.Response) (*GetAccountExterna
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33435,6 +38960,20 @@ func ParseGetBalancesExternalByCodeV2Resp(rsp *http.Response) (*GetBalancesExter
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33460,16 +38999,6 @@ func ParseCountAccountsV2Resp(rsp *http.Response) (*CountAccountsV2Resp, error) 
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -33493,6 +39022,20 @@ func ParseGetAllBalancesByAccountIDV2Resp(rsp *http.Response) (*GetAllBalancesBy
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33527,6 +39070,20 @@ func ParseCreateAdditionalBalanceV2Resp(rsp *http.Response) (*CreateAdditionalBa
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33559,6 +39116,60 @@ func ParseGetAccountBalancesAtTimestampV2Resp(rsp *http.Response) (*GetAccountBa
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCloseAccountV2Resp parses an HTTP response from a CloseAccountV2WithResponse call
+func ParseCloseAccountV2Resp(rsp *http.Response) (*CloseAccountV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CloseAccountV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33593,6 +39204,20 @@ func ParseGetAllOperationsByAccountV2Resp(rsp *http.Response) (*GetAllOperations
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33626,6 +39251,20 @@ func ParseGetOperationByAccountV2Resp(rsp *http.Response) (*GetOperationByAccoun
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33652,6 +39291,20 @@ func ParseDeleteAccountV2Resp(rsp *http.Response) (*DeleteAccountV2Resp, error) 
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33684,6 +39337,20 @@ func ParseGetAccountByIDV2Resp(rsp *http.Response) (*GetAccountByIDV2Resp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33718,6 +39385,20 @@ func ParseUpdateAccountV2Resp(rsp *http.Response) (*UpdateAccountV2Resp, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33750,6 +39431,20 @@ func ParseListAssetsV2Resp(rsp *http.Response) (*ListAssetsV2Resp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33784,6 +39479,20 @@ func ParseCreateAssetV2Resp(rsp *http.Response) (*CreateAssetV2Resp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33809,16 +39518,6 @@ func ParseCountAssetsV2Resp(rsp *http.Response) (*CountAssetsV2Resp, error) {
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -33836,6 +39535,20 @@ func ParseDeleteAssetV2Resp(rsp *http.Response) (*DeleteAssetV2Resp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33868,6 +39581,20 @@ func ParseGetAssetByIDV2Resp(rsp *http.Response) (*GetAssetByIDV2Resp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -33902,6 +39629,20 @@ func ParseUpdateAssetV2Resp(rsp *http.Response) (*UpdateAssetV2Resp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33935,6 +39676,20 @@ func ParseGetAllBalancesV2Resp(rsp *http.Response) (*GetAllBalancesV2Resp, error
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33961,6 +39716,20 @@ func ParseDeleteBalanceV2Resp(rsp *http.Response) (*DeleteBalanceV2Resp, error) 
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -33993,6 +39762,20 @@ func ParseGetBalanceByIDV2Resp(rsp *http.Response) (*GetBalanceByIDV2Resp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34027,6 +39810,20 @@ func ParseUpdateBalanceV2Resp(rsp *http.Response) (*UpdateBalanceV2Resp, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34059,6 +39856,20 @@ func ParseGetBalanceAtTimestampV2Resp(rsp *http.Response) (*GetBalanceAtTimestam
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34093,6 +39904,20 @@ func ParseGetAllBillingPackagesV2Resp(rsp *http.Response) (*GetAllBillingPackage
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34126,6 +39951,20 @@ func ParseCreateBillingPackageV2Resp(rsp *http.Response) (*CreateBillingPackageV
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34152,6 +39991,20 @@ func ParseDeleteBillingPackageV2Resp(rsp *http.Response) (*DeleteBillingPackageV
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34184,6 +40037,20 @@ func ParseGetBillingPackageByIDV2Resp(rsp *http.Response) (*GetBillingPackageByI
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34218,6 +40085,20 @@ func ParseUpdateBillingPackageV2Resp(rsp *http.Response) (*UpdateBillingPackageV
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34250,6 +40131,161 @@ func ParseCalculateBillingV2Resp(rsp *http.Response) (*CalculateBillingV2Resp, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLedgerDashboardAssetsV2Resp parses an HTTP response from a GetLedgerDashboardAssetsV2WithResponse call
+func ParseGetLedgerDashboardAssetsV2Resp(rsp *http.Response) (*GetLedgerDashboardAssetsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLedgerDashboardAssetsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LedgerDashboardAssets
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLedgerDashboardMetricsV2Resp parses an HTTP response from a GetLedgerDashboardMetricsV2WithResponse call
+func ParseGetLedgerDashboardMetricsV2Resp(rsp *http.Response) (*GetLedgerDashboardMetricsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLedgerDashboardMetricsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LedgerDashboardMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLedgerDashboardVolumeV2Resp parses an HTTP response from a GetLedgerDashboardVolumeV2WithResponse call
+func ParseGetLedgerDashboardVolumeV2Resp(rsp *http.Response) (*GetLedgerDashboardVolumeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLedgerDashboardVolumeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LedgerDashboardVolume
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34284,6 +40320,20 @@ func ParseEstimateFeeCalculationV2Resp(rsp *http.Response) (*EstimateFeeCalculat
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34316,6 +40366,20 @@ func ParseCreateHolderAccountV2Resp(rsp *http.Response) (*CreateHolderAccountV2R
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34350,6 +40414,20 @@ func ParseListOperationRoutesV2Resp(rsp *http.Response) (*ListOperationRoutesV2R
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34383,6 +40461,20 @@ func ParseCreateOperationRouteV2Resp(rsp *http.Response) (*CreateOperationRouteV
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34409,6 +40501,20 @@ func ParseDeleteOperationRouteV2Resp(rsp *http.Response) (*DeleteOperationRouteV
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34441,6 +40547,20 @@ func ParseGetOperationRouteByIDV2Resp(rsp *http.Response) (*GetOperationRouteByI
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34475,6 +40595,20 @@ func ParseUpdateOperationRouteV2Resp(rsp *http.Response) (*UpdateOperationRouteV
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34507,6 +40641,20 @@ func ParseGetAllPackagesV2Resp(rsp *http.Response) (*GetAllPackagesV2Resp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34541,6 +40689,20 @@ func ParseCreatePackageV2Resp(rsp *http.Response) (*CreatePackageV2Resp, error) 
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34567,6 +40729,20 @@ func ParseDeletePackageV2Resp(rsp *http.Response) (*DeletePackageV2Resp, error) 
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34599,6 +40775,20 @@ func ParseGetPackageByIDV2Resp(rsp *http.Response) (*GetPackageByIDV2Resp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34633,6 +40823,20 @@ func ParseUpdatePackageV2Resp(rsp *http.Response) (*UpdatePackageV2Resp, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34665,6 +40869,20 @@ func ParseListPortfoliosV2Resp(rsp *http.Response) (*ListPortfoliosV2Resp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34699,6 +40917,20 @@ func ParseCreatePortfolioV2Resp(rsp *http.Response) (*CreatePortfolioV2Resp, err
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34724,16 +40956,6 @@ func ParseCountPortfoliosV2Resp(rsp *http.Response) (*CountPortfoliosV2Resp, err
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -34751,6 +40973,20 @@ func ParseDeletePortfolioV2Resp(rsp *http.Response) (*DeletePortfolioV2Resp, err
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34783,6 +41019,20 @@ func ParseGetPortfolioByIDV2Resp(rsp *http.Response) (*GetPortfolioByIDV2Resp, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34817,6 +41067,20 @@ func ParseUpdatePortfolioV2Resp(rsp *http.Response) (*UpdatePortfolioV2Resp, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34849,6 +41113,20 @@ func ParseListSegmentsV2Resp(rsp *http.Response) (*ListSegmentsV2Resp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -34883,6 +41161,20 @@ func ParseCreateSegmentV2Resp(rsp *http.Response) (*CreateSegmentV2Resp, error) 
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34908,16 +41200,6 @@ func ParseCountSegmentsV2Resp(rsp *http.Response) (*CountSegmentsV2Resp, error) 
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -34935,6 +41217,20 @@ func ParseDeleteSegmentV2Resp(rsp *http.Response) (*DeleteSegmentV2Resp, error) 
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -34967,6 +41263,20 @@ func ParseGetSegmentByIDV2Resp(rsp *http.Response) (*GetSegmentByIDV2Resp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35001,6 +41311,20 @@ func ParseUpdateSegmentV2Resp(rsp *http.Response) (*UpdateSegmentV2Resp, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35033,6 +41357,20 @@ func ParseGetLedgerSettingsV2Resp(rsp *http.Response) (*GetLedgerSettingsV2Resp,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35067,6 +41405,20 @@ func ParseUpdateLedgerSettingsV2Resp(rsp *http.Response) (*UpdateLedgerSettingsV
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35099,6 +41451,20 @@ func ParseListTransactionRoutesV2Resp(rsp *http.Response) (*ListTransactionRoute
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35133,6 +41499,20 @@ func ParseCreateTransactionRouteV2Resp(rsp *http.Response) (*CreateTransactionRo
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35159,6 +41539,20 @@ func ParseDeleteTransactionRouteV2Resp(rsp *http.Response) (*DeleteTransactionRo
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35191,6 +41585,20 @@ func ParseGetTransactionRouteByIDV2Resp(rsp *http.Response) (*GetTransactionRout
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35225,6 +41633,20 @@ func ParseUpdateTransactionRouteV2Resp(rsp *http.Response) (*UpdateTransactionRo
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35258,6 +41680,20 @@ func ParseGetAllTransactionsV2Resp(rsp *http.Response) (*GetAllTransactionsV2Res
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35283,16 +41719,6 @@ func ParseCountTransactionsByFiltersV2Resp(rsp *http.Response) (*CountTransactio
 		HTTPResponse: rsp,
 	}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
 	return response, nil
 }
 
@@ -35316,6 +41742,20 @@ func ParseGetTransactionV2Resp(rsp *http.Response) (*GetTransactionV2Resp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35350,6 +41790,20 @@ func ParseUpdateTransactionV2Resp(rsp *http.Response) (*UpdateTransactionV2Resp,
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35377,11 +41831,25 @@ func ParseCancelTransactionV2Resp(rsp *http.Response) (*CancelTransactionV2Resp,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TransactionV2
+		var dest CancelTransactionV2201JSONResponseBody
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35410,11 +41878,25 @@ func ParseCommitTransactionV2Resp(rsp *http.Response) (*CommitTransactionV2Resp,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TransactionV2
+		var dest CommitTransactionV2201JSONResponseBody
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35449,6 +41931,20 @@ func ParseUpdateOperationV2Resp(rsp *http.Response) (*UpdateOperationV2Resp, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35476,11 +41972,253 @@ func ParseRevertTransactionV2Resp(rsp *http.Response) (*RevertTransactionV2Resp,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TransactionV2
+		var dest RevertTransactionV2201JSONResponseBody
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOrganizationOperationRoutesV2Resp parses an HTTP response from a ListOrganizationOperationRoutesV2WithResponse call
+func ParseListOrganizationOperationRoutesV2Resp(rsp *http.Response) (*ListOrganizationOperationRoutesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOrganizationOperationRoutesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateOrganizationOperationRouteV2Resp parses an HTTP response from a CreateOrganizationOperationRouteV2WithResponse call
+func ParseCreateOrganizationOperationRouteV2Resp(rsp *http.Response) (*CreateOrganizationOperationRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateOrganizationOperationRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest OperationRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteOrganizationOperationRouteV2Resp parses an HTTP response from a DeleteOrganizationOperationRouteV2WithResponse call
+func ParseDeleteOrganizationOperationRouteV2Resp(rsp *http.Response) (*DeleteOrganizationOperationRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteOrganizationOperationRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOrganizationOperationRouteByIDV2Resp parses an HTTP response from a GetOrganizationOperationRouteByIDV2WithResponse call
+func ParseGetOrganizationOperationRouteByIDV2Resp(rsp *http.Response) (*GetOrganizationOperationRouteByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOrganizationOperationRouteByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OperationRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateOrganizationOperationRouteV2Resp parses an HTTP response from a UpdateOrganizationOperationRouteV2WithResponse call
+func ParseUpdateOrganizationOperationRouteV2Resp(rsp *http.Response) (*UpdateOrganizationOperationRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateOrganizationOperationRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OperationRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35515,6 +42253,248 @@ func ParseGetAuditEventsV2Resp(rsp *http.Response) (*GetAuditEventsV2Resp, error
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListOrganizationTransactionRoutesV2Resp parses an HTTP response from a ListOrganizationTransactionRoutesV2WithResponse call
+func ParseListOrganizationTransactionRoutesV2Resp(rsp *http.Response) (*ListOrganizationTransactionRoutesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOrganizationTransactionRoutesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateOrganizationTransactionRouteV2Resp parses an HTTP response from a CreateOrganizationTransactionRouteV2WithResponse call
+func ParseCreateOrganizationTransactionRouteV2Resp(rsp *http.Response) (*CreateOrganizationTransactionRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateOrganizationTransactionRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TransactionRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteOrganizationTransactionRouteV2Resp parses an HTTP response from a DeleteOrganizationTransactionRouteV2WithResponse call
+func ParseDeleteOrganizationTransactionRouteV2Resp(rsp *http.Response) (*DeleteOrganizationTransactionRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteOrganizationTransactionRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetOrganizationTransactionRouteByIDV2Resp parses an HTTP response from a GetOrganizationTransactionRouteByIDV2WithResponse call
+func ParseGetOrganizationTransactionRouteByIDV2Resp(rsp *http.Response) (*GetOrganizationTransactionRouteByIDV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetOrganizationTransactionRouteByIDV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateOrganizationTransactionRouteV2Resp parses an HTTP response from a UpdateOrganizationTransactionRouteV2WithResponse call
+func ParseUpdateOrganizationTransactionRouteV2Resp(rsp *http.Response) (*UpdateOrganizationTransactionRouteV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateOrganizationTransactionRouteV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionRoute
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35547,6 +42527,20 @@ func ParseGetAllMetadataIndexesV2Resp(rsp *http.Response) (*GetAllMetadataIndexe
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35581,6 +42575,20 @@ func ParseCreateMetadataIndexV2Resp(rsp *http.Response) (*CreateMetadataIndexV2R
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35607,6 +42615,67 @@ func ParseDeleteMetadataIndexV2Resp(rsp *http.Response) (*DeleteMetadataIndexV2R
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAtomicTransactionBatchV2Resp parses an HTTP response from a CreateAtomicTransactionBatchV2WithResponse call
+func ParseCreateAtomicTransactionBatchV2Resp(rsp *http.Response) (*CreateAtomicTransactionBatchV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAtomicTransactionBatchV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest CreateAtomicTransactionBatchV2Response
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35640,6 +42709,20 @@ func ParseCreateTransactionBlockV2Resp(rsp *http.Response) (*CreateTransactionBl
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -35667,11 +42750,25 @@ func ParseCreateTransactionDirectV2Resp(rsp *http.Response) (*CreateTransactionD
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TransactionV2
+		var dest CreateTransactionDirectV2201JSONResponseBody
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35700,11 +42797,25 @@ func ParseCreateTransactionHoldV2Resp(rsp *http.Response) (*CreateTransactionHol
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TransactionV2
+		var dest CreateTransactionHoldV2201JSONResponseBody
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -35738,6 +42849,20 @@ func ParseCreateTransactionUnblockV2Resp(rsp *http.Response) (*CreateTransaction
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
