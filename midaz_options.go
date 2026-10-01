@@ -290,6 +290,7 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 		}
 
 		c.pendingObservability = provider
+		c.ownsObservability = true
 
 		if provider.IsEnabled() {
 			c.metrics, err = observability.NewMetricsCollector(provider)
@@ -319,6 +320,9 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 // previously installed on this Client — including the default disabled
 // provider that [New] installs at construction time. See [New] godoc.
 //
+// Ownership: the provider stays the caller's. [Client.Shutdown] never closes
+// it, so one provider can serve many clients; shut it down after the last one.
+//
 // Nil handling: a typed-nil [observability.Provider] (e.g. (*Provider)(nil))
 // returns an error; a literal nil interface is treated as a no-op and the
 // existing provider is preserved.
@@ -346,6 +350,7 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 		// Replace any previously installed provider (default-disabled or
 		// otherwise). See godoc for replacement semantics.
 		c.pendingObservability = provider
+		c.ownsObservability = false
 
 		if provider.IsEnabled() {
 			var err error
@@ -447,6 +452,7 @@ func WithConfig(cfg *config.Config) Option {
 
 		if provider := c.config.GetObservabilityProvider(); provider != nil && !reflectutil.IsTypedNil(provider) {
 			c.pendingObservability = provider
+			c.ownsObservability = false
 			c.ctx = observability.WithProvider(c.ctx, provider)
 
 			if provider.IsEnabled() {
