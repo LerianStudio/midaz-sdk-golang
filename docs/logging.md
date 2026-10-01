@@ -69,7 +69,7 @@ SDK diagnostic log lines include:
 
 Request-related log lines also include `http.method` and a normalized `url.path` where the SDK can derive a request URL.
 
-The observability provider logs through its own `observability.Provider.Logger()`, not `WithLogger`. With logging on, it emits one WARN when tracing or metrics are enabled without `observability.WithCollectorEndpoint`: the SDK's spans and metrics then go to the host's OTel providers (see [configuration](./configuration.md#22-the-one-exception-withobservabilityoptions-and-withobservabilityprovider)).
+The observability provider logs through its own `observability.Provider.Logger()`, not `WithLogger`. With logging on, it emits one WARN when tracing or metrics are enabled without `observability.WithCollectorEndpoint`: the SDK's tracer, meter and propagator are then the host's OTel globals. Facade calls to Midaz are not instrumented today; SDK HTTP spans come from `observability.NewHTTPMiddleware` when the host uses it (see [configuration](./configuration.md#22-the-one-exception-withobservabilityoptions-and-withobservabilityprovider)).
 
 ## Integrations
 

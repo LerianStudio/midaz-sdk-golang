@@ -252,10 +252,15 @@ client that uses it.
 
 **No endpoint.** The SDK is a guest in the host process and never sets the
 host's OTel globals unless you pass `observability.WithRegisterGlobally(true)`.
-Without `observability.WithCollectorEndpoint`, tracing and metrics use the
-host's global providers and propagator: SDK spans become children of the
-host's spans and the host exports them, and a host with no providers gets
+Without `observability.WithCollectorEndpoint`, the SDK's tracer, meter and
+propagator are the host's global ones, and a host with no providers gets
 noop. One warning goes to the provider's logger.
+
+**Spans.** Facade calls to Midaz (`client.V1.*`, `client.V2.*`) are not
+instrumented today: they create no SDK span and send no `traceparent`. SDK
+spans and trace headers come from `observability.NewHTTPMiddleware` when the
+host wraps a transport with it; without an endpoint those spans become
+children of the host's spans and the host exports them.
 
 ---
 
