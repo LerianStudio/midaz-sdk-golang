@@ -349,7 +349,7 @@ A V2 leg carries **exactly one** value expression: an explicit `Amount`, or a `S
 
 A create the Tracer denies (enforce mode, the reservation would exceed a limit) is refused with `0177` (`errors.IsTransactionReservationDenied`) before any balance moves. midaz emits `0177` only as a 422, which the SDK's retry transport does not retry.
 
-On a transaction that belongs to a cross-ledger group, V2 `Commit` and `Revert` act on the whole group and the server answers with the group; the SDK returns the member the call addressed (for `Revert`, the reversal whose `ParentTransactionID` is that transaction), and a group without it is a response-decode error naming the group.
+On a transaction that belongs to a cross-ledger group, V2 `Commit`, `Cancel` and `Revert` act on the whole group and the server answers with the group; the SDK returns the member the call addressed (for `Revert`, the reversal whose `ParentTransactionID` is that transaction), and a group without it is a response-decode error naming the group.
 
 `models.TransactionV2` is not `models.Transaction` with fields added: it drops four V1 fields the surface does not serve (`chartOfAccountsGroupName`, `route`, `source`, `destination`), carries two V1 dropped (`FeesSkipped`, `TracerSkipped`), and names the participating aliases `Debit`/`Credit` rather than `Source`/`Destination`.
 

@@ -502,18 +502,29 @@ func (f *transactionsV2Facade) Revert(ctx context.Context, orgID, ledgerID, tran
 	})
 }
 
-// lifecycleV2Response is a /v2 commit or revert 201: a TransactionV2, or the
-// CrossLedgerTransactionGroupV2 when the transaction belongs to a group.
+// lifecycleV2Response is a /v2 commit, cancel or revert 201: a TransactionV2, or
+// the CrossLedgerTransactionGroupV2 when the transaction belongs to a group.
 type lifecycleV2Response struct {
 	models.TransactionV2
 	GroupID      string                 `json:"groupId"`
 	Transactions []models.TransactionV2 `json:"transactions"`
 }
 
-// readLifecycleV2 decodes a commit or revert answer. From a group it returns the
-// member isMember picks; a group without one is a decode error naming the group.
+// readLifecycleV2 reads a commit or revert answer through decodeLifecycleV2.
 func readLifecycleV2(operation string, resp *http.Response, err error, isMember func(*models.TransactionV2) bool) (*models.TransactionV2, error) {
-	out, err := readOne[lifecycleV2Response](operation, resp, err)
+	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
+	httpResp, body, err := readRawResponse(resp, err)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeLifecycleV2(operation, httpResp, body, isMember)
+}
+
+// decodeLifecycleV2 decodes a lifecycle answer. From a group it returns the
+// member isMember picks; a group without one is a decode error naming the group.
+func decodeLifecycleV2(operation string, resp *http.Response, body []byte, isMember func(*models.TransactionV2) bool) (*models.TransactionV2, error) {
+	out, err := decodeOne[lifecycleV2Response](operation, resp.StatusCode, body, resp)
 	if err != nil {
 		return nil, err
 	}
@@ -533,7 +544,8 @@ func readLifecycleV2(operation string, resp *http.Response, err error, isMember 
 }
 
 // Cancel aborts a PENDING transaction (PENDING → CANCELED), releasing the value
-// the hold reserved.
+// the hold reserved. On a member of a cross-ledger group the whole group
+// cancels, and Cancel returns the addressed member.
 //
 // It is the ONE single-object call that tolerates a 2xx carrying no resource.
 // Everything else on both surfaces refuses that shape in decodeOne, because a
@@ -593,7 +605,9 @@ func (f *transactionsV2Facade) Cancel(ctx context.Context, orgID, ledgerID, tran
 		}, nil
 	}
 
-	return decodeOne[models.TransactionV2](operation, resp.StatusCode, body, resp)
+	return decodeLifecycleV2(operation, resp, body, func(tx *models.TransactionV2) bool {
+		return strings.EqualFold(tx.ID, transactionID)
+	})
 }
 
 // Count returns the number of transactions matching the count-endpoint filters.

@@ -250,8 +250,8 @@ func TestTransactionsV2Facade_CommitAndRevertStayBodiless(t *testing.T) {
 	}
 }
 
-// TestTransactionsV2Facade_LifecycleReadsCrossLedgerGroup pins commit and revert
-// on a transaction that belongs to a cross-ledger group: the server answers with
+// TestTransactionsV2Facade_LifecycleReadsCrossLedgerGroup pins commit, cancel and
+// revert on a transaction that belongs to a cross-ledger group: the server answers with
 // the whole group, and the call returns the member it was about. A group with no
 // such member is a decode error naming the group, never an empty transaction.
 func TestTransactionsV2Facade_LifecycleReadsCrossLedgerGroup(t *testing.T) {
@@ -265,6 +265,9 @@ func TestTransactionsV2Facade_LifecycleReadsCrossLedgerGroup(t *testing.T) {
 	}
 	revert := func(f *transactionsV2Facade) (*models.TransactionV2, error) {
 		return f.Revert(context.Background(), txOrgID, txLedgerID, txID)
+	}
+	cancel := func(f *transactionsV2Facade) (*models.TransactionV2, error) {
+		return f.Cancel(context.Background(), txOrgID, txLedgerID, txID)
 	}
 
 	tests := []struct {
@@ -280,6 +283,19 @@ func TestTransactionsV2Facade_LifecycleReadsCrossLedgerGroup(t *testing.T) {
 				`{"id":"` + otherID + `","status":{"code":"APPROVED"},"order":1},` +
 				`{"id":"` + txID + `","status":{"code":"APPROVED"},"order":2}]}`,
 			wantID: txID,
+		},
+		{
+			name: "cancel returns the cancelled member",
+			call: cancel,
+			body: `{"groupId":"` + groupID + `","transactions":[` +
+				`{"id":"` + otherID + `","status":{"code":"CANCELED"},"order":1},` +
+				`{"id":"` + txID + `","status":{"code":"CANCELED"},"order":2}]}`,
+			wantID: txID,
+		},
+		{
+			name: "cancel group without the addressed member",
+			call: cancel,
+			body: `{"groupId":"` + groupID + `","transactions":[{"id":"` + otherID + `","status":{"code":"CANCELED"}}]}`,
 		},
 		{
 			name: "revert returns the reversal of the addressed transaction",
