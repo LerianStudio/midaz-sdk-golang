@@ -1,7 +1,7 @@
 // Package main shows how a service decides who owns fees against the Midaz
-// ledger it talks to: resolve the fee mode once at boot, refresh it on a
-// ticker, and fall back to legacy whenever GET /version cannot prove the
-// ledger applies fees.
+// ledger it talks to: resolve the fee mode once at boot (legacy when GET
+// /version cannot be read), refresh it on a ticker, and keep the last mode
+// when a refresh fails.
 //
 // Usage:
 //
@@ -70,16 +70,23 @@ func (f *feeMode) Mode() midaz.FeeMode {
 	return *f.mode.Load()
 }
 
-// resolve reads GET /version once. A failure yields an unavailable version,
-// which ResolveFeeMode turns into legacy: never two fee owners, never none.
+// resolve reads GET /version once. A failed read keeps the last mode: a v4
+// ledger that is up answers /version, so a downgrade shows on the next good
+// read. Only at boot, with no mode yet, does a failure resolve to legacy.
 func (f *feeMode) resolve(ctx context.Context) {
 	v, err := f.client.ServerVersion(ctx)
+	old := f.mode.Load()
+
 	if err != nil {
-		slog.Warn("midaz server version unavailable, using legacy fees", "error", err)
+		slog.Warn("midaz server version unavailable", "error", err)
+
+		if old != nil {
+			return
+		}
 	}
 
-	mode := midaz.ResolveFeeMode(v)
-	if old := f.mode.Swap(&mode); old == nil || *old != mode {
+	if mode := midaz.ResolveFeeMode(v); old == nil || *old != mode {
+		f.mode.Store(&mode)
 		slog.Info("midaz fee mode", "feeMode", mode, "serverVersion", v.Raw, "source", v.Source)
 	}
 }

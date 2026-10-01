@@ -51,26 +51,30 @@ Parsing rules:
 | `0.0.0`, `dev`, invalid, unknown `schemaVersion` | legacy |
 | no answer (any failure above) | legacy |
 
-## Why every doubt falls back to legacy
+## Why an unknown version falls back to legacy
 
-Legacy is correct on both lines; native is correct only on v4.
+Native is correct only on v4: on a v3 ledger it posts to a `/v2` that does not
+exist. Legacy posts on `/v1`, which never applies fees on either line. So when
+`/version` answers with nothing the SDK recognises, or cannot be read at boot,
+the mode is legacy.
 
-- On v3, `/v1` is the only path and the ledger has no fee engine, so the
-  service's external fee engine is the one owner.
-- On v4, the `/v1` path never applies fees, and the external fee engine keeps
-  charging exactly as it did on v3. Still one owner.
-- Guessing native on a v3 ledger posts to a `/v2` that does not exist, or, if
-  the service stopped calling its fee engine, skips the fee.
+Legacy charges the fee only through the service's own fee path (an external
+fee engine such as `plugin-fees`, switched on). With that path in place,
+legacy charges exactly once on v3 and on v4. Without it, legacy never charges
+twice but charges nothing, where native would have charged through the
+ledger's fee packages.
 
-So erring to legacy never charges twice and never skips the fee. A transient
-`/version` failure on a v4 ledger only moves new operations to legacy until
-the next refresh succeeds.
+That is why a failed refresh keeps the last resolved mode instead of falling
+back: a v4 ledger that is up answers `/version`, so a real downgrade shows on
+the next successful read, and a ledger that is down fails posting in either
+mode. Only a service that has never read `/version` starts on legacy.
 
 ## Using it in a service
 
 1. Resolve once at boot, before the first operation.
 2. Refresh on a ticker (minutes, not per request) and log each change with the
-   mode, the raw version and the source.
+   mode, the raw version and the source. A refresh that returns an error keeps
+   the last mode.
 3. Read the cached mode when an operation is created, and store it with the
    operation. Its retries, commit, cancel, revert and reconciliation use the
    mode and the surface (`/v1` or `/v2`) it was created with; a refresh only

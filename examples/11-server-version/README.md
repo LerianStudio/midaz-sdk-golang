@@ -1,8 +1,8 @@
 # 11-server-version
 
 Decide who owns fees against the connected Midaz ledger: resolve the fee
-mode once at boot, refresh it on a ticker, and fall back to legacy whenever
-`GET /version` cannot prove the ledger applies fees.
+mode once at boot (legacy when `GET /version` cannot be read), refresh it on
+a ticker, and keep the last mode when a refresh fails.
 
 ## What this demonstrates
 
@@ -12,7 +12,8 @@ mode once at boot, refresh it on a ticker, and fall back to legacy whenever
   charges fees itself)
 - A cached, lock-free mode: the request path reads it and never calls `/version`
 - A refresh loop that logs only when the mode changes
-- Any failure (404, 5xx, timeout, proxy page) resolving to legacy
+- A failed read (404, 5xx, timeout) starting on legacy at boot, and keeping
+  the last mode on a refresh
 
 ## When to use this pattern
 
@@ -48,12 +49,12 @@ INFO midaz fee mode feeMode=legacy serverVersion=v3.8.4 source=legacy
 With no ledger running:
 
 ```
-WARN midaz server version unavailable, using legacy fees error="network error during midaz.Client.ServerVersion: ..."
+WARN midaz server version unavailable error="network error during midaz.Client.ServerVersion: ..."
 INFO midaz fee mode feeMode=legacy serverVersion="" source=unavailable
 ```
 
 ## Related
 
 - [`docs/server-version.md`](../../docs/server-version.md) — the `/version`
-  shapes, the decision rule, and why the fallback is legacy
+  shapes, the decision rule, and when legacy charges the fee
 - [`03-end-to-end/`](../03-end-to-end/) — posting on `/v2`

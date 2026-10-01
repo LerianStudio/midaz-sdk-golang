@@ -15,12 +15,13 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
 )
 
-// TestFeeModeFollowsLedger pins the pattern: boot resolves once, the refresh
-// loop follows a ledger upgrade, and a /version failure falls back to legacy.
+// TestFeeModeFollowsLedger pins the pattern: an unreadable /version at boot
+// starts on legacy, the refresh loop follows the ledger, and a failed refresh
+// keeps the last resolved mode.
 func TestFeeModeFollowsLedger(t *testing.T) {
 	var body atomic.Value // string; "" answers 503
 
-	body.Store(`{"version":"v3.8.4","requestDate":"2026-09-30T12:00:00Z"}`)
+	body.Store("")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		b, _ := body.Load().(string)
@@ -41,7 +42,7 @@ func TestFeeModeFollowsLedger(t *testing.T) {
 	require.NoError(t, err)
 
 	fees := newFeeMode(t.Context(), c)
-	assert.Equal(t, midaz.FeeModeLegacy, fees.Mode(), "a v3 ledger has no fee engine")
+	assert.Equal(t, midaz.FeeModeLegacy, fees.Mode(), "nothing is known at boot, so start on legacy")
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
@@ -61,6 +62,10 @@ func TestFeeModeFollowsLedger(t *testing.T) {
 		2*time.Second, 10*time.Millisecond, "the refresh must pick up the v4.1 upgrade")
 
 	body.Store("")
+	assert.Never(t, func() bool { return fees.Mode() != midaz.FeeModeNative },
+		200*time.Millisecond, 10*time.Millisecond, "a failed refresh must keep the last resolved mode")
+
+	body.Store(`{"version":"v3.8.4","requestDate":"2026-09-30T12:00:00Z"}`)
 	require.Eventually(t, func() bool { return fees.Mode() == midaz.FeeModeLegacy },
-		2*time.Second, 10*time.Millisecond, "an unavailable /version must fall back to legacy")
+		2*time.Second, 10*time.Millisecond, "a successful read must still catch a downgrade to v3")
 }
