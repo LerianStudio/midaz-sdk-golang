@@ -12,6 +12,7 @@ This directory contains hand-written guides and generated package documentation 
 - [Examples](./examples.md) - Runnable examples and common workflows.
 - [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.
 - [Multi-tenancy](./multi-tenancy.md) - Tenant resolution, header vs claims, propagation patterns.
+- [Server version and fee mode](./server-version.md) - Which Midaz the client talks to, and who owns fees against it.
 - [Logging](./logging.md) - `*slog.Logger` integration recipes for stdlib slog, zap, zerolog, charmbracelet/log.
 
 ## API mapping
