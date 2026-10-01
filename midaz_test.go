@@ -413,8 +413,8 @@ func TestClientSetObservability_PropagatesToGetObservabilityProvider(t *testing.
 }
 
 // TestClientShutdown_UsesCanonicalProvider pins which provider Shutdown closes:
-// the one installed on the Entity, and only when the SDK built it. A provider
-// the caller brought (WithConfig, SetObservability) stays open.
+// only one the SDK built. A provider the caller brought (WithConfig, either
+// SetObservability) stays open.
 func TestClientShutdown_UsesCanonicalProvider(t *testing.T) {
 	disabled := observability.WithComponentEnabled(false, false, false)
 
@@ -481,6 +481,20 @@ func TestClientShutdown_UsesCanonicalProvider(t *testing.T) {
 
 				host := newHostProvider(t)
 				require.NoError(t, c.SetObservability(host))
+
+				return c, host
+			},
+		},
+		{
+			name: "Entity.SetObservability replacement stays open",
+			build: func(t *testing.T) (*Client, observability.Provider) {
+				t.Helper()
+
+				c, err := New(WithConfig(createTestConfig(t)))
+				require.NoError(t, err)
+
+				host := newHostProvider(t)
+				require.NoError(t, c.Entity.SetObservability(host))
 
 				return c, host
 			},

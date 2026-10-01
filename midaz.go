@@ -162,10 +162,9 @@ type Client struct {
 	// SetObservability delegates writes to it.
 	pendingObservability observability.Provider
 
-	// ownsObservability is true only while the installed provider was built by
-	// the SDK (the New default or WithObservabilityOptions). Shutdown closes
-	// nothing else: a provider the caller brought outlives this Client.
-	ownsObservability bool
+	// builtObservability is the last provider the SDK itself built (the New
+	// default or WithObservabilityOptions), the only one Shutdown closes.
+	builtObservability observability.Provider
 
 	metrics           *observability.MetricsCollector
 	customRetryPolicy func(*http.Response, error) bool
@@ -273,7 +272,7 @@ func New(options ...Option) (*Client, error) {
 	}
 
 	c.pendingObservability = obsProvider
-	c.ownsObservability = true
+	c.builtObservability = obsProvider
 
 	// Create default configuration
 	c.config = config.DefaultConfig()
@@ -612,9 +611,8 @@ func (w planeRetryConfigWrapper) GetPlaneCustomRetryPolicy() func(*http.Response
 // Shutdown gracefully shuts down the client, releasing any resources.
 // This ensures that any pending operations are completed and resources are released.
 //
-// It closes the observability provider only when the SDK built it (the [New]
-// default or [WithObservabilityOptions]). A provider passed through
-// [WithObservabilityProvider], [WithConfig] or [Client.SetObservability] stays open.
+// It closes only the observability provider the SDK built (the [New] default or
+// [WithObservabilityOptions]), never one the caller installed.
 //
 // Parameters:
 //   - ctx: The context for the shutdown operation
@@ -626,11 +624,8 @@ func (c *Client) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	// Read observability via the canonical Entity-backed accessor so the
-	// Client/Entity views never disagree. After New() succeeds this is the
-	// same provider that's installed on every per-service HTTPClient.
-	if provider := c.GetObservabilityProvider(); provider != nil && c.ownsObservability {
-		if err := provider.Shutdown(ctx); err != nil {
+	if c.builtObservability != nil {
+		if err := c.builtObservability.Shutdown(ctx); err != nil {
 			return fmt.Errorf("error shutting down observability provider: %w", err)
 		}
 	}
@@ -772,7 +767,6 @@ func (c *Client) SetObservability(provider observability.Provider) error {
 	// stage on the client buffer; setupEntity will install it on the Entity.
 	if c.Entity == nil {
 		c.pendingObservability = provider
-		c.ownsObservability = false
 
 		if provider.IsEnabled() {
 			collector, err := observability.NewMetricsCollector(provider)
@@ -794,8 +788,6 @@ func (c *Client) SetObservability(provider observability.Provider) error {
 	if err := c.Entity.SetObservability(provider); err != nil {
 		return err
 	}
-
-	c.ownsObservability = false
 
 	if provider.IsEnabled() {
 		collector, err := observability.NewMetricsCollector(provider)

@@ -290,7 +290,7 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 		}
 
 		c.pendingObservability = provider
-		c.ownsObservability = true
+		c.builtObservability = provider
 
 		if provider.IsEnabled() {
 			c.metrics, err = observability.NewMetricsCollector(provider)
@@ -350,7 +350,6 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 		// Replace any previously installed provider (default-disabled or
 		// otherwise). See godoc for replacement semantics.
 		c.pendingObservability = provider
-		c.ownsObservability = false
 
 		if provider.IsEnabled() {
 			var err error
@@ -452,7 +451,6 @@ func WithConfig(cfg *config.Config) Option {
 
 		if provider := c.config.GetObservabilityProvider(); provider != nil && !reflectutil.IsTypedNil(provider) {
 			c.pendingObservability = provider
-			c.ownsObservability = false
 			c.ctx = observability.WithProvider(c.ctx, provider)
 
 			if provider.IsEnabled() {
