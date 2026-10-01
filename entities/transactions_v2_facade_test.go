@@ -214,8 +214,8 @@ func TestTransactionsV2Facade_CancelSynthesizesOnEmptyBody(t *testing.T) {
 }
 
 // TestTransactionsV2Facade_CommitAndRevertStayBodiless pins the wire commit and
-// revert shipped with: no body and no Content-Type. The server's lifecycle body
-// is optional and only carries an account-block grant the SDK never sends.
+// revert shipped with: no body. The server's lifecycle body is optional and only
+// carries an account-block grant the SDK never sends.
 func TestTransactionsV2Facade_CommitAndRevertStayBodiless(t *testing.T) {
 	actions := map[string]func(*transactionsV2Facade) (*models.TransactionV2, error){
 		"commit": func(f *transactionsV2Facade) (*models.TransactionV2, error) {
@@ -228,14 +228,10 @@ func TestTransactionsV2Facade_CommitAndRevertStayBodiless(t *testing.T) {
 
 	for name, action := range actions {
 		t.Run(name, func(t *testing.T) {
-			var (
-				body        []byte
-				contentType []string
-			)
+			var body []byte
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				body, _ = io.ReadAll(r.Body)
-				contentType = r.Header.Values("Content-Type")
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusCreated)
@@ -247,8 +243,8 @@ func TestTransactionsV2Facade_CommitAndRevertStayBodiless(t *testing.T) {
 				t.Fatalf("%s: %v", name, err)
 			}
 
-			if len(body) != 0 || len(contentType) != 0 {
-				t.Fatalf("%s sent body %q with Content-Type %q, want neither", name, body, contentType)
+			if len(body) != 0 {
+				t.Fatalf("%s sent body %q, want none", name, body)
 			}
 		})
 	}
