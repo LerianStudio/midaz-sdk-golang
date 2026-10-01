@@ -3,8 +3,9 @@
 //
 // The provider is the unit of lifecycle: build one at process boot,
 // hand it to [github.com/LerianStudio/midaz-sdk-golang/v6.WithObservabilityProvider],
-// shut it down on exit. Every SDK call emits spans + metrics that nest
-// correctly under whatever parent span the caller has open.
+// shut it down on exit. Only [NewHTTPMiddleware] creates SDK HTTP spans and
+// sends trace headers; facade calls to Midaz are not instrumented today. With
+// no collector endpoint the tracer, meter and propagator are the host's globals.
 //
 // # Quickstart
 //
@@ -54,7 +55,8 @@
 //     midaz.WithLogger / Config.Debug.
 //   - [Provider.Logger] returns the bespoke [Logger] — OTel-correlated.
 //     Call [Logger.WithSpan] to attach trace_id and span_id to every log
-//     line. Used inside SDK call paths that already hold a live span.
+//     line. Used where code already holds a live span, such as a [WithSpan]
+//     callback.
 //
 // They are not the same handler. The slog surface predates this package and
 // covers application-side use cases; this package's Logger predates slog.go

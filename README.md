@@ -352,10 +352,13 @@ c, err := midaz.New(
 )
 ```
 
-The SDK emits one HTTP span per outbound request with proper W3C
-`traceparent` propagation. Business logs carry safe IDs only — never
-payloads, names, addresses, or auth headers. See
-[`examples/10-observability-otel/`](examples/10-observability-otel/).
+Facade calls to Midaz (`client.V1.*`, `client.V2.*`) are not instrumented today:
+SDK HTTP spans and W3C `traceparent` headers come only from
+`observability.NewHTTPMiddleware` on a transport you wrap. Without a collector
+endpoint the SDK's tracer, meter and propagator are your process's OTel globals
+([configuration §2.2](docs/configuration.md#22-the-one-exception-withobservabilityoptions-and-withobservabilityprovider)).
+Business logs carry safe IDs only — never payloads, names, addresses, or auth
+headers. See [`examples/10-observability-otel/`](examples/10-observability-otel/).
 
 ### Multi-tenancy
 
