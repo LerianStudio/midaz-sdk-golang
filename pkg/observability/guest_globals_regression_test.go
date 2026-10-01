@@ -53,6 +53,8 @@ func TestGuestClientWithoutCollectorUsesHostProviders(t *testing.T) {
 		options []observability.Option
 	}{
 		{name: "no endpoint"},
+		{name: "scheme-only http endpoint", options: []observability.Option{observability.WithCollectorEndpoint("  http://  ")}},
+		{name: "scheme-only https endpoint", options: []observability.Option{observability.WithCollectorEndpoint("https://")}},
 	}
 
 	for _, tt := range tests {

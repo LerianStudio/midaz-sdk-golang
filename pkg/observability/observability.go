@@ -19,8 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	otellog "go.opentelemetry.io/otel/log"
-	otellogglobal "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
@@ -535,18 +533,12 @@ func (p *MidazProvider) initTelemetry() error {
 
 	// Without an endpoint the SDK is a guest: it reads the host's delegating
 	// OTel globals, so providers installed later are honoured, and never sets them.
-	enableTelemetry := strings.TrimSpace(p.config.CollectorEndpoint) != ""
-	if !enableTelemetry {
+	if collectorEndpointBlank(p.config.CollectorEndpoint) {
 		p.Logger().Warn("observability: no collector endpoint; tracing and metrics use the host's OTel providers")
 		p.tracer = otel.GetTracerProvider().Tracer(instrumentationName)
 		p.meter = otel.GetMeterProvider().Meter(instrumentationName)
 
 		return nil
-	}
-
-	var globals telemetryGlobals
-	if !p.config.RegisterGlobally {
-		globals = captureTelemetryGlobals()
 	}
 
 	telemetry, err := obstracing.NewTelemetry(obstracing.TelemetryConfig{
@@ -555,17 +547,14 @@ func (p *MidazProvider) initTelemetry() error {
 		ServiceVersion:            p.config.ServiceVersion,
 		DeploymentEnv:             p.config.Environment,
 		CollectorExporterEndpoint: p.config.CollectorEndpoint,
-		EnableTelemetry:           enableTelemetry,
+		EnableTelemetry:           true,
 		InsecureExporter:          p.config.CollectorInsecure,
 		Logger:                    obslog.NewNop(), //nolint:forbidigo // lib-observability/tracing requires a lib-observability logger.
 		Propagator:                p.textMapPropagatorFromConfig(),
 		Redactor:                  obstracing.NewDefaultRedactor(),
 	})
-	if err != nil && (!errors.Is(err, obstracing.ErrEmptyEndpoint) || telemetry == nil) {
+	if err != nil {
 		return annotateInsecureCollectorError(err, p.config.CollectorEndpoint)
-	}
-	if !p.config.RegisterGlobally {
-		restoreTelemetryGlobals(globals)
 	}
 
 	if p.config.RegisterGlobally {
@@ -594,6 +583,17 @@ func (p *MidazProvider) initTelemetry() error {
 	}
 
 	return nil
+}
+
+// collectorEndpointBlank mirrors lib-observability's own blank test (trim, drop
+// one http:// or https:// scheme, trim): there, a blank endpoint sets OTel globals.
+func collectorEndpointBlank(endpoint string) bool {
+	endpoint = strings.TrimSpace(endpoint)
+	if rest, ok := strings.CutPrefix(endpoint, "http://"); ok {
+		return strings.TrimSpace(rest) == ""
+	}
+
+	return strings.TrimSpace(strings.TrimPrefix(endpoint, "https://")) == ""
 }
 
 // collectorEndpointHasScheme reports whether the endpoint carries an explicit
@@ -638,37 +638,6 @@ func annotateInsecureCollectorError(err error, endpoint string) error {
 			"with observability.WithEnvironment(\"development\") to keep a local plaintext collector",
 		err, trimmed, "https://"+trimmed,
 	)
-}
-
-type telemetryGlobals struct {
-	tracerProvider trace.TracerProvider
-	meterProvider  metric.MeterProvider
-	loggerProvider otellog.LoggerProvider //nolint:forbidigo // Required to snapshot/restore the OTel log global provider.
-	propagator     propagation.TextMapPropagator
-}
-
-func captureTelemetryGlobals() telemetryGlobals {
-	return telemetryGlobals{
-		tracerProvider: otel.GetTracerProvider(),
-		meterProvider:  otel.GetMeterProvider(),
-		loggerProvider: otellogglobal.GetLoggerProvider(),
-		propagator:     otel.GetTextMapPropagator(),
-	}
-}
-
-func restoreTelemetryGlobals(globals telemetryGlobals) {
-	if globals.tracerProvider != nil {
-		otel.SetTracerProvider(globals.tracerProvider)
-	}
-	if globals.meterProvider != nil {
-		otel.SetMeterProvider(globals.meterProvider)
-	}
-	if globals.loggerProvider != nil {
-		otellogglobal.SetLoggerProvider(globals.loggerProvider)
-	}
-	if globals.propagator != nil {
-		otel.SetTextMapPropagator(globals.propagator)
-	}
 }
 
 // initLogging initializes structured logging.
