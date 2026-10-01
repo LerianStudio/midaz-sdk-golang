@@ -9,7 +9,7 @@ a ticker, and keep the last mode when a refresh fails.
 - `c.ServerVersion(ctx)` reading the ledger's public `/version` route
 - `midaz.ResolveFeeMode(v)` turning it into `FeeModeNative` (post on `/v2`,
   the ledger applies fees) or `FeeModeLegacy` (post on `/v1`, the service
-  charges fees itself)
+  charges fees through its own fee engine, when one is configured)
 - A cached, lock-free mode: the request path reads it and never calls `/version`
 - A refresh loop that logs only when the mode changes
 - A failed read (404, 5xx, timeout) starting on legacy at boot, and keeping
