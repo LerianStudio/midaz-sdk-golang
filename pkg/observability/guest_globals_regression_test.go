@@ -43,11 +43,10 @@ type hostLoggerProvider struct {
 	owner string
 }
 
-// TestGuestClientWithoutCollectorUsesHostProviders reproduces #253: a Midaz
-// client with tracing and metrics on but no collector endpoint must leave the
-// host's OTel globals in place and send its own spans, metrics and trace
-// headers through them.
-func TestGuestClientWithoutCollectorUsesHostProviders(t *testing.T) {
+// TestGuestWithoutCollectorKeepsHostGlobalsAndMiddlewareUsesThem reproduces
+// #253: building a client without a collector endpoint leaves the host's OTel
+// globals, and the SDK HTTP middleware sends spans, metrics and headers through them.
+func TestGuestWithoutCollectorKeepsHostGlobalsAndMiddlewareUsesThem(t *testing.T) {
 	tests := []struct {
 		name    string
 		options []observability.Option
@@ -110,10 +109,10 @@ func TestGuestClientWithoutCollectorUsesHostProviders(t *testing.T) {
 			hostSpan.End()
 
 			ended := spans.Ended()
-			require.Len(t, ended, 2, "the SDK span and the host span must both reach the host TracerProvider")
-			sdkSpan := ended[0].SpanContext()
-			assert.Equal(t, hostSpan.SpanContext().SpanID(), ended[0].Parent().SpanID(), "the SDK span must be a child of the host span")
-			assert.Equal(t, fmt.Sprintf("00-%s-%s-01", sdkSpan.TraceID(), sdkSpan.SpanID()), outbound.Get("traceparent"))
+			require.Len(t, ended, 2, "the middleware span and the host span must both reach the host TracerProvider")
+			middlewareSpan := ended[0].SpanContext()
+			assert.Equal(t, hostSpan.SpanContext().SpanID(), ended[0].Parent().SpanID(), "the middleware span must be a child of the host span")
+			assert.Equal(t, fmt.Sprintf("00-%s-%s-01", middlewareSpan.TraceID(), middlewareSpan.SpanID()), outbound.Get("traceparent"))
 			assert.Equal(t, "host", outbound.Get(hostPropagatorHeader), "the host propagator must write the outbound trace headers")
 
 			var collected metricdata.ResourceMetrics
@@ -124,7 +123,7 @@ func TestGuestClientWithoutCollectorUsesHostProviders(t *testing.T) {
 					names = append(names, m.Name)
 				}
 			}
-			assert.Contains(t, names, observability.MetricRequestTotal, "SDK metrics must reach the host MeterProvider")
+			assert.Contains(t, names, observability.MetricRequestTotal, "middleware metrics must reach the host MeterProvider")
 
 			assert.Equal(t, 1, strings.Count(logs.String(), `"level":"WARN"`), "exactly one warning about the missing endpoint: %s", logs.String())
 		})
