@@ -140,6 +140,10 @@ func responseHelperProbes(spanCtx context.Context) []nilPairProbe {
 			_, err := readOne[models.Account]("op", nil, nil)
 			require.ErrorIs(t, err, errNoResponse)
 		}},
+		{"readLifecycleV2", func(t require.TestingT) {
+			_, err := readLifecycleV2("op", nil, nil, func(*models.TransactionV2) bool { return true })
+			require.ErrorIs(t, err, errNoResponse)
+		}},
 		{"readList", func(t require.TestingT) {
 			_, err := readList[models.Account]("op", nil, nil)
 			require.ErrorIs(t, err, errNoResponse)

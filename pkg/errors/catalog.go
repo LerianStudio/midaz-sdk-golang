@@ -6,7 +6,7 @@ import (
 )
 
 // Onboarding / CRM API error codes (the *Error.APICode field), mirroring
-// github.com/LerianStudio/midaz/v3/pkg/constant (server source of truth, pinned
+// github.com/LerianStudio/midaz/v4/pkg/constant (server source of truth, pinned
 // in contract/drift_test.go). Prefer the predicates below over hardcoding these
 // strings at call sites.
 //
@@ -19,6 +19,11 @@ const (
 	// APICodeSkipNotPermitted (0490): a per-call skip was requested without the
 	// enabling ledger override.
 	APICodeSkipNotPermitted = "0490"
+
+	// APICodeTransactionReservationDenied (0177): the Tracer denied the
+	// transaction's reservation. midaz emits it only as a 422
+	// (UnprocessableOperationError), which the retry round tripper does not retry.
+	APICodeTransactionReservationDenied = "0177"
 
 	// APICodeHolderRequired (0491): account creation requires a holder (KYC).
 	APICodeHolderRequired = "0491"
@@ -53,6 +58,12 @@ var ErrFeatureNotAvailable = errors.New("feature not available")
 // IsSkipNotPermitted reports whether err carries the server's 0490 code (a
 // per-call skip requested without the enabling ledger override).
 func IsSkipNotPermitted(err error) bool { return apiCodeOf(err) == APICodeSkipNotPermitted }
+
+// IsTransactionReservationDenied reports whether err carries the server's 0177
+// code (the Tracer denied the transaction's reservation).
+func IsTransactionReservationDenied(err error) bool {
+	return apiCodeOf(err) == APICodeTransactionReservationDenied
+}
 
 // IsHolderRequired reports whether err carries the server's 0491 code (account
 // creation requires a holder).

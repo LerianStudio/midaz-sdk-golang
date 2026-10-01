@@ -1,7 +1,7 @@
 package models
 
 // TransactionStatusCode is the canonical Midaz ledger transaction status.
-// Values mirror github.com/LerianStudio/midaz/v3/pkg/constant (server source of
+// Values mirror github.com/LerianStudio/midaz/v4/pkg/constant (server source of
 // truth); the server's filter handler documents this exact 5-value set
 // (Enums(CREATED, APPROVED, PENDING, CANCELED, NOTED)). There is no REJECTED,
 // COMPLETED, or FAILED status anywhere in the server contract.
