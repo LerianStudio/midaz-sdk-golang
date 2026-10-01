@@ -349,6 +349,8 @@ A V2 leg carries **exactly one** value expression: an explicit `Amount`, or a `S
 
 A create the Tracer denies (enforce mode, the reservation would exceed a limit) is refused with `0177` (`errors.IsTransactionReservationDenied`) before any balance moves. The SDK never retries it, even when it arrives on a 5xx.
 
+On a transaction that belongs to a cross-ledger group, V2 `Commit` and `Revert` act on the whole group and the server answers with the group; the SDK returns the member the call addressed (for `Revert`, the reversal whose `ParentTransactionID` is that transaction), and a group without it is a response-decode error naming the group.
+
 `models.TransactionV2` is not `models.Transaction` with fields added: it drops four V1 fields the surface does not serve (`chartOfAccountsGroupName`, `route`, `source`, `destination`), carries two V1 dropped (`FeesSkipped`, `TracerSkipped`), and names the participating aliases `Debit`/`Credit` rather than `Source`/`Destination`.
 
 Structured splits (multiple sources or destinations in one transaction) are multiple `Debits` / `Credits` entries on V2, and multiple `Distribute.To` entries on the V1 send payload. There is no dedicated DSL endpoint on either.

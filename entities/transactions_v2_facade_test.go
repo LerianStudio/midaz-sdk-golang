@@ -250,6 +250,87 @@ func TestTransactionsV2Facade_CommitAndRevertStayBodiless(t *testing.T) {
 	}
 }
 
+// TestTransactionsV2Facade_LifecycleReadsCrossLedgerGroup pins commit and revert
+// on a transaction that belongs to a cross-ledger group: the server answers with
+// the whole group, and the call returns the member it was about. A group with no
+// such member is a decode error naming the group, never an empty transaction.
+func TestTransactionsV2Facade_LifecycleReadsCrossLedgerGroup(t *testing.T) {
+	const (
+		groupID = "4d5e6f70-4444-4444-8444-4d5e6f708192"
+		otherID = "5e6f7081-5555-4555-8555-5e6f708192a3"
+	)
+
+	commit := func(f *transactionsV2Facade) (*models.TransactionV2, error) {
+		return f.Commit(context.Background(), txOrgID, txLedgerID, txID)
+	}
+	revert := func(f *transactionsV2Facade) (*models.TransactionV2, error) {
+		return f.Revert(context.Background(), txOrgID, txLedgerID, txID)
+	}
+
+	tests := []struct {
+		name   string
+		call   func(*transactionsV2Facade) (*models.TransactionV2, error)
+		body   string
+		wantID string // "" means a decode error naming the group
+	}{
+		{
+			name: "commit returns the committed member",
+			call: commit,
+			body: `{"groupId":"` + groupID + `","transactions":[` +
+				`{"id":"` + otherID + `","status":{"code":"APPROVED"},"order":1},` +
+				`{"id":"` + txID + `","status":{"code":"APPROVED"},"order":2}]}`,
+			wantID: txID,
+		},
+		{
+			name: "revert returns the reversal of the addressed transaction",
+			call: revert,
+			body: `{"groupId":"` + groupID + `","revertedGroupId":"` + otherID + `","transactions":[` +
+				`{"id":"rev-other","parentTransactionId":"` + otherID + `","status":{"code":"APPROVED"},"order":1},` +
+				`{"id":"rev-addressed","parentTransactionId":"` + txID + `","status":{"code":"APPROVED"},"order":2}]}`,
+			wantID: "rev-addressed",
+		},
+		{
+			name: "commit group without the addressed member",
+			call: commit,
+			body: `{"groupId":"` + groupID + `","transactions":[{"id":"` + otherID + `","status":{"code":"APPROVED"}}]}`,
+		},
+		{
+			name: "revert group without the addressed reversal",
+			call: revert,
+			body: `{"groupId":"` + groupID + `","transactions":[{"id":"rev-other","parentTransactionId":"` + otherID + `"}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer srv.Close()
+
+			tx, err := tt.call(newTestTransactionsV2Facade(t, srv))
+
+			if tt.wantID == "" {
+				if !sdkerrors.IsResponseDecodeError(err) || !strings.Contains(err.Error(), groupID) {
+					t.Fatalf("got (%+v, %v), want a response-decode error naming group %s", tx, err, groupID)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tx.ID != tt.wantID {
+				t.Fatalf("returned transaction %q, want %q", tx.ID, tt.wantID)
+			}
+		})
+	}
+}
+
 // TestTransactionsV2Facade_CreateRefusesInvalidPayloadLocally pins that a payload
 // the SDK can see is wrong is classified as a validation failure and never
 // reaches the wire. On a create, an unclassified failure is the one a caller

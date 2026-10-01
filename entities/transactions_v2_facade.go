@@ -460,7 +460,9 @@ func (f *transactionsV2Facade) Update(ctx context.Context, orgID, ledgerID, tran
 	})
 }
 
-// Commit finalizes a PENDING transaction (PENDING → APPROVED).
+// Commit finalizes a PENDING transaction (PENDING → APPROVED). On a member of a
+// cross-ledger group the whole group commits, and Commit returns the addressed
+// member.
 //
 // The action carries no body and is not auto-idempotent: it stamps
 // X-Idempotency only when the caller supplied a key through
@@ -473,15 +475,18 @@ func (f *transactionsV2Facade) Commit(ctx context.Context, orgID, ledgerID, tran
 		return nil, err
 	}
 
-	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	//nolint:bodyclose // readLifecycleV2 drains and closes the body via readRawResponse.
 	resp, err := f.ledger.CommitTransactionV2WithBody(ctx, orgID, ledgerID, transactionID, jsonContentType, nil, actionIdempotencyEditors(ctx)...)
 
-	return readOne[models.TransactionV2](operation, resp, err)
+	return readLifecycleV2(operation, resp, err, func(tx *models.TransactionV2) bool {
+		return strings.EqualFold(tx.ID, transactionID)
+	})
 }
 
 // Revert reverses a committed transaction. It returns the CHILD reversal
 // transaction — a new record whose ParentTransactionID points at the original —
-// and never mutates the original.
+// and never mutates the original. On a member of a cross-ledger group the whole
+// group reverts, and Revert returns the reversal of the addressed member.
 func (f *transactionsV2Facade) Revert(ctx context.Context, orgID, ledgerID, transactionID string) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.Revert"
 
@@ -489,10 +494,42 @@ func (f *transactionsV2Facade) Revert(ctx context.Context, orgID, ledgerID, tran
 		return nil, err
 	}
 
-	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
+	//nolint:bodyclose // readLifecycleV2 drains and closes the body via readRawResponse.
 	resp, err := f.ledger.RevertTransactionV2WithBody(ctx, orgID, ledgerID, transactionID, jsonContentType, nil, actionIdempotencyEditors(ctx)...)
 
-	return readOne[models.TransactionV2](operation, resp, err)
+	return readLifecycleV2(operation, resp, err, func(tx *models.TransactionV2) bool {
+		return strings.EqualFold(tx.ParentTransactionID, transactionID)
+	})
+}
+
+// lifecycleV2Response is a /v2 commit or revert 201: a TransactionV2, or the
+// CrossLedgerTransactionGroupV2 when the transaction belongs to a group.
+type lifecycleV2Response struct {
+	models.TransactionV2
+	GroupID      string                 `json:"groupId"`
+	Transactions []models.TransactionV2 `json:"transactions"`
+}
+
+// readLifecycleV2 decodes a commit or revert answer. From a group it returns the
+// member isMember picks; a group without one is a decode error naming the group.
+func readLifecycleV2(operation string, resp *http.Response, err error, isMember func(*models.TransactionV2) bool) (*models.TransactionV2, error) {
+	out, err := readOne[lifecycleV2Response](operation, resp, err)
+	if err != nil {
+		return nil, err
+	}
+
+	if out.Transactions == nil {
+		return &out.TransactionV2, nil
+	}
+
+	for i := range out.Transactions {
+		if isMember(&out.Transactions[i]) {
+			return &out.Transactions[i], nil
+		}
+	}
+
+	return nil, errors.NewResponseDecodeError(operation, resp.StatusCode,
+		fmt.Errorf("cross-ledger group %s carries no transaction for this call", out.GroupID))
 }
 
 // Cancel aborts a PENDING transaction (PENDING → CANCELED), releasing the value
