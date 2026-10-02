@@ -208,6 +208,20 @@ No fee or billing input carries a ledger. Every fee/billing route is
 ledger-scoped in its path, and the server rejects a request body that also
 names a ledger.
 
+### Server version and fee mode
+
+Midaz v4 applies fees inside the ledger; v3 does not. Ask the ledger which
+line it runs before picking who charges the fee:
+
+```go
+v, err := c.ServerVersion(ctx)  // GET <LedgerURL>/version; err non-nil iff no usable answer
+mode := midaz.ResolveFeeMode(v) // FeeModeNative (/v2, ledger fees) iff Known && Major >= 4, else FeeModeLegacy (/v1)
+```
+
+Resolve once at boot, refresh on a ticker, and keep the last mode when a
+refresh fails. See [`docs/server-version.md`](docs/server-version.md) and
+[`examples/11-server-version/`](examples/11-server-version/).
+
 ### Pagination
 
 Every list method ships in three flavors:
@@ -446,6 +460,7 @@ precedence rules.
 - [`docs/auth.md`](docs/auth.md) — authentication setup and migration
 - [`docs/configuration.md`](docs/configuration.md) — every available SDK option, both layers
 - [`docs/multi-tenancy.md`](docs/multi-tenancy.md) — tenant routing
+- [`docs/server-version.md`](docs/server-version.md) — Midaz version detection and fee mode
 - [`docs/logging.md`](docs/logging.md) — `*slog.Logger` contract + adapter recipes
 - [`docs/pagination.md`](docs/pagination.md) — pagination contract
 - [`docs/errors.md`](docs/errors.md) — error categories, codes, retry boundaries

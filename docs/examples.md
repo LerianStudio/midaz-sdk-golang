@@ -374,6 +374,10 @@ Runnable examples live in `examples/`:
 - `09-testing-with-mocks/` - a consumer-declared narrow interface and a hand-written stub; no mock-generation library.
 - `10-observability-otel/` - OpenTelemetry tracing + metrics + logs.
 
+**Fees across Midaz versions**
+
+- `11-server-version/` - Resolve the fee mode from `GET /version` at boot, refresh it on a ticker, fall back to legacy. See [server version](./server-version.md).
+
 **Reference / advanced**
 
 - `concurrency/` - Concurrent SDK usage.
