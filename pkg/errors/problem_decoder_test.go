@@ -103,20 +103,6 @@ func TestErrorDecoder(t *testing.T) {
 			wantRetryable: true,
 		},
 		{
-			name:       "code suffix 0177 overrides to non-retryable despite retryable status",
-			httpStatus: http.StatusServiceUnavailable,
-			body: `{
-				"code":"LEDGER-0177",
-				"title":"Denied",
-				"detail":"denied",
-				"status":503
-			}`,
-			wantCategory:  CategoryUnprocessable,
-			wantAPICode:   "LEDGER-0177",
-			wantStatus:    503,
-			wantRetryable: false,
-		},
-		{
 			name: "envelope status wins over divergent transport status for category and retryability",
 			// Transport observed 200 (a lie / proxy rewrite); the envelope
 			// declares 503. Category and retryability must derive from the

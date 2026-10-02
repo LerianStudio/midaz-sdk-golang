@@ -241,10 +241,22 @@ type CreateTransactionV2Input struct {
 	// Metadata holds flat custom attributes. Values must be flat — no nesting.
 	Metadata map[string]any `json:"metadata,omitempty"`
 
+	// Skip carries the per-call control opt-outs. Nil omits it from the wire.
+	Skip *TransactionV2Skip `json:"skip,omitempty"`
+
 	// IdempotencyKey is the caller-supplied key for this create. It travels as
 	// the X-Idempotency HEADER, never in the body, which is why it is excluded
 	// from the wire shape. Leave it empty to let the SDK generate one.
 	IdempotencyKey string `json:"-"`
+}
+
+// TransactionV2Skip carries the per-call control opt-outs of a /v2 create.
+// Each flag is honoured only when the target ledger's settings enable it
+// (overrides.allowFeeSkip / overrides.allowTracerSkip); otherwise the server
+// answers 0490 (errors.IsSkipNotPermitted).
+type TransactionV2Skip struct {
+	Fees   bool `json:"fees,omitempty"`
+	Tracer bool `json:"tracer,omitempty"`
 }
 
 // TransactionV2Leg is one leg of a transaction side.
