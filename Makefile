@@ -191,9 +191,10 @@ test-fast:
 # Drift guard: pins the SDK's transaction-status vocabulary and lifecycle error
 # codes against the live Midaz server contract. Lives in the nested contract/
 # module so the server dependency never enters the SDK's published go.mod.
+# GOTOOLCHAIN=auto: midaz/v4 needs a newer go than the SDK's own toolchain.
 test-contract:
 	$(call print_header,"Running server-contract drift tests")
-	@cd contract && $(GOTEST) ./...
+	@cd contract && GOTOOLCHAIN=auto $(GOTEST) ./...
 
 coverage:
 	$(call print_header,"Generating test coverage")

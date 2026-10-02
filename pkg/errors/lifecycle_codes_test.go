@@ -77,7 +77,7 @@ func TestIsCannotRevertError(t *testing.T) {
 }
 
 // TestLifecycleAPICodeConstants pins the constant string values to the server
-// contract (github.com/LerianStudio/midaz/v3/pkg/constant). If the server set
+// contract (github.com/LerianStudio/midaz/v4/pkg/constant). If the server set
 // drifts, this guards against silent divergence.
 func TestLifecycleAPICodeConstants(t *testing.T) {
 	assert.Equal(t, "0021", sdkerrors.APICodeParentTransactionIDNotFound)

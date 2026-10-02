@@ -40,6 +40,12 @@ type Actor struct {
 	Role      *string `json:"role,omitempty"`
 }
 
+// AssetAmount defines model for AssetAmount.
+type AssetAmount struct {
+	Amount string `json:"amount"`
+	Asset  string `json:"asset"`
+}
+
 // AuditEvent defines model for AuditEvent.
 type AuditEvent struct {
 	Action       string                  `json:"action"`
@@ -54,6 +60,51 @@ type AuditEvent struct {
 	ResourceId   string                  `json:"resourceId"`
 	ResourceType string                  `json:"resourceType"`
 	Result       string                  `json:"result"`
+}
+
+// DashboardFraudTypes defines model for DashboardFraudTypes.
+type DashboardFraudTypes struct {
+	TotalFlagged int64             `json:"totalFlagged"`
+	Types        *[]FraudTypeSlice `json:"types"`
+	UpdatedAt    time.Time         `json:"updatedAt"`
+	WindowEnd    time.Time         `json:"windowEnd"`
+	WindowStart  time.Time         `json:"windowStart"`
+}
+
+// DashboardMetrics defines model for DashboardMetrics.
+type DashboardMetrics struct {
+	ActiveLimits          int64          `json:"activeLimits"`
+	ActiveRules           int64          `json:"activeRules"`
+	Allowed               int64          `json:"allowed"`
+	AmountSaved           *string        `json:"amountSaved,omitempty"`
+	AmountSavedByAsset    *[]AssetAmount `json:"amountSavedByAsset"`
+	ApprovalRate          float64        `json:"approvalRate"`
+	Asset                 *string        `json:"asset,omitempty"`
+	AvgProcessingTimeMs   float64        `json:"avgProcessingTimeMs"`
+	FraudDetectionRate    float64        `json:"fraudDetectionRate"`
+	FraudsBlocked         int64          `json:"fraudsBlocked"`
+	ManualReviewRate      float64        `json:"manualReviewRate"`
+	ManualReviews         int64          `json:"manualReviews"`
+	TransactionsProcessed int64          `json:"transactionsProcessed"`
+	UpdatedAt             time.Time      `json:"updatedAt"`
+	WindowEnd             time.Time      `json:"windowEnd"`
+	WindowStart           time.Time      `json:"windowStart"`
+}
+
+// DashboardTopRules defines model for DashboardTopRules.
+type DashboardTopRules struct {
+	Rules       *[]TopRule `json:"rules"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	WindowEnd   time.Time  `json:"windowEnd"`
+	WindowStart time.Time  `json:"windowStart"`
+}
+
+// DashboardVolume defines model for DashboardVolume.
+type DashboardVolume struct {
+	Points      *[]VolumePoint `json:"points"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
+	WindowEnd   time.Time      `json:"windowEnd"`
+	WindowStart time.Time      `json:"windowStart"`
 }
 
 // Error defines model for Error.
@@ -77,8 +128,9 @@ type Error struct {
 	Title *string `json:"title,omitempty"`
 
 	// Type A URI reference to human-readable documentation for the error.
-	Type     *string   `json:"type,omitempty"`
-	Upstream *Upstream `json:"upstream,omitempty"`
+	Type                 *string                `json:"type,omitempty"`
+	Upstream             *Upstream              `json:"upstream,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
 // ErrorDetail defines model for ErrorDetail.
@@ -91,6 +143,14 @@ type ErrorDetail struct {
 
 	// Value The value at the given location
 	Value interface{} `json:"value,omitempty"`
+}
+
+// FraudTypeSlice defines model for FraudTypeSlice.
+type FraudTypeSlice struct {
+	Count      int64   `json:"count"`
+	Percentage float64 `json:"percentage"`
+	Total      int64   `json:"total"`
+	Type       string  `json:"type"`
 }
 
 // HashChainVerificationResult defines model for HashChainVerificationResult.
@@ -224,6 +284,16 @@ type SegmentContext struct {
 	SegmentId openapi_types.UUID      `json:"segmentId"`
 }
 
+// TopRule defines model for TopRule.
+type TopRule struct {
+	AvgProcessingMs float64 `json:"avgProcessingMs"`
+	DetectionRate   float64 `json:"detectionRate"`
+	Executions      int64   `json:"executions"`
+	Matches         int64   `json:"matches"`
+	Name            string  `json:"name"`
+	ProductType     *string `json:"productType,omitempty"`
+}
+
 // TransactionActionResponse defines model for TransactionActionResponse.
 type TransactionActionResponse struct {
 	Flipped       int64              `json:"flipped"`
@@ -307,6 +377,12 @@ type ValidationSummary struct {
 	ValidationId     openapi_types.UUID    `json:"validationId"`
 }
 
+// VolumePoint defines model for VolumePoint.
+type VolumePoint struct {
+	Date   string `json:"date"`
+	Volume int64  `json:"volume"`
+}
+
 // apiKeyAuthContextKey is the context key for ApiKeyAuth security scheme
 type apiKeyAuthContextKey string
 
@@ -368,6 +444,54 @@ type ListAuditEventsParams struct {
 
 	// SortOrder Sort direction (ASC, DESC)
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// GetDashboardFraudTypesParams defines parameters for GetDashboardFraudTypes.
+type GetDashboardFraudTypesParams struct {
+	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// StartDate Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+}
+
+// GetDashboardMetricsParams defines parameters for GetDashboardMetrics.
+type GetDashboardMetricsParams struct {
+	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// StartDate Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+}
+
+// GetDashboardTopRulesParams defines parameters for GetDashboardTopRules.
+type GetDashboardTopRulesParams struct {
+	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// StartDate Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+}
+
+// GetDashboardVolumeParams defines parameters for GetDashboardVolume.
+type GetDashboardVolumeParams struct {
+	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// StartDate Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
+
+	// EndDate Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 }
 
 // ListLimitsParams defines parameters for ListLimits.
@@ -532,6 +656,179 @@ type UpdateRuleJSONRequestBody = UpdateRuleJSONBody
 // ValidateTransactionJSONRequestBody defines body for ValidateTransaction for application/json ContentType.
 type ValidateTransactionJSONRequestBody = ValidateTransactionJSONBody
 
+// Getter for additional properties for Error. Returns the specified
+// element and whether it was found
+func (a Error) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for Error
+func (a *Error) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for Error to handle AdditionalProperties
+func (a *Error) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["code"]; found {
+		err = json.Unmarshal(raw, &a.Code)
+		if err != nil {
+			return fmt.Errorf("error reading 'code': %w", err)
+		}
+		delete(object, "code")
+	}
+
+	if raw, found := object["detail"]; found {
+		err = json.Unmarshal(raw, &a.Detail)
+		if err != nil {
+			return fmt.Errorf("error reading 'detail': %w", err)
+		}
+		delete(object, "detail")
+	}
+
+	if raw, found := object["errors"]; found {
+		err = json.Unmarshal(raw, &a.Errors)
+		if err != nil {
+			return fmt.Errorf("error reading 'errors': %w", err)
+		}
+		delete(object, "errors")
+	}
+
+	if raw, found := object["instance"]; found {
+		err = json.Unmarshal(raw, &a.Instance)
+		if err != nil {
+			return fmt.Errorf("error reading 'instance': %w", err)
+		}
+		delete(object, "instance")
+	}
+
+	if raw, found := object["status"]; found {
+		err = json.Unmarshal(raw, &a.Status)
+		if err != nil {
+			return fmt.Errorf("error reading 'status': %w", err)
+		}
+		delete(object, "status")
+	}
+
+	if raw, found := object["title"]; found {
+		err = json.Unmarshal(raw, &a.Title)
+		if err != nil {
+			return fmt.Errorf("error reading 'title': %w", err)
+		}
+		delete(object, "title")
+	}
+
+	if raw, found := object["type"]; found {
+		err = json.Unmarshal(raw, &a.Type)
+		if err != nil {
+			return fmt.Errorf("error reading 'type': %w", err)
+		}
+		delete(object, "type")
+	}
+
+	if raw, found := object["upstream"]; found {
+		err = json.Unmarshal(raw, &a.Upstream)
+		if err != nil {
+			return fmt.Errorf("error reading 'upstream': %w", err)
+		}
+		delete(object, "upstream")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for Error to handle AdditionalProperties
+func (a Error) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Code != nil {
+		object["code"], err = json.Marshal(a.Code)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'code': %w", err)
+		}
+	}
+
+	if a.Detail != nil {
+		object["detail"], err = json.Marshal(a.Detail)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'detail': %w", err)
+		}
+	}
+
+	if a.Errors != nil {
+		object["errors"], err = json.Marshal(a.Errors)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'errors': %w", err)
+		}
+	}
+
+	if a.Instance != nil {
+		object["instance"], err = json.Marshal(a.Instance)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'instance': %w", err)
+		}
+	}
+
+	if a.Status != nil {
+		object["status"], err = json.Marshal(a.Status)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'status': %w", err)
+		}
+	}
+
+	if a.Title != nil {
+		object["title"], err = json.Marshal(a.Title)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'title': %w", err)
+		}
+	}
+
+	if a.Type != nil {
+		object["type"], err = json.Marshal(a.Type)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'type': %w", err)
+		}
+	}
+
+	if a.Upstream != nil {
+		object["upstream"], err = json.Marshal(a.Upstream)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'upstream': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
 
@@ -613,6 +910,18 @@ type ClientInterface interface {
 
 	// VerifyAuditEvent request
 	VerifyAuditEvent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetDashboardFraudTypes request
+	GetDashboardFraudTypes(ctx context.Context, params *GetDashboardFraudTypesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetDashboardMetrics request
+	GetDashboardMetrics(ctx context.Context, params *GetDashboardMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetDashboardTopRules request
+	GetDashboardTopRules(ctx context.Context, params *GetDashboardTopRulesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetDashboardVolume request
+	GetDashboardVolume(ctx context.Context, params *GetDashboardVolumeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListLimits request
 	ListLimits(ctx context.Context, params *ListLimitsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -728,6 +1037,54 @@ func (c *Client) GetAuditEvent(ctx context.Context, id string, reqEditors ...Req
 
 func (c *Client) VerifyAuditEvent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewVerifyAuditEventRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDashboardFraudTypes(ctx context.Context, params *GetDashboardFraudTypesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDashboardFraudTypesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDashboardMetrics(ctx context.Context, params *GetDashboardMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDashboardMetricsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDashboardTopRules(ctx context.Context, params *GetDashboardTopRulesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDashboardTopRulesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDashboardVolume(ctx context.Context, params *GetDashboardVolumeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDashboardVolumeRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1426,6 +1783,318 @@ func NewVerifyAuditEventRequest(server string, id string) (*http.Request, error)
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetDashboardFraudTypesRequest generates requests for GetDashboardFraudTypes
+func NewGetDashboardFraudTypesRequest(server string, params *GetDashboardFraudTypesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/fraud-types")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetDashboardMetricsRequest generates requests for GetDashboardMetrics
+func NewGetDashboardMetricsRequest(server string, params *GetDashboardMetricsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/metrics")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetDashboardTopRulesRequest generates requests for GetDashboardTopRules
+func NewGetDashboardTopRulesRequest(server string, params *GetDashboardTopRulesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/top-rules")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetDashboardVolumeRequest generates requests for GetDashboardVolume
+func NewGetDashboardVolumeRequest(server string, params *GetDashboardVolumeParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/volume")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.StartDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "start_date", *params.StartDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EndDate != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "end_date", *params.EndDate, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -2880,6 +3549,18 @@ type ClientWithResponsesInterface interface {
 	// VerifyAuditEventWithResponse request
 	VerifyAuditEventWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*VerifyAuditEventResp, error)
 
+	// GetDashboardFraudTypesWithResponse request
+	GetDashboardFraudTypesWithResponse(ctx context.Context, params *GetDashboardFraudTypesParams, reqEditors ...RequestEditorFn) (*GetDashboardFraudTypesResp, error)
+
+	// GetDashboardMetricsWithResponse request
+	GetDashboardMetricsWithResponse(ctx context.Context, params *GetDashboardMetricsParams, reqEditors ...RequestEditorFn) (*GetDashboardMetricsResp, error)
+
+	// GetDashboardTopRulesWithResponse request
+	GetDashboardTopRulesWithResponse(ctx context.Context, params *GetDashboardTopRulesParams, reqEditors ...RequestEditorFn) (*GetDashboardTopRulesResp, error)
+
+	// GetDashboardVolumeWithResponse request
+	GetDashboardVolumeWithResponse(ctx context.Context, params *GetDashboardVolumeParams, reqEditors ...RequestEditorFn) (*GetDashboardVolumeResp, error)
+
 	// ListLimitsWithResponse request
 	ListLimitsWithResponse(ctx context.Context, params *ListLimitsParams, reqEditors ...RequestEditorFn) (*ListLimitsResp, error)
 
@@ -2972,6 +3653,8 @@ type ListAuditEventsResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ListAuditEventsResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3003,6 +3686,8 @@ type GetAuditEventResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AuditEvent
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3034,6 +3719,8 @@ type VerifyAuditEventResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *HashChainVerificationResult
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3061,10 +3748,144 @@ func (r VerifyAuditEventResp) ContentType() string {
 	return ""
 }
 
+type GetDashboardFraudTypesResp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *DashboardFraudTypes
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDashboardFraudTypesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDashboardFraudTypesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetDashboardFraudTypesResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetDashboardMetricsResp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *DashboardMetrics
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDashboardMetricsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDashboardMetricsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetDashboardMetricsResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetDashboardTopRulesResp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *DashboardTopRules
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDashboardTopRulesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDashboardTopRulesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetDashboardTopRulesResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetDashboardVolumeResp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *DashboardVolume
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDashboardVolumeResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDashboardVolumeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetDashboardVolumeResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListLimitsResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ListLimitsResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3096,6 +3917,8 @@ type CreateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Limit
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3126,6 +3949,8 @@ func (r CreateLimitResp) ContentType() string {
 type DeleteLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3157,6 +3982,8 @@ type GetLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3188,6 +4015,8 @@ type UpdateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3219,6 +4048,8 @@ type ActivateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3250,6 +4081,8 @@ type DeactivateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3281,6 +4114,8 @@ type DraftLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3312,6 +4147,8 @@ type GetLimitUsageResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *UsageSnapshot
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3343,6 +4180,8 @@ type CreateReservationResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *ReserveResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3374,6 +4213,8 @@ type ConfirmReservationByTransactionResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionActionResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3405,6 +4246,8 @@ type ReleaseReservationByTransactionResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionActionResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3436,6 +4279,8 @@ type ConfirmReservationResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ReservationActionResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3467,6 +4312,8 @@ type ReleaseReservationResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ReservationActionResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3498,6 +4345,8 @@ type ListRulesResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ListRulesResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3529,6 +4378,8 @@ type CreateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Rule
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3559,6 +4410,8 @@ func (r CreateRuleResp) ContentType() string {
 type DeleteRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3590,6 +4443,8 @@ type GetRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3621,6 +4476,8 @@ type UpdateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3652,6 +4509,8 @@ type ActivateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3683,6 +4542,8 @@ type DeactivateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3714,6 +4575,8 @@ type DraftRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3745,6 +4608,8 @@ type ListValidationsResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ListTransactionValidationsResponse
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3773,9 +4638,11 @@ func (r ListValidationsResp) ContentType() string {
 }
 
 type ValidateTransactionResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ValidationResponse
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON200                   *ValidationResponse
+	ApplicationproblemJSON422 *Error
+	ApplicationproblemJSON500 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -3806,6 +4673,8 @@ type GetValidationResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionValidation
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -3858,6 +4727,42 @@ func (c *ClientWithResponses) VerifyAuditEventWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseVerifyAuditEventResp(rsp)
+}
+
+// GetDashboardFraudTypesWithResponse request returning *GetDashboardFraudTypesResp
+func (c *ClientWithResponses) GetDashboardFraudTypesWithResponse(ctx context.Context, params *GetDashboardFraudTypesParams, reqEditors ...RequestEditorFn) (*GetDashboardFraudTypesResp, error) {
+	rsp, err := c.GetDashboardFraudTypes(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDashboardFraudTypesResp(rsp)
+}
+
+// GetDashboardMetricsWithResponse request returning *GetDashboardMetricsResp
+func (c *ClientWithResponses) GetDashboardMetricsWithResponse(ctx context.Context, params *GetDashboardMetricsParams, reqEditors ...RequestEditorFn) (*GetDashboardMetricsResp, error) {
+	rsp, err := c.GetDashboardMetrics(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDashboardMetricsResp(rsp)
+}
+
+// GetDashboardTopRulesWithResponse request returning *GetDashboardTopRulesResp
+func (c *ClientWithResponses) GetDashboardTopRulesWithResponse(ctx context.Context, params *GetDashboardTopRulesParams, reqEditors ...RequestEditorFn) (*GetDashboardTopRulesResp, error) {
+	rsp, err := c.GetDashboardTopRules(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDashboardTopRulesResp(rsp)
+}
+
+// GetDashboardVolumeWithResponse request returning *GetDashboardVolumeResp
+func (c *ClientWithResponses) GetDashboardVolumeWithResponse(ctx context.Context, params *GetDashboardVolumeParams, reqEditors ...RequestEditorFn) (*GetDashboardVolumeResp, error) {
+	rsp, err := c.GetDashboardVolume(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDashboardVolumeResp(rsp)
 }
 
 // ListLimitsWithResponse request returning *ListLimitsResp
@@ -4154,6 +5059,20 @@ func ParseListAuditEventsResp(rsp *http.Response) (*ListAuditEventsResp, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4186,6 +5105,20 @@ func ParseGetAuditEventResp(rsp *http.Response) (*GetAuditEventResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4220,6 +5153,208 @@ func ParseVerifyAuditEventResp(rsp *http.Response) (*VerifyAuditEventResp, error
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDashboardFraudTypesResp parses an HTTP response from a GetDashboardFraudTypesWithResponse call
+func ParseGetDashboardFraudTypesResp(rsp *http.Response) (*GetDashboardFraudTypesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDashboardFraudTypesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardFraudTypes
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDashboardMetricsResp parses an HTTP response from a GetDashboardMetricsWithResponse call
+func ParseGetDashboardMetricsResp(rsp *http.Response) (*GetDashboardMetricsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDashboardMetricsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDashboardTopRulesResp parses an HTTP response from a GetDashboardTopRulesWithResponse call
+func ParseGetDashboardTopRulesResp(rsp *http.Response) (*GetDashboardTopRulesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDashboardTopRulesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardTopRules
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDashboardVolumeResp parses an HTTP response from a GetDashboardVolumeWithResponse call
+func ParseGetDashboardVolumeResp(rsp *http.Response) (*GetDashboardVolumeResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDashboardVolumeResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardVolume
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4252,6 +5387,20 @@ func ParseListLimitsResp(rsp *http.Response) (*ListLimitsResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4286,6 +5435,20 @@ func ParseCreateLimitResp(rsp *http.Response) (*CreateLimitResp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4312,6 +5475,20 @@ func ParseDeleteLimitResp(rsp *http.Response) (*DeleteLimitResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4344,6 +5521,20 @@ func ParseGetLimitResp(rsp *http.Response) (*GetLimitResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4378,6 +5569,20 @@ func ParseUpdateLimitResp(rsp *http.Response) (*UpdateLimitResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4410,6 +5615,20 @@ func ParseActivateLimitResp(rsp *http.Response) (*ActivateLimitResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4444,6 +5663,20 @@ func ParseDeactivateLimitResp(rsp *http.Response) (*DeactivateLimitResp, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4476,6 +5709,20 @@ func ParseDraftLimitResp(rsp *http.Response) (*DraftLimitResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4510,6 +5757,20 @@ func ParseGetLimitUsageResp(rsp *http.Response) (*GetLimitUsageResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4542,6 +5803,20 @@ func ParseCreateReservationResp(rsp *http.Response) (*CreateReservationResp, err
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4576,6 +5851,20 @@ func ParseConfirmReservationByTransactionResp(rsp *http.Response) (*ConfirmReser
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4608,6 +5897,20 @@ func ParseReleaseReservationByTransactionResp(rsp *http.Response) (*ReleaseReser
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4642,6 +5945,20 @@ func ParseConfirmReservationResp(rsp *http.Response) (*ConfirmReservationResp, e
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4674,6 +5991,20 @@ func ParseReleaseReservationResp(rsp *http.Response) (*ReleaseReservationResp, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4708,6 +6039,20 @@ func ParseListRulesResp(rsp *http.Response) (*ListRulesResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4741,6 +6086,20 @@ func ParseCreateRuleResp(rsp *http.Response) (*CreateRuleResp, error) {
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4767,6 +6126,20 @@ func ParseDeleteRuleResp(rsp *http.Response) (*DeleteRuleResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4799,6 +6172,20 @@ func ParseGetRuleResp(rsp *http.Response) (*GetRuleResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4833,6 +6220,20 @@ func ParseUpdateRuleResp(rsp *http.Response) (*UpdateRuleResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4865,6 +6266,20 @@ func ParseActivateRuleResp(rsp *http.Response) (*ActivateRuleResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4899,6 +6314,20 @@ func ParseDeactivateRuleResp(rsp *http.Response) (*DeactivateRuleResp, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4931,6 +6360,20 @@ func ParseDraftRuleResp(rsp *http.Response) (*DraftRuleResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
@@ -4965,6 +6408,20 @@ func ParseListValidationsResp(rsp *http.Response) (*ListValidationsResp, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -4998,6 +6455,20 @@ func ParseValidateTransactionResp(rsp *http.Response) (*ValidateTransactionResp,
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
 	}
 
 	return response, nil
@@ -5023,6 +6494,20 @@ func ParseGetValidationResp(rsp *http.Response) (*GetValidationResp, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
