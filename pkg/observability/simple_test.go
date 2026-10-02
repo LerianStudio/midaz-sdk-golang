@@ -305,6 +305,7 @@ func TestContextPropagation(t *testing.T) {
 	// Create a provider with propagation configured
 	ctx := context.Background()
 
+	restoreGlobalPropagator(t)
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false), // Only enable tracing
 		WithPropagators(propagation.TraceContext{}),

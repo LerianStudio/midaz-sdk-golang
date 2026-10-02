@@ -15,6 +15,23 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// restoreGlobalPropagator undoes the propagator a WithRegisterGlobally test installs.
+func restoreGlobalPropagator(t *testing.T) {
+	t.Helper()
+
+	previous := otel.GetTextMapPropagator()
+	t.Cleanup(func() { otel.SetTextMapPropagator(previous) })
+}
+
+// setHostPropagator installs the host's TraceContext+Baggage propagator for one
+// test; a provider without an endpoint propagates through it.
+func setHostPropagator(t *testing.T) {
+	t.Helper()
+
+	restoreGlobalPropagator(t)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+}
+
 // hostTracer stands in for the host application's recording tracer: a provider
 // without a collector endpoint records nothing and only carries the host span.
 func hostTracer() trace.Tracer {
@@ -46,6 +63,7 @@ func TestTracingPropagation(t *testing.T) {
 
 func TestProviderAwarePropagation(t *testing.T) {
 	t.Run("HTTPHeaderHelpersHonorRegisterGloballyFalse", func(t *testing.T) {
+		setHostPropagator(t)
 		provider, err := New(context.Background(),
 			WithComponentEnabled(true, false, false),
 			WithFullTracingSampling(),
@@ -73,6 +91,7 @@ func TestProviderAwarePropagation(t *testing.T) {
 	})
 
 	t.Run("BaggagePropagatesThroughHTTPHelpers", func(t *testing.T) {
+		setHostPropagator(t)
 		provider, err := New(context.Background(),
 			WithComponentEnabled(true, false, false),
 			WithFullTracingSampling(),
@@ -222,6 +241,7 @@ func testInjectAndExtractTraceContext(t *testing.T) {
 
 	// Create a provider with tracing enabled
 	ctx := context.Background()
+	restoreGlobalPropagator(t)
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false), // Only tracing
 		WithFullTracingSampling(),                // Sample all traces for testing
@@ -272,6 +292,7 @@ func testHTTPMiddlewareTracePropagation(t *testing.T) {
 
 	// Create provider
 	ctx := context.Background()
+	setHostPropagator(t)
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
@@ -341,6 +362,7 @@ func testDistributedTracingAcrossServices(t *testing.T) {
 	// Service B provider
 	ctxB := context.Background()
 
+	restoreGlobalPropagator(t)
 	providerB, err := New(ctxB,
 		WithServiceName("service-b"),
 		WithComponentEnabled(true, false, false),
@@ -383,6 +405,7 @@ func testTraceContextWithBaggage(t *testing.T) {
 	t.Helper()
 
 	ctx := context.Background()
+	restoreGlobalPropagator(t)
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
@@ -428,6 +451,7 @@ func testTraceContextWithBaggage(t *testing.T) {
 func testTraceContextPersistenceAcrossRequests(t *testing.T) {
 	t.Helper()
 
+	setHostPropagator(t)
 	provider, err := New(context.Background(),
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
