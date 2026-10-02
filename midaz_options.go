@@ -289,10 +289,10 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 			return err
 		}
 
+		// The replaced provider is discarded: its flush error has no one to act
+		// on it, and failing here would orphan the provider just built.
 		if c.builtObservability != nil {
-			if err := c.builtObservability.Shutdown(c.ctx); err != nil {
-				return fmt.Errorf("shut down replaced observability provider: %w", err)
-			}
+			_ = c.builtObservability.Shutdown(c.ctx)
 		}
 
 		c.pendingObservability = provider
