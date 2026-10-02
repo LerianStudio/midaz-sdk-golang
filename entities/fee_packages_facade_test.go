@@ -28,14 +28,13 @@ func feePackagesBase() string {
 	return "/v2/organizations/" + feePackagesOrgID + "/ledgers/" + feePackagesLedgerID + "/packages"
 }
 
-// TestFeePackagesFacade_ListAndPaginate exercises PAGE-mode pagination: the loop
-// must advance Page and keep fetching while HasMore() is true (Total arithmetic),
-// and must NOT stop after page 1 just because the page-mode envelope emits no
-// next_cursor. A cursor-style "stop on empty cursor" would lose page 2 entirely.
+// TestFeePackagesFacade_ListAndPaginate pins PAGE-mode pagination against the
+// Midaz v4.1 envelope, whose total is the item count of the page itself: the loop
+// must keep fetching while a page is full and stop on the first short page.
 func TestFeePackagesFacade_ListAndPaginate(t *testing.T) {
-	// total=2, limit=1 → page 1 has_more (1*1 < 2), page 2 terminal (2*1 !< 2).
-	page1 := `{"items":[{"id":"aaaa","feeGroupLabel":"P1","minimumAmount":"100.00","maximumAmount":"1000.00"}],"limit":1,"page":1,"total":2}`
-	page2 := `{"items":[{"id":"bbbb","feeGroupLabel":"P2","minimumAmount":"200.00","maximumAmount":"2000.00"}],"limit":1,"page":2,"total":2}`
+	page1 := `{"items":[{"id":"aaaa","feeGroupLabel":"P1","minimumAmount":"100.00","maximumAmount":"1000.00"}],"limit":1,"page":1,"total":1}`
+	page2 := `{"items":[{"id":"bbbb","feeGroupLabel":"P2","minimumAmount":"200.00","maximumAmount":"2000.00"}],"limit":1,"page":2,"total":1}`
+	page3 := `{"items":[],"limit":1,"page":3,"total":0}`
 
 	var gotPath string
 	var seenPages []string
@@ -44,9 +43,12 @@ func TestFeePackagesFacade_ListAndPaginate(t *testing.T) {
 		page := r.URL.Query().Get("page")
 		seenPages = append(seenPages, page)
 		w.Header().Set("Content-Type", "application/json")
-		if page == "2" {
+		switch page {
+		case "2":
 			_, _ = w.Write([]byte(page2))
-		} else {
+		case "3":
+			_, _ = w.Write([]byte(page3))
+		default:
 			_, _ = w.Write([]byte(page1))
 		}
 	}))
