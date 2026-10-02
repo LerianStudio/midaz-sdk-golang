@@ -96,6 +96,18 @@ func TestParse(t *testing.T) {
 			mode: serverversion.FeeModeLegacy,
 		},
 		{
+			name: "empty prerelease",
+			body: `{"version":"4.1.3-"}`,
+			want: serverversion.ServerVersion{Raw: "4.1.3-", Source: serverversion.SourceLegacy},
+			mode: serverversion.FeeModeLegacy,
+		},
+		{
+			name: "empty build metadata",
+			body: `{"version":"4.1.3+"}`,
+			want: serverversion.ServerVersion{Raw: "4.1.3+", Source: serverversion.SourceLegacy},
+			mode: serverversion.FeeModeLegacy,
+		},
+		{
 			name: "build metadata is discarded",
 			body: `{"version":"4.1.3+build.7"}`,
 			want: serverversion.ServerVersion{Raw: "4.1.3+build.7", Major: 4, Minor: 1, Patch: 3, Known: true, Source: serverversion.SourceLegacy},

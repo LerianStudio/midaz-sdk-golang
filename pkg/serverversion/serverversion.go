@@ -63,11 +63,16 @@ func Parse(body []byte) ServerVersion {
 }
 
 // parseSemVer accepts [v]MAJOR.MINOR.PATCH[-prerelease][+build] with
-// non-negative decimal components; build metadata is discarded.
+// non-negative decimal components and non-empty suffixes; build metadata is
+// discarded.
 func parseSemVer(s string) (ServerVersion, bool) {
-	s, _, _ = strings.Cut(strings.TrimPrefix(strings.TrimSpace(s), "v"), "+")
+	s, build, hasBuild := strings.Cut(strings.TrimPrefix(strings.TrimSpace(s), "v"), "+")
 
-	core, prerelease, _ := strings.Cut(s, "-")
+	core, prerelease, hasPrerelease := strings.Cut(s, "-")
+	if hasBuild && build == "" || hasPrerelease && prerelease == "" {
+		return ServerVersion{}, false
+	}
+
 	parts := strings.Split(core, ".")
 
 	var nums [3]int
