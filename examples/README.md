@@ -1,7 +1,7 @@
 # Midaz Go SDK — Examples
 
 Every example here is a runnable `main` package. The numbered examples
-(01-10) are **focused tutorials**: each one teaches exactly one concept
+(01-11) are **focused tutorials**: each one teaches exactly one concept
 with the smallest possible body. The non-numbered examples are
 **reference / advanced** material — comprehensive but unfocused.
 
@@ -56,6 +56,12 @@ demonstrate exist only there:
 |---|---|
 | [`09-testing-with-mocks/`](09-testing-with-mocks/) | A consumer-defined narrow interface plus a hand-written mock — no generated mocks, no SDK test dependency |
 | [`10-observability-otel/`](10-observability-otel/) | Full OpenTelemetry surface (tracing + metrics + logs) |
+
+## Fees across Midaz versions
+
+| Example | Demonstrates |
+|---|---|
+| [`11-server-version/`](11-server-version/) | Fee mode from `GET /version`: resolve at boot, refresh on a ticker, fall back to legacy |
 
 ## Reference / advanced
 
