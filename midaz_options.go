@@ -289,10 +289,12 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 			return err
 		}
 
-		// The replaced provider is discarded: its flush error has no one to act
-		// on it, and failing here would orphan the provider just built.
+		// The replaced provider is discarded: failing here would orphan the
+		// provider just built, so its close error is only reported.
 		if c.builtObservability != nil {
-			_ = c.builtObservability.Shutdown(c.ctx)
+			if err := c.builtObservability.Shutdown(c.ctx); err != nil {
+				c.Logger().Warn("midaz: closing the replaced observability provider failed", "error", err)
+			}
 		}
 
 		c.pendingObservability = provider
