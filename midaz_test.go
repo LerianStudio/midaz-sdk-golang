@@ -412,25 +412,140 @@ func TestClientSetObservability_PropagatesToGetObservabilityProvider(t *testing.
 		"Entity view must agree with Client view")
 }
 
-// TestClientShutdown_UsesCanonicalProvider is the H1 follow-on. Shutdown
-// previously called Shutdown on Client's stale duplicate field; post-fix it
-// reads via GetObservabilityProvider, which routes through Entity. This
-// guards against a regression where Shutdown closes the wrong handle.
+// TestClientShutdown_UsesCanonicalProvider pins which provider Shutdown closes:
+// only one the SDK built. A provider the caller brought (WithConfig, either
+// SetObservability) stays open.
 func TestClientShutdown_UsesCanonicalProvider(t *testing.T) {
-	c, err := New(WithConfig(createTestConfig(t)))
+	disabled := observability.WithComponentEnabled(false, false, false)
+
+	newHostProvider := func(t *testing.T) observability.Provider {
+		t.Helper()
+
+		provider, err := observability.New(context.Background(), observability.WithServiceName("host"), disabled)
+		require.NoError(t, err)
+
+		return provider
+	}
+
+	tests := []struct {
+		name       string
+		build      func(t *testing.T) (*Client, observability.Provider)
+		wantClosed bool
+	}{
+		{
+			name: "SDK default is closed",
+			build: func(t *testing.T) (*Client, observability.Provider) {
+				t.Helper()
+
+				c, err := New(WithConfig(createTestConfig(t)))
+				require.NoError(t, err)
+
+				return c, c.GetObservabilityProvider()
+			},
+			wantClosed: true,
+		},
+		{
+			name: "WithObservabilityOptions is closed",
+			build: func(t *testing.T) (*Client, observability.Provider) {
+				t.Helper()
+
+				c, err := New(WithConfig(createTestConfig(t)), WithObservabilityOptions(disabled))
+				require.NoError(t, err)
+
+				return c, c.GetObservabilityProvider()
+			},
+			wantClosed: true,
+		},
+		{
+			name: "provider carried by WithConfig stays open",
+			build: func(t *testing.T) (*Client, observability.Provider) {
+				t.Helper()
+
+				host := newHostProvider(t)
+				cfg := createTestConfig(t)
+				require.NoError(t, config.WithObservabilityProvider(host)(cfg))
+
+				c, err := New(WithConfig(cfg))
+				require.NoError(t, err)
+
+				return c, host
+			},
+		},
+		{
+			name: "SetObservability replacement stays open",
+			build: func(t *testing.T) (*Client, observability.Provider) {
+				t.Helper()
+
+				c, err := New(WithConfig(createTestConfig(t)))
+				require.NoError(t, err)
+
+				host := newHostProvider(t)
+				require.NoError(t, c.SetObservability(host))
+
+				return c, host
+			},
+		},
+		{
+			name: "Entity.SetObservability replacement stays open",
+			build: func(t *testing.T) (*Client, observability.Provider) {
+				t.Helper()
+
+				c, err := New(WithConfig(createTestConfig(t)))
+				require.NoError(t, err)
+
+				host := newHostProvider(t)
+				require.NoError(t, c.Entity.SetObservability(host))
+
+				return c, host
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, provider := tt.build(t)
+			require.Same(t, provider, c.GetObservabilityProvider())
+
+			require.NoError(t, c.Shutdown(context.Background()))
+			assert.Equal(t, !tt.wantClosed, provider.IsEnabled())
+		})
+	}
+}
+
+// A provider the SDK built is closed when WithObservabilityOptions replaces it.
+func TestWithObservabilityOptions_ClosesTheBuiltProviderItReplaces(t *testing.T) {
+	disabled := observability.WithComponentEnabled(false, false, false)
+
+	c, err := New(WithConfig(createTestConfig(t)), WithObservabilityOptions(disabled))
 	require.NoError(t, err)
 
-	// Replacing observability post-construction must leave Shutdown reaching
-	// the new provider, not the original disabled default.
-	replacement, err := observability.New(context.Background(),
-		observability.WithServiceName("h1-shutdown-replacement"),
+	replaced := c.GetObservabilityProvider()
+	require.NoError(t, WithObservabilityOptions(disabled)(c))
+
+	assert.False(t, replaced.IsEnabled(), "the replaced SDK-built provider was left open")
+}
+
+// TestClientShutdown_SharedHostProvider is the #254 regression: one host
+// provider serving two clients must survive either client's Shutdown.
+func TestClientShutdown_SharedHostProvider(t *testing.T) {
+	host, err := observability.New(context.Background(),
+		observability.WithServiceName("shared-host"),
 		observability.WithComponentEnabled(false, false, false),
 	)
 	require.NoError(t, err)
-	require.NoError(t, c.SetObservability(replacement))
 
-	require.NoError(t, c.Shutdown(context.Background()),
-		"Shutdown via the canonical provider must succeed with the replacement provider installed")
+	first, err := New(WithConfig(createTestConfig(t)), WithObservabilityProvider(host))
+	require.NoError(t, err)
+
+	second, err := New(WithConfig(createTestConfig(t)), WithObservabilityProvider(host))
+	require.NoError(t, err)
+
+	require.NoError(t, first.Shutdown(context.Background()))
+	assert.True(t, host.IsEnabled(), "the host provider must outlive the first client")
+	assert.True(t, second.GetObservabilityProvider().IsEnabled(), "the second client keeps the live host provider")
+
+	require.NoError(t, second.Shutdown(context.Background()))
+	assert.True(t, host.IsEnabled(), "only the host closes its own provider")
 }
 
 // TestWithConfig_AfterMutation_FailsLoud is the M1 regression test. v2's

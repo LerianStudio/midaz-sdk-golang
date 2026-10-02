@@ -164,7 +164,7 @@ func TestNewWithoutCollectorDoesNotApplyGlobalsWhenGlobalRegistrationDisabled(t 
 	assert.Equal(t, []string{"x-marker"}, provider.(*MidazProvider).TextMapPropagator().Fields())
 }
 
-func TestNewWithoutCollectorUsesLibNoopTelemetry(t *testing.T) {
+func TestNewWithoutCollectorSkipsLibTelemetry(t *testing.T) {
 	provider, err := New(context.Background(),
 		WithComponentEnabled(false, true, false),
 		WithRegisterGlobally(false),
@@ -173,7 +173,7 @@ func TestNewWithoutCollectorUsesLibNoopTelemetry(t *testing.T) {
 	t.Cleanup(func() { assert.NoError(t, provider.Shutdown(context.Background())) })
 
 	midazProvider := provider.(*MidazProvider)
-	assert.NotNil(t, midazProvider.telemetry)
+	assert.Nil(t, midazProvider.telemetry, "no endpoint must never build lib telemetry: its fallback rewrites OTel globals")
 	assert.NotNil(t, midazProvider.Meter())
 }
 

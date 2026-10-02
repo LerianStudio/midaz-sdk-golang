@@ -725,15 +725,7 @@ otel-collector:4317           plaintext (a bare host:port is treated as plaintex
 
 `observability.WithCollectorInsecure(true)` remains available for local and trusted in-cluster deployments, but it cannot request TLS: a scheme-less endpoint is plaintext regardless of that flag. Use the `https://` prefix to get TLS. As a last resort the refusal can be overridden with `ALLOW_INSECURE_OTEL="<reason>"` in the environment, which should be reserved for a plaintext collector reached over an already-trusted network path.
 
-When the corresponding observability components are enabled, outbound entity requests can:
-
-- create HTTP spans when tracing is enabled,
-- inject W3C trace context and baggage into request headers using the configured provider propagator,
-- record request metrics through `MetricsCollector` when metrics are enabled,
-- use the provider logger for SDK warnings or errors when logging is enabled,
-- emit safe structured business events for lifecycle operations such as account creation and transaction commit/cancel flows.
-
-`entities.HTTPClient` is the default SDK HTTP instrumentation point. Root client observability options attach the provider to the entity layer rather than wrapping the transport by default, which avoids duplicate client spans. Incoming HTTP applications should call `observability.ExtractHTTPContext(observability.WithProvider(r.Context(), provider), r.Header)` before invoking SDK methods so the application span, SDK span, and Midaz API span stay in one trace even when `observability.WithRegisterGlobally(false)` is used.
+Facade calls to Midaz (`client.V1.*`, `client.V2.*`) are not instrumented today; SDK HTTP spans and trace headers come only from `observability.NewHTTPMiddleware` (see [configuration §2.2](./configuration.md#22-the-one-exception-withobservabilityoptions-and-withobservabilityprovider)).
 
 Business logs are allowlisted. Safe identifiers such as `organizationId`, `ledgerId`, `assetId`, `accountId`, `transactionId`, `operationId`, `portfolioId`, `segmentId`, `balanceId`, `holderId`, `aliasId`, `routeId`, `status`, `operation`, and `event` may appear in logs and span events. Payloads, metadata, documents, names, addresses, auth headers, idempotency keys, secrets, and raw request/response bodies are not logged.
 

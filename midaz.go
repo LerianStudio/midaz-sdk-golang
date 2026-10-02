@@ -161,8 +161,13 @@ type Client struct {
 	// single source of truth — GetObservabilityProvider reads from it, and
 	// SetObservability delegates writes to it.
 	pendingObservability observability.Provider
-	metrics              *observability.MetricsCollector
-	customRetryPolicy    func(*http.Response, error) bool
+
+	// builtObservability is the last provider the SDK itself built (the New
+	// default or WithObservabilityOptions), the only one Shutdown closes.
+	builtObservability observability.Provider
+
+	metrics           *observability.MetricsCollector
+	customRetryPolicy func(*http.Response, error) bool
 
 	// retryOpts is the user-supplied retry.Option chain accumulated by
 	// WithRetryOptions calls. Threaded onto the entity HTTPClient AFTER the
@@ -267,6 +272,7 @@ func New(options ...Option) (*Client, error) {
 	}
 
 	c.pendingObservability = obsProvider
+	c.builtObservability = obsProvider
 
 	// Create default configuration
 	c.config = config.DefaultConfig()
@@ -605,6 +611,9 @@ func (w planeRetryConfigWrapper) GetPlaneCustomRetryPolicy() func(*http.Response
 // Shutdown gracefully shuts down the client, releasing any resources.
 // This ensures that any pending operations are completed and resources are released.
 //
+// It closes only the observability provider the SDK built (the [New] default or
+// [WithObservabilityOptions]), never one the caller installed.
+//
 // Parameters:
 //   - ctx: The context for the shutdown operation
 //
@@ -615,11 +624,8 @@ func (c *Client) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	// Read observability via the canonical Entity-backed accessor so the
-	// Client/Entity views never disagree. After New() succeeds this is the
-	// same provider that's installed on every per-service HTTPClient.
-	if provider := c.GetObservabilityProvider(); provider != nil {
-		if err := provider.Shutdown(ctx); err != nil {
+	if c.builtObservability != nil {
+		if err := c.builtObservability.Shutdown(ctx); err != nil {
 			return fmt.Errorf("error shutting down observability provider: %w", err)
 		}
 	}

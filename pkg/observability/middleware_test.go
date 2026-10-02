@@ -44,9 +44,7 @@ func TestHTTPMiddlewareDirectly(t *testing.T) {
 	}
 
 	// Start a trace
-	tracer := provider.Tracer()
-
-	ctx, span := tracer.Start(context.Background(), "test_request")
+	ctx, span := hostTracer().Start(context.Background(), "test_request")
 	defer span.End()
 
 	// Get original trace ID for comparison

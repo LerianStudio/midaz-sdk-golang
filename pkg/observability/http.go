@@ -157,8 +157,8 @@ func WithSecurityDefaults() HTTPOption {
 // NewHTTPMiddleware returns a client-side transport middleware: a
 // function that wraps an [http.RoundTripper] with W3C trace-context
 // propagation, per-request span creation, and metric recording. It is
-// intended for outbound HTTP traffic (the SDK's own client and any
-// caller-supplied transport), not as an [http.Handler] for serving
+// intended for outbound HTTP traffic on a transport the host wraps (the
+// SDK's facade does not apply it), not as an [http.Handler] for serving
 // inbound requests.
 func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTripper) http.RoundTripper {
 	if provider == nil {

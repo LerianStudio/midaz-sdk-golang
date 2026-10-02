@@ -245,6 +245,23 @@ at construction time is overwritten the first time either of these
 options runs. Subsequent calls likewise replace. No merge step. See the
 godoc on each function for the full explanation.
 
+**Ownership.** `client.Shutdown` closes only the provider the SDK built (the
+`midaz.New()` default or one from `WithObservabilityOptions`). A provider you
+install, by any option or setter, stays yours: shut it down after the last
+client that uses it.
+
+**No endpoint.** The SDK is a guest in the host process and never sets the
+host's OTel globals unless you pass `observability.WithRegisterGlobally(true)`.
+Without `observability.WithCollectorEndpoint`, the SDK's tracer, meter and
+propagator are the host's global ones, and a host with no providers gets
+noop. One warning goes to the provider's logger.
+
+**Spans.** Facade calls to Midaz (`client.V1.*`, `client.V2.*`) are not
+instrumented today: they create no SDK span and send no `traceparent`. SDK
+spans and trace headers come from `observability.NewHTTPMiddleware` when the
+host wraps a transport with it; without an endpoint those spans become
+children of the host's spans and the host exports them.
+
 ---
 
 ## 3. Environment variables
@@ -430,6 +447,7 @@ provider, _ := observability.New(ctx,
     observability.WithCollectorEndpoint("https://otel-collector:4317"),
     observability.WithComponentEnabled(true, true, true),
 )
+defer provider.Shutdown(ctx)
 
 for _, am := range accessManagers {
     client, _ := midaz.New(
