@@ -512,6 +512,19 @@ func TestClientShutdown_UsesCanonicalProvider(t *testing.T) {
 	}
 }
 
+// A provider the SDK built is closed when WithObservabilityOptions replaces it.
+func TestWithObservabilityOptions_ClosesTheBuiltProviderItReplaces(t *testing.T) {
+	disabled := observability.WithComponentEnabled(false, false, false)
+
+	c, err := New(WithConfig(createTestConfig(t)), WithObservabilityOptions(disabled))
+	require.NoError(t, err)
+
+	replaced := c.GetObservabilityProvider()
+	require.NoError(t, WithObservabilityOptions(disabled)(c))
+
+	assert.False(t, replaced.IsEnabled(), "the replaced SDK-built provider was left open")
+}
+
 // TestClientShutdown_SharedHostProvider is the #254 regression: one host
 // provider serving two clients must survive either client's Shutdown.
 func TestClientShutdown_SharedHostProvider(t *testing.T) {

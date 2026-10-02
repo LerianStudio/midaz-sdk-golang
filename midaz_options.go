@@ -289,6 +289,12 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 			return err
 		}
 
+		if c.builtObservability != nil {
+			if err := c.builtObservability.Shutdown(c.ctx); err != nil {
+				return fmt.Errorf("shut down replaced observability provider: %w", err)
+			}
+		}
+
 		c.pendingObservability = provider
 		c.builtObservability = provider
 
