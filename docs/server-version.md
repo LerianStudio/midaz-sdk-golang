@@ -60,8 +60,8 @@ A recognised shape with a placeholder or unparsable version (`0.0.0`, `dev`,
 
 ## Why an unknown version falls back to legacy
 
-Native is correct only on v4: on a v3 ledger it posts to a `/v2` that does not
-exist. Legacy posts on `/v1`, which never applies fees on either line. So when
+Native is correct only from v4.1: on a v3 ledger it posts to a `/v2` that does not
+exist, and v4.0.x charges fees without marking the fee legs. Legacy posts on `/v1`, which never applies fees on either line. So when
 `/version` serves a version the SDK cannot use (`0.0.0`, `dev`, invalid), or
 cannot be read at boot, the mode is legacy.
 
