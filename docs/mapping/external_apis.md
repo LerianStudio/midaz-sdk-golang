@@ -52,7 +52,7 @@ This map documents the recommended public SDK surface that consumers should use.
 ### Server version and fee mode
 
 - `Client.ServerVersion(context.Context) (midaz.ServerVersion, error)` - Reads the ledger's public `GET <LedgerURL>/version`. Returns `{Raw, Major, Minor, Patch, Prerelease, Known, Source}`; the error is non-nil iff `Source` is `serverversion.SourceUnavailable` (transport failure, non-2xx, or a body that is not a `/version` response). A placeholder version (`0.0.0`, `dev`) is `Known=false` with a nil error.
-- `midaz.ResolveFeeMode(midaz.ServerVersion) midaz.FeeMode` - `midaz.FeeModeNative` (post on `/v2`, the ledger applies fees) iff `Known && Major >= 4`; `midaz.FeeModeLegacy` (post on `/v1`, the service owns fees) otherwise.
+- `midaz.ResolveFeeMode(midaz.ServerVersion) midaz.FeeMode` - `midaz.FeeModeNative` (post on `/v2`, the ledger applies fees) iff `Known` and the version is 4.1.0 or later; `midaz.FeeModeLegacy` (post on `/v1`, the service owns fees) otherwise.
 
 See [docs/server-version.md](../server-version.md) and [`examples/11-server-version`](../../examples/11-server-version/).
 

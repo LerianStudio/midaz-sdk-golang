@@ -39,7 +39,7 @@ func TestParse(t *testing.T) {
 			name: "v4.0.x legacy shape",
 			body: `{"version":"v4.0.7","requestDate":"2026-09-30T12:00:00Z","commit":"abc","buildTime":"2026-09-30T00:00:00Z","dirty":false}`,
 			want: serverversion.ServerVersion{Raw: "v4.0.7", Major: 4, Minor: 0, Patch: 7, Known: true, Source: serverversion.SourceLegacy},
-			mode: serverversion.FeeModeNative,
+			mode: serverversion.FeeModeLegacy,
 		},
 		{
 			name: "v4.0.x without VERSION serves 0.0.0",

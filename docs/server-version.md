@@ -49,12 +49,12 @@ A recognised shape with a placeholder or unparsable version (`0.0.0`, `dev`,
 
 ## The decision rule
 
-`ResolveFeeMode` returns native if and only if `Known && Major >= 4`.
+`ResolveFeeMode` returns native if and only if `Known` and the version is 4.1.0 or later: v4.1.0 is the first Midaz that marks its fee legs (operation metadata `feeLeg`), which a caller needs to read the fee the ledger charged.
 
 | What `/version` says | Mode |
 |---|---|
-| v3.x | legacy |
-| v4.0.x, v4.1+, any v4 prerelease | native |
+| v3.x, v4.0.x | legacy |
+| v4.1+, any v4.1+ prerelease, v5+ | native |
 | `0.0.0`, `dev`, invalid, unknown `schemaVersion` | legacy |
 | no answer (any failure above) | legacy |
 
