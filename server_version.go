@@ -70,7 +70,7 @@ func (c *Client) ServerVersion(ctx context.Context) (ServerVersion, error) {
 	return unavailable, sdkerrors.NewResponseDecodeError(serverVersionOperation, resp.StatusCode, errNotVersionBody)
 }
 
-// ResolveFeeMode is the single decision rule: native iff Known && Major >= 4.
+// ResolveFeeMode is the single decision rule: native iff Known && version >= 4.1.0.
 func ResolveFeeMode(v ServerVersion) FeeMode {
 	return serverversion.ResolveFeeMode(v)
 }

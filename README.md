@@ -215,7 +215,7 @@ line it runs before picking who charges the fee:
 
 ```go
 v, err := c.ServerVersion(ctx)  // GET <LedgerURL>/version; err non-nil iff no usable answer
-mode := midaz.ResolveFeeMode(v) // FeeModeNative (/v2, ledger fees) iff Known && Major >= 4, else FeeModeLegacy (/v1)
+mode := midaz.ResolveFeeMode(v) // FeeModeNative (/v2, ledger fees) iff Known && version >= 4.1.0, else FeeModeLegacy (/v1)
 ```
 
 Resolve once at boot, refresh on a ticker, and keep the last mode when a

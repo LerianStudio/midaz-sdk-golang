@@ -49,19 +49,19 @@ A recognised shape with a placeholder or unparsable version (`0.0.0`, `dev`,
 
 ## The decision rule
 
-`ResolveFeeMode` returns native if and only if `Known && Major >= 4`.
+`ResolveFeeMode` returns native if and only if `Known` and the version is 4.1.0 or later: v4.1.0 is the first Midaz that marks its fee legs (operation metadata `feeLeg`), which a caller needs to read the fee the ledger charged.
 
 | What `/version` says | Mode |
 |---|---|
-| v3.x | legacy |
-| v4.0.x, v4.1+, any v4 prerelease | native |
+| v3.x, v4.0.x | legacy |
+| v4.1+, any v4.1+ prerelease, v5+ | native |
 | `0.0.0`, `dev`, invalid, unknown `schemaVersion` | legacy |
 | no answer (any failure above) | legacy |
 
 ## Why an unknown version falls back to legacy
 
-Native is correct only on v4: on a v3 ledger it posts to a `/v2` that does not
-exist. Legacy posts on `/v1`, which never applies fees on either line. So when
+Native is correct only from v4.1: on a v3 ledger it posts to a `/v2` that does not
+exist, and v4.0.x charges fees without marking the fee legs. Legacy posts on `/v1`, which never applies fees on either line. So when
 `/version` serves a version the SDK cannot use (`0.0.0`, `dev`, invalid), or
 cannot be read at boot, the mode is legacy.
 

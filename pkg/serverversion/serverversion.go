@@ -102,9 +102,10 @@ const (
 	FeeModeNative FeeMode = "native" // post on /v2; the ledger applies fees
 )
 
-// ResolveFeeMode is the single decision rule: native iff Known && Major >= 4.
+// ResolveFeeMode is the single decision rule: native iff Known && version >= 4.1.0,
+// the first Midaz that marks its fee legs (operation metadata feeLeg) on /v2.
 func ResolveFeeMode(v ServerVersion) FeeMode {
-	if v.Known && v.Major >= 4 {
+	if v.Known && (v.Major > 4 || v.Major == 4 && v.Minor >= 1) {
 		return FeeModeNative
 	}
 
