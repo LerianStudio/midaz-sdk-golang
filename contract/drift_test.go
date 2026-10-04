@@ -77,6 +77,9 @@ func TestLifecycleErrorCodesMatchServer(t *testing.T) {
 		{"holder-required", sdkerrors.APICodeHolderRequired, srvconst.ErrHolderRequired},
 		{"skip-not-permitted", sdkerrors.APICodeSkipNotPermitted, srvconst.ErrSkipNotPermitted},
 		{"reservation-denied", sdkerrors.APICodeTransactionReservationDenied, srvconst.ErrTransactionReservationDenied},
+		{"reservation-review", sdkerrors.APICodeTransactionReservationReview, srvconst.ErrTransactionReservationReview},
+		{"reservation-rejected", sdkerrors.APICodeTransactionReservationRejected, srvconst.ErrTransactionReservationRejected},
+		{"reservation-rule-denied", sdkerrors.APICodeTransactionReservationRuleDenied, srvconst.ErrTransactionReservationRuleDenied},
 	}
 
 	for _, c := range cases {
