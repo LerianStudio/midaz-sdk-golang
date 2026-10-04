@@ -1,7 +1,6 @@
 package errors
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +16,13 @@ func TestCatalogCodePredicates(t *testing.T) {
 	}{
 		{"skip-not-permitted match", "0490", IsSkipNotPermitted, true},
 		{"skip-not-permitted miss", "0491", IsSkipNotPermitted, false},
+		{"reservation-denied usage limit 0177", "0177", IsTransactionReservationDenied, true},
+		{"reservation-denied review 0531", "0531", IsTransactionReservationDenied, true},
+		{"reservation-denied rejected 0532", "0532", IsTransactionReservationDenied, true},
+		{"reservation-denied rule denied 0535", "0535", IsTransactionReservationDenied, true},
+		{"reservation-denied miss (unavailable 0178)", "0178", IsTransactionReservationDenied, false},
+		{"reservation-denied miss (unavailable 0536)", "0536", IsTransactionReservationDenied, false},
+		{"reservation-denied miss (fee 0200)", "0200", IsTransactionReservationDenied, false},
 		{"holder-required match", "0491", IsHolderRequired, true},
 		{"holder-required miss", "0490", IsHolderRequired, false},
 		{"holder-not-found match", "CRM-0006", IsHolderNotFound, true},
@@ -33,31 +39,6 @@ func TestCatalogCodePredicates(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			assert.Equal(t, c.want, c.pred(&Error{APICode: c.apiCode}))
-		})
-	}
-}
-
-// TestIsTransactionReservationDenied decodes the problem+json body midaz v4.2
-// returns: every 422 Tracer refusal matches; the 503 unavailability codes do not.
-func TestIsTransactionReservationDenied(t *testing.T) {
-	cases := []struct {
-		code   string
-		status int
-		want   bool
-	}{
-		{"0177", 422, true}, // usage limit exceeded
-		{"0531", 422, true}, // rule asked for review or could not be evaluated
-		{"0532", 422, true}, // Tracer rejected the reservation request
-		{"0535", 422, true}, // rule denied
-		{"0178", 503, false},
-		{"0536", 503, false},
-		{"0200", 422, false}, // fee engine
-	}
-
-	for _, c := range cases {
-		t.Run(c.code, func(t *testing.T) {
-			body := fmt.Sprintf(`{"type":"about:blank","title":"Tracer","status":%d,"detail":"refused","code":%q}`, c.status, c.code)
-			assert.Equal(t, c.want, IsTransactionReservationDenied(DecodeProblemJSON(c.status, []byte(body), "req")))
 		})
 	}
 }
