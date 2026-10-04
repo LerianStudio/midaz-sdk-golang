@@ -6,7 +6,7 @@ go 1.27.0
 
 require (
 	github.com/LerianStudio/midaz-sdk-golang/v6 v6.0.0
-	github.com/LerianStudio/midaz/v4 v4.1.3
+	github.com/LerianStudio/midaz/v4 v4.2.0
 	github.com/stretchr/testify v1.12.1
 )
 

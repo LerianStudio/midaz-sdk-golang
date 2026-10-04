@@ -20,10 +20,13 @@ const (
 	// enabling ledger override.
 	APICodeSkipNotPermitted = "0490"
 
-	// APICodeTransactionReservationDenied (0177): the Tracer denied the
-	// transaction's reservation. midaz emits it only as a 422
-	// (UnprocessableOperationError), which the retry round tripper does not retry.
-	APICodeTransactionReservationDenied = "0177"
+	// Tracer refusals of a transaction's reservation. midaz emits each only as a
+	// 422 (UnprocessableOperationError), which the retry round tripper does not
+	// retry: 0177 usage limit, 0531 review, 0532 rejected request, 0535 rule denied.
+	APICodeTransactionReservationDenied     = "0177"
+	APICodeTransactionReservationReview     = "0531"
+	APICodeTransactionReservationRejected   = "0532"
+	APICodeTransactionReservationRuleDenied = "0535"
 
 	// APICodeHolderRequired (0491): account creation requires a holder (KYC).
 	APICodeHolderRequired = "0491"
@@ -59,10 +62,17 @@ var ErrFeatureNotAvailable = errors.New("feature not available")
 // per-call skip requested without the enabling ledger override).
 func IsSkipNotPermitted(err error) bool { return apiCodeOf(err) == APICodeSkipNotPermitted }
 
-// IsTransactionReservationDenied reports whether err carries the server's 0177
-// code (the Tracer denied the transaction's reservation).
+// IsTransactionReservationDenied reports whether err carries one of the server's
+// 422 Tracer refusal codes (0177, 0531, 0532, 0535). The 503 unavailability
+// codes 0178 and 0536 do not match.
 func IsTransactionReservationDenied(err error) bool {
-	return apiCodeOf(err) == APICodeTransactionReservationDenied
+	switch apiCodeOf(err) {
+	case APICodeTransactionReservationDenied, APICodeTransactionReservationReview,
+		APICodeTransactionReservationRejected, APICodeTransactionReservationRuleDenied:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsHolderRequired reports whether err carries the server's 0491 code (account
