@@ -5,14 +5,39 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// restoreGlobalPropagator undoes the propagator a WithRegisterGlobally test installs.
+func restoreGlobalPropagator(t *testing.T) {
+	t.Helper()
+
+	previous := otel.GetTextMapPropagator()
+	t.Cleanup(func() { otel.SetTextMapPropagator(previous) })
+}
+
+// setHostPropagator installs the host's TraceContext+Baggage propagator for one
+// test; a provider without an endpoint propagates through it.
+func setHostPropagator(t *testing.T) {
+	t.Helper()
+
+	restoreGlobalPropagator(t)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+}
+
+// hostTracer stands in for the host application's recording tracer: a provider
+// without a collector endpoint records nothing and only carries the host span.
+func hostTracer() trace.Tracer {
+	return sdktrace.NewTracerProvider().Tracer("host")
+}
 
 // TestTracingPropagation tests comprehensive tracing propagation scenarios
 func TestTracingPropagation(t *testing.T) {
@@ -39,6 +64,7 @@ func TestTracingPropagation(t *testing.T) {
 
 func TestProviderAwarePropagation(t *testing.T) {
 	t.Run("HTTPHeaderHelpersHonorRegisterGloballyFalse", func(t *testing.T) {
+		setHostPropagator(t)
 		provider, err := New(context.Background(),
 			WithComponentEnabled(true, false, false),
 			WithFullTracingSampling(),
@@ -50,7 +76,7 @@ func TestProviderAwarePropagation(t *testing.T) {
 
 		tracer := provider.Tracer()
 
-		ctx, span := tracer.Start(WithProvider(context.Background(), provider), "incoming-request")
+		ctx, span := hostTracer().Start(WithProvider(context.Background(), provider), "incoming-request")
 		defer span.End()
 
 		headers := http.Header{}
@@ -66,6 +92,7 @@ func TestProviderAwarePropagation(t *testing.T) {
 	})
 
 	t.Run("BaggagePropagatesThroughHTTPHelpers", func(t *testing.T) {
+		setHostPropagator(t)
 		provider, err := New(context.Background(),
 			WithComponentEnabled(true, false, false),
 			WithFullTracingSampling(),
@@ -152,11 +179,24 @@ func TestProviderAwarePropagation(t *testing.T) {
 
 		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
 
-		headers := http.Header{}
-		headers.Set("baggage", "tenant=blocked")
-		ctx := ExtractHTTPContext(WithProvider(context.Background(), provider), headers)
+		midazProvider, ok := provider.(*MidazProvider)
+		require.True(t, ok)
 
-		assert.Empty(t, GetBaggageItem(ctx, "tenant"))
+		for _, tt := range []struct {
+			name     string
+			provider Provider
+		}{
+			{name: "bare", provider: provider},
+			{name: "wrapped", provider: wrappedProvider{midazProvider}},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				headers := http.Header{}
+				headers.Set("baggage", "tenant=blocked")
+				ctx := ExtractHTTPContext(WithProvider(context.Background(), tt.provider), headers)
+
+				assert.Empty(t, GetBaggageItem(ctx, "tenant"))
+			})
+		}
 	})
 }
 
@@ -202,10 +242,12 @@ func testInjectAndExtractTraceContext(t *testing.T) {
 
 	// Create a provider with tracing enabled
 	ctx := context.Background()
+	restoreGlobalPropagator(t)
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false), // Only tracing
 		WithFullTracingSampling(),                // Sample all traces for testing
 		WithPropagators(propagation.TraceContext{}, propagation.Baggage{}),
+		WithRegisterGlobally(true),
 	)
 	require.NoError(t, err)
 
@@ -216,7 +258,7 @@ func testInjectAndExtractTraceContext(t *testing.T) {
 	// Start a parent span
 	tracer := provider.Tracer()
 
-	parentCtx, parentSpan := tracer.Start(ctx, "parent_operation")
+	parentCtx, parentSpan := hostTracer().Start(ctx, "parent_operation")
 	defer parentSpan.End()
 
 	// Get the trace ID before injection
@@ -251,6 +293,7 @@ func testHTTPMiddlewareTracePropagation(t *testing.T) {
 
 	// Create provider
 	ctx := context.Background()
+	setHostPropagator(t)
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
@@ -277,9 +320,7 @@ func testHTTPMiddlewareTracePropagation(t *testing.T) {
 	}
 
 	// Start a parent span
-	tracer := provider.Tracer()
-
-	requestCtx, span := tracer.Start(ctx, "http_request_test")
+	requestCtx, span := hostTracer().Start(ctx, "http_request_test")
 	defer span.End()
 
 	// Make HTTP request
@@ -322,10 +363,12 @@ func testDistributedTracingAcrossServices(t *testing.T) {
 	// Service B provider
 	ctxB := context.Background()
 
+	restoreGlobalPropagator(t)
 	providerB, err := New(ctxB,
 		WithServiceName("service-b"),
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
+		WithRegisterGlobally(true),
 	)
 	require.NoError(t, err)
 
@@ -334,9 +377,7 @@ func testDistributedTracingAcrossServices(t *testing.T) {
 	}()
 
 	// Service A starts operation
-	tracerA := providerA.Tracer()
-
-	ctxA, spanA := tracerA.Start(ctxA, "service_a_operation")
+	ctxA, spanA := hostTracer().Start(ctxA, "service_a_operation")
 	defer spanA.End()
 
 	// Simulate service A making request to service B
@@ -365,10 +406,12 @@ func testTraceContextWithBaggage(t *testing.T) {
 	t.Helper()
 
 	ctx := context.Background()
+	restoreGlobalPropagator(t)
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
 		WithPropagators(propagation.TraceContext{}, propagation.Baggage{}),
+		WithRegisterGlobally(true),
 	)
 	require.NoError(t, err)
 
@@ -377,9 +420,7 @@ func testTraceContextWithBaggage(t *testing.T) {
 	}()
 
 	// Start span and add baggage
-	tracer := provider.Tracer()
-
-	ctx, span := tracer.Start(ctx, "baggage_test")
+	ctx, span := hostTracer().Start(ctx, "baggage_test")
 	defer span.End()
 
 	// Add baggage item
@@ -411,6 +452,7 @@ func testTraceContextWithBaggage(t *testing.T) {
 func testTraceContextPersistenceAcrossRequests(t *testing.T) {
 	t.Helper()
 
+	setHostPropagator(t)
 	provider, err := New(context.Background(),
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
@@ -441,9 +483,7 @@ func testTraceContextPersistenceAcrossRequests(t *testing.T) {
 	}
 
 	// Start a parent trace
-	tracer := provider.Tracer()
-
-	ctx, parentSpan := tracer.Start(context.Background(), "multiple_requests_test")
+	ctx, parentSpan := hostTracer().Start(context.Background(), "multiple_requests_test")
 	defer parentSpan.End()
 
 	originalTraceID := trace.SpanFromContext(ctx).SpanContext().TraceID()
@@ -523,4 +563,71 @@ func BenchmarkTracePropagation(b *testing.B) {
 			ExtractContext(context.Background(), headers)
 		}
 	})
+}
+
+// TestPropagationHeadersFollowHostPropagatorInstalledLater pins that, without a
+// collector endpoint or an explicit header list, the allow-list follows the
+// host's global propagator: a propagator installed after the first extraction
+// still has its fields allowed through.
+func TestPropagationHeadersFollowHostPropagatorInstalledLater(t *testing.T) {
+	restoreGlobalPropagator(t)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator())
+
+	provider, err := New(context.Background(),
+		WithComponentEnabled(true, false, false),
+		WithRegisterGlobally(false),
+	)
+	require.NoError(t, err)
+
+	defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+	midazProvider, ok := provider.(*MidazProvider)
+	require.True(t, ok)
+
+	ctx := WithProvider(context.Background(), provider)
+	headers := map[string]string{"x-custom-propagator": "host"}
+
+	assert.NotContains(t, midazProvider.PropagationHeaders(), "x-custom-propagator")
+	assert.Nil(t, ExtractContext(ctx, headers).Value(customPropagationContextKey{}))
+
+	otel.SetTextMapPropagator(contextValuePropagator{})
+
+	assert.Contains(t, midazProvider.PropagationHeaders(), "x-custom-propagator")
+	assert.Equal(t, "host", ExtractContext(ctx, headers).Value(customPropagationContextKey{}))
+
+	// Concurrent callers share the cached configured list; under -race this
+	// fails if adding the propagator's fields writes into it.
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			assert.Contains(t, midazProvider.PropagationHeaders(), "x-custom-propagator")
+		}()
+	}
+	wg.Wait()
+}
+
+// TestExplicitPropagationHeadersIgnoreHostPropagatorFields pins that an explicit
+// header list stays exactly what was configured, whatever the host installs.
+func TestExplicitPropagationHeadersIgnoreHostPropagatorFields(t *testing.T) {
+	restoreGlobalPropagator(t)
+	otel.SetTextMapPropagator(contextValuePropagator{})
+
+	provider, err := New(context.Background(),
+		WithComponentEnabled(true, false, false),
+		WithPropagationHeaders("TraceParent"),
+		WithRegisterGlobally(false),
+	)
+	require.NoError(t, err)
+
+	defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+	midazProvider, ok := provider.(*MidazProvider)
+	require.True(t, ok)
+
+	assert.Equal(t, []string{"traceparent"}, midazProvider.PropagationHeaders())
+
+	extracted := ExtractContext(WithProvider(context.Background(), provider), map[string]string{"x-custom-propagator": "host"})
+	assert.Nil(t, extracted.Value(customPropagationContextKey{}))
 }

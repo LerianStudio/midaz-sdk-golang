@@ -2,11 +2,11 @@
 // graph) from the SDK's published go.mod. See drift_test.go for rationale.
 module github.com/LerianStudio/midaz-sdk-golang/v6/contract
 
-go 1.26.3
+go 1.27.0
 
 require (
 	github.com/LerianStudio/midaz-sdk-golang/v6 v6.0.0
-	github.com/LerianStudio/midaz/v3 v3.7.5
+	github.com/LerianStudio/midaz/v4 v4.2.0
 	github.com/stretchr/testify v1.12.1
 )
 

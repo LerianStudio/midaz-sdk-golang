@@ -289,7 +289,16 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 			return err
 		}
 
+		// The replaced provider is discarded: failing here would orphan the
+		// provider just built, so its close error is only reported.
+		if c.builtObservability != nil {
+			if err := c.builtObservability.Shutdown(c.ctx); err != nil {
+				c.Logger().Warn("midaz: closing the replaced observability provider failed", "error", err)
+			}
+		}
+
 		c.pendingObservability = provider
+		c.builtObservability = provider
 
 		if provider.IsEnabled() {
 			c.metrics, err = observability.NewMetricsCollector(provider)
@@ -318,6 +327,9 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 // Replacement semantics: WithObservabilityProvider REPLACES any provider
 // previously installed on this Client — including the default disabled
 // provider that [New] installs at construction time. See [New] godoc.
+//
+// Ownership: the provider stays the caller's. [Client.Shutdown] never closes
+// it, so one provider can serve many clients; shut it down after the last one.
 //
 // Nil handling: a typed-nil [observability.Provider] (e.g. (*Provider)(nil))
 // returns an error; a literal nil interface is treated as a no-op and the

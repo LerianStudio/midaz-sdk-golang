@@ -1,7 +1,7 @@
 github.com/LerianStudio/lib-observability/v3 v3.2.0 h1:p4QXA6fv5tOkJ+As8UhN3fkyAKBWdVde814vc48Y900=
 github.com/LerianStudio/lib-observability/v3 v3.2.0/go.mod h1:3wiIk6QdAIgH8/ecYcs/HnmalktLMP0QbQzfvGzOaGI=
-github.com/LerianStudio/midaz/v3 v3.7.5 h1:uyZ+avewF79GyY79U9MzN79MH4AaVMbFvTltXf0QGgQ=
-github.com/LerianStudio/midaz/v3 v3.7.5/go.mod h1:e0fz8svqzuDC5EH2t3ATBchkJxD654B/LlYF8DDJGZM=
+github.com/LerianStudio/midaz/v4 v4.2.0 h1:7ndIrQyiRYYHFu4MOKmmJHveD/XjDEo2xMpa4IuT3DA=
+github.com/LerianStudio/midaz/v4 v4.2.0/go.mod h1:UqAcIvXyZfRIP1sCt/JmHiuiCnBXFkg0l9rOD3z4+Fg=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/shopspring/decimal v1.4.0 h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp81k=

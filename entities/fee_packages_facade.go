@@ -21,8 +21,8 @@ import (
 //
 // Fee packages are organization-scoped (no ledger path segment) and PAGE-mode
 // paginated: unlike the cursor facades (holders/transactions/routes) that stop on
-// an empty NextCursor, Pages advances Page++ and stops on !HasMore(). The
-// page-mode envelope emits no cursor, so an empty-cursor stop would drop page 2.
+// an empty NextCursor, Pages advances Page++ and stops on the first short page.
+// The page-mode envelope emits no cursor, so an empty-cursor stop would drop page 2.
 //
 // Money is money-adjacent here: minimumAmount/maximumAmount and every fee
 // calculation value ride the wire as JSON strings and are modeled as string end
@@ -66,9 +66,8 @@ func (f *feePackagesFacade) List(ctx context.Context, orgID, ledgerID string, op
 }
 
 // Pages yields one full page per iteration. PAGE mode: it initializes Page=1,
-// advances Page++, and stops on !HasMore() (which reads the response total).
-// It does NOT stop on an empty cursor — the page-mode envelope carries none, so
-// that would truncate the result set after page 1.
+// advances Page++, and stops on the first short page. Midaz v4.1 reports total
+// as the item count of the page itself, so total cannot end the iteration.
 func (f *feePackagesFacade) Pages(ctx context.Context, orgID, ledgerID string, opts models.PackagesListOpts) iter.Seq2[*models.ListResponse[models.FeePackage], error] {
 	return func(yield func(*models.ListResponse[models.FeePackage], error) bool) {
 		current := opts
@@ -92,7 +91,7 @@ func (f *feePackagesFacade) Pages(ctx context.Context, orgID, ledgerID string, o
 				return
 			}
 
-			if !page.Pagination.HasMore() {
+			if page.Pagination.Limit == 0 || len(page.Items) < page.Pagination.Limit {
 				return
 			}
 

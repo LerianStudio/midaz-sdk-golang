@@ -2,7 +2,7 @@
 
 // Package contract pins the SDK's transaction-status vocabulary and lifecycle
 // error codes against the live Midaz server contract
-// (github.com/LerianStudio/midaz/v3/pkg/constant — the server source of truth).
+// (github.com/LerianStudio/midaz/v4/pkg/constant — the server source of truth).
 //
 // It deliberately lives in a SEPARATE nested Go module (contract/go.mod). The
 // drift test imports the full Midaz server module; isolating it here keeps that
@@ -21,7 +21,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
-	srvconst "github.com/LerianStudio/midaz/v3/pkg/constant"
+	srvconst "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // TestTransactionStatusMatchesServer pins every SDK transaction-status constant
@@ -74,11 +74,12 @@ func TestLifecycleErrorCodesMatchServer(t *testing.T) {
 		{"status-precondition", sdkerrors.APICodeStatusPreconditionFailed, srvconst.ErrCommitTransactionNotPending},
 		{"revert-only-bidirectional", sdkerrors.APICodeRevertOnlyBidirectional, srvconst.ErrRevertOnlyBidirectional},
 		{"holder-not-found", sdkerrors.APICodeHolderNotFound, srvconst.ErrHolderNotFound},
-		// 0490 (ErrSkipNotPermitted) and 0491 (ErrHolderRequired) exist only in
-		// unreleased midaz — absent from the pinned v3.7.5 AND v3.8.0-rc.3, so they
-		// cannot be pinned here yet. The SDK-side literals are asserted in
-		// pkg/errors/catalog_test.go; add the server pins when a midaz/v3 release
-		// ships ErrSkipNotPermitted/ErrHolderRequired.
+		{"holder-required", sdkerrors.APICodeHolderRequired, srvconst.ErrHolderRequired},
+		{"skip-not-permitted", sdkerrors.APICodeSkipNotPermitted, srvconst.ErrSkipNotPermitted},
+		{"reservation-denied", sdkerrors.APICodeTransactionReservationDenied, srvconst.ErrTransactionReservationDenied},
+		{"reservation-review", sdkerrors.APICodeTransactionReservationReview, srvconst.ErrTransactionReservationReview},
+		{"reservation-rejected", sdkerrors.APICodeTransactionReservationRejected, srvconst.ErrTransactionReservationRejected},
+		{"reservation-rule-denied", sdkerrors.APICodeTransactionReservationRuleDenied, srvconst.ErrTransactionReservationRuleDenied},
 	}
 
 	for _, c := range cases {

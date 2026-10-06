@@ -16,6 +16,13 @@ func TestCatalogCodePredicates(t *testing.T) {
 	}{
 		{"skip-not-permitted match", "0490", IsSkipNotPermitted, true},
 		{"skip-not-permitted miss", "0491", IsSkipNotPermitted, false},
+		{"reservation-denied usage limit 0177", "0177", IsTransactionReservationDenied, true},
+		{"reservation-denied review 0531", "0531", IsTransactionReservationDenied, true},
+		{"reservation-denied rejected 0532", "0532", IsTransactionReservationDenied, true},
+		{"reservation-denied rule denied 0535", "0535", IsTransactionReservationDenied, true},
+		{"reservation-denied miss (unavailable 0178)", "0178", IsTransactionReservationDenied, false},
+		{"reservation-denied miss (unavailable 0536)", "0536", IsTransactionReservationDenied, false},
+		{"reservation-denied miss (fee 0200)", "0200", IsTransactionReservationDenied, false},
 		{"holder-required match", "0491", IsHolderRequired, true},
 		{"holder-required miss", "0490", IsHolderRequired, false},
 		{"holder-not-found match", "CRM-0006", IsHolderNotFound, true},
@@ -38,7 +45,8 @@ func TestCatalogCodePredicates(t *testing.T) {
 
 func TestCatalogPredicatesNilSafe(t *testing.T) {
 	for _, pred := range []func(error) bool{
-		IsSkipNotPermitted, IsHolderRequired, IsHolderNotFound, IsFeeError, IsFeatureNotAvailable,
+		IsSkipNotPermitted, IsTransactionReservationDenied, IsHolderRequired, IsHolderNotFound, IsFeeError,
+		IsFeatureNotAvailable,
 	} {
 		assert.False(t, pred(nil))
 	}

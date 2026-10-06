@@ -49,6 +49,13 @@ This map documents the recommended public SDK surface that consumers should use.
 
 `GetConfiguration` and `GetConfig` return a defensive copy. The copy still contains configured Access Manager credentials; do not log or serialize it without redaction.
 
+### Server version and fee mode
+
+- `Client.ServerVersion(context.Context) (midaz.ServerVersion, error)` - Reads the ledger's public `GET <LedgerURL>/version`. Returns `{Raw, Major, Minor, Patch, Prerelease, Known, Source}`; the error is non-nil iff `Source` is `serverversion.SourceUnavailable` (transport failure, non-2xx, or a body that is not a `/version` response). A placeholder version (`0.0.0`, `dev`) is `Known=false` with a nil error.
+- `midaz.ResolveFeeMode(midaz.ServerVersion) midaz.FeeMode` - `midaz.FeeModeNative` (post on `/v2`, the ledger applies fees) iff `Known` and the version is 4.1.0 or later; `midaz.FeeModeLegacy` (post on `/v1`, the service owns fees) otherwise.
+
+See [docs/server-version.md](../server-version.md) and [`examples/11-server-version`](../../examples/11-server-version/).
+
 ## Validation package
 
 Use `github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation` for optional client-side validation helpers.
@@ -345,6 +352,12 @@ The V2 creates are posted at the **top level** (`POST /v2/transactions/direct`);
 
 A V2 leg carries **exactly one** value expression: an explicit `Amount`, or a `Share` of the transaction total. Both, or neither, is refused before the request leaves.
 
+`CreateTransactionV2Input.Skip` (`*models.TransactionV2Skip{Fees, Tracer}`) opts one create out of the fee engine, the Tracer, or both, on all four V2 creates. Nil sends no `skip`; `&models.TransactionV2Skip{}` sends `"skip":{}`, which the server reads as no skip; a set flag sends only that flag. The server honours a flag only when the ledger's override policy allows it (`Ledgers.UpdateSettings` with `models.NewUpdateLedgerSettingsInput().WithAllowFeeSkip(true)` / `WithAllowTracerSkip(true)`) and otherwise refuses the create with `0490` (`errors.IsSkipNotPermitted`). The response's `FeesSkipped` / `TracerSkipped` report what actually ran.
+
+A create the Tracer refuses (enforce mode) is refused before any balance moves with `0177` (limit exceeded), `0531` (rule asked for review or could not be evaluated), `0532` (reservation request rejected) or `0535` (rule denied), all matched by `errors.IsTransactionReservationDenied`. midaz emits these only as a 422, which the SDK's retry transport does not retry.
+
+On a transaction that belongs to a cross-ledger group, V2 `Commit`, `Cancel` and `Revert` act on the whole group and the server answers with the group; the SDK returns the member the call addressed (for `Revert`, the reversal whose `ParentTransactionID` is that transaction), and a group without it is a response-decode error naming the group.
+
 `models.TransactionV2` is not `models.Transaction` with fields added: it drops four V1 fields the surface does not serve (`chartOfAccountsGroupName`, `route`, `source`, `destination`), carries two V1 dropped (`FeesSkipped`, `TracerSkipped`), and names the participating aliases `Debit`/`Credit` rather than `Source`/`Destination`.
 
 Structured splits (multiple sources or destinations in one transaction) are multiple `Debits` / `Credits` entries on V2, and multiple `Distribute.To` entries on the V1 send payload. There is no dedicated DSL endpoint on either.
@@ -631,6 +644,7 @@ Each per-entity opts struct exposes:
 - `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
+- `models.MonetaryAmount{Value, Currency, ReferenceDate}` - a holder financial figure: `NaturalPerson.MonthlyGrossIncome`, `LegalPerson.AnnualGrossRevenue`, `LegalPerson.TotalAssets`. The holder inputs' `Validate()` applies Midaz's rules: all three members present; a non-negative value with at most 20 integer and 10 fraction digits; an ISO 4217 currency; a `YYYY-MM-DD` date. `WithNullField("legalPerson.totalAssets")` and the other two dotted paths remove one figure.
 - `models.NewCreatePackageInput(feeGroupLabel, minAmount, maxAmount, fees)` with `WithDescription`, `WithSegmentID`, `WithTransactionRoute`, `WithWaivedAccounts`, and `WithEnable`. Feeds `FeePackages.Create`.
 - `models.NewFeeEstimateInput(packageID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
 - `models.NewCreateVolumeBillingPackageInput(label, assetCode, debitAlias, creditAlias)` and `models.NewCreateMaintenanceBillingPackageInput(label, assetCode, feeAmount, maintenanceCreditAccount)` with `WithDescription`, `WithEnable`, `WithEventFilter`, `WithPricingModel`, `WithPricingTiers`, `WithFreeQuota`, `WithDiscountTiers`, `WithCountMode`, and `WithAccountTarget`. Feed `BillingPackages.Create`.
@@ -664,7 +678,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors`.
 - Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrAuth`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrConfiguration`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
 - Checkers: `IsValidationError`, `IsNotFoundError`, `IsAuthenticationError`, `IsAuthorizationError`, `IsAuthError`, `IsConfigurationError`, `IsBootstrapError`, `IsConflictError`, `IsRateLimitError`, `IsTimeoutError`, `IsNetworkError`, `IsCancellationError`, `IsInternalError`, `IsInsufficientBalanceError`, `IsAccountEligibilityError`, `IsAssetMismatchError`, `IsIdempotencyError`, `IsUnprocessableError`. (v3 — `IsPermissionError` and `IsAlreadyExistsError` were retired; use `IsAuthorizationError` and `IsConflictError` respectively.)
 - Accessors: `GetErrorCategory`, `GetStatusCode`, `GetErrorCode`, `GetErrorDetails`, `GetTransactionErrorContext`, `(*Error).GetUpstreamBody`, `(*Error).IsUpstreamBodyTruncated`, `(*Error).GetUpstreamBodyOriginalBytes`.
-- v4 plane predicates (added with the plane-native accessors): `IsSkipNotPermitted`, `IsHolderRequired`, `IsHolderNotFound`, `IsFeeError`, and `IsFeatureNotAvailable` (a `404` from `Encryption` / `ProtectionAudit` meaning the feature is disabled for the deployment, distinct from a generic not-found).
+- v4 plane predicates (added with the plane-native accessors): `IsSkipNotPermitted`, `IsTransactionReservationDenied` (`0177`, `0531`, `0532`, `0535`: the Tracer refused the reservation), `IsHolderRequired`, `IsHolderNotFound`, `IsFeeError`, and `IsFeatureNotAvailable` (a `404` from `Encryption` / `ProtectionAudit` meaning the feature is disabled for the deployment, distinct from a generic not-found).
 - Constructors: `NewValidationError`, `NewInvalidInputError`, `NewMissingParameterError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewCancellationError`, `NewNetworkError`, `NewUpstreamHTTPError`, `NewInternalError`, `NewConfigurationError`, `NewUnprocessableError`, `NewInsufficientBalanceError`, `NewAssetMismatchError`, `NewAccountEligibilityError`.
 - Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available. Received upstream 4xx/5xx responses attach raw, unredacted, truncated body text on `Error.UpstreamBody` only when error body exposure is explicitly enabled.
 

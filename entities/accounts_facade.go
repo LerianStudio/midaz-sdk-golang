@@ -12,6 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // accountsFacade is the Phase 2 (Task 2.1.c) hand-written facade over the
@@ -111,6 +112,17 @@ func (f *accountsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 
 	if err := validationErr(operation, input.Validate()); err != nil {
 		return nil, err
+	}
+
+	// The holder seam is /v2-only on the server. A /v1 create carrying holderId
+	// answers 201 and stores NO link — the account reads back from /v2 with
+	// holderId null — so sending it here would hand the caller a success and an
+	// account owned by nobody. Refusing names the problem at the call site
+	// instead of hiding it behind a 201.
+	if input != nil && input.HolderID != nil {
+		return nil, errors.NewValidationError(operation,
+			"holderId is not supported on the v1 account surface: the server accepts the request and stores no holder link; "+
+				"use the V2 accounts service to create an account with a holder", nil)
 	}
 
 	return writeJSON[models.Account](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {

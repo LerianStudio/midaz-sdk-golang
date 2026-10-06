@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	otellog "go.opentelemetry.io/otel/log"
-	otellogglobal "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
@@ -65,6 +64,8 @@ const (
 	MetricRequestBatchLatency = "midaz.sdk.request.batch.latency"
 )
 
+const instrumentationName = "github.com/LerianStudio/midaz-sdk-golang/v6"
+
 // Provider is the interface for observability providers.
 // It allows for consistent access to tracing, metrics, and logging capabilities.
 //
@@ -104,6 +105,16 @@ type Provider interface {
 
 type propagatorProvider interface {
 	TextMapPropagator() propagation.TextMapPropagator
+}
+
+// Optional Provider capabilities, asserted by interface so a host provider,
+// including one that embeds *MidazProvider, keeps the SDK fast paths.
+type metricsFactoryProvider interface {
+	MetricsFactory() *obsmetrics.MetricsFactory
+}
+
+type propagationHeadersProvider interface {
+	PropagationHeaders() []string
 }
 
 // Config holds the configuration for the observability provider
@@ -152,10 +163,9 @@ type Config struct {
 	PropagationHeaders         []string
 	propagationHeadersExplicit bool
 
-	// RegisterGlobally controls whether to register providers as global OpenTelemetry providers.
-	// When true (default), providers are registered globally via otel.Set*Provider calls.
-	// When false, providers are only available via this MidazProvider instance, avoiding
-	// conflicts when multiple SDK instances are used in the same process.
+	// RegisterGlobally opts into registering providers as global OpenTelemetry providers
+	// via otel.Set*Provider calls. Default false: the SDK is a guest in the host process
+	// and its providers are only available via this MidazProvider instance.
 	RegisterGlobally bool
 }
 
@@ -331,10 +341,9 @@ func WithPropagationHeaders(headers ...string) Option {
 	}
 }
 
-// WithRegisterGlobally controls whether to register providers as global OpenTelemetry providers.
-// When true (default), providers are registered globally via otel.Set*Provider calls.
-// When false, providers are only available via this MidazProvider instance, avoiding
-// conflicts when multiple SDK instances are used in the same process.
+// WithRegisterGlobally opts into registering providers as global OpenTelemetry providers
+// via otel.Set*Provider calls. Default false: the host process owns its OTel globals and
+// the SDK's providers are only available via this MidazProvider instance.
 func WithRegisterGlobally(register bool) Option {
 	return func(c *Config) error {
 		c.RegisterGlobally = register
@@ -414,7 +423,6 @@ func DefaultConfig() *Config {
 			"x-request-id",
 			"x-correlation-id",
 		},
-		RegisterGlobally: true,
 	}
 }
 
@@ -430,15 +438,10 @@ type MidazProvider struct {
 	metricsFactory *obsmetrics.MetricsFactory
 	enabled        bool
 
-	// propagationHeadersOnce + propagationHeadersAllow cache the lowercased
-	// allow-set used by filterPropagationHeaders / filterPropagationMap.
-	// Building the set on every header filter call (which is itself on the
-	// hot path of every outbound request) walked PropagationHeaders +
-	// strings.ToLower for each header on each call. Caching once per
-	// provider lifetime is correct because PropagationHeaders is set at
-	// construction and the propagator's own Fields() are stable too.
-	propagationHeadersOnce  sync.Once
-	propagationHeadersAllow map[string]struct{}
+	// The configured headers are normalized once. The propagator's Fields() are
+	// not cached: without an endpoint they come from the host's mutable global.
+	propagationHeadersOnce sync.Once
+	propagationHeaders     []string
 }
 
 // New creates a new observability provider with the given options
@@ -528,13 +531,18 @@ func (p *MidazProvider) initTelemetry() error {
 		return nil
 	}
 
-	var globals telemetryGlobals
-	if !p.config.RegisterGlobally {
-		globals = captureTelemetryGlobals()
+	// Without an endpoint the SDK is a guest: it reads the host's delegating
+	// OTel globals, so providers installed later are honoured, and never sets them.
+	if collectorEndpointBlank(p.config.CollectorEndpoint) {
+		p.Logger().Warn("observability: no collector endpoint; tracing and metrics use the host's OTel providers")
+		p.tracer = otel.GetTracerProvider().Tracer(instrumentationName)
+		p.meter = otel.GetMeterProvider().Meter(instrumentationName)
+
+		return nil
 	}
 
 	telemetry, err := obstracing.NewTelemetry(obstracing.TelemetryConfig{
-		LibraryName:               "github.com/LerianStudio/midaz-sdk-golang/v6",
+		LibraryName:               instrumentationName,
 		ServiceName:               p.config.ServiceName,
 		ServiceVersion:            p.config.ServiceVersion,
 		DeploymentEnv:             p.config.Environment,
@@ -545,11 +553,8 @@ func (p *MidazProvider) initTelemetry() error {
 		Propagator:                p.textMapPropagatorFromConfig(),
 		Redactor:                  obstracing.NewDefaultRedactor(),
 	})
-	if err != nil && (!errors.Is(err, obstracing.ErrEmptyEndpoint) || telemetry == nil) {
+	if err != nil {
 		return annotateInsecureCollectorError(err, p.config.CollectorEndpoint)
-	}
-	if !p.config.RegisterGlobally {
-		restoreTelemetryGlobals(globals)
 	}
 
 	if p.config.RegisterGlobally {
@@ -562,7 +567,7 @@ func (p *MidazProvider) initTelemetry() error {
 	p.metricsFactory = telemetry.MetricsFactory
 
 	if p.config.EnabledComponents.Tracing {
-		tracer, err := telemetry.Tracer("github.com/LerianStudio/midaz-sdk-golang/v6")
+		tracer, err := telemetry.Tracer(instrumentationName)
 		if err != nil {
 			return err
 		}
@@ -570,7 +575,7 @@ func (p *MidazProvider) initTelemetry() error {
 	}
 
 	if p.config.EnabledComponents.Metrics {
-		meter, err := telemetry.Meter("github.com/LerianStudio/midaz-sdk-golang/v6")
+		meter, err := telemetry.Meter(instrumentationName)
 		if err != nil {
 			return err
 		}
@@ -578,6 +583,17 @@ func (p *MidazProvider) initTelemetry() error {
 	}
 
 	return nil
+}
+
+// collectorEndpointBlank mirrors lib-observability's own blank test (trim, drop
+// one http:// or https:// scheme, trim): there, a blank endpoint sets OTel globals.
+func collectorEndpointBlank(endpoint string) bool {
+	endpoint = strings.TrimSpace(endpoint)
+	if rest, ok := strings.CutPrefix(endpoint, "http://"); ok {
+		return strings.TrimSpace(rest) == ""
+	}
+
+	return strings.TrimSpace(strings.TrimPrefix(endpoint, "https://")) == ""
 }
 
 // collectorEndpointHasScheme reports whether the endpoint carries an explicit
@@ -622,37 +638,6 @@ func annotateInsecureCollectorError(err error, endpoint string) error {
 			"with observability.WithEnvironment(\"development\") to keep a local plaintext collector",
 		err, trimmed, "https://"+trimmed,
 	)
-}
-
-type telemetryGlobals struct {
-	tracerProvider trace.TracerProvider
-	meterProvider  metric.MeterProvider
-	loggerProvider otellog.LoggerProvider //nolint:forbidigo // Required to snapshot/restore the OTel log global provider.
-	propagator     propagation.TextMapPropagator
-}
-
-func captureTelemetryGlobals() telemetryGlobals {
-	return telemetryGlobals{
-		tracerProvider: otel.GetTracerProvider(),
-		meterProvider:  otel.GetMeterProvider(),
-		loggerProvider: otellogglobal.GetLoggerProvider(),
-		propagator:     otel.GetTextMapPropagator(),
-	}
-}
-
-func restoreTelemetryGlobals(globals telemetryGlobals) {
-	if globals.tracerProvider != nil {
-		otel.SetTracerProvider(globals.tracerProvider)
-	}
-	if globals.meterProvider != nil {
-		otel.SetMeterProvider(globals.meterProvider)
-	}
-	if globals.loggerProvider != nil {
-		otellogglobal.SetLoggerProvider(globals.loggerProvider)
-	}
-	if globals.propagator != nil {
-		otel.SetTextMapPropagator(globals.propagator)
-	}
 }
 
 // initLogging initializes structured logging.
@@ -751,13 +736,48 @@ func (p *MidazProvider) IsEnabled() bool {
 }
 
 // TextMapPropagator returns the provider-specific propagator without requiring
-// this method on the public Provider interface.
+// this method on the public Provider interface. Without a collector endpoint or
+// explicit propagators it is the host's global propagator.
 func (p *MidazProvider) TextMapPropagator() propagation.TextMapPropagator {
 	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Tracing {
 		return propagation.NewCompositeTextMapPropagator()
 	}
 
+	if p.telemetry == nil && len(p.config.Propagators) == 0 {
+		return hostTextMapPropagator()
+	}
+
 	return p.textMapPropagatorFromConfig()
+}
+
+// MetricsFactory returns the factory bound to the provider's telemetry, or nil
+// when no collector endpoint was configured.
+func (p *MidazProvider) MetricsFactory() *obsmetrics.MetricsFactory {
+	if p == nil {
+		return nil
+	}
+
+	return p.metricsFactory
+}
+
+// PropagationHeaders returns the lowercased headers trace context may be
+// extracted from, or nil when every header is allowed. Unless the list was
+// explicit, it includes the current propagator's fields. The slice may be
+// shared and must not be modified.
+func (p *MidazProvider) PropagationHeaders() []string {
+	if p == nil || p.config == nil || len(p.config.PropagationHeaders) == 0 {
+		return nil
+	}
+
+	p.propagationHeadersOnce.Do(func() {
+		p.propagationHeaders = appendPropagationHeaders(nil, p.config.PropagationHeaders)
+	})
+
+	if p.config.propagationHeadersExplicit {
+		return p.propagationHeaders
+	}
+
+	return appendPropagationHeaders(p.propagationHeaders, textMapPropagatorForProvider(p).Fields())
 }
 
 func (p *MidazProvider) textMapPropagatorFromConfig() propagation.TextMapPropagator {
@@ -881,8 +901,10 @@ func RecordDuration(ctx context.Context, provider Provider, name string, start t
 }
 
 func metricsFactoryForProvider(provider Provider) (*obsmetrics.MetricsFactory, error) {
-	if midazProvider, ok := provider.(*MidazProvider); ok && midazProvider != nil && midazProvider.metricsFactory != nil {
-		return midazProvider.metricsFactory, nil
+	if fp, ok := provider.(metricsFactoryProvider); ok {
+		if factory := fp.MetricsFactory(); factory != nil {
+			return factory, nil
+		}
 	}
 
 	meter := provider.Meter()
@@ -954,18 +976,23 @@ func defaultTextMapPropagator() propagation.TextMapPropagator {
 	)
 }
 
+// hostTextMapPropagator is the host's global propagator, or the W3C default
+// while the host has installed none.
+func hostTextMapPropagator() propagation.TextMapPropagator {
+	if global := otel.GetTextMapPropagator(); global != nil && len(global.Fields()) > 0 {
+		return global
+	}
+
+	return defaultTextMapPropagator()
+}
+
 func textMapPropagatorForContext(ctx context.Context) propagation.TextMapPropagator {
 	return textMapPropagatorForProvider(GetProvider(ctx))
 }
 
 func textMapPropagatorForProvider(provider Provider) propagation.TextMapPropagator {
 	if provider == nil {
-		global := otel.GetTextMapPropagator()
-		if global == nil || len(global.Fields()) == 0 {
-			return defaultTextMapPropagator()
-		}
-
-		return global
+		return hostTextMapPropagator()
 	}
 
 	if !provider.IsEnabled() {
@@ -980,14 +1007,14 @@ func textMapPropagatorForProvider(provider Provider) propagation.TextMapPropagat
 }
 
 func filterPropagationMap(ctx context.Context, headers map[string]string) map[string]string {
-	allowed := propagationHeaderSet(ctx)
+	allowed := propagationHeaderAllowList(ctx)
 	if len(allowed) == 0 {
 		return headers
 	}
 
 	filtered := make(map[string]string, len(headers))
 	for key, value := range headers {
-		if _, ok := allowed[strings.ToLower(key)]; ok {
+		if propagationHeaderAllowed(allowed, key) {
 			filtered[key] = value
 		}
 	}
@@ -996,14 +1023,14 @@ func filterPropagationMap(ctx context.Context, headers map[string]string) map[st
 }
 
 func filterPropagationHeaders(ctx context.Context, headers http.Header) http.Header {
-	allowed := propagationHeaderSet(ctx)
+	allowed := propagationHeaderAllowList(ctx)
 	if len(allowed) == 0 {
 		return headers
 	}
 
 	filtered := make(http.Header, len(headers))
 	for key, values := range headers {
-		if _, ok := allowed[strings.ToLower(key)]; ok {
+		if propagationHeaderAllowed(allowed, key) {
 			filtered[key] = append([]string(nil), values...)
 		}
 	}
@@ -1011,39 +1038,27 @@ func filterPropagationHeaders(ctx context.Context, headers http.Header) http.Hea
 	return filtered
 }
 
-func propagationHeaderSet(ctx context.Context) map[string]struct{} {
-	provider := GetProvider(ctx)
-
-	midazProvider, ok := provider.(*MidazProvider)
-	if !ok || midazProvider == nil || midazProvider.config == nil || len(midazProvider.config.PropagationHeaders) == 0 {
-		return nil
+func propagationHeaderAllowList(ctx context.Context) []string {
+	if hp, ok := GetProvider(ctx).(propagationHeadersProvider); ok {
+		return hp.PropagationHeaders()
 	}
 
-	midazProvider.propagationHeadersOnce.Do(func() {
-		midazProvider.propagationHeadersAllow = buildPropagationHeaderAllowSet(provider, midazProvider.config)
-	})
-
-	return midazProvider.propagationHeadersAllow
+	return nil
 }
 
-// buildPropagationHeaderAllowSet computes the lowercased set of permitted
-// propagation header names. It is invoked exactly once per provider via
-// sync.Once and the resulting map is shared read-only.
-func buildPropagationHeaderAllowSet(provider Provider, config *Config) map[string]struct{} {
-	allowed := make(map[string]struct{}, len(config.PropagationHeaders))
-	for _, header := range config.PropagationHeaders {
-		header = strings.ToLower(strings.TrimSpace(header))
-		if header != "" {
-			allowed[header] = struct{}{}
-		}
-	}
+func propagationHeaderAllowed(allowed []string, key string) bool {
+	return slices.ContainsFunc(allowed, func(header string) bool { return strings.EqualFold(header, key) })
+}
 
-	if !config.propagationHeadersExplicit {
-		for _, header := range textMapPropagatorForProvider(provider).Fields() {
-			header = strings.ToLower(strings.TrimSpace(header))
-			if header != "" {
-				allowed[header] = struct{}{}
-			}
+// appendPropagationHeaders returns allowed followed by the lowercased headers it
+// lacks, in order. allowed is never written: an addition reallocates, so a
+// shared allow-list stays intact and is returned as is when nothing is added.
+func appendPropagationHeaders(allowed, headers []string) []string {
+	allowed = slices.Clip(allowed)
+	for _, header := range headers {
+		header = strings.ToLower(strings.TrimSpace(header))
+		if header != "" && !slices.Contains(allowed, header) {
+			allowed = append(allowed, header)
 		}
 	}
 

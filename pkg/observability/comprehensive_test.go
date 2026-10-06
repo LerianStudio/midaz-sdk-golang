@@ -777,16 +777,7 @@ func TestLogWithoutProvider(t *testing.T) {
 }
 
 func TestTraceIDWithValidSpan(t *testing.T) {
-	provider, err := New(context.Background(),
-		WithComponentEnabled(true, false, false),
-		WithFullTracingSampling(),
-		WithRegisterGlobally(false),
-	)
-	require.NoError(t, err)
-
-	defer func() { _ = provider.Shutdown(context.Background()) }()
-
-	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
+	ctx, span := hostTracer().Start(context.Background(), "test-span")
 	defer span.End()
 
 	traceID := TraceID(ctx)
@@ -801,16 +792,7 @@ func TestTraceIDWithoutSpan(t *testing.T) {
 }
 
 func TestSpanIDWithValidSpan(t *testing.T) {
-	provider, err := New(context.Background(),
-		WithComponentEnabled(true, false, false),
-		WithFullTracingSampling(),
-		WithRegisterGlobally(false),
-	)
-	require.NoError(t, err)
-
-	defer func() { _ = provider.Shutdown(context.Background()) }()
-
-	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
+	ctx, span := hostTracer().Start(context.Background(), "test-span")
 	defer span.End()
 
 	spanID := SpanID(ctx)
@@ -1058,16 +1040,7 @@ func TestLoggerWithContext(t *testing.T) {
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	// Create a valid span context for testing
-	provider, err := New(context.Background(),
-		WithComponentEnabled(true, false, false),
-		WithFullTracingSampling(),
-		WithRegisterGlobally(false),
-	)
-	require.NoError(t, err)
-
-	defer func() { _ = provider.Shutdown(context.Background()) }()
-
-	_, span := provider.Tracer().Start(context.Background(), "test")
+	_, span := hostTracer().Start(context.Background(), "test")
 	defer span.End()
 
 	spanCtx := span.SpanContext()
@@ -1096,16 +1069,7 @@ func TestLoggerWithSpan(t *testing.T) {
 
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
-	provider, err := New(context.Background(),
-		WithComponentEnabled(true, false, false),
-		WithFullTracingSampling(),
-		WithRegisterGlobally(false),
-	)
-	require.NoError(t, err)
-
-	defer func() { _ = provider.Shutdown(context.Background()) }()
-
-	_, span := provider.Tracer().Start(context.Background(), "test")
+	_, span := hostTracer().Start(context.Background(), "test")
 	defer span.End()
 
 	spanLogger := logger.WithSpan(span)
@@ -1519,7 +1483,7 @@ func TestDefaultConfigValues(t *testing.T) {
 	assert.True(t, config.EnabledComponents.Tracing)
 	assert.True(t, config.EnabledComponents.Metrics)
 	assert.True(t, config.EnabledComponents.Logging)
-	assert.True(t, config.RegisterGlobally)
+	assert.False(t, config.RegisterGlobally)
 	assert.NotEmpty(t, config.PropagationHeaders)
 }
 
@@ -1565,16 +1529,7 @@ func TestHTTPMiddlewareMergeIgnoreHeaders(t *testing.T) {
 }
 
 func TestContextPropagationFunctions(t *testing.T) {
-	provider, err := New(context.Background(),
-		WithComponentEnabled(true, false, false),
-		WithFullTracingSampling(),
-		WithRegisterGlobally(false),
-	)
-	require.NoError(t, err)
-
-	defer func() { _ = provider.Shutdown(context.Background()) }()
-
-	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
+	ctx, span := hostTracer().Start(context.Background(), "test-span")
 	defer span.End()
 
 	// Test inject
