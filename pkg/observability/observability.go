@@ -438,8 +438,8 @@ type MidazProvider struct {
 	metricsFactory *obsmetrics.MetricsFactory
 	enabled        bool
 
-	// The allow-list is built once: PropagationHeaders and the propagator's
-	// Fields() are fixed at construction.
+	// The configured headers are normalized once. The propagator's Fields() are
+	// not cached: without an endpoint they come from the host's mutable global.
 	propagationHeadersOnce sync.Once
 	propagationHeaders     []string
 }
@@ -761,17 +761,23 @@ func (p *MidazProvider) MetricsFactory() *obsmetrics.MetricsFactory {
 }
 
 // PropagationHeaders returns the lowercased headers trace context may be
-// extracted from, or nil when every header is allowed. The slice is shared.
+// extracted from, or nil when every header is allowed. Unless the list was
+// explicit, it includes the current propagator's fields. The slice may be
+// shared and must not be modified.
 func (p *MidazProvider) PropagationHeaders() []string {
 	if p == nil || p.config == nil || len(p.config.PropagationHeaders) == 0 {
 		return nil
 	}
 
 	p.propagationHeadersOnce.Do(func() {
-		p.propagationHeaders = buildPropagationHeaderAllowList(p)
+		p.propagationHeaders = appendPropagationHeaders(nil, p.config.PropagationHeaders)
 	})
 
-	return p.propagationHeaders
+	if p.config.propagationHeadersExplicit {
+		return p.propagationHeaders
+	}
+
+	return appendPropagationHeaders(p.propagationHeaders, textMapPropagatorForProvider(p).Fields())
 }
 
 func (p *MidazProvider) textMapPropagatorFromConfig() propagation.TextMapPropagator {
@@ -1044,15 +1050,11 @@ func propagationHeaderAllowed(allowed []string, key string) bool {
 	return slices.ContainsFunc(allowed, func(header string) bool { return strings.EqualFold(header, key) })
 }
 
-// buildPropagationHeaderAllowList lowercases and deduplicates the configured
-// headers, adding the propagator's own fields unless the list was explicit.
-func buildPropagationHeaderAllowList(p *MidazProvider) []string {
-	headers := p.config.PropagationHeaders
-	if !p.config.propagationHeadersExplicit {
-		headers = append(slices.Clone(headers), textMapPropagatorForProvider(p).Fields()...)
-	}
-
-	allowed := make([]string, 0, len(headers))
+// appendPropagationHeaders returns allowed followed by the lowercased headers it
+// lacks, in order. allowed is never written: an addition reallocates, so a
+// shared allow-list stays intact and is returned as is when nothing is added.
+func appendPropagationHeaders(allowed, headers []string) []string {
+	allowed = slices.Clip(allowed)
 	for _, header := range headers {
 		header = strings.ToLower(strings.TrimSpace(header))
 		if header != "" && !slices.Contains(allowed, header) {

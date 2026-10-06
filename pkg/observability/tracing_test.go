@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -562,4 +563,71 @@ func BenchmarkTracePropagation(b *testing.B) {
 			ExtractContext(context.Background(), headers)
 		}
 	})
+}
+
+// TestPropagationHeadersFollowHostPropagatorInstalledLater pins that, without a
+// collector endpoint or an explicit header list, the allow-list follows the
+// host's global propagator: a propagator installed after the first extraction
+// still has its fields allowed through.
+func TestPropagationHeadersFollowHostPropagatorInstalledLater(t *testing.T) {
+	restoreGlobalPropagator(t)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator())
+
+	provider, err := New(context.Background(),
+		WithComponentEnabled(true, false, false),
+		WithRegisterGlobally(false),
+	)
+	require.NoError(t, err)
+
+	defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+	midazProvider, ok := provider.(*MidazProvider)
+	require.True(t, ok)
+
+	ctx := WithProvider(context.Background(), provider)
+	headers := map[string]string{"x-custom-propagator": "host"}
+
+	assert.NotContains(t, midazProvider.PropagationHeaders(), "x-custom-propagator")
+	assert.Nil(t, ExtractContext(ctx, headers).Value(customPropagationContextKey{}))
+
+	otel.SetTextMapPropagator(contextValuePropagator{})
+
+	assert.Contains(t, midazProvider.PropagationHeaders(), "x-custom-propagator")
+	assert.Equal(t, "host", ExtractContext(ctx, headers).Value(customPropagationContextKey{}))
+
+	// Concurrent callers share the cached configured list; under -race this
+	// fails if adding the propagator's fields writes into it.
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			assert.Contains(t, midazProvider.PropagationHeaders(), "x-custom-propagator")
+		}()
+	}
+	wg.Wait()
+}
+
+// TestExplicitPropagationHeadersIgnoreHostPropagatorFields pins that an explicit
+// header list stays exactly what was configured, whatever the host installs.
+func TestExplicitPropagationHeadersIgnoreHostPropagatorFields(t *testing.T) {
+	restoreGlobalPropagator(t)
+	otel.SetTextMapPropagator(contextValuePropagator{})
+
+	provider, err := New(context.Background(),
+		WithComponentEnabled(true, false, false),
+		WithPropagationHeaders("TraceParent"),
+		WithRegisterGlobally(false),
+	)
+	require.NoError(t, err)
+
+	defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+	midazProvider, ok := provider.(*MidazProvider)
+	require.True(t, ok)
+
+	assert.Equal(t, []string{"traceparent"}, midazProvider.PropagationHeaders())
+
+	extracted := ExtractContext(WithProvider(context.Background(), provider), map[string]string{"x-custom-propagator": "host"})
+	assert.Nil(t, extracted.Value(customPropagationContextKey{}))
 }
