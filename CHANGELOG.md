@@ -1,5 +1,68 @@
 # Midaz-sdk-golang Changelog
 
+## [6.1.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.1.0)
+
+Features:
+- Promote the `develop` branch to `main`. (@jeffersonrodrigues92)
+- Expose the connected Midaz server version on the client and resolve the fee mode. (@fredcamaral)
+- Add income, revenue, and total assets to holders. (@fredcamaral)
+- Carry `holderId` on account creation. (@fredcamaral)
+- Track the Midaz `v4.1` ledger and tracer contract. (@fredcamaral)
+- Parse the Midaz server version and resolve the fee mode. (@fredcamaral)
+- Expose the Midaz server version and the fee mode rule. (@fredcamaral)
+- Carry per-call skip on `v2` transaction creates. (@fredcamaral)
+- Regenerate the tracer client from Midaz `v4.1.3`. (@fredcamaral)
+- Regenerate the ledger client from Midaz `v4.1.3`. (@fredcamaral)
+- Pin the server-contract tests to Midaz `v4`. (@fredcamaral)
+
+Fixes:
+- Follow the host propagator in the propagation allow-list. (@jeffersonrodrigues92)
+- Recognize the Midaz `v4.2` tracer refusal codes. (@fredcamaral)
+- Resolve native fees only from Midaz `4.1`. (@fredcamaral)
+- Stop the SDK from taking over host telemetry. (@fredcamaral)
+- Report a replaced provider's close error instead of dropping it. (@fredcamaral)
+- Keep building the client when a replaced provider fails to close. (@fredcamaral)
+- Close the SDK-built provider that observability options replace. (@fredcamaral)
+- Treat an empty semver suffix as an unknown version. (@fredcamaral)
+- Return the cancelled member of a cross-ledger group. (@fredcamaral)
+- Return the addressed group member on `v2` commit and revert. (@fredcamaral)
+- Shut down the SDK-built provider whatever is installed. (@fredcamaral)
+- Send guest SDK telemetry through the host's Otel providers. (@fredcamaral)
+- Return an error when the version body is not a `/version` response. (@fredcamaral)
+- Shut down only observability providers the SDK built. (@fredcamaral)
+- Stop the SDK from registering Otel globals by default. (@fredcamaral)
+- Keep the last fee mode when a version refresh fails. (@fredcamaral)
+- Detect observability fast paths by interface. (@fredcamaral)
+
+Improvements:
+- Pin the drift contract to Midaz `v4.2.0`. (@fredcamaral)
+- Pin the develop drift baseline to Midaz `v4.1.3`. (@fredcamaral)
+- Bump `google.golang.org/grpc` to `v1.83.2`. (@fredcamaral)
+- Fold the tracer refusal cases into the predicate table. (@fredcamaral)
+- Fold the wrapped allow-list check into the filter table. (@fredcamaral)
+- Give each propagation test its own host propagator. (@fredcamaral)
+- Fold the `0490` and `0177` drift pins into the lifecycle code table. (@fredcamaral)
+- Name the guest regression after the middleware it exercises. (@fredcamaral)
+- Drop the inert `0177` retryability override. (@fredcamaral)
+- Drop server version test leftovers. (@fredcamaral)
+- Drop the unreachable HTTP client check from server version. (@fredcamaral)
+- Drop the dead digit guard from the version parser. (@fredcamaral)
+- Drop the Otel globals snapshot and restore. (@fredcamaral)
+- Fold the serverversion package comment into its source. (@fredcamaral)
+- Document the SDK's guest observability defaults. (@fredcamaral)
+- List server version resolution in the README and API map. (@fredcamaral)
+- State the SDK span rule once and truthfully. (@fredcamaral)
+- Scope the SDK span claims to the HTTP middleware. (@fredcamaral)
+- Map the Midaz `v4.1` ledger and tracer surface. (@fredcamaral)
+- Correct the `0177` retry claim. (@fredcamaral)
+- State observability ownership and no-endpoint rules once. (@fredcamaral)
+- Say when legacy charges the fee in the version example. (@fredcamaral)
+- Show server version resolution and fee mode fallback. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.0.0...v6.1.0)
+
+---
+
 ## [6.0.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.0.0)
 
 Features:
