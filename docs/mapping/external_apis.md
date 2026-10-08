@@ -621,7 +621,7 @@ Each per-entity opts struct exposes:
 - `models.NewUpdateLedgerSettingsInput()`
 - `models.NewCreateAccountInput(name, assetCode, accountType)`
 - `models.NewUpdateAccountInput()`
-- `models.NewCreateAccountTypeInput(name, keyValue)`
+- `models.NewCreateAccountTypeInput(name, keyValue)` with `WithDescription`, `WithDefaultDirection` ("credit" or "debit", Midaz v4.0.0+), and `WithMetadata`.
 - `models.NewUpdateAccountTypeInput()`
 - `models.NewCreateBalanceInput(key)` with `WithAllowSending`, `WithAllowReceiving`, `WithDirection`, and `WithSettings`.
 - `models.NewCreateAssetInputWithType(name, code, assetType)` - Preferred asset builder because Midaz requires `type`.

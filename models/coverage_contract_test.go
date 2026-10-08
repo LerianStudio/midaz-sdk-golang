@@ -114,6 +114,32 @@ func TestRouteAndAccountTypeInputContracts(t *testing.T) {
 	assert.Nil(t, (*UpdateAccountTypeInput)(nil).WithName("x"))
 	assert.Nil(t, (*UpdateAccountTypeInput)(nil).WithDescription("x"))
 	assert.Nil(t, (*UpdateAccountTypeInput)(nil).WithMetadata(map[string]any{"x": "y"}))
+	assert.Nil(t, (*CreateAccountTypeInput)(nil).WithDefaultDirection("debit"))
+	assert.Nil(t, (*UpdateAccountTypeInput)(nil).WithDefaultDirection("debit"))
+}
+
+func TestAccountTypeDefaultDirection(t *testing.T) {
+	create := NewCreateAccountTypeInput("Loans", "loans").WithDefaultDirection("debit")
+	require.NoError(t, create.Validate())
+	createJSON, err := json.Marshal(create)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"name":"Loans","keyValue":"loans","defaultDirection":"debit"}`, string(createJSON))
+
+	update := NewUpdateAccountTypeInput().WithDefaultDirection("credit")
+	require.NoError(t, update.Validate(), "direction alone is a valid patch")
+	updateJSON, err := json.Marshal(update)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"defaultDirection":"credit"}`, string(updateJSON))
+
+	var read AccountType
+	require.NoError(t, json.Unmarshal([]byte(`{"keyValue":"loans","defaultDirection":"debit"}`), &read))
+	assert.Equal(t, "debit", read.DefaultDirection)
+
+	// The server accepts exactly "credit" or "debit", case-sensitive.
+	for _, bad := range []string{"", "Debit", "DEBIT", "sideways"} {
+		require.ErrorContains(t, NewCreateAccountTypeInput("Loans", "loans").WithDefaultDirection(bad).Validate(), "defaultDirection", bad)
+		require.ErrorContains(t, NewUpdateAccountTypeInput().WithDefaultDirection(bad).Validate(), "defaultDirection", bad)
+	}
 
 	operationRoute := NewCreateOperationRouteInput("Source", "Funding source", "source").WithAccountTypes([]string{"external"}).WithMetadata(map[string]any{"flow": "funding"})
 	require.NoError(t, operationRoute.Validate())
