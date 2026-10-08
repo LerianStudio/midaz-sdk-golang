@@ -82,23 +82,22 @@ func TestAccountTypesFacade_CRUD(t *testing.T) {
 			body = string(b)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"` + id + `","name":"Cash","keyValue":"CASH"}`))
+			_, _ = w.Write([]byte(`{"id":"` + id + `","name":"Cash","keyValue":"CASH","defaultDirection":"debit"}`))
 		}))
 		defer srv.Close()
 
-		at, err := newTestAccountTypesFacade(t, srv).Create(context.Background(), accountTypesOrgID, accountTypesLedgerID, &models.CreateAccountTypeInput{
-			Name: "Cash", KeyValue: "CASH",
-		})
+		at, err := newTestAccountTypesFacade(t, srv).Create(context.Background(), accountTypesOrgID, accountTypesLedgerID,
+			models.NewCreateAccountTypeInput("Cash", "CASH").WithDefaultDirection("debit"))
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
 		if m != http.MethodPost || p != accountTypesBase() {
 			t.Fatalf("create req = %s %s, want POST %s", m, p, accountTypesBase())
 		}
-		if !strings.Contains(body, `"keyValue":"CASH"`) || !strings.Contains(body, `"name":"Cash"`) {
+		if !strings.Contains(body, `"keyValue":"CASH"`) || !strings.Contains(body, `"name":"Cash"`) || !strings.Contains(body, `"defaultDirection":"debit"`) {
 			t.Fatalf("body = %q, want marshaled CreateAccountTypeInput", body)
 		}
-		if at.ID.String() != id || at.KeyValue != "CASH" {
+		if at.ID.String() != id || at.KeyValue != "CASH" || at.DefaultDirection != "debit" {
 			t.Fatalf("Create returned %+v", at)
 		}
 	})
@@ -108,7 +107,7 @@ func TestAccountTypesFacade_CRUD(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			m, p = r.Method, r.URL.Path
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"` + id + `","name":"Cash","keyValue":"CASH"}`))
+			_, _ = w.Write([]byte(`{"id":"` + id + `","name":"Cash","keyValue":"CASH","defaultDirection":"debit"}`))
 		}))
 		defer srv.Close()
 
@@ -119,7 +118,7 @@ func TestAccountTypesFacade_CRUD(t *testing.T) {
 		if m != http.MethodGet || p != accountTypesBase()+"/"+id {
 			t.Fatalf("get req = %s %s", m, p)
 		}
-		if at.ID.String() != id {
+		if at.ID.String() != id || at.DefaultDirection != "debit" {
 			t.Fatalf("Get returned %+v", at)
 		}
 	})
