@@ -32,7 +32,7 @@ import (
 
 // ContractVersion is the version of the ledger metadata contract emitted by
 // ToMetadata. It is bumped only when the whitelist itself changes.
-const ContractVersion = "1"
+const ContractVersion = "2"
 
 // Rail is the payment rail that produced the transaction.
 type Rail string
@@ -127,6 +127,11 @@ type Correlation struct {
 	// Direction is the money direction relative to the client account.
 	// Optional.
 	Direction Direction
+
+	// CrossCoreKey is the reconciliation key of a transaction booked on the
+	// inter-core clearing account, e.g. "pix:<endToEndId>". Identifiers only,
+	// never PII. Optional.
+	CrossCoreKey string
 }
 
 // Validate reports whether the correlation can be emitted to the ledger: every
@@ -191,6 +196,7 @@ func (c Correlation) ToMetadata() map[string]any {
 		"providerMessageCode": c.ProviderMessageCode,
 		"originalAggregateId": c.OriginalAggregateID,
 		"direction":           string(c.Direction),
+		"crossCoreKey":        c.CrossCoreKey,
 	} {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			metadata[key] = trimmed
@@ -220,6 +226,7 @@ func FromMetadata(metadata map[string]any) Correlation {
 		ProviderMessageCode: metadataString(metadata, "providerMessageCode"),
 		OriginalAggregateID: metadataString(metadata, "originalAggregateId"),
 		Direction:           Direction(metadataString(metadata, "direction")),
+		CrossCoreKey:        metadataString(metadata, "crossCoreKey"),
 	}
 }
 
@@ -238,6 +245,7 @@ var allFieldsSet = Correlation{
 	ProviderMessageCode: "providerMessageCode",
 	OriginalAggregateID: "originalAggregateId",
 	Direction:           DirectionIn,
+	CrossCoreKey:        "crossCoreKey",
 }
 
 // Keys returns every metadata key contract version ContractVersion emits,
