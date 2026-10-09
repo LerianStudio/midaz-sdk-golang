@@ -1,5 +1,23 @@
 # Midaz-sdk-golang Changelog
 
+## [6.2.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.2.0)
+
+Features:
+- Release `v6.2.0` with the addition of `WithHTTPTransport` to wrap the SDK transport without losing its tuning. (@jeffersonrodrigues92)
+
+Fixes:
+- Cache access manager tokens for their `expiresIn` lifetime to improve efficiency. (@fredcamaral)
+- Ensure each cloned config has its own transport wrapper list to prevent shared state issues. (@jeffersonrodrigues92)
+- Reject a wrapper that returns a typed-nil round tripper to avoid potential runtime errors. (@jeffersonrodrigues92)
+- Carry account type default direction on create and read operations to maintain consistency. (@fredcamaral)
+
+Improvements:
+- Bump `golang.org/x/net` to `v0.60.0` to address HTTP/2 CVEs and enhance security. (@jeffersonrodrigues92)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.1.0...v6.2.0)
+
+---
+
 ## [6.1.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.1.0)
 
 Features:
