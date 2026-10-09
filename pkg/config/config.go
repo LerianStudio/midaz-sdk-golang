@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -537,7 +538,7 @@ func wrapTransport(client *http.Client, wrappers ...func(base http.RoundTripper)
 
 	for _, wrap := range wrappers {
 		transport = wrap(transport)
-		if transport == nil {
+		if isNilRoundTripper(transport) {
 			return nil, errors.New("HTTP transport wrapper returned a nil round tripper")
 		}
 	}
@@ -545,6 +546,23 @@ func wrapTransport(client *http.Client, wrappers ...func(base http.RoundTripper)
 	clientCopy.Transport = transport
 
 	return &clientCopy, nil
+}
+
+// isNilRoundTripper reports whether rt is nil, including an interface that holds
+// a nil pointer (a typed nil), which compares non-nil but panics on use.
+func isNilRoundTripper(rt http.RoundTripper) bool {
+	if rt == nil {
+		return true
+	}
+
+	v := reflect.ValueOf(rt)
+
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Func, reflect.Map, reflect.Slice, reflect.Chan, reflect.Interface:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 // WithTimeout sets the timeout duration for HTTP requests.

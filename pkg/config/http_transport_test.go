@@ -83,6 +83,16 @@ func TestWithHTTPTransport_Rejections(t *testing.T) {
 	assert.Contains(t, err.Error(), "returned a nil round tripper")
 
 	require.Error(t, WithHTTPTransport(wrapNamed("x"))(nil))
+
+	typedNil := func(http.RoundTripper) http.RoundTripper {
+		var rt *http.Transport
+
+		return rt
+	}
+
+	_, err = NewConfig(WithHTTPTransport(typedNil), WithAnonymous())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "returned a nil round tripper")
 }
 
 // TestWithHTTPTransport_DoesNotLeakIntoAConfigSharingTheClient covers Clone, which
