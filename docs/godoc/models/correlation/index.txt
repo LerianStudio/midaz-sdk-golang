@@ -24,7 +24,7 @@ Typical use in a plugin producer:
     }
     input.Metadata = c.ToMetadata()
 
-const ContractVersion = "1"
+const ContractVersion = "2"
 func Keys() []string
 type Correlation struct{ ... }
     func FromMetadata(metadata map[string]any) Correlation

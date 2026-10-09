@@ -142,6 +142,7 @@ func TestToMetadataEmitsEveryWhitelistedKey(t *testing.T) {
 		ProviderMessageCode: "PACS008",
 		OriginalAggregateID: "0c2d4f6a-8b1e-4c3d-9a5f-1e7b3d9c2f40",
 		Direction:           DirectionIn,
+		CrossCoreKey:        "pix-dev:D1234567820260817120000abcdef123",
 	}
 	require.NoError(t, c.Validate())
 
@@ -156,6 +157,7 @@ func TestToMetadataEmitsEveryWhitelistedKey(t *testing.T) {
 		"providerMessageCode": "PACS008",
 		"originalAggregateId": "0c2d4f6a-8b1e-4c3d-9a5f-1e7b3d9c2f40",
 		"direction":           "IN",
+		"crossCoreKey":        "pix-dev:D1234567820260817120000abcdef123",
 	}, c.ToMetadata())
 }
 
@@ -184,6 +186,7 @@ func TestToMetadataOmitsEmptyAndBlankOptionalKeys(t *testing.T) {
 	c := canonical()
 	c.EndToEndID = "   "
 	c.ProviderMessageCode = ""
+	c.CrossCoreKey = " \t"
 
 	assert.Equal(t, map[string]any{
 		"contractVersion": ContractVersion,
@@ -202,6 +205,7 @@ func TestToMetadataTrimsEmittedValues(t *testing.T) {
 	c.Plugin = "  br-bank-transfer  "
 	c.AggregateID = " 7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10\t"
 	c.EndToEndID = " E1234567820260817120000abcdef123 "
+	c.CrossCoreKey = " ted:core-legacy:CTRL0001 "
 	require.NoError(t, c.Validate())
 
 	assert.Equal(t, map[string]any{
@@ -211,6 +215,7 @@ func TestToMetadataTrimsEmittedValues(t *testing.T) {
 		"flow":            "CASH_OUT",
 		"aggregateId":     "7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10",
 		"endToEndId":      "E1234567820260817120000abcdef123",
+		"crossCoreKey":    "ted:core-legacy:CTRL0001",
 	}, c.ToMetadata())
 }
 
@@ -229,6 +234,7 @@ func TestKeysCoverEveryContractField(t *testing.T) {
 	assert.Equal(t, []string{
 		"aggregateId",
 		"contractVersion",
+		"crossCoreKey",
 		"direction",
 		"endToEndId",
 		"flow",
@@ -266,6 +272,6 @@ func TestFromMetadataTreatsMissingAndNonStringKeysAsEmpty(t *testing.T) {
 	require.Error(t, rebuilt.Validate())
 }
 
-func TestContractVersionIsOne(t *testing.T) {
-	assert.Equal(t, "1", ContractVersion)
+func TestContractVersionIsTwo(t *testing.T) {
+	assert.Equal(t, "2", ContractVersion)
 }
