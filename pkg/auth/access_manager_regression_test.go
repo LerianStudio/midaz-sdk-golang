@@ -136,6 +136,39 @@ func TestGetTokenFromAccessManager_CachesTokenUntilRefreshWindow(t *testing.T) {
 	require.Equal(t, int32(1), calls.Load())
 }
 
+func TestGetTokenFromAccessManager_CachesAccessManagerExpiresIn(t *testing.T) {
+	tests := []struct {
+		name      string
+		expiry    string
+		exchanges int32
+	}{
+		{name: "expiresIn seconds is cached", expiry: `,"expiresIn":3600`, exchanges: 1},
+		{name: "no expiry is never cached", expiry: "", exchanges: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int32
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = fmt.Fprintf(w, `{"accessToken":"token-%d","tokenType":"Bearer"%s}`, calls.Add(1), tt.expiry)
+			}))
+			defer srv.Close()
+
+			mgr := AccessManager{Enabled: true, Address: srv.URL, ClientID: "client", ClientSecret: "secret"}
+			InvalidateAccessManagerToken(mgr)
+
+			for range 2 {
+				_, err := GetTokenFromAccessManager(context.Background(), mgr, srv.Client())
+				require.NoError(t, err)
+			}
+
+			require.Equal(t, tt.exchanges, calls.Load())
+		})
+	}
+}
+
 func TestGetTokenFromAccessManager_BoundsLongCallerDeadlineForSingleflightRequest(t *testing.T) {
 	deadline := time.Now().Add(time.Hour)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
