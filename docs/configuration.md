@@ -70,6 +70,7 @@ The full list (v3):
 | `WithEnvironment` | Select production / development / local |
 | `WithErrorBodyExposure` | Toggle raw upstream 4xx/5xx response body exposure on SDK errors |
 | `WithHTTPClient` | Replace the underlying `*http.Client` |
+| `WithHTTPTransport` | Wrap the transport every SDK request goes through, keeping timeout, auth and retries |
 | `WithIdempotency` | Toggle automatic `X-Idempotency` header |
 | `WithLedgerURL` | Override Ledger service URL (onboarding + transactions) |
 | `WithLogger` | Install a custom `*slog.Logger` |

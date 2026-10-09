@@ -144,6 +144,7 @@ type Option func(*Client) error
     func WithEnvironment(env config.Environment) Option
     func WithErrorBodyExposure(enabled bool) Option
     func WithHTTPClient(client *http.Client) Option
+    func WithHTTPTransport(wrap func(base http.RoundTripper) http.RoundTripper) Option
     func WithIdempotency(enabled bool) Option
     func WithLedgerURL(ledgerURL string) Option
     func WithLogger(logger *slog.Logger) Option
