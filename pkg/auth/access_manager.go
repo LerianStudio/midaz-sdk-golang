@@ -237,6 +237,7 @@ type TokenResponse struct {
 	TokenType    string `json:"tokenType"`
 	RefreshToken string `json:"refreshToken"` // #nosec G117 -- response contract from external OAuth provider
 	ExpiresAt    string `json:"expiresAt,omitempty"`
+	ExpiresIn    int    `json:"expiresIn,omitempty"` // seconds; the Access Manager's own expiry field
 }
 
 // AccessManagerTokenRequestError carries diagnostic-safe context about the
@@ -874,27 +875,21 @@ func loadCachedToken(cacheKey string) (string, bool) {
 	return cached.token, true
 }
 
-// storeCachedToken caches a successful token exchange.
-//
-// We only cache tokens whose ExpiresAt is non-empty AND parses cleanly as
-// RFC 3339. The previous behavior cached tokens with zero expiry, which
-// effectively cached them forever (the loadCachedToken guard treated
-// IsZero as "no expiry, always valid"). Refusing to cache zero-expiry
-// tokens turns that silent-forever-cache bug into a clean re-exchange
-// every time, which is the safest fallback when the upstream provider
-// withholds expiry metadata.
+// storeCachedToken caches a token until expiresAt (RFC 3339), else for expiresIn
+// seconds. A token with neither is never cached: a missing expiry costs a
+// re-exchange, never a token cached forever.
 func storeCachedToken(cacheKey string, tokenResp TokenResponse) {
-	if tokenResp.ExpiresAt == "" {
-		return
-	}
-
-	parsed, err := time.Parse(time.RFC3339, tokenResp.ExpiresAt)
+	expiresAt, err := time.Parse(time.RFC3339, tokenResp.ExpiresAt)
 	if err != nil {
-		return
+		if tokenResp.ExpiresIn <= 0 {
+			return
+		}
+
+		expiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 	}
 
 	accessManagerTokenCache.Store(cacheKey, cachedToken{
 		token:     tokenResp.AccessToken,
-		expiresAt: parsed,
+		expiresAt: expiresAt,
 	})
 }

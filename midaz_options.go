@@ -495,6 +495,40 @@ func WithHTTPClient(client *http.Client) Option {
 	}
 }
 
+// WithHTTPTransport wraps the transport of the HTTP client every SDK request
+// goes through — the Access Manager token exchange and every Ledger and Tracer
+// service — without replacing the client.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config.WithHTTPTransport],
+// which documents the full semantics.
+//
+// The wrapper receives the transport the SDK would otherwise use (its own pooled
+// transport, or the one of the client given to [WithHTTPClient]) and must
+// delegate to it. The client's timeout ([WithTimeout]), redirect policy, and the
+// SDK's authentication and retry round trippers are kept; the latter two sit
+// above the returned round tripper, so it sees every attempt with the
+// Authorization header already set. Use it to add per-request headers from the
+// request context:
+//
+//	client, err := midaz.New(
+//	    midaz.WithAccessManager(am),
+//	    midaz.WithHTTPTransport(func(base http.RoundTripper) http.RoundTripper {
+//	        return myHeaderTransport{base: base}
+//	    }),
+//	)
+//
+// Parameters:
+//   - wrap: Receives the base transport and returns the round tripper to use.
+//
+// Returns:
+//   - Option: A function that installs the wrapper on the Client
+func WithHTTPTransport(wrap func(base http.RoundTripper) http.RoundTripper) Option {
+	return func(c *Client) error {
+		c.markConfigMutated()
+		return config.WithHTTPTransport(wrap)(c.config)
+	}
+}
+
 // WithLedgerURL sets the URL for the Ledger API. The Ledger service serves
 // both onboarding and transaction endpoints under the same plane.
 //

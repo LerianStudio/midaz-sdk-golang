@@ -25,6 +25,7 @@ const (
 //   - Name: Human-readable name for the account type
 //   - Description: Detailed description of the account type's purpose
 //   - KeyValue: Unique identifier within the organization/ledger
+//   - DefaultDirection: Balance direction ("credit" or "debit") of accounts opened with this type (Midaz v4.0.0+)
 //   - Metadata: Custom attributes for account type configuration
 //
 // Example Usage:
@@ -57,24 +58,26 @@ const (
 //
 // AccountType is the SDK-native account type response (Track 7E — audit 7.1).
 type AccountType struct {
-	ID             uuid.UUID      `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
-	OrganizationID uuid.UUID      `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
-	LedgerID       uuid.UUID      `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
-	Name           string         `json:"name,omitempty" example:"Current Assets"`
-	Description    string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
-	KeyValue       string         `json:"keyValue,omitempty" example:"current_assets"`
-	CreatedAt      time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
+	ID               uuid.UUID      `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	OrganizationID   uuid.UUID      `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	LedgerID         uuid.UUID      `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	Name             string         `json:"name,omitempty" example:"Current Assets"`
+	Description      string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
+	KeyValue         string         `json:"keyValue,omitempty" example:"current_assets"`
+	DefaultDirection string         `json:"defaultDirection,omitempty" example:"credit"`
+	CreatedAt        time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt        time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt        *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata         map[string]any `json:"metadata,omitempty"`
 }
 
 // CreateAccountTypeInput is the SDK-native account-type creation payload.
 type CreateAccountTypeInput struct {
-	Name        string         `json:"name" example:"Current Assets"`
-	Description string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
-	KeyValue    string         `json:"keyValue" example:"current_assets"`
-	Metadata    map[string]any `json:"metadata"`
+	Name             string         `json:"name" example:"Current Assets"`
+	Description      string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
+	KeyValue         string         `json:"keyValue" example:"current_assets"`
+	DefaultDirection *string        `json:"defaultDirection,omitempty" example:"credit"`
+	Metadata         map[string]any `json:"metadata"`
 }
 
 // UpdateAccountTypeInput is the SDK-native account-type patch payload.
@@ -89,9 +92,10 @@ type CreateAccountTypeInput struct {
 // with no changes results in an empty `{}` rather than a duplicate error
 // to keep the source of truth in Validate().
 type UpdateAccountTypeInput struct {
-	Name        string         `json:"name,omitempty" example:"Current Assets"`
-	Description string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	Name             string         `json:"name,omitempty" example:"Current Assets"`
+	Description      string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
+	DefaultDirection *string        `json:"defaultDirection,omitempty" example:"credit"`
+	Metadata         map[string]any `json:"metadata,omitempty"`
 }
 
 // Validate validates the CreateAccountTypeInput fields.
@@ -111,6 +115,7 @@ func (input *CreateAccountTypeInput) Validate() error {
 	}
 
 	appendAccountTypeLengths(&errs, input.Name, input.Description, input.KeyValue, true)
+	appendAccountTypeDirection(&errs, input.DefaultDirection)
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
@@ -126,7 +131,15 @@ func (input *UpdateAccountTypeInput) hasChanges() bool {
 		return false
 	}
 
-	return input.Name != "" || input.Description != "" || input.Metadata != nil
+	return input.Name != "" || input.Description != "" || input.DefaultDirection != nil || input.Metadata != nil
+}
+
+// appendAccountTypeDirection mirrors the server's accounttypedirection rule:
+// when set, exactly "credit" or "debit".
+func appendAccountTypeDirection(errs *validation.FieldErrors, direction *string) {
+	if direction != nil && *direction != "credit" && *direction != "debit" {
+		errs.Append("defaultDirection", fmt.Sprintf("must be one of: credit, debit (got %q)", *direction))
+	}
 }
 
 // appendAccountTypeLengths records all length-bound violations onto errs.
@@ -156,6 +169,7 @@ func (input *CreateAccountTypeInput) MarshalJSON() ([]byte, error) {
 	addStringField(fields, "name", input.Name)
 	addStringField(fields, "description", input.Description)
 	addStringField(fields, "keyValue", input.KeyValue)
+	addStringPtrField(fields, "defaultDirection", input.DefaultDirection)
 	addMetadataField(fields, input.Metadata)
 
 	return json.Marshal(fields)
@@ -174,6 +188,7 @@ func (input *UpdateAccountTypeInput) Validate() error {
 	var errs validation.FieldErrors
 
 	appendAccountTypeLengths(&errs, input.Name, input.Description, "", false)
+	appendAccountTypeDirection(&errs, input.DefaultDirection)
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
@@ -222,6 +237,18 @@ func (input *CreateAccountTypeInput) WithMetadata(metadata map[string]any) *Crea
 	return input
 }
 
+// WithDefaultDirection sets the balance direction ("credit" or "debit") of
+// accounts opened with this type. Unset, the server defaults to "credit".
+func (input *CreateAccountTypeInput) WithDefaultDirection(direction string) *CreateAccountTypeInput {
+	if input == nil {
+		return nil
+	}
+
+	input.DefaultDirection = &direction
+
+	return input
+}
+
 // NewUpdateAccountTypeInput creates a new UpdateAccountTypeInput.
 // This constructor initializes an empty update input that can be customized
 // using the With* helper functions.
@@ -265,6 +292,18 @@ func (input *UpdateAccountTypeInput) WithMetadata(metadata map[string]any) *Upda
 	return input
 }
 
+// WithDefaultDirection changes the direction ("credit" or "debit") the type gives
+// to balances created from now on; existing balances keep theirs.
+func (input *UpdateAccountTypeInput) WithDefaultDirection(direction string) *UpdateAccountTypeInput {
+	if input == nil {
+		return nil
+	}
+
+	input.DefaultDirection = &direction
+
+	return input
+}
+
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.
 func (input *UpdateAccountTypeInput) MarshalJSON() ([]byte, error) {
 	if input == nil {
@@ -274,6 +313,7 @@ func (input *UpdateAccountTypeInput) MarshalJSON() ([]byte, error) {
 	fields := map[string]any{}
 	addStringField(fields, "name", input.Name)
 	addStringField(fields, "description", input.Description)
+	addStringPtrField(fields, "defaultDirection", input.DefaultDirection)
 	addMetadataField(fields, input.Metadata)
 
 	return json.Marshal(fields)

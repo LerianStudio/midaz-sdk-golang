@@ -16,6 +16,7 @@ This map documents the recommended public SDK surface that consumers should use.
 - `midaz.WithTracerURL(string)` - Sets the Tracer plane URL. The Tracer versions itself in its base URL, so this one keeps `/v1`.
 - `midaz.WithEnvironment(config.Environment)` - Uses a named environment preset.
 - `midaz.WithHTTPClient(*http.Client)` - Supplies a custom HTTP client.
+- `midaz.WithHTTPTransport(func(base http.RoundTripper) http.RoundTripper)` - Wraps the transport every SDK request goes through (Access Manager token exchange, Ledger and Tracer planes). The wrapper receives the base transport and must delegate to it; timeout, redirect policy, auth and retries are kept, and auth/retry sit above it. Order-independent with `WithHTTPClient` / `WithTimeout`.
 - `midaz.WithTimeout(time.Duration)` - Sets request timeout.
 - `midaz.WithUserAgent(string)` - Sets the SDK user agent header.
 - `midaz.WithRetryOptions(...retry.Option)` - Tune retry behavior. Override-on-conflict semantics: config seeds (`MaxRetries`, `RetryWaitMin`, `RetryWaitMax`) run first; user-supplied options run afterward and the last write wins. Compose with `pkg/retry` options like `retry.WithJitterFactor`, `retry.WithRetryableHTTPCodes`, `retry.WithHighReliability`.
@@ -89,6 +90,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config`.
 - `config.WithAllowInsecureAccessManagerHTTP(bool) config.Option`
 - `config.WithAllowInsecureHTTP(bool) config.Option` - Ledger/Tracer plane equivalent of the option above. Apply before the URL setters; `Validate` refuses it together with `EnvironmentProduction`.
 - `config.WithHTTPClient(*http.Client) config.Option`
+- `config.WithHTTPTransport(func(base http.RoundTripper) http.RoundTripper) config.Option`
 - `config.WithTimeout(time.Duration) config.Option`
 - `config.WithUserAgent(string) config.Option`
 - `config.WithMaxRetries(int) config.Option`
@@ -621,7 +623,7 @@ Each per-entity opts struct exposes:
 - `models.NewUpdateLedgerSettingsInput()`
 - `models.NewCreateAccountInput(name, assetCode, accountType)`
 - `models.NewUpdateAccountInput()`
-- `models.NewCreateAccountTypeInput(name, keyValue)`
+- `models.NewCreateAccountTypeInput(name, keyValue)` with `WithDescription`, `WithDefaultDirection` ("credit" or "debit", Midaz v4.0.0+), and `WithMetadata`.
 - `models.NewUpdateAccountTypeInput()`
 - `models.NewCreateBalanceInput(key)` with `WithAllowSending`, `WithAllowReceiving`, `WithDirection`, and `WithSettings`.
 - `models.NewCreateAssetInputWithType(name, code, assetType)` - Preferred asset builder because Midaz requires `type`.

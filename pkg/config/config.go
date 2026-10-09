@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -171,6 +173,11 @@ type Config struct {
 	tracerURLSet    bool
 	environmentSet  bool
 	httpClientOwned bool
+
+	// transportWrappers are the WithHTTPTransport wrappers, in option order.
+	// They are kept so a client installed AFTER them (WithHTTPClient, or the
+	// default client NewConfig creates once every option ran) is wrapped too.
+	transportWrappers []func(base http.RoundTripper) http.RoundTripper
 
 	// skipAuthCheck bypasses auth validation for package-internal tests only.
 	// It is deliberately not populated from environment variables.
@@ -453,10 +460,109 @@ func WithHTTPClient(client *http.Client) Option {
 			return errors.New("HTTP client cannot be nil")
 		}
 
-		c.HTTPClient = security.EnsureRedirectPolicy(client)
+		wrapped, err := wrapTransport(security.EnsureRedirectPolicy(client), c.transportWrappers...)
+		if err != nil {
+			return err
+		}
+
+		c.HTTPClient = wrapped
 		c.httpClientOwned = false
 
 		return nil
+	}
+}
+
+// WithHTTPTransport installs a wrapper around the transport of the HTTP client
+// every SDK request goes through: the Access Manager token exchange and every
+// Ledger and Tracer service. The wrapper receives the transport the SDK would
+// otherwise use — its own pooled transport, or the transport of the client
+// given to [WithHTTPClient] — and returns the round tripper to use instead.
+// It must delegate to that base.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithHTTPTransport] is what most
+// callers should use.
+//
+// Unlike replacing the client with [WithHTTPClient], the client's timeout,
+// redirect policy and transport tuning are kept. The SDK's authentication and
+// retry round trippers sit ABOVE the returned round tripper, so it sees every
+// retry attempt with the Authorization header already set.
+//
+// Order relative to [WithHTTPClient] and [WithTimeout] does not matter, and
+// several wrappers compose in option order (the last one is outermost). The
+// caller's *http.Client is never mutated.
+//
+// Parameters:
+//   - wrap: Receives the base transport and returns the round tripper to use.
+//
+// Returns:
+//   - Option: A function that installs the wrapper on a Config
+func WithHTTPTransport(wrap func(base http.RoundTripper) http.RoundTripper) Option {
+	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
+		if wrap == nil {
+			return errors.New("HTTP transport wrapper cannot be nil")
+		}
+
+		if c.HTTPClient != nil {
+			wrapped, err := wrapTransport(c.HTTPClient, wrap)
+			if err != nil {
+				return err
+			}
+
+			c.HTTPClient = wrapped
+		}
+
+		c.transportWrappers = append(c.transportWrappers, wrap)
+
+		return nil
+	}
+}
+
+// wrapTransport returns a copy of client whose transport is the result of
+// applying wrappers, in order, over client's transport (http.DefaultTransport
+// when unset). The client itself is never mutated.
+func wrapTransport(client *http.Client, wrappers ...func(base http.RoundTripper) http.RoundTripper) (*http.Client, error) {
+	if len(wrappers) == 0 {
+		return client, nil
+	}
+
+	clientCopy := *client
+
+	transport := clientCopy.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+
+	for _, wrap := range wrappers {
+		transport = wrap(transport)
+		if isNilRoundTripper(transport) {
+			return nil, errors.New("HTTP transport wrapper returned a nil round tripper")
+		}
+	}
+
+	clientCopy.Transport = transport
+
+	return &clientCopy, nil
+}
+
+// isNilRoundTripper reports whether rt is nil, including an interface that holds
+// a nil pointer (a typed nil), which compares non-nil but panics on use.
+func isNilRoundTripper(rt http.RoundTripper) bool {
+	if rt == nil {
+		return true
+	}
+
+	v := reflect.ValueOf(rt)
+
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Func, reflect.Map, reflect.Slice, reflect.Chan, reflect.Interface:
+		return v.IsNil()
+	default:
+		return false
 	}
 }
 
@@ -1142,7 +1248,12 @@ func NewConfig(options ...Option) (*Config, error) {
 
 	// Create HTTP client if not provided
 	if config.HTTPClient == nil {
-		config.HTTPClient = NewDefaultHTTPClient(config.Timeout)
+		client, err := wrapTransport(NewDefaultHTTPClient(config.Timeout), config.transportWrappers...)
+		if err != nil {
+			return nil, err
+		}
+
+		config.HTTPClient = client
 		config.httpClientOwned = true
 	}
 
@@ -1485,6 +1596,10 @@ func (c *Config) Clone() *Config {
 			cloned.ServiceURLs[service] = serviceURL
 		}
 	}
+
+	// A clone owns its wrapper list: sharing the backing array would let an
+	// append on one clone overwrite the other's wrapper.
+	cloned.transportWrappers = slices.Clone(c.transportWrappers)
 
 	if c.HTTPClient != nil && c.httpClientOwned {
 		clientCopy := *c.HTTPClient
