@@ -116,3 +116,24 @@ func TestWithHTTPTransport_DoesNotLeakIntoAConfigSharingTheClient(t *testing.T) 
 	assert.Equal(t, "clone-only", wrapped.name)
 	assert.Same(t, callerTransport, wrapped.base)
 }
+
+// TestClone_DoesNotShareTransportWrappers covers two configurations cloned from
+// one source: appending a wrapper to one clone must never land in the other.
+func TestClone_DoesNotShareTransportWrappers(t *testing.T) {
+	base, err := NewConfig(WithHTTPTransport(wrapNamed("base")), WithAnonymous())
+	require.NoError(t, err)
+
+	base.transportWrappers = append(make([]func(http.RoundTripper) http.RoundTripper, 0, 4), base.transportWrappers...)
+
+	a := base.Clone()
+	b := base.Clone()
+
+	require.NoError(t, WithHTTPTransport(wrapNamed("a"))(a))
+	require.NoError(t, WithHTTPTransport(wrapNamed("b"))(b))
+
+	require.Len(t, a.transportWrappers, 2)
+	require.Len(t, b.transportWrappers, 2)
+	assert.Equal(t, "a", a.transportWrappers[1](http.DefaultTransport).(*namedTransport).name)
+	assert.Equal(t, "b", b.transportWrappers[1](http.DefaultTransport).(*namedTransport).name)
+	assert.Len(t, base.transportWrappers, 1)
+}

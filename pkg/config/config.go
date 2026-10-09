@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1595,6 +1596,10 @@ func (c *Config) Clone() *Config {
 			cloned.ServiceURLs[service] = serviceURL
 		}
 	}
+
+	// A clone owns its wrapper list: sharing the backing array would let an
+	// append on one clone overwrite the other's wrapper.
+	cloned.transportWrappers = slices.Clone(c.transportWrappers)
 
 	if c.HTTPClient != nil && c.httpClientOwned {
 		clientCopy := *c.HTTPClient
