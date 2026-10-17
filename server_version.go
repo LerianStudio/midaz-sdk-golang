@@ -26,12 +26,6 @@ const (
 	FeeModeNative = serverversion.FeeModeNative
 )
 
-// The CRM APIs [ResolveCRMAPI] returns.
-const (
-	CRMAPIV1 = serverversion.CRMAPIV1
-	CRMAPIV2 = serverversion.CRMAPIV2
-)
-
 const (
 	serverVersionOperation = "midaz.Client.ServerVersion"
 	maxServerVersionBody   = 64 << 10 // a real /version body is under 1 KiB
@@ -87,9 +81,4 @@ func readServerVersion(ctx context.Context, doer httpDoer, baseURL, operation st
 // ResolveFeeMode is the single decision rule: native iff Known && version >= 4.1.0.
 func ResolveFeeMode(v ServerVersion) FeeMode {
 	return serverversion.ResolveFeeMode(v)
-}
-
-// ResolveCRMAPI decides the CRM API from the /version served at the CRM URL: CRMAPIV2 iff Known && major >= 4.
-func ResolveCRMAPI(v ServerVersion) CRMAPI {
-	return serverversion.ResolveCRMAPI(v)
 }

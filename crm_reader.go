@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/serverversion"
 )
 
 const (
@@ -37,10 +38,9 @@ type CRMReaderConfig struct {
 	// URL is the CRM root as configured. One trailing "/v1" is dropped, so "https://crm.example.com"
 	// and "https://crm.example.com/v1" name the same CRM. Point it at the ledger for the embedded CRM.
 	URL string
-	// HTTP sends every request, GET /version included. Required.
-	HTTP interface {
-		Do(req *http.Request) (*http.Response, error)
-	}
+	// HTTP sends every request, GET /version included: anything with Do(*http.Request), such as an
+	// *http.Client. Required.
+	HTTP httpDoer
 	// Authorization returns the Authorization header value of a data read, sent verbatim ("" sends
 	// none). Its error is returned wrapped, unclassified. Nil sends none. /version is never authorized.
 	Authorization func(ctx context.Context) (string, error)
@@ -66,14 +66,8 @@ type HolderQuery struct {
 	Limit    int
 }
 
-// CRMPage is one page of a CRM collection: the items and the limit the CRM applied.
-type CRMPage[T any] struct {
-	Items []T `json:"items"`
-	Limit int `json:"limit"`
-}
-
 // CRMReader reads holders and instruments from the standalone CRM 3.x (/v1, instruments are its aliases)
-// or the CRM embedded in the ledger 4.x (/v2), picked by [ResolveCRMAPI] from GET {URL}/version at first
+// or the CRM embedded in the ledger 4.x (/v2), picked by [serverversion.ResolveCRMAPI] from GET {URL}/version at first
 // use and every 5 minutes. Until one /version read succeeds, reads fail retryable. One per CRM URL.
 type CRMReader struct {
 	root          string
@@ -116,8 +110,8 @@ func NewCRMReader(cfg CRMReaderConfig) (*CRMReader, error) {
 	}, nil
 }
 
-// Instruments lists the organization's instruments matching q.
-func (r *CRMReader) Instruments(ctx context.Context, organizationID string, q InstrumentQuery) (CRMPage[models.Instrument], error) {
+// Instruments lists the organization's instruments matching q; Pagination.Limit is the limit the CRM applied.
+func (r *CRMReader) Instruments(ctx context.Context, organizationID string, q InstrumentQuery) (*models.ListResponse[models.Instrument], error) {
 	query := pageQuery(q.Page, q.Limit)
 	setIfNotEmpty(query, "account_id", q.AccountID)
 	setIfNotEmpty(query, "document", q.Document)
@@ -127,21 +121,25 @@ func (r *CRMReader) Instruments(ctx context.Context, organizationID string, q In
 		query.Set("include_deleted", "true")
 	}
 
-	var page CRMPage[models.Instrument]
-	err := r.get(ctx, "midaz.CRMReader.Instruments", organizationID, "aliases", "instruments", query, &page)
+	var page models.ListResponse[models.Instrument]
+	if err := r.get(ctx, "midaz.CRMReader.Instruments", organizationID, "aliases", "instruments", query, &page); err != nil {
+		return nil, err
+	}
 
-	return page, err
+	return &page, nil
 }
 
-// Holders lists the organization's holders matching q.
-func (r *CRMReader) Holders(ctx context.Context, organizationID string, q HolderQuery) (CRMPage[models.Holder], error) {
+// Holders lists the organization's holders matching q; Pagination.Limit is the limit the CRM applied.
+func (r *CRMReader) Holders(ctx context.Context, organizationID string, q HolderQuery) (*models.ListResponse[models.Holder], error) {
 	query := pageQuery(q.Page, q.Limit)
 	setIfNotEmpty(query, "document", q.Document)
 
-	var page CRMPage[models.Holder]
-	err := r.get(ctx, "midaz.CRMReader.Holders", organizationID, "holders", "holders", query, &page)
+	var page models.ListResponse[models.Holder]
+	if err := r.get(ctx, "midaz.CRMReader.Holders", organizationID, "holders", "holders", query, &page); err != nil {
+		return nil, err
+	}
 
-	return page, err
+	return &page, nil
 }
 
 // Holder reads one holder of the organization.
@@ -175,7 +173,7 @@ func (r *CRMReader) get(ctx context.Context, operation, organizationID, v1Path, 
 	}
 
 	endpoint := r.root + "/v1/" + v1Path
-	if api == CRMAPIV2 {
+	if api == serverversion.CRMAPIV2 {
 		endpoint = r.root + "/v2/organizations/" + org.String() + "/" + v2Path
 	}
 
@@ -190,7 +188,7 @@ func (r *CRMReader) get(ctx context.Context, operation, organizationID, v1Path, 
 
 	req.Header.Set("Accept", "application/json")
 
-	if api == CRMAPIV1 {
+	if api == serverversion.CRMAPIV1 {
 		req.Header.Set("X-Organization-Id", org.String())
 	}
 
@@ -286,7 +284,7 @@ func (r *CRMReader) probe(ctx context.Context) error {
 		return nil
 	}
 
-	api := ResolveCRMAPI(v)
+	api := serverversion.ResolveCRMAPI(v)
 	r.resolved.Store(&crmResolution{api: api, expiresAt: r.now().Add(crmRefreshInterval)})
 
 	if last == nil || last.api != api {

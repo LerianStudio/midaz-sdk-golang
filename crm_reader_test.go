@@ -16,6 +16,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/serverversion"
 )
 
 const (
@@ -185,8 +186,8 @@ func TestCRMReaderResolvesAPIFromVersion(t *testing.T) {
 // and one golden body decoding to the same models through both APIs.
 func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 	type decoded struct {
-		instruments CRMPage[models.Instrument]
-		holders     CRMPage[models.Holder]
+		instruments *models.ListResponse[models.Instrument]
+		holders     *models.ListResponse[models.Holder]
 		holder      *models.Holder
 	}
 
@@ -262,7 +263,8 @@ func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 	assert.Equal(t, results["v1"], results["v2"], "one body, one decode, whichever API served it")
 
 	instrument := results["v2"].instruments.Items[0]
-	assert.Equal(t, 100, results["v2"].instruments.Limit)
+	assert.Equal(t, 100, results["v2"].instruments.Pagination.Limit)
+	assert.Equal(t, 100, results["v2"].holders.Pagination.Limit)
 	assert.Equal(t, crmTestHolderID, instrument.HolderID.String())
 	assert.Equal(t, "13935893", *instrument.BankingDetails.BankID)
 	assert.Equal(t, "0001", *instrument.BankingDetails.Branch)
@@ -311,21 +313,21 @@ func TestCRMReaderRefresh(t *testing.T) {
 	}
 
 	assert.Equal(t, "/v1/holders", read())
-	assert.Equal(t, report{api: CRMAPIV1}, next(), "first resolution is reported")
+	assert.Equal(t, report{api: serverversion.CRMAPIV1}, next(), "first resolution is reported")
 
 	clock.Store(int64(crmRefreshInterval))
 	srv.setVersion(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadGateway) })
 	assert.Equal(t, "/v1/holders", read(), "an expired API still answers while the re-read runs")
 
 	failed := next()
-	assert.Equal(t, CRMAPIV1, failed.api, "a failed re-read keeps the last API")
+	assert.Equal(t, serverversion.CRMAPIV1, failed.api, "a failed re-read keeps the last API")
 	require.Error(t, failed.err)
 	assert.Equal(t, "/v1/holders", read())
 
 	clock.Store(int64(3 * crmRefreshInterval))
 	srv.setVersion(writeBody(ledgerVersion422))
 	assert.Equal(t, "/v1/holders", read())
-	assert.Equal(t, report{api: CRMAPIV2}, next(), "a changed answer swaps the API")
+	assert.Equal(t, report{api: serverversion.CRMAPIV2}, next(), "a changed answer swaps the API")
 	assert.Equal(t, "/v2/organizations/"+crmTestOrg+"/holders", read())
 	assert.EqualValues(t, 3, srv.versionHits.Load(), "one probe per expiry")
 }

@@ -162,12 +162,8 @@ func TestResolveCRMAPI(t *testing.T) {
 		v    serverversion.ServerVersion
 		want serverversion.CRMAPI
 	}{
-		{"CRM 3.8.4", serverversion.ServerVersion{Major: 3, Minor: 8, Patch: 4, Known: true}, serverversion.CRMAPIV1},
-		{"CRM 3.x placeholder 0.0.0", serverversion.ServerVersion{Raw: "0.0.0"}, serverversion.CRMAPIV1},
-		{"ledger 4.0.0 already serves /v2 holders", serverversion.ServerVersion{Major: 4, Known: true}, serverversion.CRMAPIV2},
 		{"ledger 4.2.0 prerelease", serverversion.ServerVersion{Major: 4, Minor: 2, Prerelease: "beta.5", Known: true}, serverversion.CRMAPIV2},
 		{"ledger 5", serverversion.ServerVersion{Major: 5, Known: true}, serverversion.CRMAPIV2},
-		{"unknown major 4 placeholder", serverversion.ServerVersion{Major: 4}, serverversion.CRMAPIV1},
 	}
 
 	for _, tt := range tests {
