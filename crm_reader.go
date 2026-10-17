@@ -239,7 +239,7 @@ func (r *CRMReader) withoutRequestURL(err error) error {
 // api answers the resolved API, starting one background re-read once it has expired. Before the
 // first resolution, callers share one probe and each leaves at its own deadline.
 func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
-	probe := func() (any, error) { return nil, r.probe(ctx) }
+	probe := func() (any, error) { return nil, r.probe() }
 
 	if resolved := r.resolved.Load(); resolved != nil {
 		if !r.now().Before(resolved.expiresAt) {
@@ -261,10 +261,10 @@ func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
 	}
 }
 
-// probe reads /version detached from the caller. A failure keeps the last API; with none yet it
-// caches nothing and returns a retryable error.
-func (r *CRMReader) probe(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), crmProbeTimeout)
+// probe reads /version on a fresh context, carrying no value of the caller that started it. A failure
+// keeps the last API; with none yet it caches nothing and returns a retryable error.
+func (r *CRMReader) probe() error {
+	ctx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 	defer cancel()
 
 	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation)
