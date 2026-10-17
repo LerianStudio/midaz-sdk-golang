@@ -222,6 +222,11 @@ Resolve once at boot, refresh on a ticker, and keep the last mode when a
 refresh fails. See [`docs/server-version.md`](docs/server-version.md) and
 [`examples/11-server-version/`](examples/11-server-version/).
 
+`midaz.NewCRMReader` reads CRM holders and instruments from either the
+standalone CRM 3.x (`/v1`) or the CRM embedded in the ledger 4.x (`/v2`),
+picked from the `/version` served at the CRM URL; see
+[`docs/server-version.md`](docs/server-version.md#crm-api).
+
 ### Pagination
 
 Every list method ships in three flavors:

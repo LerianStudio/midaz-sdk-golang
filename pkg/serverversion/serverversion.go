@@ -1,4 +1,4 @@
-// Package serverversion parses the Midaz ledger /version body and decides who applies fees.
+// Package serverversion parses a Midaz /version body and decides who applies fees and which CRM API to read.
 // An uncertain version resolves to FeeModeLegacy: /v1 never applies fees on v3 or v4, so legacy never
 // charges twice nor skips the fee, provided the caller's legacy mode has its own fee engine configured.
 package serverversion
@@ -110,4 +110,24 @@ func ResolveFeeMode(v ServerVersion) FeeMode {
 	}
 
 	return FeeModeLegacy
+}
+
+// CRMAPI is which CRM API answers at a CRM URL.
+type CRMAPI string
+
+// The two CRM APIs ResolveCRMAPI can return.
+const (
+	CRMAPIV1 CRMAPI = "v1" // standalone CRM 3.x: /v1/aliases and /v1/holders, organization in X-Organization-Id
+	CRMAPIV2 CRMAPI = "v2" // CRM embedded in the Midaz ledger 4.x: /v2/organizations/{org}/instruments and holders
+)
+
+// ResolveCRMAPI decides the API from the /version served at the CRM URL: v2 iff Known && major >= 4.
+// No standalone CRM ships major 4 (it ended at 3.8.x), so a major-4 answer is a ledger; a placeholder
+// ("0.0.0", a CRM 3.x with VERSION unset) is a CRM 3.x.
+func ResolveCRMAPI(v ServerVersion) CRMAPI {
+	if v.Known && v.Major >= 4 {
+		return CRMAPIV2
+	}
+
+	return CRMAPIV1
 }

@@ -2,7 +2,8 @@
 
 // Package contract pins the SDK's transaction-status vocabulary and lifecycle
 // error codes against the live Midaz server contract
-// (github.com/LerianStudio/midaz/v4/pkg/constant — the server source of truth).
+// (github.com/LerianStudio/midaz/v4/pkg/constant — the server source of truth),
+// and the CRM models against midaz/v3 and midaz/v4 pkg/mmodel.
 //
 // It deliberately lives in a SEPARATE nested Go module (contract/go.mod). The
 // drift test imports the full Midaz server module; isolating it here keeps that

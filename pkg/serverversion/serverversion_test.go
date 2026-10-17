@@ -154,3 +154,21 @@ func TestParse(t *testing.T) {
 		})
 	}
 }
+
+// TestResolveCRMAPI pins the CRM rule: v2 iff the CRM URL serves a known major >= 4.
+func TestResolveCRMAPI(t *testing.T) {
+	tests := []struct {
+		name string
+		v    serverversion.ServerVersion
+		want serverversion.CRMAPI
+	}{
+		{"ledger 4.2.0 prerelease", serverversion.ServerVersion{Major: 4, Minor: 2, Prerelease: "beta.5", Known: true}, serverversion.CRMAPIV2},
+		{"ledger 5", serverversion.ServerVersion{Major: 5, Known: true}, serverversion.CRMAPIV2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, serverversion.ResolveCRMAPI(tt.v))
+		})
+	}
+}
