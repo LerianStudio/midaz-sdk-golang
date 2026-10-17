@@ -367,6 +367,36 @@ func TestCRMReaderSharesFirstProbe(t *testing.T) {
 	assert.Len(t, srv.requests(), callers)
 }
 
+type doerFunc func(*http.Request) (*http.Response, error)
+
+func (f doerFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
+
+// TestCRMReaderProbeCarriesNoCallerValues pins that GET /version runs on a fresh context: a value on
+// the first caller's context (an actor-relay token, a diagnostic capture) never reaches the probe.
+func TestCRMReaderProbeCarriesNoCallerValues(t *testing.T) {
+	type callerKey struct{}
+
+	srv := newCRMServer(t, writeBody(crmVersion384))
+	seen := map[string]any{}
+
+	reader, err := NewCRMReader(CRMReaderConfig{
+		URL: srv.URL,
+		HTTP: doerFunc(func(req *http.Request) (*http.Response, error) {
+			seen[req.URL.Path] = req.Context().Value(callerKey{})
+
+			return http.DefaultClient.Do(req)
+		}),
+	})
+	require.NoError(t, err)
+
+	_, err = reader.Holders(context.WithValue(context.Background(), callerKey{}, "partner-token"), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+
+	require.Contains(t, seen, "/version")
+	assert.Nil(t, seen["/version"], "GET /version must not carry the caller's context values")
+	assert.Equal(t, "partner-token", seen["/v1/holders"], "the data read keeps the caller's context")
+}
+
 // TestCRMReaderTransportErrorHidesRequest pins that a refused connection never renders the query (a
 // document, an account number) or the holder id in the path.
 func TestCRMReaderTransportErrorHidesRequest(t *testing.T) {
