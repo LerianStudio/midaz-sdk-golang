@@ -52,6 +52,10 @@ func ReadServerVersion(ctx context.Context, doer HTTPDoer, baseURL string) (Serv
 	const operation = "midaz.ReadServerVersion"
 
 	unavailable := ServerVersion{Source: serverversion.SourceUnavailable}
+	if doer == nil {
+		return unavailable, sdkerrors.NewConfigurationError(operation, "HTTP doer is required", nil)
+	}
+
 	url := strings.TrimSuffix(strings.TrimSuffix(baseURL, "/"), "/v1") + "/version"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
