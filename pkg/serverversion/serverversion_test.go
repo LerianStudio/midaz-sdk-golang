@@ -172,3 +172,34 @@ func TestResolveCRMAPI(t *testing.T) {
 		})
 	}
 }
+
+// TestSupportsRulesOnly pins the Tracer rules-only gate: Known and >= TracerRulesOnlyMinVersion by full SemVer,
+// except 4.3.0-rc.1 through rc.5.
+func TestSupportsRulesOnly(t *testing.T) {
+	// Every literal below depends on TracerRulesOnlyMinVersion; update them together.
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{"4.3.0-beta.78", true},  // T itself
+		{"v4.3.0-beta.78", true}, // leading v
+		{"4.3.0-beta.77", false}, // the beta just before T
+		{"4.3.0-beta.9", false},  // numeric identifiers compare as numbers, not text
+		{"4.3.0", true},          // GA of T's core
+		{"4.3.0-rc.1", false},    // rc.1-rc.5 sort above T but were cut without the route
+		{"4.3.0-rc.5", false},
+		{"4.3.0-rc.6", true},            // every later rc is cut from a develop that has it
+		{"4.3.0-beta.78+build.7", true}, // build metadata ignored
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.version, func(t *testing.T) {
+			v := serverversion.Parse([]byte(`{"version":"` + tt.version + `"}`))
+			assert.Equal(t, tt.want, serverversion.SupportsRulesOnly(v))
+		})
+	}
+
+	for _, body := range []string{`{"version":"dev"}`, `{"version":"0.0.0"}`, `not json`} {
+		assert.False(t, serverversion.SupportsRulesOnly(serverversion.Parse([]byte(body))), body)
+	}
+}

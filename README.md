@@ -227,6 +227,11 @@ standalone CRM 3.x (`/v1`) or the CRM embedded in the ledger 4.x (`/v2`),
 picked from the `/version` served at the CRM URL; see
 [`docs/server-version.md`](docs/server-version.md#crm-api).
 
+`midaz.ReadServerVersion(ctx, doer, tracerURL)` reads the same route on a
+Tracer URL (not the ledger URL); `midaz.SupportsRulesOnly(v)` says whether that
+Tracer serves `Validations.EvaluateRulesOnly`. See
+[`docs/mapping/external_apis.md`](docs/mapping/external_apis.md).
+
 ### Pagination
 
 Every list method ships in three flavors:

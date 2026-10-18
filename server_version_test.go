@@ -141,6 +141,22 @@ func TestServerVersionNilClient(t *testing.T) {
 	assert.Equal(t, ServerVersion{Source: serverversion.SourceUnavailable}, got)
 }
 
+func TestReadServerVersionNilDoer(t *testing.T) {
+	got, err := ReadServerVersion(context.Background(), nil, "https://example.invalid")
+
+	assert.True(t, sdkerrors.IsConfigurationError(err), "want configuration error, got %v", err)
+	assert.Equal(t, ServerVersion{Source: serverversion.SourceUnavailable}, got)
+}
+
+func TestReadServerVersionTypedNilDoer(t *testing.T) {
+	var client *http.Client
+
+	got, err := ReadServerVersion(context.Background(), client, "https://example.invalid")
+
+	assert.True(t, sdkerrors.IsConfigurationError(err), "want configuration error, got %v", err)
+	assert.Equal(t, ServerVersion{Source: serverversion.SourceUnavailable}, got)
+}
+
 func writeBody(body string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(body))
@@ -152,4 +168,56 @@ func wantNotVersionBody(t *testing.T, err error) {
 
 	assert.True(t, sdkerrors.IsResponseDecodeError(err), "want response decode error, got %v", err)
 	require.ErrorContains(t, err, "(HTTP 200): body is not a /version response")
+}
+
+// TestReadServerVersion pins that a base URL with or without one trailing "/v1" (a Tracer
+// plane URL) reads the same unversioned GET /version.
+func TestReadServerVersion(t *testing.T) {
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write([]byte(`{"schemaVersion":"v1","service":"tracer","version":"4.3.0"}`))
+	}))
+	defer srv.Close()
+
+	for _, suffix := range []string{"", "/", "/v1", "/v1/"} {
+		t.Run("base"+suffix, func(t *testing.T) {
+			got, err := ReadServerVersion(context.Background(), srv.Client(), srv.URL+suffix)
+
+			require.NoError(t, err)
+			assert.Equal(t, "/version", gotPath)
+			assert.Equal(t, ServerVersion{Raw: "4.3.0", Major: 4, Minor: 3, Known: true, Source: serverversion.SourceBuildInfoV1}, got)
+		})
+	}
+}
+
+// TestServerVersionErrorsNameTheCaller pins Error.Operation per entry point: each caller keeps its own label.
+func TestServerVersionErrorsNameTheCaller(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	operationOf := func(err error) string {
+		t.Helper()
+
+		var sdkErr *sdkerrors.Error
+
+		require.ErrorAs(t, err, &sdkErr)
+
+		return sdkErr.GetOperation()
+	}
+
+	_, err := newServerVersionClient(t, srv.URL).ServerVersion(context.Background())
+	assert.Equal(t, "midaz.Client.ServerVersion", operationOf(err))
+
+	_, err = ReadServerVersion(context.Background(), http.DefaultClient, srv.URL)
+	assert.Equal(t, "midaz.ReadServerVersion", operationOf(err))
+
+	var probeErr error
+
+	reader := newTestCRMReader(t, srv.URL, func(_ CRMAPI, _ ServerVersion, err error) { probeErr = err })
+	_, _ = reader.Instruments(context.Background(), crmTestOrg, InstrumentQuery{AccountID: "acc"})
+	assert.Equal(t, "midaz.CRMReader.version", operationOf(probeErr))
 }
