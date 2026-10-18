@@ -85,10 +85,12 @@ func validInput() *models.ValidateTransactionInput {
 }
 
 // evaluators are the two verdict writes; they share input, decode and errors and differ only in path.
-var evaluators = []struct {
+type evaluator struct {
 	name, path string
 	call       func(*validationsFacade, context.Context, *models.ValidateTransactionInput) (*models.ValidationResponse, error)
-}{
+}
+
+var evaluators = []evaluator{
 	{"Evaluate", "/v1/validations", (*validationsFacade).Evaluate},
 	{"EvaluateRulesOnly", "/v1/validations/rules-only", (*validationsFacade).EvaluateRulesOnly},
 }
@@ -102,34 +104,38 @@ var evaluators = []struct {
 func TestValidationsFacade_Evaluate200and201(t *testing.T) {
 	for _, ev := range evaluators {
 		for _, status := range []int{http.StatusOK, http.StatusCreated} {
-			t.Run(ev.name+"/"+http.StatusText(status), func(t *testing.T) {
-				var method, path, body string
-				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					method, path = r.Method, r.URL.Path
-					b, _ := io.ReadAll(r.Body)
-					body = string(b)
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(status)
-					_, _ = w.Write([]byte(validationResponseJSON("DENY")))
-				}))
-				defer srv.Close()
-
-				resp, err := ev.call(newTestValidationsFacade(t, srv), context.Background(), validInput())
-				if err != nil {
-					t.Fatalf("%s @%d: %v", ev.name, status, err)
-				}
-				if method != http.MethodPost || path != ev.path {
-					t.Fatalf("%s req = %s %s, want POST %s", ev.name, method, path, ev.path)
-				}
-				if resp == nil || resp.Decision != "DENY" || resp.ValidationID != validationID {
-					t.Fatalf("%s @%d returned %+v", ev.name, status, resp)
-				}
-				// Money is a quoted string on the wire (never a JSON number).
-				if !strings.Contains(body, `"amount":"`+bigMoney+`"`) {
-					t.Fatalf("request body amount not a quoted decimal string: %q", body)
-				}
-			})
+			t.Run(ev.name+"/"+http.StatusText(status), func(t *testing.T) { assertEvaluateDecodes(t, ev, status) })
 		}
+	}
+}
+
+func assertEvaluateDecodes(t *testing.T, ev evaluator, status int) {
+	t.Helper()
+
+	var method, path, body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method, path = r.Method, r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(validationResponseJSON("DENY")))
+	}))
+	defer srv.Close()
+
+	resp, err := ev.call(newTestValidationsFacade(t, srv), context.Background(), validInput())
+	if err != nil {
+		t.Fatalf("%s @%d: %v", ev.name, status, err)
+	}
+	if method != http.MethodPost || path != ev.path {
+		t.Fatalf("%s req = %s %s, want POST %s", ev.name, method, path, ev.path)
+	}
+	if resp == nil || resp.Decision != "DENY" || resp.ValidationID != validationID {
+		t.Fatalf("%s @%d returned %+v", ev.name, status, resp)
+	}
+	// Money is a quoted string on the wire (never a JSON number).
+	if !strings.Contains(body, `"amount":"`+bigMoney+`"`) {
+		t.Fatalf("request body amount not a quoted decimal string: %q", body)
 	}
 }
 
