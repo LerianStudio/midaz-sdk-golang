@@ -180,12 +180,14 @@ func TestSupportsRulesOnly(t *testing.T) {
 		version string
 		want    bool
 	}{
-		{"4.3.0-beta.78", true},         // T itself
-		{"v4.3.0-beta.78", true},        // leading v
-		{"4.3.0-beta.77", false},        // the beta just before T
-		{"4.3.0-beta.9", false},         // numeric identifiers compare as numbers, not text
-		{"4.3.0", true},                 // GA of T's core
-		{"4.3.0-rc.1", true},            // an rc above a beta T (rc.1-rc.5 lack the route)
+		{"4.3.0-beta.78", true},  // T itself
+		{"v4.3.0-beta.78", true}, // leading v
+		{"4.3.0-beta.77", false}, // the beta just before T
+		{"4.3.0-beta.9", false},  // numeric identifiers compare as numbers, not text
+		{"4.3.0", true},          // GA of T's core
+		{"4.3.0-rc.1", false},    // rc.1-rc.5 sort above T but were cut without the route
+		{"4.3.0-rc.5", false},
+		{"4.3.0-rc.6", true},            // every later rc is cut from a develop that has it
 		{"4.3.0-beta.78+build.7", true}, // build metadata ignored
 	}
 

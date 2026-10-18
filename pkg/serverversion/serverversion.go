@@ -135,11 +135,14 @@ func ResolveCRMAPI(v ServerVersion) CRMAPI {
 }
 
 // TracerRulesOnlyMinVersion is the first Tracer tag that serves POST /v1/validations/rules-only.
-// 4.3.0-rc.1 through rc.5 sort above it without the route and answer 404/405: fail open on any non-2xx.
 const TracerRulesOnlyMinVersion = "4.3.0-beta.78"
 
 // SupportsRulesOnly reports whether the Tracer behind v serves the rules-only route: Known and
-// v >= TracerRulesOnlyMinVersion by SemVer precedence, pre-releases included, build metadata ignored.
+// v >= TracerRulesOnlyMinVersion by SemVer precedence, pre-releases included, build metadata ignored,
+// except 4.3.0-rc.1 through rc.5, which sort above it but were cut before the route existed.
 func SupportsRulesOnly(v ServerVersion) bool {
-	return v.Known && semver.Compare("v"+strings.TrimPrefix(strings.TrimSpace(v.Raw), "v"), "v"+TracerRulesOnlyMinVersion) >= 0
+	sv := "v" + strings.TrimPrefix(strings.TrimSpace(v.Raw), "v")
+	preRouteRC := semver.Compare(sv, "v4.3.0-rc.1") >= 0 && semver.Compare(sv, "v4.3.0-rc.6") < 0
+
+	return v.Known && semver.Compare(sv, "v"+TracerRulesOnlyMinVersion) >= 0 && !preRouteRC
 }
