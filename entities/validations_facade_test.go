@@ -140,7 +140,7 @@ func assertEvaluateDecodes(t *testing.T, ev evaluator, status int) {
 }
 
 // TestValidationsFacade_EvaluateRulesOnlyRefused pins that a Tracer without the route (404, 405)
-// or one that cannot answer (503) comes back as *errors.Error carrying the upstream status.
+// comes back as *errors.Error carrying the upstream status.
 func TestValidationsFacade_EvaluateRulesOnlyRefused(t *testing.T) {
 	for _, tt := range []struct {
 		status      int
