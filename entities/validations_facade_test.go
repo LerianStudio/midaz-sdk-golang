@@ -84,6 +84,15 @@ func validInput() *models.ValidateTransactionInput {
 	)
 }
 
+// evaluators are the two verdict writes; they share input, decode and errors and differ only in path.
+var evaluators = []struct {
+	name, path string
+	call       func(*validationsFacade, context.Context, *models.ValidateTransactionInput) (*models.ValidationResponse, error)
+}{
+	{"Evaluate", "/v1/validations", (*validationsFacade).Evaluate},
+	{"EvaluateRulesOnly", "/v1/validations/rules-only", (*validationsFacade).EvaluateRulesOnly},
+}
+
 // TestValidationsFacade_Evaluate200and201 is the load-bearing raw-gate red. The
 // server returns 200 on an idempotent replay and 201 on a new verdict, but the
 // generated ValidateTransactionResp parser only fills JSON200 on an exact 200.
@@ -91,32 +100,65 @@ func validInput() *models.ValidateTransactionInput {
 // write through the raw call + 2xx success gate so BOTH statuses decode, WITHOUT
 // surfacing the 200/201 distinction to the caller.
 func TestValidationsFacade_Evaluate200and201(t *testing.T) {
-	for _, status := range []int{http.StatusOK, http.StatusCreated} {
-		t.Run(http.StatusText(status), func(t *testing.T) {
-			var method, path, body string
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				method, path = r.Method, r.URL.Path
-				b, _ := io.ReadAll(r.Body)
-				body = string(b)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(status)
-				_, _ = w.Write([]byte(validationResponseJSON("DENY")))
+	for _, ev := range evaluators {
+		for _, status := range []int{http.StatusOK, http.StatusCreated} {
+			t.Run(ev.name+"/"+http.StatusText(status), func(t *testing.T) {
+				var method, path, body string
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					method, path = r.Method, r.URL.Path
+					b, _ := io.ReadAll(r.Body)
+					body = string(b)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(status)
+					_, _ = w.Write([]byte(validationResponseJSON("DENY")))
+				}))
+				defer srv.Close()
+
+				resp, err := ev.call(newTestValidationsFacade(t, srv), context.Background(), validInput())
+				if err != nil {
+					t.Fatalf("%s @%d: %v", ev.name, status, err)
+				}
+				if method != http.MethodPost || path != ev.path {
+					t.Fatalf("%s req = %s %s, want POST %s", ev.name, method, path, ev.path)
+				}
+				if resp == nil || resp.Decision != "DENY" || resp.ValidationID != validationID {
+					t.Fatalf("%s @%d returned %+v", ev.name, status, resp)
+				}
+				// Money is a quoted string on the wire (never a JSON number).
+				if !strings.Contains(body, `"amount":"`+bigMoney+`"`) {
+					t.Fatalf("request body amount not a quoted decimal string: %q", body)
+				}
+			})
+		}
+	}
+}
+
+// TestValidationsFacade_EvaluateRulesOnlyRefused pins that a Tracer without the route (404, 405)
+// or one that cannot answer (503) comes back as *errors.Error carrying the upstream status.
+func TestValidationsFacade_EvaluateRulesOnlyRefused(t *testing.T) {
+	for _, tt := range []struct {
+		status      int
+		contentType string
+		body        string
+	}{
+		{http.StatusNotFound, "text/plain; charset=utf-8", "Cannot POST /v1/validations/rules-only"},
+		{http.StatusMethodNotAllowed, "text/plain; charset=utf-8", "Method Not Allowed"},
+	} {
+		t.Run(http.StatusText(tt.status), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", tt.contentType)
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
 			}))
 			defer srv.Close()
 
-			resp, err := newTestValidationsFacade(t, srv).Evaluate(context.Background(), validInput())
-			if err != nil {
-				t.Fatalf("Evaluate @%d: %v", status, err)
+			resp, err := newTestValidationsFacade(t, srv).EvaluateRulesOnly(context.Background(), validInput())
+			var sdkErr *sdkerrors.Error
+			if resp != nil || !errors.As(err, &sdkErr) {
+				t.Fatalf("got (%+v, %T %v), want (nil, *errors.Error)", resp, err, err)
 			}
-			if method != http.MethodPost || path != "/v1/validations" {
-				t.Fatalf("evaluate req = %s %s, want POST /v1/validations", method, path)
-			}
-			if resp == nil || resp.Decision != "DENY" || resp.ValidationID != validationID {
-				t.Fatalf("Evaluate @%d returned %+v", status, resp)
-			}
-			// Money is a quoted string on the wire (never a JSON number).
-			if !strings.Contains(body, `"amount":"`+bigMoney+`"`) {
-				t.Fatalf("request body amount not a quoted decimal string: %q", body)
+			if got, ok := sdkerrors.ActualHTTPStatus(err); !ok || got != tt.status {
+				t.Fatalf("upstream status = %d (%v), want %d", got, ok, tt.status)
 			}
 		})
 	}
@@ -359,9 +401,11 @@ func TestValidationsFacade_ValidateBeforeWire(t *testing.T) {
 		{"empty requestId", models.NewValidateTransactionInput("  ", decimal.NewFromInt(1), "USD", "2026-01-01T00:00:00Z", acct)},
 		{"missing account", models.NewValidateTransactionInput(valRequestID, decimal.NewFromInt(1), "USD", "2026-01-01T00:00:00Z", models.AccountContext{})},
 	}
-	for _, tt := range bad {
-		if _, err := f.Evaluate(context.Background(), tt.input); err == nil {
-			t.Fatalf("%s: want validation error before the wire", tt.name)
+	for _, ev := range evaluators {
+		for _, tt := range bad {
+			if _, err := ev.call(f, context.Background(), tt.input); err == nil {
+				t.Fatalf("%s %s: want validation error before the wire", ev.name, tt.name)
+			}
 		}
 	}
 	if hit {
