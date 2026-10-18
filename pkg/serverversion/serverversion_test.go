@@ -173,7 +173,8 @@ func TestResolveCRMAPI(t *testing.T) {
 	}
 }
 
-// TestSupportsRulesOnly pins the Tracer rules-only gate: Known and >= TracerRulesOnlyMinVersion by full SemVer.
+// TestSupportsRulesOnly pins the Tracer rules-only gate: Known and >= TracerRulesOnlyMinVersion by full SemVer,
+// except 4.3.0-rc.1 through rc.5.
 func TestSupportsRulesOnly(t *testing.T) {
 	// Every literal below depends on TracerRulesOnlyMinVersion; update them together.
 	tests := []struct {
