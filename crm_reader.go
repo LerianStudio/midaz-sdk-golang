@@ -268,7 +268,7 @@ func (r *CRMReader) probe() error {
 	ctx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 	defer cancel()
 
-	v, err := ReadServerVersion(ctx, r.http, r.root)
+	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation)
 	last := r.resolved.Load()
 
 	if err != nil {

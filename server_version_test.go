@@ -191,3 +191,33 @@ func TestReadServerVersion(t *testing.T) {
 		})
 	}
 }
+
+// TestServerVersionErrorsNameTheCaller pins Error.Operation per entry point: each caller keeps its own label.
+func TestServerVersionErrorsNameTheCaller(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	operationOf := func(err error) string {
+		t.Helper()
+
+		var sdkErr *sdkerrors.Error
+
+		require.ErrorAs(t, err, &sdkErr)
+
+		return sdkErr.GetOperation()
+	}
+
+	_, err := newServerVersionClient(t, srv.URL).ServerVersion(context.Background())
+	assert.Equal(t, "midaz.Client.ServerVersion", operationOf(err))
+
+	_, err = ReadServerVersion(context.Background(), http.DefaultClient, srv.URL)
+	assert.Equal(t, "midaz.ReadServerVersion", operationOf(err))
+
+	var probeErr error
+
+	reader := newTestCRMReader(t, srv.URL, func(_ CRMAPI, _ ServerVersion, err error) { probeErr = err })
+	_, _ = reader.Instruments(context.Background(), crmTestOrg, InstrumentQuery{AccountID: "acc"})
+	assert.Equal(t, "midaz.CRMReader.version", operationOf(probeErr))
+}

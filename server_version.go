@@ -43,15 +43,18 @@ func (c *Client) ServerVersion(ctx context.Context) (ServerVersion, error) {
 			sdkerrors.NewConfigurationError(serverVersionOperation, "client is not initialized; build it with midaz.New", nil)
 	}
 
-	return ReadServerVersion(ctx, c.GetHTTPClient(), c.config.LedgerURL)
+	return readServerVersion(ctx, c.GetHTTPClient(), c.config.LedgerURL, serverVersionOperation)
 }
 
 // ReadServerVersion GETs baseURL+"/version" through doer, with no credential, and parses the body.
 // One trailing "/v1" is dropped, so a Tracer plane URL reads the same route. The error is non-nil iff
 // Source is unavailable. Cache the answer and bound ctx: never read it once per request.
 func ReadServerVersion(ctx context.Context, doer HTTPDoer, baseURL string) (ServerVersion, error) {
-	const operation = "midaz.ReadServerVersion"
+	return readServerVersion(ctx, doer, baseURL, "midaz.ReadServerVersion")
+}
 
+// readServerVersion is ReadServerVersion with the caller's operation name on its errors.
+func readServerVersion(ctx context.Context, doer HTTPDoer, baseURL, operation string) (ServerVersion, error) {
 	unavailable := ServerVersion{Source: serverversion.SourceUnavailable}
 	if doer == nil || reflectutil.IsTypedNil(doer) {
 		return unavailable, sdkerrors.NewConfigurationError(operation, "HTTP doer is required", nil)
