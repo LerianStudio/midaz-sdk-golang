@@ -54,6 +54,8 @@ This map documents the recommended public SDK surface that consumers should use.
 
 - `Client.ServerVersion(context.Context) (midaz.ServerVersion, error)` - Reads the ledger's public `GET <LedgerURL>/version`. Returns `{Raw, Major, Minor, Patch, Prerelease, Known, Source}`; the error is non-nil iff `Source` is `serverversion.SourceUnavailable` (transport failure, non-2xx, or a body that is not a `/version` response). A placeholder version (`0.0.0`, `dev`) is `Known=false` with a nil error.
 - `midaz.ResolveFeeMode(midaz.ServerVersion) midaz.FeeMode` - `midaz.FeeModeNative` (post on `/v2`, the ledger applies fees) iff `Known` and the version is 4.1.0 or later; `midaz.FeeModeLegacy` (post on `/v1`, the service owns fees) otherwise.
+- `midaz.ReadServerVersion(ctx, midaz.HTTPDoer, baseURL string) (midaz.ServerVersion, error)` - The same read against any Midaz or Tracer base URL; one trailing `/v1` is dropped. Same error contract as `Client.ServerVersion`.
+- `midaz.SupportsRulesOnly(midaz.ServerVersion) bool` - true iff `Known` and the Tracer version is `serverversion.TracerRulesOnlyMinVersion` or later by SemVer precedence, pre-releases included: that Tracer serves `Validations.EvaluateRulesOnly`.
 
 - `serverversion.ResolveCRMAPI(serverversion.ServerVersion) serverversion.CRMAPI` - `serverversion.CRMAPIV2` (CRM embedded in the ledger, `/v2/organizations/{org}/...`) iff `Known` and major >= 4, read at the CRM URL; `serverversion.CRMAPIV1` (standalone CRM 3.x, `/v1` plus `X-Organization-Id`) otherwise.
 - `midaz.NewCRMReader(midaz.CRMReaderConfig) (*midaz.CRMReader, error)` - Read-only CRM client over the caller's HTTP doer; resolves the API from `GET {URL}/version` at first use and every 5 minutes. `Instruments(ctx, org, midaz.InstrumentQuery) (*models.ListResponse[models.Instrument], error)`, `Holders(ctx, org, midaz.HolderQuery) (*models.ListResponse[models.Holder], error)`, `Holder(ctx, org, holderID) (*models.Holder, error)`.
@@ -453,6 +455,7 @@ Tracer plane. Limit definitions, their lifecycle, and point-in-time usage.
 Tracer plane. Evaluate a transaction against the active rules/limits and read stored verdicts.
 
 - `Evaluate(ctx, input)`
+- `EvaluateRulesOnly(ctx, input)` - `POST /v1/validations/rules-only`: rules only, no limit checked or counted; gate it with `midaz.SupportsRulesOnly`.
 - `Get(ctx, id)`
 - `List(ctx, opts)`
 - `ListPages(ctx, opts)`

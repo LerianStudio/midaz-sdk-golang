@@ -49,7 +49,7 @@ INFO midaz fee mode feeMode=legacy serverVersion=v3.8.4 source=legacy
 With no ledger running:
 
 ```
-WARN midaz server version unavailable error="network error during midaz.Client.ServerVersion: ..."
+WARN midaz server version unavailable error="network error during midaz.ReadServerVersion: ..."
 INFO midaz fee mode feeMode=legacy serverVersion="" source=unavailable
 ```
 

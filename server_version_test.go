@@ -153,3 +153,25 @@ func wantNotVersionBody(t *testing.T, err error) {
 	assert.True(t, sdkerrors.IsResponseDecodeError(err), "want response decode error, got %v", err)
 	require.ErrorContains(t, err, "(HTTP 200): body is not a /version response")
 }
+
+// TestReadServerVersion pins that a base URL with or without one trailing "/v1" (a Tracer
+// plane URL) reads the same unversioned GET /version.
+func TestReadServerVersion(t *testing.T) {
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write([]byte(`{"schemaVersion":"v1","service":"tracer","version":"4.3.0"}`))
+	}))
+	defer srv.Close()
+
+	for _, suffix := range []string{"", "/", "/v1", "/v1/"} {
+		t.Run("base"+suffix, func(t *testing.T) {
+			got, err := ReadServerVersion(context.Background(), srv.Client(), srv.URL+suffix)
+
+			require.NoError(t, err)
+			assert.Equal(t, "/version", gotPath)
+			assert.Equal(t, ServerVersion{Raw: "4.3.0", Major: 4, Minor: 3, Known: true, Source: serverversion.SourceBuildInfoV1}, got)
+		})
+	}
+}

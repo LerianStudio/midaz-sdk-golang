@@ -29,7 +29,8 @@ const (
 	maxCRMBody          = 10 << 20
 )
 
-type httpDoer = interface {
+// HTTPDoer sends one HTTP request; *http.Client satisfies it.
+type HTTPDoer = interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
@@ -40,7 +41,7 @@ type CRMReaderConfig struct {
 	URL string
 	// HTTP sends every request, GET /version included: anything with Do(*http.Request), such as an
 	// *http.Client. Required.
-	HTTP httpDoer
+	HTTP HTTPDoer
 	// Authorization returns the Authorization header value of a data read, sent verbatim ("" sends
 	// none). Its error is returned wrapped, unclassified. Nil sends none. /version is never authorized.
 	Authorization func(ctx context.Context) (string, error)
@@ -71,7 +72,7 @@ type HolderQuery struct {
 // use and every 5 minutes. Until one /version read succeeds, reads fail retryable. One per CRM URL.
 type CRMReader struct {
 	root          string
-	http          httpDoer
+	http          HTTPDoer
 	authorization func(context.Context) (string, error)
 	onResolve     func(CRMAPI, ServerVersion, error)
 	now           func() time.Time
@@ -267,7 +268,7 @@ func (r *CRMReader) probe() error {
 	ctx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 	defer cancel()
 
-	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation)
+	v, err := ReadServerVersion(ctx, r.http, r.root)
 	last := r.resolved.Load()
 
 	if err != nil {

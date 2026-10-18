@@ -42,21 +42,24 @@ func (c *Client) ServerVersion(ctx context.Context) (ServerVersion, error) {
 			sdkerrors.NewConfigurationError(serverVersionOperation, "client is not initialized; build it with midaz.New", nil)
 	}
 
-	return readServerVersion(ctx, c.GetHTTPClient(), c.config.LedgerURL, serverVersionOperation)
+	return ReadServerVersion(ctx, c.GetHTTPClient(), c.config.LedgerURL)
 }
 
-// readServerVersion GETs baseURL+"/version" through doer, with no credential, and parses the body.
-// The error is non-nil iff Source is unavailable.
-func readServerVersion(ctx context.Context, doer httpDoer, baseURL, operation string) (ServerVersion, error) {
+// ReadServerVersion GETs baseURL+"/version" through doer, with no credential, and parses the body.
+// One trailing "/v1" is dropped, so a Tracer plane URL reads the same route. The error is non-nil iff
+// Source is unavailable. Cache the answer and bound ctx: never read it once per request.
+func ReadServerVersion(ctx context.Context, doer HTTPDoer, baseURL string) (ServerVersion, error) {
+	const operation = "midaz.ReadServerVersion"
+
 	unavailable := ServerVersion{Source: serverversion.SourceUnavailable}
-	url := strings.TrimSuffix(baseURL, "/") + "/version"
+	url := strings.TrimSuffix(strings.TrimSuffix(baseURL, "/"), "/v1") + "/version"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return unavailable, sdkerrors.NewConfigurationError(operation, "build GET /version request", err)
 	}
 
-	resp, err := doer.Do(req) // #nosec G704 -- baseURL was validated when the client or reader was built
+	resp, err := doer.Do(req) // #nosec G704 -- baseURL and doer are the caller's own configuration
 	if err != nil {
 		return unavailable, sdkerrors.ClassifyTransportError(operation, err)
 	}
@@ -81,4 +84,9 @@ func readServerVersion(ctx context.Context, doer httpDoer, baseURL, operation st
 // ResolveFeeMode is the single decision rule: native iff Known && version >= 4.1.0.
 func ResolveFeeMode(v ServerVersion) FeeMode {
 	return serverversion.ResolveFeeMode(v)
+}
+
+// SupportsRulesOnly reports whether the Tracer behind v serves POST /v1/validations/rules-only.
+func SupportsRulesOnly(v ServerVersion) bool {
+	return serverversion.SupportsRulesOnly(v)
 }

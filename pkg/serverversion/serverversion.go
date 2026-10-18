@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 // Source names which /version body shape produced the value.
@@ -130,4 +132,14 @@ func ResolveCRMAPI(v ServerVersion) CRMAPI {
 	}
 
 	return CRMAPIV1
+}
+
+// TracerRulesOnlyMinVersion is the first Tracer tag that serves POST /v1/validations/rules-only.
+// 4.3.0-rc.1 through rc.5 sort above it without the route and answer 404/405: fail open on any non-2xx.
+const TracerRulesOnlyMinVersion = "4.3.0-beta.78"
+
+// SupportsRulesOnly reports whether the Tracer behind v serves the rules-only route: Known and
+// v >= TracerRulesOnlyMinVersion by SemVer precedence, pre-releases included, build metadata ignored.
+func SupportsRulesOnly(v ServerVersion) bool {
+	return v.Known && semver.Compare("v"+strings.TrimPrefix(strings.TrimSpace(v.Raw), "v"), "v"+TracerRulesOnlyMinVersion) >= 0
 }
