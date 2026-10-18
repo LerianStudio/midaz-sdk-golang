@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/reflectutil"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/serverversion"
 )
@@ -52,7 +53,7 @@ func ReadServerVersion(ctx context.Context, doer HTTPDoer, baseURL string) (Serv
 	const operation = "midaz.ReadServerVersion"
 
 	unavailable := ServerVersion{Source: serverversion.SourceUnavailable}
-	if doer == nil {
+	if doer == nil || reflectutil.IsTypedNil(doer) {
 		return unavailable, sdkerrors.NewConfigurationError(operation, "HTTP doer is required", nil)
 	}
 

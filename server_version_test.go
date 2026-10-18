@@ -148,6 +148,15 @@ func TestReadServerVersionNilDoer(t *testing.T) {
 	assert.Equal(t, ServerVersion{Source: serverversion.SourceUnavailable}, got)
 }
 
+func TestReadServerVersionTypedNilDoer(t *testing.T) {
+	var client *http.Client
+
+	got, err := ReadServerVersion(context.Background(), client, "https://example.invalid")
+
+	assert.True(t, sdkerrors.IsConfigurationError(err), "want configuration error, got %v", err)
+	assert.Equal(t, ServerVersion{Source: serverversion.SourceUnavailable}, got)
+}
+
 func writeBody(body string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(body))
