@@ -157,7 +157,7 @@ type (
 //	)
 //
 // The three values cover every Midaz deployment shape:
-//   - [EnvironmentLocal] — developer machine running the open-source
+//   - [EnvironmentLocal] — developer machine running the Midaz
 //     stack via docker-compose. No auth by default.
 //   - [EnvironmentDevelopment] — shared development / staging cluster.
 //   - [EnvironmentProduction] — production traffic. Requires Access
