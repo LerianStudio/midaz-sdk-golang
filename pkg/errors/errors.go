@@ -2128,6 +2128,7 @@ var httpErrorMappings = map[int]httpErrorMapping{
 
 var apiErrorCodeMappings = map[string]httpErrorMapping{
 	"0084":                          {CategoryConflict, CodeIdempotency, false},
+	"0018":                          {CategoryUnprocessable, CodeInsufficientBalance, true}, // Midaz ErrInsufficientFunds
 	string(CodeIdempotency):         {CategoryConflict, CodeIdempotency, false},
 	string(CodeInsufficientBalance): {CategoryUnprocessable, CodeInsufficientBalance, true},
 	string(CodeAccountEligibility):  {CategoryValidation, CodeAccountEligibility, true},

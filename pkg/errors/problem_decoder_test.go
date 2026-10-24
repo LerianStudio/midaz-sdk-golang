@@ -138,6 +138,43 @@ func TestErrorDecoder(t *testing.T) {
 			},
 		},
 		{
+			name:       "midaz insufficient funds 0018 maps to CodeInsufficientBalance, unprocessable stays non-retryable",
+			httpStatus: http.StatusUnprocessableEntity,
+			body: `{
+				"code":"0018",
+				"title":"Insufficient Funds Error",
+				"detail":"The transaction could not be completed due to insufficient funds in the account.",
+				"status":422
+			}`,
+			wantCategory:  CategoryUnprocessable,
+			wantAPICode:   "0018",
+			wantStatus:    422,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.True(t, IsInsufficientBalanceError(e), "0018 must satisfy IsInsufficientBalanceError")
+				assert.ErrorIs(t, e, ErrInsufficientBalance, "0018 must match ErrInsufficientBalance")
+			},
+		},
+		{
+			name:       "prefixed FEE-0018 is not insufficient balance: 0018 maps on an exact match only",
+			httpStatus: http.StatusConflict,
+			body: `{
+				"code":"FEE-0018",
+				"title":"Duplicate package",
+				"detail":"a package with these attributes already exists",
+				"status":409
+			}`,
+			wantCategory:  CategoryConflict,
+			wantAPICode:   "FEE-0018",
+			wantStatus:    409,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.False(t, IsInsufficientBalanceError(e), "a prefixed 0018 must not read as insufficient balance")
+			},
+		},
+		{
 			name:          "empty body falls back to http status",
 			httpStatus:    http.StatusServiceUnavailable,
 			body:          ``,
