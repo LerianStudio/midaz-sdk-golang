@@ -4,6 +4,7 @@
 package errors
 
 import (
+	stderrors "errors"
 	"net/http"
 	"testing"
 
@@ -152,8 +153,26 @@ func TestErrorDecoder(t *testing.T) {
 			wantRetryable: false,
 			checkDetails: func(t *testing.T, e *Error) {
 				t.Helper()
-				assert.Equal(t, CodeInsufficientBalance, e.Code, "0018 must classify as insufficient balance")
 				assert.True(t, IsInsufficientBalanceError(e), "0018 must satisfy IsInsufficientBalanceError")
+				assert.True(t, stderrors.Is(e, ErrInsufficientBalance), "0018 must match ErrInsufficientBalance")
+			},
+		},
+		{
+			name:       "prefixed FEE-0018 is not insufficient balance: 0018 maps on an exact match only",
+			httpStatus: http.StatusConflict,
+			body: `{
+				"code":"FEE-0018",
+				"title":"Duplicate package",
+				"detail":"a package with these attributes already exists",
+				"status":409
+			}`,
+			wantCategory:  CategoryConflict,
+			wantAPICode:   "FEE-0018",
+			wantStatus:    409,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.False(t, IsInsufficientBalanceError(e), "a prefixed 0018 must not read as insufficient balance")
 			},
 		},
 		{
