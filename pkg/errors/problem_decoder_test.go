@@ -4,7 +4,6 @@
 package errors
 
 import (
-	stderrors "errors"
 	"net/http"
 	"testing"
 
@@ -154,7 +153,7 @@ func TestErrorDecoder(t *testing.T) {
 			checkDetails: func(t *testing.T, e *Error) {
 				t.Helper()
 				assert.True(t, IsInsufficientBalanceError(e), "0018 must satisfy IsInsufficientBalanceError")
-				assert.True(t, stderrors.Is(e, ErrInsufficientBalance), "0018 must match ErrInsufficientBalance")
+				assert.ErrorIs(t, e, ErrInsufficientBalance, "0018 must match ErrInsufficientBalance")
 			},
 		},
 		{
