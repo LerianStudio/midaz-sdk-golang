@@ -157,21 +157,48 @@ func TestErrorDecoder(t *testing.T) {
 			},
 		},
 		{
-			name:       "prefixed FEE-0018 is not insufficient balance: 0018 maps on an exact match only",
-			httpStatus: http.StatusConflict,
-			body: `{
-				"code":"FEE-0018",
-				"title":"Duplicate package",
-				"detail":"a package with these attributes already exists",
-				"status":409
-			}`,
-			wantCategory:  CategoryConflict,
-			wantAPICode:   "FEE-0018",
-			wantStatus:    409,
+			name:          "midaz overdraft limit exceeded 0167 reads as insufficient balance",
+			httpStatus:    http.StatusUnprocessableEntity,
+			body:          `{"code":"0167","title":"Overdraft Limit Exceeded Error","status":422}`,
+			wantCategory:  CategoryUnprocessable,
+			wantAPICode:   "0167",
+			wantStatus:    422,
 			wantRetryable: false,
 			checkDetails: func(t *testing.T, e *Error) {
 				t.Helper()
-				assert.False(t, IsInsufficientBalanceError(e), "a prefixed 0018 must not read as insufficient balance")
+				assert.True(t, IsInsufficientBalanceError(e), "0167 must satisfy IsInsufficientBalanceError")
+			},
+		},
+		{
+			name:          "midaz account ineligibility 0019 maps to CodeAccountEligibility",
+			httpStatus:    http.StatusUnprocessableEntity,
+			body:          `{"code":"0019","title":"Account Ineligibility Error","status":422}`,
+			wantCategory:  CategoryValidation,
+			wantAPICode:   "0019",
+			wantStatus:    422,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.True(t, IsAccountEligibilityError(e), "0019 must satisfy IsAccountEligibilityError")
+				assert.ErrorIs(t, e, ErrAccountEligibility, "0019 must match ErrAccountEligibility")
+			},
+		},
+		{
+			name:       "prefixed CRM-0019 is not account ineligibility: 0019 maps on an exact match only",
+			httpStatus: http.StatusBadRequest,
+			body: `{
+				"code":"CRM-0019",
+				"title":"Invalid Metadata Query Format",
+				"detail":"the metadata query is malformed",
+				"status":400
+			}`,
+			wantCategory:  CategoryValidation,
+			wantAPICode:   "CRM-0019",
+			wantStatus:    400,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.False(t, IsAccountEligibilityError(e), "a prefixed 0019 must not read as account ineligibility")
 			},
 		},
 		{

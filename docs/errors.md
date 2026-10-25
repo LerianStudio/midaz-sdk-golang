@@ -141,8 +141,8 @@ Common checkers include:
 - `IsNetworkError(err)`
 - `IsCancellationError(err)`
 - `IsInternalError(err)`
-- `IsInsufficientBalanceError(err)`
-- `IsAccountEligibilityError(err)`
+- `IsInsufficientBalanceError(err)`: Midaz 0018, and 0167 (overdraft limit exceeded)
+- `IsAccountEligibilityError(err)`: Midaz 0019
 - `IsAssetMismatchError(err)`
 - `IsUnprocessableError(err)`
 
