@@ -184,21 +184,21 @@ func TestErrorDecoder(t *testing.T) {
 			},
 		},
 		{
-			name:       "prefixed FEE-0018 is not insufficient balance: 0018 maps on an exact match only",
-			httpStatus: http.StatusConflict,
+			name:       "prefixed CRM-0019 is not account ineligibility: 0019 maps on an exact match only",
+			httpStatus: http.StatusBadRequest,
 			body: `{
-				"code":"FEE-0018",
-				"title":"Duplicate package",
-				"detail":"a package with these attributes already exists",
-				"status":409
+				"code":"CRM-0019",
+				"title":"Invalid Metadata Query Format",
+				"detail":"the metadata query is malformed",
+				"status":400
 			}`,
-			wantCategory:  CategoryConflict,
-			wantAPICode:   "FEE-0018",
-			wantStatus:    409,
+			wantCategory:  CategoryValidation,
+			wantAPICode:   "CRM-0019",
+			wantStatus:    400,
 			wantRetryable: false,
 			checkDetails: func(t *testing.T, e *Error) {
 				t.Helper()
-				assert.False(t, IsInsufficientBalanceError(e), "a prefixed 0018 must not read as insufficient balance")
+				assert.False(t, IsAccountEligibilityError(e), "a prefixed 0019 must not read as account ineligibility")
 			},
 		},
 		{
