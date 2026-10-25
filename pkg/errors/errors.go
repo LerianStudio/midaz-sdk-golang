@@ -2129,6 +2129,8 @@ var httpErrorMappings = map[int]httpErrorMapping{
 var apiErrorCodeMappings = map[string]httpErrorMapping{
 	"0084":                          {CategoryConflict, CodeIdempotency, false},
 	"0018":                          {CategoryUnprocessable, CodeInsufficientBalance, true}, // Midaz ErrInsufficientFunds
+	"0019":                          {CategoryValidation, CodeAccountEligibility, true},     // Midaz ErrAccountIneligibility
+	"0167":                          {CategoryUnprocessable, CodeInsufficientBalance, true}, // Midaz ErrOverdraftLimitExceeded: no spendable funds
 	string(CodeIdempotency):         {CategoryConflict, CodeIdempotency, false},
 	string(CodeInsufficientBalance): {CategoryUnprocessable, CodeInsufficientBalance, true},
 	string(CodeAccountEligibility):  {CategoryValidation, CodeAccountEligibility, true},
@@ -2140,10 +2142,9 @@ var apiErrorCodeMappings = map[string]httpErrorMapping{
 // of the RFC 9457 <SERVICE>-NNNN code (robust to the service prefix):
 //   - 0178: transient unavailability → retryable (CategoryNetwork), even
 //     when the status is a non-retryable 4xx.
-//   - 0084: idempotency conflict → non-retryable (CategoryConflict) and
-//     classified as CodeIdempotency. On the wire the code arrives prefixed
-//     ("LEDGER-0084"), so the exact-match apiErrorCodeMappings["0084"] never
-//     fires; the suffix lookup is the only path that catches the prefixed form.
+//   - 0084: idempotency conflict → non-retryable (CategoryConflict), CodeIdempotency.
+//     Midaz sends codes bare, so a bare 0084 hits apiErrorCodeMappings first.
+//     Refusal codes (0018, 0019, 0167) stay exact-only: FEE-0018 is a 409 duplicate.
 var apiCodeSuffixMappings = map[string]httpErrorMapping{
 	"0178": {CategoryNetwork, CodeServiceUnavailable, false},
 	"0084": {CategoryConflict, CodeIdempotency, false},
