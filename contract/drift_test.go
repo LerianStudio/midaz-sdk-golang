@@ -16,9 +16,11 @@
 package contract
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
@@ -87,6 +89,33 @@ func TestLifecycleErrorCodesMatchServer(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			assert.Equal(t, c.server.Error(), c.sdk,
 				"SDK lifecycle API code %q drifted from server constant", c.name)
+		})
+	}
+}
+
+// TestMappedLedgerCodesMatchServer pins every bare Midaz code the SDK maps to a
+// typed ErrorCode against the server constant: a renumbered server code stops
+// mapping and fails here. 422 is the base so only the API code can set the result.
+func TestMappedLedgerCodesMatchServer(t *testing.T) {
+	cases := []struct {
+		name   string
+		server error
+		want   sdkerrors.ErrorCode
+	}{
+		{"insufficient-funds", srvconst.ErrInsufficientFunds, sdkerrors.CodeInsufficientBalance},
+		{"account-ineligibility", srvconst.ErrAccountIneligibility, sdkerrors.CodeAccountEligibility},
+		{"overdraft-limit-exceeded", srvconst.ErrOverdraftLimitExceeded, sdkerrors.CodeInsufficientBalance},
+		{"idempotency-key", srvconst.ErrIdempotencyKey, sdkerrors.CodeIdempotency},
+		{"reservation-unavailable", srvconst.ErrTransactionReservationUnavailable, sdkerrors.CodeServiceUnavailable},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := sdkerrors.ErrorFromHTTPResponse(http.StatusUnprocessableEntity, "", "", c.server.Error(), "", "")
+
+			var sdkErr *sdkerrors.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, c.want, sdkErr.Code, "server code %s no longer maps", c.server.Error())
 		})
 	}
 }
