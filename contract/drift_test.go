@@ -93,8 +93,8 @@ func TestLifecycleErrorCodesMatchServer(t *testing.T) {
 	}
 }
 
-// TestMappedLedgerCodesMatchServer pins every bare Midaz code the SDK maps to a
-// typed ErrorCode against the server constant: a renumbered server code stops
+// TestMappedLedgerCodesMatchServer pins each bare Midaz code in apiErrorCodeMappings (a new
+// key is added here too) against the server constant: a renumbered server code stops
 // mapping and fails here. 422 is the base so only the API code can set the result.
 func TestMappedLedgerCodesMatchServer(t *testing.T) {
 	cases := []struct {

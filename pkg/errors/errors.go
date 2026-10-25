@@ -1807,7 +1807,8 @@ func IsInternalError(err error) bool {
 	return errors.Is(err, ErrInternal)
 }
 
-// IsInsufficientBalanceError checks if an error is an insufficient balance error.
+// IsInsufficientBalanceError checks if an error is an insufficient balance error: Midaz 0018,
+// or 0167 (overdraft limit exceeded). Read APICode to tell them apart.
 func IsInsufficientBalanceError(err error) bool {
 	if isNilError(err) {
 		return false
@@ -2143,8 +2144,8 @@ var apiErrorCodeMappings = map[string]httpErrorMapping{
 //   - 0178: transient unavailability → retryable (CategoryNetwork), even
 //     when the status is a non-retryable 4xx.
 //   - 0084: idempotency conflict → non-retryable (CategoryConflict), CodeIdempotency.
-//     Midaz sends codes bare, so a bare 0084 hits apiErrorCodeMappings first.
-//     Refusal codes (0018, 0019, 0167) stay exact-only: FEE-0018 is a 409 duplicate.
+//     Midaz sends codes bare (only CRM-NNNN is prefixed): a bare 0084 hits the exact table.
+//     Refusal codes (0018, 0019, 0167) stay exact-only: CRM-0019 is a 400 metadata-query error.
 var apiCodeSuffixMappings = map[string]httpErrorMapping{
 	"0178": {CategoryNetwork, CodeServiceUnavailable, false},
 	"0084": {CategoryConflict, CodeIdempotency, false},
