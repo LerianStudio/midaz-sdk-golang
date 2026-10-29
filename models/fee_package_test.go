@@ -22,7 +22,7 @@ func fieldError(t *testing.T, err error, field string) bool {
 	return strings.Contains(err.Error(), field)
 }
 
-// TestFeePackage_ReadRoundTrip proves the read model mirrors the generated
+// TestFeePackage_ReadRoundTrip proves the read model mirrors the Midaz
 // FeePackage and that every money-adjacent field (minimum/maximum amount and each
 // fee calculation value) rides the wire as a JSON string and survives unchanged.
 // 0.333333333333333333 is unrepresentable in float64 and would visibly drift
@@ -33,6 +33,7 @@ func TestFeePackage_ReadRoundTrip(t *testing.T) {
 		"id":"pkg-1","feeGroupLabel":"Std","segmentId":"seg-1","ledgerId":"led-1",
 		"minimumAmount":"` + precise + `","maximumAmount":"1000.00",
 		"waivedAccounts":["@a","@b"],
+		"metadataSelector":{"feeContext":"ted_salario"},
 		"fees":{"admin":{
 			"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"` + precise + `"}]},
 			"creditAccount":"@fees","feeLabel":"Admin","isDeductibleFrom":true,"priority":1,
@@ -64,6 +65,9 @@ func TestFeePackage_ReadRoundTrip(t *testing.T) {
 	}
 	if fee.IsDeductibleFrom == nil || !*fee.IsDeductibleFrom {
 		t.Fatalf("IsDeductibleFrom = %v, want true", fee.IsDeductibleFrom)
+	}
+	if got := fp.MetadataSelector["feeContext"]; len(fp.MetadataSelector) != 1 || got != "ted_salario" {
+		t.Fatalf("MetadataSelector = %v, want {feeContext: ted_salario}", fp.MetadataSelector)
 	}
 }
 

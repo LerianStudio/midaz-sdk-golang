@@ -14,26 +14,31 @@ import (
 )
 
 // FeePackage is a fee-package definition returned by the ledger fee endpoints.
-// It mirrors the generated genledger.FeePackage read shape.
+// It mirrors the Midaz FeePackage read shape.
 //
 // Money is string, never float: MinimumAmount, MaximumAmount, and every fee
 // calculation Value ride the wire as JSON strings and are modeled as string so
 // a value like 0.333333333333333333 survives with no precision loss.
+//
+// MetadataSelector holds the metadata pairs a transaction must all carry, each
+// as a string equal to the value, for the package to apply. Midaz returns it
+// from v4.2.0; it is nil on older ledgers and on packages with no selector.
 type FeePackage struct {
-	ID               string         `json:"id"`
-	FeeGroupLabel    string         `json:"feeGroupLabel"`
-	Description      *string        `json:"description"`
-	SegmentID        string         `json:"segmentId"`
-	LedgerID         string         `json:"ledgerId"`
-	TransactionRoute *string        `json:"transactionRoute"`
-	MinimumAmount    string         `json:"minimumAmount"`
-	MaximumAmount    string         `json:"maximumAmount"`
-	WaivedAccounts   *[]string      `json:"waivedAccounts"`
-	Fees             map[string]Fee `json:"fees"`
-	Enable           *bool          `json:"enable"`
-	CreatedAt        time.Time      `json:"createdAt"`
-	UpdatedAt        time.Time      `json:"updatedAt"`
-	DeletedAt        *time.Time     `json:"deletedAt"`
+	ID               string            `json:"id"`
+	FeeGroupLabel    string            `json:"feeGroupLabel"`
+	Description      *string           `json:"description"`
+	SegmentID        string            `json:"segmentId"`
+	LedgerID         string            `json:"ledgerId"`
+	TransactionRoute *string           `json:"transactionRoute"`
+	MetadataSelector map[string]string `json:"metadataSelector"`
+	MinimumAmount    string            `json:"minimumAmount"`
+	MaximumAmount    string            `json:"maximumAmount"`
+	WaivedAccounts   *[]string         `json:"waivedAccounts"`
+	Fees             map[string]Fee    `json:"fees"`
+	Enable           *bool             `json:"enable"`
+	CreatedAt        time.Time         `json:"createdAt"`
+	UpdatedAt        time.Time         `json:"updatedAt"`
+	DeletedAt        *time.Time        `json:"deletedAt"`
 }
 
 // Fee is a single fee rule within a fee package. It mirrors the generated
