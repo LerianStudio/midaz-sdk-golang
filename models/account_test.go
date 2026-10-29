@@ -180,15 +180,13 @@ func TestCreateAccountInputValidate(t *testing.T) {
 			errContains: "invalid account alias format",
 		},
 		{
-			// Alias upper bound is now 50 characters (restored from the
-			// previous 100-char widening). The boundary value (50) is
-			// accepted; 51+ is rejected by the alias regex.
+			// Alias upper bound is 100 characters, matching the server.
 			name: "alias at max length",
 			input: &CreateAccountInput{
 				Name:      "Test Account",
 				AssetCode: "USD",
 				Type:      "deposit",
-				Alias:     stringPtr(strings.Repeat("a", 50)),
+				Alias:     stringPtr(strings.Repeat("a", 100)),
 			},
 			expectError: false,
 		},
@@ -914,7 +912,7 @@ func TestAccountAliasValidCharacters(t *testing.T) {
 		"test-account",
 		"Test_Account-123",
 		"a1b2c3",
-		strings.Repeat("a", 50),
+		strings.Repeat("a", 100),
 	}
 
 	for _, alias := range validAliases {

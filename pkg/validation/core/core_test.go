@@ -113,14 +113,14 @@ func TestValidateAccountAlias(t *testing.T) {
 			name:    "With special characters",
 			alias:   "savings@account",
 			wantErr: true,
-			errMsg:  "invalid account alias format: savings@account (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 50 chars)",
+			errMsg:  "invalid account alias format: savings@account (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 100 chars)",
 		},
 		{
 			// Midaz refuses '.' in aliases on every server version.
 			name:    "Dotted ledger code",
 			alias:   "1.1.00.principal",
 			wantErr: true,
-			errMsg:  "invalid account alias format: 1.1.00.principal (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 50 chars)",
+			errMsg:  "invalid account alias format: 1.1.00.principal (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 100 chars)",
 		},
 		{
 			name:    "Single dot",
@@ -148,15 +148,15 @@ func TestValidateAccountAlias(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "Exactly 50 characters",
-			alias:   strings.Repeat("a", 50),
+			name:    "Exactly 100 characters",
+			alias:   strings.Repeat("a", 100),
 			wantErr: false,
 		},
 		{
 			name:    "Too long alias",
-			alias:   strings.Repeat("a", 51),
+			alias:   strings.Repeat("a", 101),
 			wantErr: true,
-			errMsg:  "invalid account alias format: " + strings.Repeat("a", 51) + " (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 50 chars)",
+			errMsg:  "invalid account alias format: " + strings.Repeat("a", 101) + " (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 100 chars)",
 		},
 	}
 
@@ -1167,16 +1167,18 @@ func TestValidateAccountAliasBoundaryValues(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			// The alias upper bound is 50; 50 is allowed.
-			name:    "Exactly 50 characters (upper bound)",
-			alias:   "a2345678901234567890123456789012345678901234567890",
+			name:    "Exactly 100 characters (upper bound)",
+			alias:   strings.Repeat("a", 100),
 			wantErr: false,
 		},
 		{
-			// 100 chars exercises a value that is well past the bound but
-			// might be accepted by a regression that re-widens the regex.
-			name:    "Exactly 100 characters - exceeds 50-char limit",
-			alias:   strings.Repeat("a", 100),
+			name:    "@ plus 99 characters (upper bound)",
+			alias:   "@" + strings.Repeat("a", 99),
+			wantErr: false,
+		},
+		{
+			name:    "@ plus 100 characters - exceeds limit",
+			alias:   "@" + strings.Repeat("a", 100),
 			wantErr: true,
 		},
 		{
@@ -1302,11 +1304,10 @@ func TestRegexPatterns(t *testing.T) {
 			"customer:john_doe",
 			"savings123",
 			"a",
-			// Exactly 50 characters — the upper bound is inclusive.
-			"a2345678901234567890123456789012345678901234567890",
-			// "@" + 49 chars = 50 total; the prefixed form must respect the
-			// same total-length cap as the bare form.
-			"@" + strings.Repeat("a", 49),
+			// Exactly 100 characters — the upper bound is inclusive.
+			strings.Repeat("a", 100),
+			// "@" + 99 chars = 100 total; the "@" counts toward the cap.
+			"@" + strings.Repeat("a", 99),
 		}
 		for _, tc := range validCases {
 			assert.True(t, core.AccountAliasPattern.MatchString(tc), "Expected %s to match", tc)
@@ -1318,12 +1319,10 @@ func TestRegexPatterns(t *testing.T) {
 			"savings@account",
 			"savings.account",
 			"customer:john.doe",
-			// 51 characters — one past the bound.
-			strings.Repeat("a", 51),
-			// 100 chars — far past the bound.
-			strings.Repeat("a", 100),
-			// "@" + 50 chars = 51 total; one past the inclusive bound.
-			"@" + strings.Repeat("a", 50),
+			// 101 characters — one past the bound.
+			strings.Repeat("a", 101),
+			// "@" + 100 chars = 101 total; one past the inclusive bound.
+			"@" + strings.Repeat("a", 100),
 		}
 		for _, tc := range invalidCases {
 			assert.False(t, core.AccountAliasPattern.MatchString(tc), "Expected %s to not match", tc)
