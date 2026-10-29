@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/reflectutil"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/serverversion"
 )
@@ -16,6 +17,8 @@ type (
 	ServerVersion = serverversion.ServerVersion
 	// FeeMode is who owns fee application against the connected ledger.
 	FeeMode = serverversion.FeeMode
+	// CRMAPI is which CRM API answers at a CRM URL.
+	CRMAPI = serverversion.CRMAPI
 )
 
 // The fee modes [ResolveFeeMode] returns.
@@ -35,42 +38,63 @@ var errNotVersionBody = errors.New("body is not a /version response")
 // unavailable (legacy fees): transport, non-2xx, or a 2xx body that is not a /version response.
 // A placeholder version is Known=false with no error. Cache the result; never resolve per request.
 func (c *Client) ServerVersion(ctx context.Context) (ServerVersion, error) {
-	unavailable := ServerVersion{Source: serverversion.SourceUnavailable}
-
 	if c == nil || c.config == nil {
-		return unavailable, sdkerrors.NewConfigurationError(serverVersionOperation, "client is not initialized; build it with midaz.New", nil)
+		return ServerVersion{Source: serverversion.SourceUnavailable},
+			sdkerrors.NewConfigurationError(serverVersionOperation, "client is not initialized; build it with midaz.New", nil)
 	}
 
-	url := strings.TrimSuffix(c.config.LedgerURL, "/") + "/version"
+	return readServerVersion(ctx, c.GetHTTPClient(), c.config.LedgerURL, serverVersionOperation)
+}
+
+// ReadServerVersion GETs baseURL+"/version" through doer, with no credential, and parses the body.
+// One trailing "/v1" is dropped, so a Tracer plane URL reads the same route. The error is non-nil iff
+// Source is unavailable. Cache the answer and bound ctx: never read it once per request.
+func ReadServerVersion(ctx context.Context, doer HTTPDoer, baseURL string) (ServerVersion, error) {
+	return readServerVersion(ctx, doer, baseURL, "midaz.ReadServerVersion")
+}
+
+// readServerVersion is ReadServerVersion with the caller's operation name on its errors.
+func readServerVersion(ctx context.Context, doer HTTPDoer, baseURL, operation string) (ServerVersion, error) {
+	unavailable := ServerVersion{Source: serverversion.SourceUnavailable}
+	if doer == nil || reflectutil.IsTypedNil(doer) {
+		return unavailable, sdkerrors.NewConfigurationError(operation, "HTTP doer is required", nil)
+	}
+
+	url := strings.TrimSuffix(strings.TrimSuffix(baseURL, "/"), "/v1") + "/version"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return unavailable, sdkerrors.NewConfigurationError(serverVersionOperation, "build GET /version request", err)
+		return unavailable, sdkerrors.NewConfigurationError(operation, "build GET /version request", err)
 	}
 
-	resp, err := c.GetHTTPClient().Do(req) // #nosec G704 -- LedgerURL was validated when the client was built
+	resp, err := doer.Do(req) // #nosec G704 -- baseURL and doer are the caller's own configuration
 	if err != nil {
-		return unavailable, sdkerrors.ClassifyTransportError(serverVersionOperation, err)
+		return unavailable, sdkerrors.ClassifyTransportError(operation, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return unavailable, sdkerrors.NewUpstreamHTTPError(serverVersionOperation, "GET /version", resp.StatusCode, nil)
+		return unavailable, sdkerrors.NewUpstreamHTTPError(operation, "GET /version", resp.StatusCode, nil)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxServerVersionBody))
 	if err != nil {
-		return unavailable, sdkerrors.ClassifyTransportError(serverVersionOperation, err)
+		return unavailable, sdkerrors.ClassifyTransportError(operation, err)
 	}
 
 	if v := serverversion.Parse(body); v.Source != serverversion.SourceUnavailable {
 		return v, nil
 	}
 
-	return unavailable, sdkerrors.NewResponseDecodeError(serverVersionOperation, resp.StatusCode, errNotVersionBody)
+	return unavailable, sdkerrors.NewResponseDecodeError(operation, resp.StatusCode, errNotVersionBody)
 }
 
 // ResolveFeeMode is the single decision rule: native iff Known && version >= 4.1.0.
 func ResolveFeeMode(v ServerVersion) FeeMode {
 	return serverversion.ResolveFeeMode(v)
+}
+
+// SupportsRulesOnly reports whether the Tracer behind v serves POST /v1/validations/rules-only.
+func SupportsRulesOnly(v ServerVersion) bool {
+	return serverversion.SupportsRulesOnly(v)
 }

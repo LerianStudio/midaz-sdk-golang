@@ -2968,6 +2968,45 @@ paths:
       summary: Validate a transaction
       tags:
         - Validations
+  /validations/rules-only:
+    post:
+      description: "Same request, response and errors as POST /v1/validations, judged by rules alone: no limit is checked or counted. requestId is one idempotency space shared with POST /v1/validations: a requestId already used on either route returns that stored verdict, so never reuse one across routes."
+      operationId: validateTransactionRulesOnly
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationResponse"
+          description: OK
+        "201":
+          description: New validation created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Validate a transaction by rules only
+      tags:
+        - Validations
   /validations/{id}:
     get:
       operationId: getValidation

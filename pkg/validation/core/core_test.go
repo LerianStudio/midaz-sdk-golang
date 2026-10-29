@@ -113,13 +113,50 @@ func TestValidateAccountAlias(t *testing.T) {
 			name:    "With special characters",
 			alias:   "savings@account",
 			wantErr: true,
-			errMsg:  "invalid account alias format: savings@account (must contain only letters, numbers, underscores, hyphens, dots, colons, and an optional leading @; max 50 chars)",
+			errMsg:  "invalid account alias format: savings@account (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 50 chars)",
+		},
+		{
+			// Midaz refuses '.' in aliases on every server version.
+			name:    "Dotted ledger code",
+			alias:   "1.1.00.principal",
+			wantErr: true,
+			errMsg:  "invalid account alias format: 1.1.00.principal (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 50 chars)",
+		},
+		{
+			name:    "Single dot",
+			alias:   "a.b",
+			wantErr: true,
+		},
+		{
+			name:    "@ after the first character",
+			alias:   "a@b",
+			wantErr: true,
+		},
+		{
+			name:    "Hyphenated ledger code",
+			alias:   "1100-10-001",
+			wantErr: false,
+		},
+		{
+			name:    "Leading @ with underscore",
+			alias:   "@treasury_checking",
+			wantErr: false,
+		},
+		{
+			name:    "Colon-separated key",
+			alias:   "loan_principal:0123456789abcdef0123456789abcdef",
+			wantErr: false,
+		},
+		{
+			name:    "Exactly 50 characters",
+			alias:   strings.Repeat("a", 50),
+			wantErr: false,
 		},
 		{
 			name:    "Too long alias",
 			alias:   strings.Repeat("a", 51),
 			wantErr: true,
-			errMsg:  "invalid account alias format: " + strings.Repeat("a", 51) + " (must contain only letters, numbers, underscores, hyphens, dots, colons, and an optional leading @; max 50 chars)",
+			errMsg:  "invalid account alias format: " + strings.Repeat("a", 51) + " (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 50 chars)",
 		},
 	}
 
@@ -1261,9 +1298,8 @@ func TestRegexPatterns(t *testing.T) {
 			"SAVINGS",
 			"savings_account",
 			"savings-account",
-			"savings.account",
 			"@treasury_checking",
-			"customer:john.doe",
+			"customer:john_doe",
 			"savings123",
 			"a",
 			// Exactly 50 characters — the upper bound is inclusive.
@@ -1280,6 +1316,8 @@ func TestRegexPatterns(t *testing.T) {
 			"",
 			"savings account",
 			"savings@account",
+			"savings.account",
+			"customer:john.doe",
 			// 51 characters — one past the bound.
 			strings.Repeat("a", 51),
 			// 100 chars — far past the bound.

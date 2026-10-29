@@ -2,6 +2,7 @@ package correlation
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,6 +115,26 @@ func TestValidateRejects(t *testing.T) {
 			mutate:    func(c *Correlation) { c.Flow = FlowRefund },
 			wantParts: []string{"originalAggregateId", string(FlowRefund)},
 		},
+		{
+			name:      "fee context that is a raw document number",
+			mutate:    func(c *Correlation) { c.FeeContext = "12345678901" },
+			wantParts: []string{"feeContext"},
+		},
+		{
+			name:      "fee context with uppercase",
+			mutate:    func(c *Correlation) { c.FeeContext = "TED_SALARIO" },
+			wantParts: []string{"feeContext"},
+		},
+		{
+			name:      "padded fee context",
+			mutate:    func(c *Correlation) { c.FeeContext = " ted_salario" },
+			wantParts: []string{"feeContext"},
+		},
+		{
+			name:      "fee context over 50 characters",
+			mutate:    func(c *Correlation) { c.FeeContext = "a" + strings.Repeat("b", 50) },
+			wantParts: []string{"feeContext"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -142,6 +163,8 @@ func TestToMetadataEmitsEveryWhitelistedKey(t *testing.T) {
 		ProviderMessageCode: "PACS008",
 		OriginalAggregateID: "0c2d4f6a-8b1e-4c3d-9a5f-1e7b3d9c2f40",
 		Direction:           DirectionIn,
+		CrossCoreKey:        "pix-dev:D1234567820260817120000abcdef123",
+		FeeContext:          "ted_salario",
 	}
 	require.NoError(t, c.Validate())
 
@@ -156,6 +179,8 @@ func TestToMetadataEmitsEveryWhitelistedKey(t *testing.T) {
 		"providerMessageCode": "PACS008",
 		"originalAggregateId": "0c2d4f6a-8b1e-4c3d-9a5f-1e7b3d9c2f40",
 		"direction":           "IN",
+		"crossCoreKey":        "pix-dev:D1234567820260817120000abcdef123",
+		"feeContext":          "ted_salario",
 	}, c.ToMetadata())
 }
 
@@ -184,6 +209,7 @@ func TestToMetadataOmitsEmptyAndBlankOptionalKeys(t *testing.T) {
 	c := canonical()
 	c.EndToEndID = "   "
 	c.ProviderMessageCode = ""
+	c.CrossCoreKey = " \t"
 
 	assert.Equal(t, map[string]any{
 		"contractVersion": ContractVersion,
@@ -202,6 +228,7 @@ func TestToMetadataTrimsEmittedValues(t *testing.T) {
 	c.Plugin = "  br-bank-transfer  "
 	c.AggregateID = " 7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10\t"
 	c.EndToEndID = " E1234567820260817120000abcdef123 "
+	c.CrossCoreKey = " ted:core-legacy:CTRL0001 "
 	require.NoError(t, c.Validate())
 
 	assert.Equal(t, map[string]any{
@@ -211,6 +238,7 @@ func TestToMetadataTrimsEmittedValues(t *testing.T) {
 		"flow":            "CASH_OUT",
 		"aggregateId":     "7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10",
 		"endToEndId":      "E1234567820260817120000abcdef123",
+		"crossCoreKey":    "ted:core-legacy:CTRL0001",
 	}, c.ToMetadata())
 }
 
@@ -229,8 +257,10 @@ func TestKeysCoverEveryContractField(t *testing.T) {
 	assert.Equal(t, []string{
 		"aggregateId",
 		"contractVersion",
+		"crossCoreKey",
 		"direction",
 		"endToEndId",
+		"feeContext",
 		"flow",
 		"originalAggregateId",
 		"plugin",
@@ -266,6 +296,14 @@ func TestFromMetadataTreatsMissingAndNonStringKeysAsEmpty(t *testing.T) {
 	require.Error(t, rebuilt.Validate())
 }
 
-func TestContractVersionIsOne(t *testing.T) {
-	assert.Equal(t, "1", ContractVersion)
+// The longest and shortest labels the pattern admits pass, so a client's package
+// selector value is never refused by the SDK for its length alone.
+func TestValidateFeeContextAcceptsTheLabelBounds(t *testing.T) {
+	for _, label := range []string{"a", "a" + strings.Repeat("b", 49)} {
+		require.NoError(t, ValidateFeeContext(label), label)
+	}
+}
+
+func TestContractVersionIsTwo(t *testing.T) {
+	assert.Equal(t, "2", ContractVersion)
 }

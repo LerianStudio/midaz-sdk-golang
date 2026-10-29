@@ -90,3 +90,48 @@ mode. Only a service that has never read `/version` starts on legacy.
 
 [`examples/11-server-version`](../examples/11-server-version/) shows steps 1
 and 2 with a lock-free cached mode.
+
+## CRM API
+
+Holders and instruments live in two places: the standalone CRM 3.x serves them
+on `/v1` (instruments are its `aliases`, the organization in the
+`X-Organization-Id` header), and the Midaz ledger 4.x embeds the CRM on
+`/v2/organizations/{org}/holders|instruments`. Both read the same Mongo layout
+and take the same query keys (`account_id`, `document`,
+`banking_details_account`, `include_deleted`, `page`, `limit`), so one
+`midaz.CRMReader` reads either:
+
+```go
+crm, err := midaz.NewCRMReader(midaz.CRMReaderConfig{
+	URL:           crmURL,     // a trailing "/v1" is dropped
+	HTTP:          httpClient, // also sends GET /version, without Authorization
+	Authorization: token,      // the Authorization header value of each read
+	OnResolve:     logCRMAPI,  // first API, each change, each failed /version read
+})
+page, err := crm.Instruments(ctx, orgID, midaz.InstrumentQuery{AccountID: accountID, Limit: 100, Page: 1})
+```
+
+Lists return a `*models.ListResponse` whose `Pagination.Limit` is the limit the
+CRM applied. A CRM row whose `accountId` or `ledgerId` is not a UUID (CRM 3.x
+stores any string there) fails the whole page with a ResponseDecode error.
+
+`serverversion.ResolveCRMAPI` reads the `/version` served at the CRM URL, never the
+ledger's: `CRMAPIV2` iff `Known` and major >= 4. No standalone CRM shipped
+major 4, so a major-4 answer is a ledger; a CRM 3.x with `VERSION` unset serves
+`0.0.0` and reads `CRMAPIV1`. The threshold is 4.0, not 4.1: 4.0.x already
+serves the `/v2` holders and instruments.
+
+The reader resolves at first use; concurrent first calls share one `/version`
+read and each leaves at its own deadline. Until one read succeeds, every call
+fails with a retryable error and nothing is cached: there is no
+default, because the wrong API answers 404 on a CRM that is up. After 5 minutes
+the next call answers the cached API and re-reads `/version` in the background;
+a failed re-read keeps the last API, a different answer replaces it. Point the
+engines at a new CRM URL with a restart, not by waiting for the refresh.
+
+When the doer returns a `*url.Error` (the standard client and lib-observability
+httpobs do), a transport error renders the CRM root instead of the request URL,
+whose query carries a document and whose path a holder id. Another doer's own
+message passes through; the SDK redactor still scrubs `document` and bank-account
+values. A non-2xx answer keeps the server's status and `code`, on either error
+shape.

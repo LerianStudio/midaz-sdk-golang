@@ -30,7 +30,7 @@ endef
 GO := go
 GOFMT := gofmt
 GOLINT := golangci-lint
-GOLANGCI_LINT_VERSION := v2.12.1
+GOLANGCI_LINT_VERSION := v2.14.0
 GOLANGCI_LINT_VERSION_NUMBER := $(patsubst v%,%,$(GOLANGCI_LINT_VERSION))
 GOLANGCI_LINT_MODULE := github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 GOSEC_VERSION := v2.25.0

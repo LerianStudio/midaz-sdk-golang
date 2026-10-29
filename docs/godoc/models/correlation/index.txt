@@ -6,9 +6,11 @@ that transactional plugins attach to Midaz ledger transactions.
 The ledger metadata is a closed, versioned whitelist: only the fields
 of Correlation ever reach the ledger, and every emitted payload carries
 ContractVersion. Arbitrary client metadata is never forwarded — a plugin that
-needs an extra field is asking for a contract change (a new version of this
-package), not for a free-form map. That closure is what keeps PII out of the
-ledger by construction instead of by inspection.
+needs an extra field is asking for a contract change in this package, not for a
+free-form map. That closure is what keeps PII out of the ledger by construction
+instead of by inspection. FeeContext is the one client-chosen value: its shape
+is fixed here, and plugins accept only labels the client's own fee packages
+select on.
 
 Typical use in a plugin producer:
 
@@ -24,8 +26,9 @@ Typical use in a plugin producer:
     }
     input.Metadata = c.ToMetadata()
 
-const ContractVersion = "1"
+const ContractVersion = "2"
 func Keys() []string
+func ValidateFeeContext(value string) error
 type Correlation struct{ ... }
     func FromMetadata(metadata map[string]any) Correlation
 type Direction string

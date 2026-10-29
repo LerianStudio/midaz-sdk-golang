@@ -54,6 +54,21 @@ func (f *validationsFacade) Evaluate(ctx context.Context, input *models.Validate
 	})
 }
 
+// EvaluateRulesOnly is Evaluate on POST /v1/validations/rules-only: judged by rules alone, no limit
+// checked or counted. A Tracer without the route answers non-2xx, returned as *errors.Error.
+// requestId shares one space with Evaluate: a reused id replays the stored verdict on either route.
+func (f *validationsFacade) EvaluateRulesOnly(ctx context.Context, input *models.ValidateTransactionInput) (*models.ValidationResponse, error) {
+	const operation = "Validations.EvaluateRulesOnly"
+
+	if err := validationErr(operation, input.Validate()); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.ValidationResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.tracer.ValidateTransactionRulesOnlyWithBody(ctx, jsonContentType, body))
+	})
+}
+
 // Get retrieves one stored validation record by ID.
 func (f *validationsFacade) Get(ctx context.Context, id string) (*models.TransactionValidation, error) {
 	const operation = "Validations.Get"

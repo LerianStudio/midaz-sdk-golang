@@ -97,7 +97,7 @@ func getAssetCodeSuggestions(_ any) []string {
 
 func getAliasSuggestions(value any) []string {
 	return []string{
-		"Use letters, numbers, underscores, hyphens, dots, colons, and an optional leading @",
+		"Use letters, numbers, underscores, hyphens, colons, and an optional leading @",
 		"Ensure length is between 1-100 characters",
 		fmt.Sprintf("Current value '%v' may contain invalid characters", value),
 	}

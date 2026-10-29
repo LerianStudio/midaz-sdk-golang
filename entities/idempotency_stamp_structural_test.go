@@ -29,8 +29,9 @@ import (
 // nothing — but they do carry a CALLER-supplied key through
 // actionIdempotencyEditors, which satisfies the rule below.
 var unstampedWrites = map[string]string{
-	"ValidateTransaction": "the tracer dedups validations on body identifiers, and a validation moves nothing",
-	"CreateReservation":   "the tracer dedups on the transactionId in the body, not on a header",
+	"ValidateTransaction":          "the tracer dedups validations on body identifiers, and a validation moves nothing",
+	"ValidateTransactionRulesOnly": "see ValidateTransaction; the same requestId space, and it counts no limit",
+	"CreateReservation":            "the tracer dedups on the transactionId in the body, not on a header",
 
 	"ConfirmReservation":              "keyed by the reservation named in the path; a replay confirms the same one",
 	"ReleaseReservation":              "keyed by the reservation named in the path; a replay releases the same one",

@@ -88,6 +88,10 @@ func TestTracerExcludedWritesHeaderless(t *testing.T) {
 			t.Helper()
 			_, _ = newTestValidationsFacade(t, srv).Evaluate(context.Background(), validInput())
 		}},
+		{"validations.EvaluateRulesOnly", func(t *testing.T, srv *httptest.Server) {
+			t.Helper()
+			_, _ = newTestValidationsFacade(t, srv).EvaluateRulesOnly(context.Background(), validInput())
+		}},
 		{"reservations.Reserve", func(t *testing.T, srv *httptest.Server) {
 			t.Helper()
 			_, _ = newTestReservationsFacade(t, srv).Reserve(context.Background(), validReserveInput())

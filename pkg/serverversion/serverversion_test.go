@@ -154,3 +154,52 @@ func TestParse(t *testing.T) {
 		})
 	}
 }
+
+// TestResolveCRMAPI pins the CRM rule: v2 iff the CRM URL serves a known major >= 4.
+func TestResolveCRMAPI(t *testing.T) {
+	tests := []struct {
+		name string
+		v    serverversion.ServerVersion
+		want serverversion.CRMAPI
+	}{
+		{"ledger 4.2.0 prerelease", serverversion.ServerVersion{Major: 4, Minor: 2, Prerelease: "beta.5", Known: true}, serverversion.CRMAPIV2},
+		{"ledger 5", serverversion.ServerVersion{Major: 5, Known: true}, serverversion.CRMAPIV2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, serverversion.ResolveCRMAPI(tt.v))
+		})
+	}
+}
+
+// TestSupportsRulesOnly pins the Tracer rules-only gate: Known and >= TracerRulesOnlyMinVersion by full SemVer,
+// except 4.3.0-rc.1 through rc.5.
+func TestSupportsRulesOnly(t *testing.T) {
+	// Every literal below depends on TracerRulesOnlyMinVersion; update them together.
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{"4.3.0-beta.78", true},  // T itself
+		{"v4.3.0-beta.78", true}, // leading v
+		{"4.3.0-beta.77", false}, // the beta just before T
+		{"4.3.0-beta.9", false},  // numeric identifiers compare as numbers, not text
+		{"4.3.0", true},          // GA of T's core
+		{"4.3.0-rc.1", false},    // rc.1-rc.5 sort above T but were cut without the route
+		{"4.3.0-rc.5", false},
+		{"4.3.0-rc.6", true},            // every later rc is cut from a develop that has it
+		{"4.3.0-beta.78+build.7", true}, // build metadata ignored
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.version, func(t *testing.T) {
+			v := serverversion.Parse([]byte(`{"version":"` + tt.version + `"}`))
+			assert.Equal(t, tt.want, serverversion.SupportsRulesOnly(v))
+		})
+	}
+
+	for _, body := range []string{`{"version":"dev"}`, `{"version":"0.0.0"}`, `not json`} {
+		assert.False(t, serverversion.SupportsRulesOnly(serverversion.Parse([]byte(body))), body)
+	}
+}

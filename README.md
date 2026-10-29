@@ -208,6 +208,14 @@ No fee or billing input carries a ledger. Every fee/billing route is
 ledger-scoped in its path, and the server rejects a request body that also
 names a ledger.
 
+A Midaz v4.2+ fee package can require metadata pairs on the transaction:
+`models.FeePackage.MetadataSelector` exposes them. A posting built from
+`correlation.Correlation` carries a client-chosen label in `FeeContext`,
+emitted as `feeContext` and checked by `correlation.ValidateFeeContext`
+(`^[a-z][a-z0-9_]{0,49}$`); a package whose selector is
+`{"feeContext": "<label>"}` prices that posting. See
+[`docs/mapping/external_apis.md`](docs/mapping/external_apis.md).
+
 ### Server version and fee mode
 
 Midaz v4 applies fees inside the ledger; v3 does not. Ask the ledger which
@@ -221,6 +229,16 @@ mode := midaz.ResolveFeeMode(v) // FeeModeNative (/v2, ledger fees) iff Known &&
 Resolve once at boot, refresh on a ticker, and keep the last mode when a
 refresh fails. See [`docs/server-version.md`](docs/server-version.md) and
 [`examples/11-server-version/`](examples/11-server-version/).
+
+`midaz.NewCRMReader` reads CRM holders and instruments from either the
+standalone CRM 3.x (`/v1`) or the CRM embedded in the ledger 4.x (`/v2`),
+picked from the `/version` served at the CRM URL; see
+[`docs/server-version.md`](docs/server-version.md#crm-api).
+
+`midaz.ReadServerVersion(ctx, doer, tracerURL)` reads the same route on a
+Tracer URL (not the ledger URL); `midaz.SupportsRulesOnly(v)` says whether that
+Tracer serves `Validations.EvaluateRulesOnly`. See
+[`docs/mapping/external_apis.md`](docs/mapping/external_apis.md).
 
 ### Pagination
 

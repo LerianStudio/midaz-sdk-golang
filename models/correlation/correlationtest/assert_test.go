@@ -230,7 +230,7 @@ func TestViolations(t *testing.T) {
 			mutate: func(input *models.CreateTransactionInput) {
 				input.Metadata["contractVersion"] = "7"
 			},
-			wantParts: []string{"contractVersion", `"7"`, `"1"`},
+			wantParts: []string{"contractVersion", `"7"`, fmt.Sprintf("%q", correlation.ContractVersion)},
 		},
 		{
 			// Value checks, not just presence: these four passed the old

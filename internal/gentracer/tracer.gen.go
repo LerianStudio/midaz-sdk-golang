@@ -638,6 +638,9 @@ type ListValidationsParams struct {
 // ValidateTransactionJSONBody defines parameters for ValidateTransaction.
 type ValidateTransactionJSONBody = openapi_types.File
 
+// ValidateTransactionRulesOnlyJSONBody defines parameters for ValidateTransactionRulesOnly.
+type ValidateTransactionRulesOnlyJSONBody = openapi_types.File
+
 // CreateLimitJSONRequestBody defines body for CreateLimit for application/json ContentType.
 type CreateLimitJSONRequestBody = CreateLimitJSONBody
 
@@ -655,6 +658,9 @@ type UpdateRuleJSONRequestBody = UpdateRuleJSONBody
 
 // ValidateTransactionJSONRequestBody defines body for ValidateTransaction for application/json ContentType.
 type ValidateTransactionJSONRequestBody = ValidateTransactionJSONBody
+
+// ValidateTransactionRulesOnlyJSONRequestBody defines body for ValidateTransactionRulesOnly for application/json ContentType.
+type ValidateTransactionRulesOnlyJSONRequestBody = ValidateTransactionRulesOnlyJSONBody
 
 // Getter for additional properties for Error. Returns the specified
 // element and whether it was found
@@ -1006,6 +1012,11 @@ type ClientInterface interface {
 	ValidateTransactionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	ValidateTransaction(ctx context.Context, body ValidateTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ValidateTransactionRulesOnlyWithBody request with any body
+	ValidateTransactionRulesOnlyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ValidateTransactionRulesOnly(ctx context.Context, body ValidateTransactionRulesOnlyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetValidation request
 	GetValidation(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1445,6 +1456,30 @@ func (c *Client) ValidateTransactionWithBody(ctx context.Context, contentType st
 
 func (c *Client) ValidateTransaction(ctx context.Context, body ValidateTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewValidateTransactionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ValidateTransactionRulesOnlyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewValidateTransactionRulesOnlyRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ValidateTransactionRulesOnly(ctx context.Context, body ValidateTransactionRulesOnlyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewValidateTransactionRulesOnlyRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3463,6 +3498,46 @@ func NewValidateTransactionRequestWithBody(server string, contentType string, bo
 	return req, nil
 }
 
+// NewValidateTransactionRulesOnlyRequest calls the generic ValidateTransactionRulesOnly builder with application/json body
+func NewValidateTransactionRulesOnlyRequest(server string, body ValidateTransactionRulesOnlyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewValidateTransactionRulesOnlyRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewValidateTransactionRulesOnlyRequestWithBody generates requests for ValidateTransactionRulesOnly with any type of body
+func NewValidateTransactionRulesOnlyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/validations/rules-only")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetValidationRequest generates requests for GetValidation
 func NewGetValidationRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -3644,6 +3719,11 @@ type ClientWithResponsesInterface interface {
 	ValidateTransactionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ValidateTransactionResp, error)
 
 	ValidateTransactionWithResponse(ctx context.Context, body ValidateTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*ValidateTransactionResp, error)
+
+	// ValidateTransactionRulesOnlyWithBodyWithResponse request with any body
+	ValidateTransactionRulesOnlyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ValidateTransactionRulesOnlyResp, error)
+
+	ValidateTransactionRulesOnlyWithResponse(ctx context.Context, body ValidateTransactionRulesOnlyJSONRequestBody, reqEditors ...RequestEditorFn) (*ValidateTransactionRulesOnlyResp, error)
 
 	// GetValidationWithResponse request
 	GetValidationWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetValidationResp, error)
@@ -4669,6 +4749,38 @@ func (r ValidateTransactionResp) ContentType() string {
 	return ""
 }
 
+type ValidateTransactionRulesOnlyResp struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON200                   *ValidationResponse
+	ApplicationproblemJSON422 *Error
+	ApplicationproblemJSON500 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ValidateTransactionRulesOnlyResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ValidateTransactionRulesOnlyResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ValidateTransactionRulesOnlyResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetValidationResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
@@ -5027,6 +5139,23 @@ func (c *ClientWithResponses) ValidateTransactionWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseValidateTransactionResp(rsp)
+}
+
+// ValidateTransactionRulesOnlyWithBodyWithResponse request with arbitrary body returning *ValidateTransactionRulesOnlyResp
+func (c *ClientWithResponses) ValidateTransactionRulesOnlyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ValidateTransactionRulesOnlyResp, error) {
+	rsp, err := c.ValidateTransactionRulesOnlyWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseValidateTransactionRulesOnlyResp(rsp)
+}
+
+func (c *ClientWithResponses) ValidateTransactionRulesOnlyWithResponse(ctx context.Context, body ValidateTransactionRulesOnlyJSONRequestBody, reqEditors ...RequestEditorFn) (*ValidateTransactionRulesOnlyResp, error) {
+	rsp, err := c.ValidateTransactionRulesOnly(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseValidateTransactionRulesOnlyResp(rsp)
 }
 
 // GetValidationWithResponse request returning *GetValidationResp
@@ -6443,6 +6572,46 @@ func ParseValidateTransactionResp(rsp *http.Response) (*ValidateTransactionResp,
 	}
 
 	response := &ValidateTransactionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ValidationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseValidateTransactionRulesOnlyResp parses an HTTP response from a ValidateTransactionRulesOnlyWithResponse call
+func ParseValidateTransactionRulesOnlyResp(rsp *http.Response) (*ValidateTransactionRulesOnlyResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ValidateTransactionRulesOnlyResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

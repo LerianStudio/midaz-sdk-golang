@@ -12,7 +12,7 @@ This directory contains hand-written guides and generated package documentation 
 - [Examples](./examples.md) - Runnable examples and common workflows.
 - [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.
 - [Multi-tenancy](./multi-tenancy.md) - Tenant resolution, header vs claims, propagation patterns.
-- [Server version and fee mode](./server-version.md) - Which Midaz the client talks to (`Client.ServerVersion`), and who owns fees against it (`midaz.ResolveFeeMode`: `FeeModeNative` or `FeeModeLegacy`). Runnable: [`examples/11-server-version`](../examples/11-server-version/).
+- [Server version and fee mode](./server-version.md) - Which Midaz the client talks to (`Client.ServerVersion`), and who owns fees against it (`midaz.ResolveFeeMode`: `FeeModeNative` or `FeeModeLegacy`), and which CRM API a CRM URL serves (`midaz.NewCRMReader`). On a Tracer URL, `midaz.ReadServerVersion` and `midaz.SupportsRulesOnly` gate `Validations.EvaluateRulesOnly` ([mapping](./mapping/external_apis.md)). Runnable: [`examples/11-server-version`](../examples/11-server-version/).
 - [Logging](./logging.md) - `*slog.Logger` integration recipes for stdlib slog, zap, zerolog, charmbracelet/log.
 
 ## API mapping

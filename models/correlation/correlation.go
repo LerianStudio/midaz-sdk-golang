@@ -4,9 +4,11 @@
 // The ledger metadata is a closed, versioned whitelist: only the fields of
 // Correlation ever reach the ledger, and every emitted payload carries
 // ContractVersion. Arbitrary client metadata is never forwarded — a plugin that
-// needs an extra field is asking for a contract change (a new version of this
-// package), not for a free-form map. That closure is what keeps PII out of the
-// ledger by construction instead of by inspection.
+// needs an extra field is asking for a contract change in this package, not for
+// a free-form map. That closure is what keeps PII out of the ledger by
+// construction instead of by inspection. FeeContext is the one client-chosen
+// value: its shape is fixed here, and plugins accept only labels the client's
+// own fee packages select on.
 //
 // Typical use in a plugin producer:
 //
@@ -26,13 +28,19 @@ package correlation
 import (
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 )
 
 // ContractVersion is the version of the ledger metadata contract emitted by
-// ToMetadata. It is bumped only when the whitelist itself changes.
-const ContractVersion = "1"
+// ToMetadata. It changes when a key leaves the contract, changes meaning or
+// becomes required; an optional key, omitted when blank, joins without a bump.
+const ContractVersion = "2"
+
+// feeContextPattern is the only shape a FeeContext may take: a lowercase label
+// starting with a letter, so a document number pasted raw is refused.
+var feeContextPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,49}$`)
 
 // Rail is the payment rail that produced the transaction.
 type Rail string
@@ -93,8 +101,8 @@ var (
 )
 
 // Correlation is the canonical correlation contract between a transactional
-// plugin and the Midaz ledger. It carries only identifiers and classification —
-// never amounts, names, documents, or any other client data.
+// plugin and the Midaz ledger. It carries only identifiers, classification and
+// the client's fee label — never amounts, names, documents, or other client data.
 type Correlation struct {
 	// Plugin is the producing plugin's identity, e.g. "br-bank-transfer" or
 	// "br-pix-direct-jd". Required.
@@ -127,11 +135,23 @@ type Correlation struct {
 	// Direction is the money direction relative to the client account.
 	// Optional.
 	Direction Direction
+
+	// CrossCoreKey is the reconciliation key of a transaction booked on the
+	// inter-core clearing account, e.g. "pix:<endToEndId>". Identifiers only,
+	// never PII. Optional.
+	CrossCoreKey string
+
+	// FeeContext is a label the client chose for the transaction, e.g.
+	// "ted_salario", that a fee package selects on (metadataSelector
+	// feeContext). Shape checked by ValidateFeeContext; plugins accept only
+	// labels a client fee package selects on. Optional.
+	FeeContext string
 }
 
 // Validate reports whether the correlation can be emitted to the ledger: every
-// required field is present, and Rail, Flow, and Direction hold known values.
-// Errors name the offending field and value.
+// required field is present, Rail, Flow, and Direction hold known values, and a
+// non-empty FeeContext has ValidateFeeContext's shape. Errors name the offending
+// field, and the value except for FeeContext, which may carry client input.
 func (c Correlation) Validate() error {
 	for _, required := range []struct {
 		key   string
@@ -166,6 +186,21 @@ func (c Correlation) Validate() error {
 		return fmt.Errorf("originalAggregateId is required when flow is %s", FlowRefund)
 	}
 
+	if c.FeeContext != "" {
+		return ValidateFeeContext(c.FeeContext)
+	}
+
+	return nil
+}
+
+// ValidateFeeContext reports whether value is a well-formed FeeContext: a
+// lowercase letter, then up to 49 lowercase letters, digits or underscores.
+// Plugins call it on the client's input before any money moves.
+func ValidateFeeContext(value string) error {
+	if !feeContextPattern.MatchString(value) {
+		return fmt.Errorf("feeContext is not a valid label: want %s", feeContextPattern)
+	}
+
 	return nil
 }
 
@@ -191,6 +226,8 @@ func (c Correlation) ToMetadata() map[string]any {
 		"providerMessageCode": c.ProviderMessageCode,
 		"originalAggregateId": c.OriginalAggregateID,
 		"direction":           string(c.Direction),
+		"crossCoreKey":        c.CrossCoreKey,
+		"feeContext":          c.FeeContext,
 	} {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			metadata[key] = trimmed
@@ -220,6 +257,8 @@ func FromMetadata(metadata map[string]any) Correlation {
 		ProviderMessageCode: metadataString(metadata, "providerMessageCode"),
 		OriginalAggregateID: metadataString(metadata, "originalAggregateId"),
 		Direction:           Direction(metadataString(metadata, "direction")),
+		CrossCoreKey:        metadataString(metadata, "crossCoreKey"),
+		FeeContext:          metadataString(metadata, "feeContext"),
 	}
 }
 
@@ -238,11 +277,13 @@ var allFieldsSet = Correlation{
 	ProviderMessageCode: "providerMessageCode",
 	OriginalAggregateID: "originalAggregateId",
 	Direction:           DirectionIn,
+	CrossCoreKey:        "crossCoreKey",
+	FeeContext:          "fee_context",
 }
 
 // Keys returns every metadata key contract version ContractVersion emits,
 // sorted. It is the closed whitelist: a metadata key outside it is not part of
-// this contract, and admitting one is a versioned contract change, never a
+// this contract, and admitting one is a change to this package, never a
 // per-plugin decision.
 func Keys() []string {
 	return slices.Sorted(maps.Keys(allFieldsSet.ToMetadata()))

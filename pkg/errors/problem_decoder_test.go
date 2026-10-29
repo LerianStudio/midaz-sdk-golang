@@ -138,6 +138,70 @@ func TestErrorDecoder(t *testing.T) {
 			},
 		},
 		{
+			name:       "midaz insufficient funds 0018 maps to CodeInsufficientBalance, unprocessable stays non-retryable",
+			httpStatus: http.StatusUnprocessableEntity,
+			body: `{
+				"code":"0018",
+				"title":"Insufficient Funds Error",
+				"detail":"The transaction could not be completed due to insufficient funds in the account.",
+				"status":422
+			}`,
+			wantCategory:  CategoryUnprocessable,
+			wantAPICode:   "0018",
+			wantStatus:    422,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.True(t, IsInsufficientBalanceError(e), "0018 must satisfy IsInsufficientBalanceError")
+				assert.ErrorIs(t, e, ErrInsufficientBalance, "0018 must match ErrInsufficientBalance")
+			},
+		},
+		{
+			name:          "midaz overdraft limit exceeded 0167 reads as insufficient balance",
+			httpStatus:    http.StatusUnprocessableEntity,
+			body:          `{"code":"0167","title":"Overdraft Limit Exceeded Error","status":422}`,
+			wantCategory:  CategoryUnprocessable,
+			wantAPICode:   "0167",
+			wantStatus:    422,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.True(t, IsInsufficientBalanceError(e), "0167 must satisfy IsInsufficientBalanceError")
+			},
+		},
+		{
+			name:          "midaz account ineligibility 0019 maps to CodeAccountEligibility",
+			httpStatus:    http.StatusUnprocessableEntity,
+			body:          `{"code":"0019","title":"Account Ineligibility Error","status":422}`,
+			wantCategory:  CategoryValidation,
+			wantAPICode:   "0019",
+			wantStatus:    422,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.True(t, IsAccountEligibilityError(e), "0019 must satisfy IsAccountEligibilityError")
+				assert.ErrorIs(t, e, ErrAccountEligibility, "0019 must match ErrAccountEligibility")
+			},
+		},
+		{
+			name:       "prefixed CRM-0019 is not account ineligibility: 0019 maps on an exact match only",
+			httpStatus: http.StatusBadRequest,
+			body: `{
+				"code":"CRM-0019",
+				"title":"Invalid Metadata Query Format",
+				"detail":"the metadata query is malformed",
+				"status":400
+			}`,
+			wantCategory:  CategoryValidation,
+			wantAPICode:   "CRM-0019",
+			wantStatus:    400,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.False(t, IsAccountEligibilityError(e), "a prefixed 0019 must not read as account ineligibility")
+			},
+		},
+		{
 			name:          "empty body falls back to http status",
 			httpStatus:    http.StatusServiceUnavailable,
 			body:          ``,

@@ -2,7 +2,8 @@
 
 // Package contract pins the SDK's transaction-status vocabulary and lifecycle
 // error codes against the live Midaz server contract
-// (github.com/LerianStudio/midaz/v4/pkg/constant — the server source of truth).
+// (github.com/LerianStudio/midaz/v4/pkg/constant — the server source of truth),
+// and the CRM models against midaz/v3 and midaz/v4 pkg/mmodel.
 //
 // It deliberately lives in a SEPARATE nested Go module (contract/go.mod). The
 // drift test imports the full Midaz server module; isolating it here keeps that
@@ -15,9 +16,11 @@
 package contract
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
@@ -86,6 +89,33 @@ func TestLifecycleErrorCodesMatchServer(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			assert.Equal(t, c.server.Error(), c.sdk,
 				"SDK lifecycle API code %q drifted from server constant", c.name)
+		})
+	}
+}
+
+// TestMappedLedgerCodesMatchServer pins each bare Midaz code in apiErrorCodeMappings (a new
+// key is added here too) against the server constant: a renumbered server code stops
+// mapping and fails here. 422 is the base so only the API code can set the result.
+func TestMappedLedgerCodesMatchServer(t *testing.T) {
+	cases := []struct {
+		name   string
+		server error
+		want   sdkerrors.ErrorCode
+	}{
+		{"insufficient-funds", srvconst.ErrInsufficientFunds, sdkerrors.CodeInsufficientBalance},
+		{"account-ineligibility", srvconst.ErrAccountIneligibility, sdkerrors.CodeAccountEligibility},
+		{"overdraft-limit-exceeded", srvconst.ErrOverdraftLimitExceeded, sdkerrors.CodeInsufficientBalance},
+		{"idempotency-key", srvconst.ErrIdempotencyKey, sdkerrors.CodeIdempotency},
+		{"reservation-unavailable", srvconst.ErrTransactionReservationUnavailable, sdkerrors.CodeServiceUnavailable},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := sdkerrors.ErrorFromHTTPResponse(http.StatusUnprocessableEntity, "", "", c.server.Error(), "", "")
+
+			var sdkErr *sdkerrors.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, c.want, sdkErr.Code, "server code %s no longer maps", c.server.Error())
 		})
 	}
 }

@@ -54,6 +54,11 @@ This map documents the recommended public SDK surface that consumers should use.
 
 - `Client.ServerVersion(context.Context) (midaz.ServerVersion, error)` - Reads the ledger's public `GET <LedgerURL>/version`. Returns `{Raw, Major, Minor, Patch, Prerelease, Known, Source}`; the error is non-nil iff `Source` is `serverversion.SourceUnavailable` (transport failure, non-2xx, or a body that is not a `/version` response). A placeholder version (`0.0.0`, `dev`) is `Known=false` with a nil error.
 - `midaz.ResolveFeeMode(midaz.ServerVersion) midaz.FeeMode` - `midaz.FeeModeNative` (post on `/v2`, the ledger applies fees) iff `Known` and the version is 4.1.0 or later; `midaz.FeeModeLegacy` (post on `/v1`, the service owns fees) otherwise.
+- `midaz.ReadServerVersion(ctx, midaz.HTTPDoer, baseURL string) (midaz.ServerVersion, error)` - The same read against any Midaz or Tracer base URL; one trailing `/v1` is dropped. Same error contract as `Client.ServerVersion`.
+- `midaz.SupportsRulesOnly(midaz.ServerVersion) bool` - true iff `Known` and the Tracer version is `serverversion.TracerRulesOnlyMinVersion` or later by SemVer precedence, prereleases included, except `4.3.0-rc.1` through `4.3.0-rc.5` (cut before the route existed): that Tracer serves `Validations.EvaluateRulesOnly`.
+
+- `serverversion.ResolveCRMAPI(serverversion.ServerVersion) serverversion.CRMAPI` - `serverversion.CRMAPIV2` (CRM embedded in the ledger, `/v2/organizations/{org}/...`) iff `Known` and major >= 4, read at the CRM URL; `serverversion.CRMAPIV1` (standalone CRM 3.x, `/v1` plus `X-Organization-Id`) otherwise.
+- `midaz.NewCRMReader(midaz.CRMReaderConfig) (*midaz.CRMReader, error)` - Read-only CRM client over the caller's HTTP doer; resolves the API from `GET {URL}/version` at first use and every 5 minutes. `Instruments(ctx, org, midaz.InstrumentQuery) (*models.ListResponse[models.Instrument], error)`, `Holders(ctx, org, midaz.HolderQuery) (*models.ListResponse[models.Holder], error)`, `Holder(ctx, org, holderID) (*models.Holder, error)`.
 
 See [docs/server-version.md](../server-version.md) and [`examples/11-server-version`](../../examples/11-server-version/).
 
@@ -450,6 +455,7 @@ Tracer plane. Limit definitions, their lifecycle, and point-in-time usage.
 Tracer plane. Evaluate a transaction against the active rules/limits and read stored verdicts.
 
 - `Evaluate(ctx, input)`
+- `EvaluateRulesOnly(ctx, input)` - `POST /v1/validations/rules-only`: rules only, no limit checked or counted; gate it with `midaz.SupportsRulesOnly`.
 - `Get(ctx, id)`
 - `List(ctx, opts)`
 - `ListPages(ctx, opts)`
@@ -516,7 +522,7 @@ Ledger plane. Opens a holder-owned account and, when instrument fields are prese
 
 #### FeePackages
 
-Ledger plane, **ledger-scoped**, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
+Ledger plane, **ledger-scoped**, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`). The read model carries `MetadataSelector` (Midaz v4.2.0+; nil on older ledgers); `CreatePackageInput` does not set it, and the Midaz package update does not accept it.
 
 - `List(ctx, organizationID, ledgerID, opts)`
 - `Pages(ctx, organizationID, ledgerID, opts)`
@@ -664,10 +670,10 @@ None of the four fee/billing inputs carries a ledger: the ledger is a path segme
 
 Use `github.com/LerianStudio/midaz-sdk-golang/v6/models/correlation` — the versioned, closed contract for the ledger metadata a transactional plugin (Bank Transfer, Pix) attaches to the transactions it creates.
 
-- `correlation.Correlation` - identifiers and classification only: `Plugin`, `Rail`, `Flow`, `AggregateID` (required), plus optional `EndToEndID`, `ProviderMessageID`, `ProviderMessageCode`, `OriginalAggregateID`, `Direction`. Never amounts, names, or documents.
+- `correlation.Correlation` - identifiers and classification only: `Plugin`, `Rail`, `Flow`, `AggregateID` (required), plus optional `EndToEndID`, `ProviderMessageID`, `ProviderMessageCode`, `OriginalAggregateID`, `Direction`, `CrossCoreKey` (the cross-core reconciliation key of a transaction on the inter-core clearing account, emitted as `crossCoreKey`), `FeeContext` (a label the client chose, emitted as `feeContext`, that a fee package's `metadataSelector` selects on; shape `^[a-z][a-z0-9_]{0,49}$`, checked by `correlation.ValidateFeeContext`). Never amounts, names, or documents.
 - Typed enums: `RailTED` / `RailPix` / `RailInternal` (book transfer inside the same institution, no external rail); `FlowCashOut`, `FlowCashIn`, `FlowP2P`, `FlowRefund`, `FlowMED`, `FlowAutomaticDebit`; `DirectionIn` / `DirectionOut`.
-- `(Correlation).Validate()` - required fields present, enums known, and `FlowRefund` requires `OriginalAggregateID`.
-- `(Correlation).ToMetadata()` - the ledger payload: `contractVersion` (`correlation.ContractVersion`, currently `"1"`) plus every non-blank field, trimmed, under camelCase keys. Assign it to `CreateTransactionInput.Metadata`.
+- `(Correlation).Validate()` - required fields present, enums known, `FlowRefund` requires `OriginalAggregateID`, and a non-empty `FeeContext` matches `correlation.ValidateFeeContext`.
+- `(Correlation).ToMetadata()` - the ledger payload: `contractVersion` (`correlation.ContractVersion`, currently `"2"`) plus every non-blank field, trimmed, under camelCase keys. Assign it to `CreateTransactionInput.Metadata`.
 - `correlation.FromMetadata(metadata)` - reads a payload back into a `Correlation`; `correlation.Keys()` - the whitelist, derived from the emitter so no consumer keeps a second copy.
 - Extending the whitelist is a versioned change to this package, never a free-form map: that closure is what keeps counterparty PII out of the ledger.
 - `models/correlation/correlationtest.AssertCanonical(tb, input)` - the shared conformance gate for plugin producer tests: metadata declares the current contract version and rebuilds into a valid `Correlation`, every metadata key (transaction and legs) is inside `correlation.Keys()`, and no level sets both `route` and `routeId`.
