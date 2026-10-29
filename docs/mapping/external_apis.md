@@ -522,7 +522,7 @@ Ledger plane. Opens a holder-owned account and, when instrument fields are prese
 
 #### FeePackages
 
-Ledger plane, **ledger-scoped**, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
+Ledger plane, **ledger-scoped**, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`). The read model carries `MetadataSelector` (Midaz v4.2.0+; nil on older ledgers); `CreatePackageInput` does not set it, and the Midaz package update does not accept it.
 
 - `List(ctx, organizationID, ledgerID, opts)`
 - `Pages(ctx, organizationID, ledgerID, opts)`
