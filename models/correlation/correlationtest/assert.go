@@ -27,8 +27,8 @@ import (
 
 // contractKeys is the closed whitelist, taken from the emitter. There is no
 // namespace escape hatch on purpose: an extra key (a fee key, a client's own
-// field) is admitted by extending the contract in models/correlation and bumping
-// its version, never by a prefix match here. A "fee" prefix would also admit
+// field) is admitted by extending the contract in models/correlation, never by
+// a prefix match here. A "fee" prefix would also admit
 // feePayerDocument and feedbackFromCustomer — precisely the counterparty PII the
 // closed whitelist exists to keep out of the ledger.
 var contractKeys = correlation.Keys()
