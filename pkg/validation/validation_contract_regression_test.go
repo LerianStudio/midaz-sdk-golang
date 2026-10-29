@@ -37,12 +37,10 @@ func TestValidationContracts(t *testing.T) {
 
 	t.Run("public alias and asset validators match Midaz contract", func(t *testing.T) {
 		// Aliases support an optional leading '@' and accept the documented
-		// punctuation set. The cap is now 50 characters; longer values are
-		// rejected at the SDK boundary instead of being forwarded to the
-		// backend.
+		// punctuation set, up to 100 characters total like the server.
 		require.NoError(t, ValidateAccountAlias("@treasury_checking"))
-		require.NoError(t, ValidateAccountAlias(strings.Repeat("a", 50)))
-		require.Error(t, ValidateAccountAlias(strings.Repeat("a", 100)))
+		require.NoError(t, ValidateAccountAlias(strings.Repeat("a", 100)))
+		require.Error(t, ValidateAccountAlias(strings.Repeat("a", 101)))
 
 		// Asset codes must be 3-4 uppercase letters (ISO-4217-ish).
 		require.NoError(t, ValidateAssetCode("USD"))
