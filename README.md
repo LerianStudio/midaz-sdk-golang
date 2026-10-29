@@ -208,6 +208,14 @@ No fee or billing input carries a ledger. Every fee/billing route is
 ledger-scoped in its path, and the server rejects a request body that also
 names a ledger.
 
+A Midaz v4.2+ fee package can require metadata pairs on the transaction:
+`models.FeePackage.MetadataSelector` exposes them. A posting built from
+`correlation.Correlation` carries a client-chosen label in `FeeContext`,
+emitted as `feeContext` and checked by `correlation.ValidateFeeContext`
+(`^[a-z][a-z0-9_]{0,49}$`); a package whose selector is
+`{"feeContext": "<label>"}` prices that posting. See
+[`docs/mapping/external_apis.md`](docs/mapping/external_apis.md).
+
 ### Server version and fee mode
 
 Midaz v4 applies fees inside the ledger; v3 does not. Ask the ledger which
