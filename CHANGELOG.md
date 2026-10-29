@@ -1,5 +1,49 @@
 # Midaz-sdk-golang Changelog
 
+## [6.3.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.3.0)
+
+Features:
+- Release `v6.3.0` with the fee context and the fee package selector. (@fredcamaral)
+- Add the fee context to the ledger correlation. (@fredcamaral)
+- Expose the fee package metadata selector. (@fredcamaral)
+- Add tracer rules-only validation and version gate. (@fredcamaral)
+- Gate tracer rules-only on the server version. (@fredcamaral)
+- Add CRM reader that picks the `v1` or `v2` API from `/version`. (@fredcamaral)
+- Add the cross-core reconciliation key to the ledger correlation. (@fredcamaral)
+
+Fixes:
+- Classify midaz `0019` and `0167` ledger refusals. (@fredcamaral)
+- Classify midaz insufficient funds `0018` as insufficient balance. (@fredcamaral)
+- Decode settings on balance and balance history. (@fredcamaral)
+- Keep each caller's operation on version errors. (@fredcamaral)
+- Exclude tracer RCs cut before the rules-only route. (@fredcamaral)
+- Refuse a typed-nil HTTP doer in `ReadServerVersion`. (@fredcamaral)
+- Probe CRM `/version` on a context free of caller values. (@fredcamaral)
+- Refuse dots in account aliases. (@fredcamaral)
+
+Improvements:
+- Document fee package selection by the fee label. (@fredcamaral)
+- Migrate shared workflows to `shared-workflows-public`. (@bedatty)
+- Name the `0167` mapping and the CRM prefix in the error map comments. (@fredcamaral)
+- Pin the reachable `crm-0019` collision instead of `fee-0018`. (@fredcamaral)
+- Pin mapped ledger codes to midaz server constants. (@fredcamaral)
+- Assert the `0018` match with `assert.ErrorIs`. (@fredcamaral)
+- Pin `0018` to `errors.is` and keep a prefixed `0018` unmapped. (@fredcamaral)
+- Drop the open-source claim from the local environment doc. (@fredcamaral)
+- Bump shared PR validation to emit the breaking change approval check. (@fredcamaral)
+- Restore the `client.serverversion` error label. (@fredcamaral)
+- Spell prerelease as the version field does. (@fredcamaral)
+- Name the tracer version probe in both readmes. (@fredcamaral)
+- State the rules-only RC exclusion in docs and tests. (@fredcamaral)
+- Move the evaluate decode check into a helper. (@fredcamaral)
+- Pin CRM models to the midaz `v3` and `v4` servers. (@fredcamaral)
+- Return list responses from the CRM reader. (@fredcamaral)
+- Standardize agent compatibility policy. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.2.0...v6.3.0)
+
+---
+
 ## [6.2.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.2.0)
 
 Features:
