@@ -665,6 +665,7 @@ None of the four fee/billing inputs carries a ledger: the ledger is a path segme
 ### Response fields worth knowing
 
 - `models.Account.HolderID` (`*string`) and `models.Account.HolderCheckSkipped` (`bool`) - decode-only, populated **only** by `/v2` endpoints. `/v1` withholds both keys by server contract, so on a `/v1` response `HolderID` is always nil and `HolderCheckSkipped` always false — neither says anything about the account. Account create and update carry no counterpart.
+- `models.Account.ClosedAt` (`*time.Time`) - decode-only, on both `/v1` and `/v2`: the instant the account was closed, nil while it is open. A movement touching a closed account is refused by the ledger with 0519, so a caller can check this field first.
 - `models.TransactionV2Leg.Description` (`string`) - optional per-leg note, distinct from the transaction-level description, refused above 256 characters before the request leaves.
 
 ## Correlation contract package

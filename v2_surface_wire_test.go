@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/stretchr/testify/require"
@@ -470,21 +471,6 @@ func TestV2SurfaceAccountHolderHonoursTheSchemaSplit(t *testing.T) {
 		holderID  = "55555555-5555-5555-5555-555555555555"
 	)
 
-	clientAnswering := func(t *testing.T, body string) *Client {
-		t.Helper()
-
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(body))
-		}))
-		t.Cleanup(srv.Close)
-
-		c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
-		require.NoError(t, err)
-
-		return c
-	}
-
 	t.Run("v2 decodes the holder pair", func(t *testing.T) {
 		c := clientAnswering(t, `{"id":"`+accountID+`","assetCode":"USD","type":"deposit",`+
 			`"holderId":"`+holderID+`","holderCheckSkipped":true}`)
@@ -504,6 +490,57 @@ func TestV2SurfaceAccountHolderHonoursTheSchemaSplit(t *testing.T) {
 		require.Nil(t, account.HolderID, "the /v1 Account schema has no holder keys; anything decoded here would be invented")
 		require.False(t, account.HolderCheckSkipped)
 	})
+}
+
+// TestAccountGetDecodesClosedAt pins that both account surfaces expose the
+// closing instant Midaz returns, so a caller can refuse a movement into a closed
+// account before the ledger refuses it with 0519. An open account carries null.
+func TestAccountGetDecodesClosedAt(t *testing.T) {
+	const accountID = "44444444-4444-4444-4444-444444444444"
+
+	closedAt := time.Date(2026, 10, 1, 12, 30, 0, 0, time.UTC)
+
+	gets := map[string]func(c *Client) (*models.Account, error){
+		"v1": func(c *Client) (*models.Account, error) {
+			return c.V1.Accounts.Get(context.Background(), "org-1", "led-1", accountID)
+		},
+		"v2": func(c *Client) (*models.Account, error) {
+			return c.V2.Accounts.Get(context.Background(), "org-1", "led-1", accountID)
+		},
+	}
+
+	for surface, get := range gets {
+		t.Run(surface+" closed", func(t *testing.T) {
+			account, err := get(clientAnswering(t, `{"id":"`+accountID+`","status":{"code":"CLOSED"},`+
+				`"closedAt":"2026-10-01T12:30:00Z"}`))
+			require.NoError(t, err)
+			require.NotNil(t, account.ClosedAt)
+			require.True(t, closedAt.Equal(*account.ClosedAt))
+		})
+
+		t.Run(surface+" open", func(t *testing.T) {
+			account, err := get(clientAnswering(t, `{"id":"`+accountID+`","status":{"code":"ACTIVE"},"closedAt":null}`))
+			require.NoError(t, err)
+			require.Nil(t, account.ClosedAt)
+		})
+	}
+}
+
+// clientAnswering builds a public client whose every request is answered 200
+// with body.
+func clientAnswering(t *testing.T, body string) *Client {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+
+	c, err := New(WithConfig(createTestConfig(t)), WithBaseURL(srv.URL))
+	require.NoError(t, err)
+
+	return c
 }
 
 // TestV2ListsSendTheirPaginationStyle pins that each V2 list advances the way its
