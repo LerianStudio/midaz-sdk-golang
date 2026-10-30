@@ -137,8 +137,9 @@ func (f *transactionsV2Facade) CreateUnblock(ctx context.Context, orgID, ledgerI
 }
 
 // CreateBatch posts direct and hold items as ONE atomic batch, all or none in Order,
-// via POST /v2/transactions/batch, each item scoped and validated like a single
-// create, under one sdkctx key and TTL; it returns the transactions in Order.
+// via POST /v2/transactions/batch, each item scoped and validated like a single create;
+// it returns the transactions in Order. The batch has one key, from sdkctx as on every
+// create (else an auto key), so an item carrying its own IdempotencyKey is refused.
 func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID string, items []models.TransactionBatchItemV2) ([]*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateBatch"
 
@@ -150,6 +151,10 @@ func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID 
 		input, err := scopeTransactionV2(itemOp, orgID, ledgerID, item.CreateTransactionV2Input)
 		if err != nil {
 			return nil, err
+		}
+
+		if input.IdempotencyKey != "" {
+			return nil, errors.NewValidationError(itemOp, "IdempotencyKey is not honoured inside a batch; set the batch key with sdkctx.WithIdempotencyKey", nil)
 		}
 
 		if err := validationErr(itemOp, input.Validate()); err != nil {

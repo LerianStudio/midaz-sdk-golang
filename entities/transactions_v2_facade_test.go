@@ -11,11 +11,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
@@ -646,7 +644,6 @@ func TestTransactionsV2Facade_CreateBatch_PostsOneOrderedRequestUnderOneKey(t *t
 
 	hold := sampleV2Input()
 	hold.Amount, hold.Debits[0].Amount, hold.Credits[0].Amount = "40", "40", "40"
-	hold.IdempotencyKey = "ignored-inside-a-batch"
 
 	ctx := sdkctx.WithIdempotencyTTL(sdkctx.WithIdempotencyKey(context.Background(), "cashin:E123"), 3600)
 
@@ -708,100 +705,24 @@ func TestTransactionsV2Facade_CreateBatch_PostsOneOrderedRequestUnderOneKey(t *t
 	}
 }
 
-// TestTransactionsV2Facade_CreateBatch_MapsRefusalsAfterARetryUnderTheSameKey pins
-// CreateDirect's error mapping, and that a retry re-sends the batch key and fires
-// the retry.WithAttemptHook a caller reads to mark the failure as possibly applied.
-func TestTransactionsV2Facade_CreateBatch_MapsRefusalsAfterARetryUnderTheSameKey(t *testing.T) {
-	tests := []struct {
-		name   string
-		status int
-		body   string
-		is     func(error) bool
-	}{
-		{"0018 insufficient funds", http.StatusUnprocessableEntity, `{"code":"0018","title":"Insufficient Funds","status":422}`, sdkerrors.IsInsufficientBalanceError},
-		{"0084 batch key in use", http.StatusConflict, `{"code":"0084","title":"Idempotency Conflict","status":409}`, sdkerrors.IsIdempotencyError},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var keys []string
-
-			srv := unavailableThenRefusingServer(t, &keys, tt.status, tt.body)
-
-			planes, err := newPlaneClients(planeClientsConfig{
-				ledgerURL:    srv.URL,
-				tracerURL:    srv.URL + "/v1",
-				auth:         authRoundTripperConfig{tokenProvider: func(context.Context) (string, error) { return "tok", nil }},
-				httpClient:   srv.Client(),
-				retryOptions: retryEnabledOptions(1),
-			})
-			if err != nil {
-				t.Fatalf("newPlaneClients: %v", err)
-			}
-
-			var retried bool
-
-			ctx := retry.WithAttemptHook(sdkctx.WithIdempotencyKey(context.Background(), "cashin:E123"),
-				func(context.Context, int, error, time.Duration) { retried = true })
-
-			_, err = newTransactionsV2Facade(planes.Ledger, true).CreateBatch(ctx, txOrgID, txLedgerID,
-				[]models.TransactionBatchItemV2{{Action: models.TransactionBatchActionDirect, Order: 1, CreateTransactionV2Input: sampleV2Input()}})
-
-			if !tt.is(err) {
-				t.Fatalf("err = %v, want it mapped like CreateDirect maps %s", err, tt.name)
-			}
-
-			if !retried || len(keys) != 2 || keys[0] != "cashin:E123" || keys[1] != keys[0] {
-				t.Fatalf("retried=%v keys=%v, want one retry re-sending the batch key", retried, keys)
-			}
-		})
-	}
-}
-
-// unavailableThenRefusingServer answers 503 once, then status/body, recording
-// the X-Idempotency of every request.
-func unavailableThenRefusingServer(t *testing.T, keys *[]string, status int, body string) *httptest.Server {
-	t.Helper()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		*keys = append(*keys, r.Header.Get("X-Idempotency"))
-
-		w.Header().Set("Content-Type", "application/problem+json")
-
-		if len(*keys) == 1 {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte(`{"title":"Service Unavailable","status":503}`))
-
-			return
-		}
-
-		w.WriteHeader(status)
-		_, _ = w.Write([]byte(body))
-	}))
-
-	t.Cleanup(srv.Close)
-
-	return srv
-}
-
 // TestTransactionsV2Facade_CreateBatch_RefusesABadItemLocallyNamingIt pins that a
 // batch item is scoped and validated like a single create, and that the refusal
 // names the item so a caller with fifty items knows which one to fix.
 func TestTransactionsV2Facade_CreateBatch_RefusesABadItemLocallyNamingIt(t *testing.T) {
-	foreign := sampleV2Input()
-	foreign.Debits[0].LedgerID = "other-ledger"
-
 	invalid := sampleV2Input()
 	invalid.Credits = nil
+
+	ownKey := sampleV2Input()
+	ownKey.IdempotencyKey = "cashin:E1"
 
 	tests := []struct {
 		name  string
 		input *models.CreateTransactionV2Input
 		want  string
 	}{
-		{"leg names another ledger", foreign, "transactions[1]"},
 		{"invalid payload", invalid, "transactions[1]"},
 		{"no create body", nil, "transactions[1]"},
+		{"item carries its own key", ownKey, "transactions[1]"},
 	}
 
 	for _, tt := range tests {

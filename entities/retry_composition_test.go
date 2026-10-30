@@ -136,11 +136,14 @@ func newRetryEnabledTxFacade(t *testing.T, srv *httptest.Server, maxRetries int)
 // plane chain with retries enabled. Server 503,503,200 → exactly 3 attempts,
 // all carrying the SAME auto-GENERATED X-Idempotency key (not an explicit one)
 // and identical body. A per-attempt-regenerated key would be a double-charge.
+// Each retry fires retry.WithAttemptHook, which callers read to mark a retried
+// failure as possibly applied.
 func TestFacadeWriteRetriesWithStableAutoIdempotency(t *testing.T) {
 	var (
 		mu     sync.Mutex
 		bodies [][]byte
 		keys   []string
+		hooks  int
 	)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -166,10 +169,16 @@ func TestFacadeWriteRetriesWithStableAutoIdempotency(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	ctx := retry.WithAttemptHook(context.Background(), func(context.Context, int, error, time.Duration) { hooks++ })
+
 	tx, err := newRetryEnabledTxFacade(t, srv, 3).
-		CreateJSON(context.Background(), txOrgID, txLedgerID, sampleTransactionInput())
+		CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
 	if err != nil {
 		t.Fatalf("CreateJSON: %v", err)
+	}
+
+	if hooks != 2 {
+		t.Fatalf("attempt hook fired %d times, want 2 (once per retry)", hooks)
 	}
 
 	if tx == nil || tx.ID != txID {

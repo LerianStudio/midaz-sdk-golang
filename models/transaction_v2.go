@@ -262,7 +262,7 @@ const (
 
 // TransactionBatchItemV2 is one batch item: the create body, flat on the wire beside
 // Action and Order (one-based, consecutive; an earlier order may fund a later one).
-// The batch carries one idempotency key, so the input's IdempotencyKey is ignored.
+// The batch carries one idempotency key, so CreateBatch refuses an item that sets IdempotencyKey.
 type TransactionBatchItemV2 struct {
 	Action TransactionBatchAction `json:"action"`
 	Order  int                    `json:"order"`
