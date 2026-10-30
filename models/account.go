@@ -20,8 +20,10 @@ const maxAccountFieldLength = 256
 // Account Statuses:
 //   - ACTIVE: The account is in use and can participate in transactions
 //   - INACTIVE: The account is temporarily not in use but can be reactivated
-//   - CLOSED: The account is permanently closed and cannot be used in new transactions; ClosedAt holds when
+//   - CLOSED: The account is permanently closed and cannot be used in new transactions
 //   - PENDING: The account is awaiting approval or activation
+//
+// ClosedAt is when Midaz closed the account, nil while it is open; closing leaves Status unchanged.
 type Account struct {
 	ID              string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	Name            string         `json:"name" example:"Corporate Checking Account" maxLength:"256"`
