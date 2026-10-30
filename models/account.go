@@ -20,7 +20,7 @@ const maxAccountFieldLength = 256
 // Account Statuses:
 //   - ACTIVE: The account is in use and can participate in transactions
 //   - INACTIVE: The account is temporarily not in use but can be reactivated
-//   - CLOSED: The account is permanently closed and cannot be used in new transactions
+//   - CLOSED: The account is permanently closed and cannot be used in new transactions; ClosedAt holds when
 //   - PENDING: The account is awaiting approval or activation
 type Account struct {
 	ID              string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
@@ -39,6 +39,7 @@ type Account struct {
 	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	ClosedAt        *time.Time     `json:"closedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
 
 	// HolderID and HolderCheckSkipped are populated ONLY by /v2 endpoints,
