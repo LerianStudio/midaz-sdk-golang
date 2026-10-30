@@ -272,6 +272,9 @@ type Status struct{ ... }
 type TracerSettings struct{ ... }
 type Transaction struct{ ... }
 type TransactionActionResponse struct{ ... }
+type TransactionBatchAction string
+    const TransactionBatchActionDirect TransactionBatchAction = "direct" ...
+type TransactionBatchItemV2 struct{ ... }
 type TransactionRoute struct{ ... }
 type TransactionRoutesFilters struct{ ... }
 type TransactionRoutesListOpts struct{ ... }

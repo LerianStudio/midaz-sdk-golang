@@ -136,6 +136,50 @@ func (f *transactionsV2Facade) CreateUnblock(ctx context.Context, orgID, ledgerI
 	})
 }
 
+// CreateBatch posts direct and hold items as ONE atomic batch, all or none in Order,
+// via POST /v2/transactions/batch, each item scoped and validated like a single
+// create, under one sdkctx key and TTL; it returns the transactions in Order.
+func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID string, items []models.TransactionBatchItemV2) ([]*models.TransactionV2, error) {
+	const operation = "V2.Transactions.CreateBatch"
+
+	scoped := make([]models.TransactionBatchItemV2, len(items))
+
+	for i, item := range items {
+		itemOp := fmt.Sprintf("%s.transactions[%d]", operation, i)
+
+		input, err := scopeTransactionV2(itemOp, orgID, ledgerID, item.CreateTransactionV2Input)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := validationErr(itemOp, input.Validate()); err != nil {
+			return nil, err
+		}
+
+		scoped[i] = models.TransactionBatchItemV2{Action: item.Action, Order: item.Order, CreateTransactionV2Input: input}
+	}
+
+	var params genledger.CreateAtomicTransactionBatchV2Params
+
+	key, ttl := resolveIdempotency(ctx, "", f.enableIdempotency)
+	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
+
+	request := struct {
+		Transactions []models.TransactionBatchItemV2 `json:"transactions"`
+	}{scoped}
+
+	out, err := writeJSON[struct {
+		Transactions []*models.TransactionV2 `json:"transactions"`
+	}](ctx, operation, request, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateAtomicTransactionBatchV2WithBody(ctx, &params, jsonContentType, body))
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return out.Transactions, nil
+}
+
 // createParams carries the resolved idempotency headers between prepareCreate
 // and each action, which needs them in its own generated params type. The four
 // generated types are field-identical and mutually unassignable, so one neutral

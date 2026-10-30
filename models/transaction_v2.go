@@ -250,6 +250,25 @@ type CreateTransactionV2Input struct {
 	IdempotencyKey string `json:"-"`
 }
 
+// TransactionBatchAction is what one item of an atomic /v2 batch does.
+type TransactionBatchAction string
+
+// The two actions an atomic batch accepts, the endpoints CreateDirect and
+// CreateHold post to on their own.
+const (
+	TransactionBatchActionDirect TransactionBatchAction = "direct"
+	TransactionBatchActionHold   TransactionBatchAction = "hold"
+)
+
+// TransactionBatchItemV2 is one batch item: the create body, flat on the wire beside
+// Action and Order (one-based, consecutive; an earlier order may fund a later one).
+// The batch carries one idempotency key, so the input's IdempotencyKey is ignored.
+type TransactionBatchItemV2 struct {
+	Action TransactionBatchAction `json:"action"`
+	Order  int                    `json:"order"`
+	*CreateTransactionV2Input
+}
+
 // TransactionV2Skip carries the per-call control opt-outs of a /v2 create.
 // Each flag is honoured only when the target ledger's settings enable it
 // (overrides.allowFeeSkip / overrides.allowTracerSkip); otherwise the server

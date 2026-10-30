@@ -349,6 +349,7 @@ The one family whose two surfaces differ in **shape**, not only in path.
 - `CreateDirect(ctx, orgID, ledgerID, input)` - settles immediately
 - `CreateHold(ctx, orgID, ledgerID, input)` - reserves value for a later `Commit`
 - `CreateBlock` / `CreateUnblock(ctx, orgID, ledgerID, input)`
+- `CreateBatch(ctx, orgID, ledgerID, items)` - posts `direct` and `hold` items (`models.TransactionBatchItemV2`) to `POST /v2/transactions/batch` as one atomic batch, all or none, under one idempotency key; returns the transactions in `Order`
 - `Get` / `List` / `All` / `Pages` / `Count(ctx, orgID, ledgerID, ...)`
 - `Update(ctx, orgID, ledgerID, transactionID, input)`
 - `Commit` / `Revert` / `Cancel(ctx, orgID, ledgerID, transactionID)`
