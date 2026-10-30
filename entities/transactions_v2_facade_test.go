@@ -14,6 +14,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 func newTestTransactionsV2Facade(t *testing.T, srv *httptest.Server) *transactionsV2Facade {
@@ -613,5 +614,140 @@ func TestTransactionsCountStillSendsItsDeclaredFilters(t *testing.T) {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query = %q, want it to carry %q", query, want)
 		}
+	}
+}
+
+// TestTransactionsV2Facade_CreateBatch_PostsOneOrderedRequestUnderOneKey pins the
+// atomic batch wire shape: one POST, items flat beside action and order, every
+// leg scoped, one key for the whole batch, and the wrapped answer in order.
+func TestTransactionsV2Facade_CreateBatch_PostsOneOrderedRequestUnderOneKey(t *testing.T) {
+	var (
+		requests     int
+		method, path string
+		key, ttl     string
+		body         []byte
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		method, path = r.Method, r.URL.Path
+		key, ttl = r.Header.Get("X-Idempotency"), r.Header.Get("X-TTL")
+		body, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"transactions":[
+			{"id":"tx-direct","order":1,"amount":"100","status":{"code":"APPROVED"}},
+			{"id":"tx-hold","order":2,"amount":"40","status":{"code":"PENDING"}}]}`))
+	}))
+	defer srv.Close()
+
+	hold := sampleV2Input()
+	hold.Amount, hold.Debits[0].Amount, hold.Credits[0].Amount = "40", "40", "40"
+
+	ctx := sdkctx.WithIdempotencyTTL(sdkctx.WithIdempotencyKey(context.Background(), "cashin:E123"), 3600)
+
+	got, err := newTestTransactionsV2Facade(t, srv).CreateBatch(ctx, txOrgID, txLedgerID, []models.TransactionBatchItemV2{
+		{Action: models.TransactionBatchActionDirect, Order: 1, CreateTransactionV2Input: sampleV2Input()},
+		{Action: models.TransactionBatchActionHold, Order: 2, CreateTransactionV2Input: hold},
+	})
+	if err != nil {
+		t.Fatalf("CreateBatch: %v", err)
+	}
+
+	if requests != 1 || method != http.MethodPost || path != "/v2/transactions/batch" {
+		t.Fatalf("requests=%d %s %s, want one POST /v2/transactions/batch", requests, method, path)
+	}
+
+	if key != "cashin:E123" || ttl != "3600" {
+		t.Fatalf("X-Idempotency=%q X-TTL=%q, want the sdkctx key and TTL for the whole batch", key, ttl)
+	}
+
+	var wire struct {
+		Transactions []struct {
+			Action  string                    `json:"action"`
+			Order   int                       `json:"order"`
+			Amount  string                    `json:"amount"`
+			Asset   string                    `json:"asset"`
+			Debits  []models.TransactionV2Leg `json:"debits"`
+			Credits []models.TransactionV2Leg `json:"credits"`
+		} `json:"transactions"`
+	}
+
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatalf("body not JSON: %v (%s)", err, body)
+	}
+
+	want := []struct {
+		action, amount string
+		order          int
+	}{{"direct", "100", 1}, {"hold", "40", 2}}
+
+	if len(wire.Transactions) != len(want) {
+		t.Fatalf("items on the wire = %d, want %d (%s)", len(wire.Transactions), len(want), body)
+	}
+
+	for i, w := range want {
+		item := wire.Transactions[i]
+		if item.Action != w.action || item.Order != w.order || item.Amount != w.amount || item.Asset != "USD" {
+			t.Fatalf("item %d = %+v, want action %s order %d amount %s flat beside them", i, item, w.action, w.order, w.amount)
+		}
+
+		for _, leg := range append(item.Debits, item.Credits...) {
+			if leg.OrganizationID != txOrgID || leg.LedgerID != txLedgerID {
+				t.Fatalf("item %d leg %+v is not scoped to the addressed org and ledger", i, leg)
+			}
+		}
+	}
+
+	if len(got) != 2 || got[0].ID != "tx-direct" || got[1].ID != "tx-hold" || got[1].Status.Code != "PENDING" {
+		t.Fatalf("decoded = %+v, want tx-direct then tx-hold in order", got)
+	}
+}
+
+// TestTransactionsV2Facade_CreateBatch_RefusesABadItemLocallyNamingIt pins that a
+// batch item is scoped and validated like a single create, and that the refusal
+// names the item so a caller with fifty items knows which one to fix.
+func TestTransactionsV2Facade_CreateBatch_RefusesABadItemLocallyNamingIt(t *testing.T) {
+	invalid := sampleV2Input()
+	invalid.Credits = nil
+
+	ownKey := sampleV2Input()
+	ownKey.IdempotencyKey = "cashin:E1"
+
+	tests := []struct {
+		name  string
+		input *models.CreateTransactionV2Input
+		want  string
+	}{
+		{"invalid payload", invalid, "transactions[1]"},
+		{"no create body", nil, "transactions[1]"},
+		{"item carries its own key", ownKey, "transactions[1]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var reached bool
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				reached = true
+
+				w.WriteHeader(http.StatusCreated)
+			}))
+			defer srv.Close()
+
+			_, err := newTestTransactionsV2Facade(t, srv).CreateBatch(context.Background(), txOrgID, txLedgerID, []models.TransactionBatchItemV2{
+				{Action: models.TransactionBatchActionDirect, Order: 1, CreateTransactionV2Input: sampleV2Input()},
+				{Action: models.TransactionBatchActionHold, Order: 2, CreateTransactionV2Input: tt.input},
+			})
+
+			if !sdkerrors.IsValidationError(err) || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("err = %v, want a validation error naming %s", err, tt.want)
+			}
+
+			if reached {
+				t.Fatal("a locally refused batch must not reach the wire")
+			}
+		})
 	}
 }
