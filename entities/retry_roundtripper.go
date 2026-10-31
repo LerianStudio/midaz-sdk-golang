@@ -194,9 +194,7 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 	// 409/0084: the key is held by an in-flight request; retrying under the same
 	// key cannot post twice, Midaz replays the first outcome once it finishes.
 	if resp.StatusCode == http.StatusConflict {
-		resp = bufferRetryableResponse(resp)
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body = io.NopCloser(bytes.NewReader(body))
+		body := bufferResponseBody(resp)
 
 		if sdkerrors.IsIdempotencyError(sdkerrors.DecodeProblemJSON(resp.StatusCode, body, "")) {
 			return resp, retryableCustomPolicyError{err: retryableHTTPError{statusCode: resp.StatusCode}}
@@ -236,12 +234,16 @@ func (rt *retryRoundTripper) classifyTransportError(rtErr error) error {
 // maxHTTPResponseBodyBytes so a hostile server cannot pin arbitrary memory
 // across retries.
 func bufferRetryableResponse(resp *http.Response) *http.Response {
-	if resp == nil {
-		return nil
-	}
+	bufferResponseBody(resp)
 
-	if resp.Body == nil {
-		return resp
+	return resp
+}
+
+// bufferResponseBody does the draining for bufferRetryableResponse and returns
+// the buffered bytes (nil when there is no body).
+func bufferResponseBody(resp *http.Response) []byte {
+	if resp == nil || resp.Body == nil {
+		return nil
 	}
 
 	// A read error here is non-actionable: we are about to either discard this
@@ -262,7 +264,7 @@ func bufferRetryableResponse(resp *http.Response) *http.Response {
 	resp.Body = io.NopCloser(bytes.NewReader(buf))
 	resp.ContentLength = int64(len(buf))
 
-	return resp
+	return buf
 }
 
 // statusRetryable reports whether status is in the configured retryable set.
