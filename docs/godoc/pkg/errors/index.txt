@@ -52,12 +52,13 @@ emits it while an earlier request with the same key is still in flight, and when
 a finished request's key is reused with a different payload. It never means
 "the original transaction was returned": only an identical retry (same key,
 same payload) of a finished create comes back as HTTP 200 with the original
-transaction, not as an error. When an earlier attempt of the same call holds
-the key, the SDK retries it under that key with its usual backoff and attempt
-limit while the key's X-TTL lasts, so the conflict may resolve to the replayed
-outcome. A 0084 on a call's first attempt (another call holds the key), one that
-outlasts the attempts or the TTL, and a payload mismatch surface as this error.
-See IsIdempotencyError.
+transaction, not as an error. When the attempt before it timed out after the
+request left, or got a 504, that attempt may still hold the key, so the SDK
+retries under that key with its usual backoff and attempt limit while the key's
+X-TTL lasts, and the conflict may resolve to the replayed outcome. Any other
+0084 (on a first attempt, or after an answer such as a 503 that held nothing),
+one that outlasts the attempts or the TTL, and a payload mismatch surface as
+this error. See IsIdempotencyError.
 
 # Recognising an error
 

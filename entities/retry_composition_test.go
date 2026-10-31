@@ -30,7 +30,7 @@ func retryEnabledOptions(maxRetries int) retry.Options {
 		InitialDelay:       time.Millisecond,
 		MaxDelay:           5 * time.Millisecond,
 		BackoffFactor:      2.0,
-		RetryableHTTPCodes: []int{http.StatusServiceUnavailable},
+		RetryableHTTPCodes: []int{http.StatusServiceUnavailable, http.StatusGatewayTimeout},
 	}
 }
 
@@ -243,18 +243,19 @@ func TestFacadeWritePersistentServerErrorDecodesProblem(t *testing.T) {
 	}
 }
 
-// TestFacadeWriteRetriesIdempotencyInFlight: after a 503 the retry finds the key
-// held by the first attempt (409/0084); the SDK retries with the SAME key and
-// returns the replayed outcome. Any other 409, and a 0084 on the first attempt
-// (another call's claim), are not retried.
+// TestFacadeWriteRetriesIdempotencyInFlight: after a gateway timeout the retry finds
+// the key held by the first attempt (409/0084); the SDK retries with the SAME key and
+// returns the replayed outcome. Any other 409, and a 0084 that may be another call's
+// claim (first attempt, or after a 503 that held nothing), are not retried.
 func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		replies []string // per attempt: "503", a 409 code, or "201"
 		wantErr bool
 	}{
-		{"0084 after an own attempt retried", []string{"503", "0084", "201"}, false},
-		{"other 409 not retried", []string{"503", "0101", "201"}, true},
+		{"0084 after a gateway timeout retried", []string{"504", "0084", "201"}, false},
+		{"other 409 not retried", []string{"504", "0101", "201"}, true},
+		{"0084 after a refused claim not retried", []string{"503", "0084", "201"}, true},
 		{"0084 on the first attempt not retried", []string{"0084", "201"}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -298,13 +299,15 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 	}
 }
 
-// writeReply answers "503", "201" with the sample transaction, or a 409 carrying reply as its code.
+// writeReply answers "503", "504", "201" with the sample transaction, or a 409 carrying reply as its code.
 func writeReply(w http.ResponseWriter, reply string) {
 	w.Header().Set("Content-Type", "application/json")
 
 	switch reply {
 	case "503":
 		w.WriteHeader(http.StatusServiceUnavailable)
+	case "504":
+		w.WriteHeader(http.StatusGatewayTimeout)
 	case "201":
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(txResponseBody()))
