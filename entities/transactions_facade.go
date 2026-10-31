@@ -15,7 +15,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // transactionsFacade is the money-write crown jewel (Epic 2.2): a hand-written
@@ -129,12 +128,11 @@ func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID str
 	}
 
 	params := &genledger.CreateTransactionJSONParams{}
-	ctx = sdkctx.WithIdempotencyKey(ctx, input.IdempotencyKey)
-	key, ttl := resolveIdempotency(ctx, f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateTransactionJSONWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateTransactionJSONWithBody(ctx, orgID, ledgerID, params, jsonContentType, body, mark...))
 	})
 }
 
@@ -153,11 +151,11 @@ func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID s
 	}
 
 	params := &genledger.CreateTransactionInflowParams{}
-	key, ttl := resolveIdempotency(ctx, f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateTransactionInflowWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateTransactionInflowWithBody(ctx, orgID, ledgerID, params, jsonContentType, body, mark...))
 	})
 }
 
@@ -176,11 +174,11 @@ func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID 
 	}
 
 	params := &genledger.CreateTransactionOutflowParams{}
-	key, ttl := resolveIdempotency(ctx, f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateTransactionOutflowWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateTransactionOutflowWithBody(ctx, orgID, ledgerID, params, jsonContentType, body, mark...))
 	})
 }
 
@@ -200,11 +198,11 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 	}
 
 	params := &genledger.CreateTransactionAnnotationParams{}
-	key, ttl := resolveIdempotency(ctx, f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateTransactionAnnotationWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateTransactionAnnotationWithBody(ctx, orgID, ledgerID, params, jsonContentType, body, mark...))
 	})
 }
 
@@ -229,12 +227,11 @@ func (f *transactionsFacade) CreateBlock(ctx context.Context, orgID, ledgerID st
 	}
 
 	params := &genledger.CreateTransactionBlockParams{}
-	ctx = sdkctx.WithIdempotencyKey(ctx, input.IdempotencyKey)
-	key, ttl := resolveIdempotency(ctx, f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateTransactionBlockWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateTransactionBlockWithBody(ctx, orgID, ledgerID, params, jsonContentType, body, mark...))
 	})
 }
 
@@ -253,12 +250,11 @@ func (f *transactionsFacade) CreateUnblock(ctx context.Context, orgID, ledgerID 
 	}
 
 	params := &genledger.CreateTransactionUnblockParams{}
-	ctx = sdkctx.WithIdempotencyKey(ctx, input.IdempotencyKey)
-	key, ttl := resolveIdempotency(ctx, f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateTransactionUnblockWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateTransactionUnblockWithBody(ctx, orgID, ledgerID, params, jsonContentType, body, mark...))
 	})
 }
 
@@ -354,7 +350,7 @@ func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transa
 // caller supplied one via sdkctx.WithIdempotencyKey. Returns nil (no editor,
 // no header) otherwise, so the common path stays header-free.
 func actionIdempotencyEditors(ctx context.Context) []genledger.RequestEditorFn {
-	key, _ := resolveIdempotency(ctx, false)
+	key, _, _ := resolveIdempotency(ctx, "", false)
 	if key == "" {
 		return nil
 	}

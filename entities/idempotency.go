@@ -25,10 +25,9 @@ import (
 // facade routes its key/TTL through here so the guarantee holds in one place.
 //
 // Key precedence (first non-empty wins), mirroring the legacy path:
-//  1. sdkctx.WithIdempotencyKey(ctx) — the caller's key. A create whose input struct carries an
-//     IdempotencyKey puts it in the ctx first (sdkctx.WithIdempotencyKey), so the retry layer sees every caller
-//     key there and never retries a 0084 under it.
-//  2. auto-generated UUID — only when autoGen is true AND the caller did not
+//  1. explicitKey — a caller-supplied input-struct field (most explicit).
+//  2. sdkctx.WithIdempotencyKey(ctx) — request-scoped key.
+//  3. auto-generated UUID — only when autoGen is true AND the caller did not
 //     opt out via sdkctx.WithoutAutoIdempotency. Creates are unsafe-but-
 //     idempotent, so they pass autoGen=true (parity with the legacy default).
 //     Actions like commit/cancel/revert pass autoGen=false — they carry a key
@@ -43,19 +42,35 @@ import (
 // gate is applied one layer up, in the Phase 5 wiring cutover. Defaulting to
 // auto-generate errs toward more deduplication, which is the safe side for an
 // unsafe money write.
-func resolveIdempotency(ctx context.Context, autoGen bool) (key, ttl string) {
+//
+// mark is non-nil only for a minted key: the editor that tells the retry layer
+// the request carries the SDK's own key for this call (see mintedKeyCtx).
+func resolveIdempotency(ctx context.Context, explicitKey string, autoGen bool) (key, ttl string, mark []genledger.RequestEditorFn) {
 	ttl, _ = sdkctx.IdempotencyTTLFromContext(ctx)
 	ctxKey := sdkctx.IdempotencyKeyFromContext(ctx)
 
 	switch {
+	case explicitKey != "":
+		return explicitKey, ttl, nil
 	case ctxKey != "":
-		return ctxKey, ttl
+		return ctxKey, ttl, nil
 	case autoGen && !sdkctx.AutoIdempotencySuppressed(ctx):
-		return uuid.NewString(), ttl
+		key = uuid.NewString()
+
+		return key, ttl, []genledger.RequestEditorFn{func(_ context.Context, req *http.Request) error {
+			*req = *req.WithContext(context.WithValue(req.Context(), mintedKeyCtx{}, key))
+
+			return nil
+		}}
 	default:
-		return "", ttl
+		return "", ttl, nil
 	}
 }
+
+// mintedKeyCtx marks on a request's context the X-Idempotency key the SDK minted
+// for that call. Unexported, so no caller can set it: the retry layer retries a
+// 0084 only when this mark equals the request's key.
+type mintedKeyCtx struct{}
 
 // setHeader returns a RequestEditorFn that sets one header on the outbound
 // request. It is the header-side sibling of setQueryParam (in
@@ -78,12 +93,12 @@ func setHeader(key, value string) genledger.RequestEditorFn {
 // generated client builds the request, so it survives transport-level retries
 // (the retry round tripper clones the already-stamped request).
 func idempotencyEditors(ctx context.Context, autoGen bool) []genledger.RequestEditorFn {
-	key, ttl := resolveIdempotency(ctx, autoGen)
+	key, ttl, mark := resolveIdempotency(ctx, "", autoGen)
 	if key == "" {
 		return nil
 	}
 
-	editors := []genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}
+	editors := append([]genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}, mark...)
 	if ttl != "" {
 		editors = append(editors, setHeader(ttlHeader, ttl))
 	}
@@ -116,7 +131,7 @@ func setHeaderTracer(key, value string) gentracer.RequestEditorFn {
 // nuisance, unlike a double balance mutation. (validations/reservations are
 // deliberately NOT stamped; they dedup on body identifiers.)
 func idempotencyEditorsTracer(ctx context.Context, autoGen bool) []gentracer.RequestEditorFn {
-	key, ttl := resolveIdempotency(ctx, autoGen)
+	key, ttl, _ := resolveIdempotency(ctx, "", autoGen)
 	if key == "" {
 		return nil
 	}

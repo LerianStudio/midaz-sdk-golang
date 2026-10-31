@@ -54,8 +54,9 @@
 // the facade waits for its own in-flight attempt under that key, with its usual
 // backoff and attempt limit, while the key's X-TTL from the call's start lasts,
 // so the conflict may resolve to the replayed outcome. With a caller key
-// (sdkctx.WithIdempotencyKey or the input's IdempotencyKey) a 0084 surfaces as
-// this error, as does one that outlasts the attempts or the TTL. [Error.Retryable]
+// (sdkctx.WithIdempotencyKey, the input's IdempotencyKey, or a key the caller
+// stamps itself on any path) a 0084 surfaces as this error, as does one that
+// outlasts the attempts or the TTL. [Error.Retryable]
 // is false for it, so an outer retry loop never re-creates the write under a new
 // key.
 // See [IsIdempotencyError].

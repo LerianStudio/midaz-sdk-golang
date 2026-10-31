@@ -12,7 +12,6 @@ import (
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // retryRoundTripper is the OUTERMOST transport layer on the two generated plane
@@ -219,11 +218,9 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
 	}
 
-	// 409/0084 under a key the SDK generated for this call (a caller key is in the ctx): the key is
-	// a fresh UUID this call stamped once, so the claim holding it is this call's own earlier
-	// attempt, made after the call began. Retrying within its TTL cannot post twice. A caller's key
-	// may be held by another call's older claim, of unknown age, so its 0084 is returned as is.
-	if resp.StatusCode == http.StatusConflict && req.Header.Get(idempotencyHeader) != "" && sdkctx.IdempotencyKeyFromContext(req.Context()) == "" {
+	// 409/0084 under the key the SDK minted for this call: the claim holding it is this call's own
+	// earlier attempt, so retrying within its TTL cannot post twice. Any other key's 0084 is returned.
+	if minted, ok := req.Context().Value(mintedKeyCtx{}).(string); ok && resp.StatusCode == http.StatusConflict && minted == req.Header.Get(idempotencyHeader) {
 		body := bufferResponseBody(resp)
 
 		if sdkerrors.IsIdempotencyError(sdkerrors.DecodeProblemJSON(resp.StatusCode, body, "")) {

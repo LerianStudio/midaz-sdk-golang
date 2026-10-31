@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // transactionsV2Facade serves the /v2 transaction surface. It is the money-write
@@ -71,7 +70,7 @@ func newTransactionsV2Facade(ledger *genledger.ClientWithResponses, enableIdempo
 func (f *transactionsV2Facade) CreateDirect(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateDirect"
 
-	ctx, scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
+	scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +78,7 @@ func (f *transactionsV2Facade) CreateDirect(ctx context.Context, orgID, ledgerID
 	return writeJSON[models.TransactionV2](ctx, operation, scoped, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionDirectV2WithBody(ctx,
 			&genledger.CreateTransactionDirectV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
-			jsonContentType, body))
+			jsonContentType, body, params.mark...))
 	})
 }
 
@@ -88,7 +87,7 @@ func (f *transactionsV2Facade) CreateDirect(ctx context.Context, orgID, ledgerID
 func (f *transactionsV2Facade) CreateHold(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateHold"
 
-	ctx, scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
+	scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +95,7 @@ func (f *transactionsV2Facade) CreateHold(ctx context.Context, orgID, ledgerID s
 	return writeJSON[models.TransactionV2](ctx, operation, scoped, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionHoldV2WithBody(ctx,
 			&genledger.CreateTransactionHoldV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
-			jsonContentType, body))
+			jsonContentType, body, params.mark...))
 	})
 }
 
@@ -107,7 +106,7 @@ func (f *transactionsV2Facade) CreateHold(ctx context.Context, orgID, ledgerID s
 func (f *transactionsV2Facade) CreateBlock(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateBlock"
 
-	ctx, scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
+	scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +114,7 @@ func (f *transactionsV2Facade) CreateBlock(ctx context.Context, orgID, ledgerID 
 	return writeJSON[models.TransactionV2](ctx, operation, scoped, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionBlockV2WithBody(ctx,
 			&genledger.CreateTransactionBlockV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
-			jsonContentType, body))
+			jsonContentType, body, params.mark...))
 	})
 }
 
@@ -125,7 +124,7 @@ func (f *transactionsV2Facade) CreateBlock(ctx context.Context, orgID, ledgerID 
 func (f *transactionsV2Facade) CreateUnblock(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateUnblock"
 
-	ctx, scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
+	scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +132,7 @@ func (f *transactionsV2Facade) CreateUnblock(ctx context.Context, orgID, ledgerI
 	return writeJSON[models.TransactionV2](ctx, operation, scoped, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionUnblockV2WithBody(ctx,
 			&genledger.CreateTransactionUnblockV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
-			jsonContentType, body))
+			jsonContentType, body, params.mark...))
 	})
 }
 
@@ -167,7 +166,7 @@ func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID 
 
 	var params genledger.CreateAtomicTransactionBatchV2Params
 
-	key, ttl := resolveIdempotency(ctx, f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	request := struct {
@@ -177,7 +176,7 @@ func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID 
 	out, err := writeJSON[struct {
 		Transactions []*models.TransactionV2 `json:"transactions"`
 	}](ctx, operation, request, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateAtomicTransactionBatchV2WithBody(ctx, &params, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateAtomicTransactionBatchV2WithBody(ctx, &params, jsonContentType, body, mark...))
 	})
 	if err != nil {
 		return nil, err
@@ -193,6 +192,7 @@ func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID 
 type createParams struct {
 	XIdempotency *string
 	XTTL         *string
+	mark         []genledger.RequestEditorFn
 }
 
 // prepareCreate runs everything the four create actions share: refuse a bad
@@ -202,23 +202,21 @@ type createParams struct {
 // The order matters. Scoping runs BEFORE validation because a leg's scope is
 // something the facade fills in — validating first would refuse the very bodies
 // the facade exists to complete. Both run before anything reaches the wire.
-func prepareCreate(ctx context.Context, operation string, gate bool, orgID, ledgerID string, input *models.CreateTransactionV2Input) (context.Context, *models.CreateTransactionV2Input, createParams, error) {
+func prepareCreate(ctx context.Context, operation string, gate bool, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.CreateTransactionV2Input, createParams, error) {
 	scoped, err := scopeTransactionV2(operation, orgID, ledgerID, input)
 	if err != nil {
-		return ctx, nil, createParams{}, err
+		return nil, createParams{}, err
 	}
 
 	if err := validationErr(operation, scoped.Validate()); err != nil {
-		return ctx, nil, createParams{}, err
+		return nil, createParams{}, err
 	}
 
-	var params createParams
-
-	ctx = sdkctx.WithIdempotencyKey(ctx, input.IdempotencyKey)
-	key, ttl := resolveIdempotency(ctx, gate)
+	key, ttl, mark := resolveIdempotency(ctx, input.IdempotencyKey, gate)
+	params := createParams{mark: mark}
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
-	return ctx, scoped, params, nil
+	return scoped, params, nil
 }
 
 // scopeTransactionV2 returns a copy of input whose every leg names orgID and

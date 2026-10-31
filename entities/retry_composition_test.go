@@ -11,11 +11,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
@@ -118,6 +120,13 @@ func TestRetryComposesWithAuthReplay(t *testing.T) {
 func newRetryEnabledTxFacade(t *testing.T, srv *httptest.Server, maxRetries int) *transactionsFacade {
 	t.Helper()
 
+	return newTransactionsFacade(newRetryEnabledPlanes(t, srv, maxRetries).Ledger, true)
+}
+
+// newRetryEnabledPlanes builds the real plane chain (retry RT -> live auth RT -> generated clients).
+func newRetryEnabledPlanes(t *testing.T, srv *httptest.Server, maxRetries int) *PlaneClients {
+	t.Helper()
+
 	planes, err := newPlaneClients(planeClientsConfig{
 		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
@@ -131,7 +140,7 @@ func newRetryEnabledTxFacade(t *testing.T, srv *httptest.Server, maxRetries int)
 		t.Fatalf("newPlaneClients: %v", err)
 	}
 
-	return newTransactionsFacade(planes.Ledger, true)
+	return planes
 }
 
 // TestFacadeWriteRetriesWithStableAutoIdempotency is F2(b): a real facade WRITE
@@ -332,6 +341,35 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 				t.Fatalf("keys = %v, want one stable key (the caller's when supplied)", keys)
 			}
 		})
+	}
+}
+
+// TestPlaneWriteSurfacesCallerStamped0084: a key the caller stamps itself through the exported
+// plane client carries no SDK mark, so its 0084 surfaces instead of being retried.
+func TestPlaneWriteSurfacesCallerStamped0084(t *testing.T) {
+	var attempts atomic.Int32
+
+	replies := []string{"504", "0084", "201"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeReply(w, replies[attempts.Add(1)-1])
+	}))
+	defer srv.Close()
+
+	stamp := func(_ context.Context, req *http.Request) error {
+		req.Header.Set(idempotencyHeader, "their-key")
+
+		return nil
+	}
+
+	resp, err := newRetryEnabledPlanes(t, srv, 3).Ledger.CreateTransactionJSONWithBody(context.Background(),
+		txOrgID, txLedgerID, &genledger.CreateTransactionJSONParams{}, jsonContentType, strings.NewReader("{}"), stamp)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict || attempts.Load() != 2 {
+		t.Fatalf("status = %d after %d attempts, want 409 after 2", resp.StatusCode, attempts.Load())
 	}
 }
 
