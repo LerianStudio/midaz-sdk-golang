@@ -157,6 +157,9 @@ func responseHelperProbes(spanCtx context.Context) []nilPairProbe {
 			_, _, err := readRawResponse(nil, nil)
 			require.ErrorIs(t, err, errNoResponse)
 		}},
+		{"outcomeUnknown", func(t require.TestingT) {
+			require.False(t, outcomeUnknown(nil, nil), "no answer and no error proves no attempt in flight")
+		}},
 		{"readCount", func(t require.TestingT) {
 			count, err := readCount(nil, nil)
 			require.ErrorIs(t, err, errNoResponse)
