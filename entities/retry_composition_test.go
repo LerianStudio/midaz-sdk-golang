@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -31,6 +32,7 @@ func retryEnabledOptions(maxRetries int) retry.Options {
 		MaxDelay:           5 * time.Millisecond,
 		BackoffFactor:      2.0,
 		RetryableHTTPCodes: []int{http.StatusServiceUnavailable, http.StatusGatewayTimeout},
+		RetryableErrors:    []string{"i/o timeout"},
 	}
 }
 
@@ -243,20 +245,48 @@ func TestFacadeWritePersistentServerErrorDecodesProblem(t *testing.T) {
 	}
 }
 
-// TestFacadeWriteRetriesIdempotencyInFlight: after a gateway timeout the retry finds
-// the key held by the first attempt (409/0084); the SDK retries with the SAME key and
-// returns the replayed outcome. Any other 409, and a 0084 that may be another call's
-// claim (first attempt, or after a 503 that held nothing), are not retried.
+// timeoutFirst makes the first wire attempt fail with a non-dial transport timeout when on,
+// and counts every attempt that leaves the retry layer.
+type timeoutFirst struct {
+	base     http.RoundTripper
+	on       bool
+	attempts atomic.Int32
+}
+
+func (t *timeoutFirst) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.attempts.Add(1) == 1 && t.on {
+		return nil, &net.OpError{Op: "read", Err: timeoutErr{}}
+	}
+
+	return t.base.RoundTrip(req)
+}
+
+type timeoutErr struct{}
+
+func (timeoutErr) Error() string   { return "i/o timeout" }
+func (timeoutErr) Timeout() bool   { return true }
+func (timeoutErr) Temporary() bool { return true }
+
+// TestFacadeWriteRetriesIdempotencyInFlight: a 409/0084 is retried under the same key only when the
+// SDK generated the call's key, so the 0084 can only be this call's own earlier attempt. A key the
+// caller supplied (ctx or input field) may be held by another call's older claim, so its 0084
+// surfaces as an error. Any other 409 is never retried.
 func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		replies []string // per attempt: "503", a 409 code, or "201"
-		wantErr bool
+		name     string
+		replies  []string // per request that reaches the server: "503", "504", a 409 code, or "201"
+		ctxKey   string
+		inputKey string
+		timeout  bool // the first attempt fails with a transport timeout before reaching the server
+		attempts int32
+		wantErr  bool
 	}{
-		{"0084 after a gateway timeout retried", []string{"504", "0084", "201"}, false},
-		{"other 409 not retried", []string{"504", "0101", "201"}, true},
-		{"0084 after a refused claim not retried", []string{"503", "0084", "201"}, true},
-		{"0084 on the first attempt not retried", []string{"0084", "201"}, true},
+		{name: "sdk key 503 then 0084 retried", replies: []string{"503", "0084", "201"}, attempts: 3},
+		{name: "sdk key timeout then 0084 retried", replies: []string{"0084", "201"}, timeout: true, attempts: 3},
+		{name: "caller ctx key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
+		{name: "caller ctx key 503 then 0084 surfaces", replies: []string{"503", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
+		{name: "input key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, inputKey: "input-key", attempts: 2, wantErr: true},
+		{name: "other 409 not retried", replies: []string{"503", "0101", "201"}, attempts: 2, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var (
@@ -274,8 +304,15 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			tx, err := newRetryEnabledTxFacade(t, srv, 3).
-				CreateJSON(context.Background(), txOrgID, txLedgerID, sampleTransactionInput())
+			wire := &timeoutFirst{base: srv.Client().Transport, on: tc.timeout}
+			srv.Client().Transport = wire
+
+			input := sampleTransactionInput()
+			input.IdempotencyKey = tc.inputKey
+
+			ctx := sdkctx.WithIdempotencyKey(context.Background(), tc.ctxKey)
+
+			tx, err := newRetryEnabledTxFacade(t, srv, 3).CreateJSON(ctx, txOrgID, txLedgerID, input)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -284,19 +321,29 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 				t.Fatalf("decoded tx = %+v, want id %s", tx, txID)
 			}
 
+			if got := wire.attempts.Load(); got != tc.attempts {
+				t.Fatalf("attempts = %d, want %d", got, tc.attempts)
+			}
+
 			mu.Lock()
 			defer mu.Unlock()
 
-			want := len(tc.replies)
-			if tc.wantErr {
-				want--
-			}
-
-			if len(keys) != want || keys[0] == "" || keys[len(keys)-1] != keys[0] {
-				t.Fatalf("attempts/keys = %v, want %d attempts with one stable key", keys, want)
+			if !oneKey(keys, tc.ctxKey+tc.inputKey) {
+				t.Fatalf("keys = %v, want one stable key (the caller's when supplied)", keys)
 			}
 		})
 	}
+}
+
+// oneKey reports whether every key is the same non-empty key, equal to want when want is set.
+func oneKey(keys []string, want string) bool {
+	for _, key := range keys {
+		if key == "" || key != keys[0] || (want != "" && key != want) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // writeReply answers "503", "504", "201" with the sample transaction, or a 409 carrying reply as its code.

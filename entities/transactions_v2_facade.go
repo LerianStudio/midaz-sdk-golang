@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // transactionsV2Facade serves the /v2 transaction surface. It is the money-write
@@ -70,7 +71,7 @@ func newTransactionsV2Facade(ledger *genledger.ClientWithResponses, enableIdempo
 func (f *transactionsV2Facade) CreateDirect(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateDirect"
 
-	scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
+	ctx, scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +88,7 @@ func (f *transactionsV2Facade) CreateDirect(ctx context.Context, orgID, ledgerID
 func (f *transactionsV2Facade) CreateHold(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateHold"
 
-	scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
+	ctx, scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +107,7 @@ func (f *transactionsV2Facade) CreateHold(ctx context.Context, orgID, ledgerID s
 func (f *transactionsV2Facade) CreateBlock(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateBlock"
 
-	scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
+	ctx, scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ func (f *transactionsV2Facade) CreateBlock(ctx context.Context, orgID, ledgerID 
 func (f *transactionsV2Facade) CreateUnblock(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.CreateUnblock"
 
-	scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
+	ctx, scoped, params, err := prepareCreate(ctx, operation, f.enableIdempotency, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +167,7 @@ func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID 
 
 	var params genledger.CreateAtomicTransactionBatchV2Params
 
-	key, ttl := resolveIdempotency(ctx, "", f.enableIdempotency)
+	key, ttl := resolveIdempotency(ctx, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	request := struct {
@@ -201,22 +202,23 @@ type createParams struct {
 // The order matters. Scoping runs BEFORE validation because a leg's scope is
 // something the facade fills in — validating first would refuse the very bodies
 // the facade exists to complete. Both run before anything reaches the wire.
-func prepareCreate(ctx context.Context, operation string, gate bool, orgID, ledgerID string, input *models.CreateTransactionV2Input) (*models.CreateTransactionV2Input, createParams, error) {
+func prepareCreate(ctx context.Context, operation string, gate bool, orgID, ledgerID string, input *models.CreateTransactionV2Input) (context.Context, *models.CreateTransactionV2Input, createParams, error) {
 	scoped, err := scopeTransactionV2(operation, orgID, ledgerID, input)
 	if err != nil {
-		return nil, createParams{}, err
+		return ctx, nil, createParams{}, err
 	}
 
 	if err := validationErr(operation, scoped.Validate()); err != nil {
-		return nil, createParams{}, err
+		return ctx, nil, createParams{}, err
 	}
 
 	var params createParams
 
-	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, gate)
+	ctx = sdkctx.WithIdempotencyKey(ctx, input.IdempotencyKey)
+	key, ttl := resolveIdempotency(ctx, gate)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
-	return scoped, params, nil
+	return ctx, scoped, params, nil
 }
 
 // scopeTransactionV2 returns a copy of input whose every leg names orgID and

@@ -3,10 +3,8 @@ package entities
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +12,7 @@ import (
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // retryRoundTripper is the OUTERMOST transport layer on the two generated plane
@@ -86,7 +85,7 @@ func (rt *retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		}
 
 		//nolint:bodyclose // the kept response is either returned to the caller (who closes it), superseded by the next attempt, or already drained+rebuilt by bufferRetryableResponse.
-		resp, attemptErr := rt.attempt(ctx, req, effective.RetryableHTTPCodes, lastErr != nil && outcomeUnknown(lastResp, lastErr))
+		resp, attemptErr := rt.attempt(ctx, req, effective.RetryableHTTPCodes)
 		lastResp, lastErr = resp, attemptErr
 
 		return attemptErr
@@ -110,20 +109,6 @@ func (rt *retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	}
 
 	return lastResp, nil
-}
-
-// outcomeUnknown reports whether an attempt may still be running on Midaz, holding its key: its
-// answer timed out after the request left (not while dialing), or a gateway timed out on it.
-func outcomeUnknown(resp *http.Response, err error) bool {
-	var netErr net.Error
-
-	var opErr *net.OpError
-
-	if errors.As(err, &netErr) && netErr.Timeout() {
-		return !errors.As(err, &opErr) || opErr.Op != "dial"
-	}
-
-	return resp != nil && resp.StatusCode == http.StatusGatewayTimeout
 }
 
 // slotHeldFor is how long Midaz holds a write's idempotency slot after its claim: the X-TTL
@@ -185,7 +170,7 @@ func (rt *retryRoundTripper) resolveOptions(req *http.Request) retry.Options {
 //     decodable response.
 //   - (resp, nil)                        on success or a non-retryable status —
 //     the untouched response, whose body the caller closes.
-func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, codes []int, mayHoldKey bool) (*http.Response, error) {
+func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, codes []int) (*http.Response, error) {
 	attemptReq := req.Clone(ctx)
 
 	// Rewind the body for THIS attempt. Each attempt gets a fresh reader from
@@ -234,10 +219,11 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
 	}
 
-	// 409/0084 after an attempt that may still run on Midaz: that attempt's claim, made after this
-	// call began, holds the key, so retrying within its TTL cannot post twice. Any other 0084 may be
-	// another call's claim, of unknown age, and is returned as is.
-	if resp.StatusCode == http.StatusConflict && mayHoldKey {
+	// 409/0084 under a key the SDK generated for this call (a caller key is in the ctx): the key is
+	// a fresh UUID this call stamped once, so the claim holding it is this call's own earlier
+	// attempt, made after the call began. Retrying within its TTL cannot post twice. A caller's key
+	// may be held by another call's older claim, of unknown age, so its 0084 is returned as is.
+	if resp.StatusCode == http.StatusConflict && req.Header.Get(idempotencyHeader) != "" && sdkctx.IdempotencyKeyFromContext(req.Context()) == "" {
 		body := bufferResponseBody(resp)
 
 		if sdkerrors.IsIdempotencyError(sdkerrors.DecodeProblemJSON(resp.StatusCode, body, "")) {

@@ -25,9 +25,10 @@ import (
 // facade routes its key/TTL through here so the guarantee holds in one place.
 //
 // Key precedence (first non-empty wins), mirroring the legacy path:
-//  1. explicitKey — a caller-supplied input-struct field (most explicit).
-//  2. sdkctx.WithIdempotencyKey(ctx) — request-scoped key.
-//  3. auto-generated UUID — only when autoGen is true AND the caller did not
+//  1. sdkctx.WithIdempotencyKey(ctx) — the caller's key. A create whose input struct carries an
+//     IdempotencyKey puts it in the ctx first (sdkctx.WithIdempotencyKey), so the retry layer sees every caller
+//     key there and never retries a 0084 under it.
+//  2. auto-generated UUID — only when autoGen is true AND the caller did not
 //     opt out via sdkctx.WithoutAutoIdempotency. Creates are unsafe-but-
 //     idempotent, so they pass autoGen=true (parity with the legacy default).
 //     Actions like commit/cancel/revert pass autoGen=false — they carry a key
@@ -42,13 +43,11 @@ import (
 // gate is applied one layer up, in the Phase 5 wiring cutover. Defaulting to
 // auto-generate errs toward more deduplication, which is the safe side for an
 // unsafe money write.
-func resolveIdempotency(ctx context.Context, explicitKey string, autoGen bool) (key, ttl string) {
+func resolveIdempotency(ctx context.Context, autoGen bool) (key, ttl string) {
 	ttl, _ = sdkctx.IdempotencyTTLFromContext(ctx)
 	ctxKey := sdkctx.IdempotencyKeyFromContext(ctx)
 
 	switch {
-	case explicitKey != "":
-		return explicitKey, ttl
 	case ctxKey != "":
 		return ctxKey, ttl
 	case autoGen && !sdkctx.AutoIdempotencySuppressed(ctx):
@@ -79,7 +78,7 @@ func setHeader(key, value string) genledger.RequestEditorFn {
 // generated client builds the request, so it survives transport-level retries
 // (the retry round tripper clones the already-stamped request).
 func idempotencyEditors(ctx context.Context, autoGen bool) []genledger.RequestEditorFn {
-	key, ttl := resolveIdempotency(ctx, "", autoGen)
+	key, ttl := resolveIdempotency(ctx, autoGen)
 	if key == "" {
 		return nil
 	}
@@ -117,7 +116,7 @@ func setHeaderTracer(key, value string) gentracer.RequestEditorFn {
 // nuisance, unlike a double balance mutation. (validations/reservations are
 // deliberately NOT stamped; they dedup on body identifiers.)
 func idempotencyEditorsTracer(ctx context.Context, autoGen bool) []gentracer.RequestEditorFn {
-	key, ttl := resolveIdempotency(ctx, "", autoGen)
+	key, ttl := resolveIdempotency(ctx, autoGen)
 	if key == "" {
 		return nil
 	}
