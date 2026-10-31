@@ -603,14 +603,12 @@ func (e *Error) Unwrap() error {
 //   - CategoryTimeout        — request deadline exceeded.
 //   - CategoryLimitExceeded  — server is throttling (rate / quota).
 //   - CategoryInternal       — 5xx server errors, transient.
-//   - CodeIdempotency (0084) — a Conflict, but retry-safe: the same key
-//     replays the first request's outcome once it finishes.
 //
 // Non-retryable categories:
 //   - CategoryValidation     — caller's payload is wrong.
 //   - CategoryNotFound       — caller's reference is wrong.
-//   - CategoryConflict       — caller's already-exists conflict
-//     (except CodeIdempotency, above).
+//   - CategoryConflict       — caller's idempotency or
+//     already-exists conflict.
 //   - CategoryAuth, Authentication, Authorization — credentials
 //     issue; the auth refresh path is
 //     orthogonal and handles 401 specially.
@@ -632,7 +630,7 @@ func (e *Error) Retryable() bool {
 		return true
 	}
 
-	return e.Code == CodeIdempotency
+	return false
 }
 
 // Is checks if the target error is of the same type as this error.
@@ -1707,16 +1705,14 @@ func IsConfigurationError(err error) bool {
 }
 
 // IsIdempotencyError reports whether an error is an idempotency conflict:
-// HTTP 409 with wire code 0084 (idempotency_error), retryable under the same
-// key. The ledger emits it in two cases: an earlier request with the same key is still in
+// HTTP 409 with wire code 0084 (idempotency_error), non-retryable. The ledger
+// emits it in two cases: an earlier request with the same key is still in
 // flight (the slot is taken but holds no result yet), or a finished request's
 // key is reused with a DIFFERENT payload (the slot stores the original body's
 // hash and refuses the mismatch). It never means the original request
 // succeeded or was replayed: only an identical retry, same key AND same
 // payload, replays the original transaction as a success marked
-// X-Idempotency-Replayed: true. The SDK retries it with the same key and
-// backoff: an in-flight conflict then resolves to the replay, a payload
-// mismatch surfaces again as this error once retries are exhausted (see
+// X-Idempotency-Replayed: true (see
 // models.CreateTransactionInput.IdempotencyKey).
 func IsIdempotencyError(err error) bool {
 	if isNilError(err) {
@@ -2147,7 +2143,7 @@ var apiErrorCodeMappings = map[string]httpErrorMapping{
 // of the RFC 9457 <SERVICE>-NNNN code (robust to the service prefix):
 //   - 0178: transient unavailability → retryable (CategoryNetwork), even
 //     when the status is a non-retryable 4xx.
-//   - 0084: idempotency conflict → retryable via Error.Retryable (CategoryConflict), CodeIdempotency.
+//   - 0084: idempotency conflict → non-retryable (CategoryConflict), CodeIdempotency.
 //     Midaz sends codes bare (only CRM-NNNN is prefixed): a bare 0084 hits the exact table.
 //     Refusal codes (0018, 0019, 0167) stay exact-only: CRM-0019 is a 400 metadata-query error.
 var apiCodeSuffixMappings = map[string]httpErrorMapping{

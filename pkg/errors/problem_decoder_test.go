@@ -120,7 +120,7 @@ func TestErrorDecoder(t *testing.T) {
 			wantRetryable: true,
 		},
 		{
-			name:       "prefixed idempotency code 0084 maps to CodeIdempotency, retryable",
+			name:       "prefixed idempotency code 0084 maps to CodeIdempotency, conflict stays non-retryable",
 			httpStatus: http.StatusConflict,
 			body: `{
 				"code":"LEDGER-0084",
@@ -131,7 +131,7 @@ func TestErrorDecoder(t *testing.T) {
 			wantCategory:  CategoryConflict,
 			wantAPICode:   "LEDGER-0084",
 			wantStatus:    409,
-			wantRetryable: true,
+			wantRetryable: false,
 			checkDetails: func(t *testing.T, e *Error) {
 				t.Helper()
 				assert.Equal(t, CodeIdempotency, e.Code, "prefixed 0084 must classify as idempotency")
