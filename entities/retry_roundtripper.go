@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
@@ -68,12 +70,22 @@ func (rt *retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	// non-retryable status it is the untouched response. It stays nil for a
 	// transport failure, so the exhaustion branch can tell "persistent 5xx"
 	// (return the response) from "network down" (return the error).
-	var lastResp *http.Response
+	var (
+		lastResp *http.Response
+		lastErr  error
+	)
+
+	start, held := time.Now(), slotHeldFor(req)
 
 	err := retry.DoWithContext(retry.WithOptionsContext(ctx, &effective), func() error {
+		// A write retried after its idempotency slot expired would run again as a new write.
+		if lastErr != nil && held > 0 && time.Since(start) >= held {
+			return retry.AsNonRetryable(lastErr)
+		}
+
 		//nolint:bodyclose // the kept response is either returned to the caller (who closes it), superseded by the next attempt, or already drained+rebuilt by bufferRetryableResponse.
 		resp, attemptErr := rt.attempt(ctx, req, effective.RetryableHTTPCodes)
-		lastResp = resp
+		lastResp, lastErr = resp, attemptErr
 
 		return attemptErr
 	})
@@ -96,6 +108,21 @@ func (rt *retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	}
 
 	return lastResp, nil
+}
+
+// slotHeldFor is how long Midaz holds a write's idempotency slot after its claim: the X-TTL
+// seconds, or the server default of 300 s. Zero for a safe method, which needs no slot.
+func slotHeldFor(req *http.Request) time.Duration {
+	if !isUnsafeMethod(req.Method) {
+		return 0
+	}
+
+	seconds, err := strconv.Atoi(req.Header.Get(ttlHeader))
+	if err != nil || seconds <= 0 {
+		seconds = 300
+	}
+
+	return time.Duration(seconds) * time.Second
 }
 
 // resolveOptions produces the per-request effective retry policy: it composes

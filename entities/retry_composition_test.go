@@ -17,6 +17,7 @@ import (
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // retryEnabledOptions is the retry-enabled variant used ONLY by the composition
@@ -298,5 +299,38 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 				t.Fatalf("attempts/keys = %v, want %d attempts with one stable key", keys, tc.attempts)
 			}
 		})
+	}
+}
+
+// TestFacadeWriteStopsRetryingAfterSlotTTL: a write whose X-TTL has passed since its
+// first send is not retried, since Midaz may no longer hold the key and would run it again.
+func TestFacadeWriteStopsRetryingAfterSlotTTL(t *testing.T) {
+	var attempts atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if attempts.Add(1) == 1 {
+			time.Sleep(1100 * time.Millisecond) // the in-flight answer outlasts the 1 s slot
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"code":"0084","title":"Conflict","status":409}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(txResponseBody()))
+	}))
+	defer srv.Close()
+
+	ctx := sdkctx.WithIdempotencyTTL(context.Background(), 1)
+
+	_, err := newRetryEnabledTxFacade(t, srv, 3).CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+	if !sdkerrors.IsIdempotencyError(err) {
+		t.Fatalf("err = %v, want the 0084 conflict", err)
+	}
+
+	if got := attempts.Load(); got != 1 {
+		t.Fatalf("attempts = %d, want 1", got)
 	}
 }

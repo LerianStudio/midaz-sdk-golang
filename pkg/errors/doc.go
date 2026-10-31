@@ -51,9 +51,10 @@
 // means "the original transaction was returned": only an identical retry (same
 // key, same payload) of a finished create comes back as HTTP 200 with the
 // original transaction, not as an error. The SDK retries it under the same key
-// with its usual backoff and attempt limit, so an in-flight conflict resolves to
-// the replayed outcome; a payload mismatch is not retry-fixable and surfaces
-// again after the attempts run out. See [IsIdempotencyError].
+// with its usual backoff and attempt limit while the key's X-TTL lasts, so an
+// in-flight conflict may resolve to the replayed outcome; one that outlasts the
+// attempts or the TTL, and a payload mismatch, surface as this error. See
+// [IsIdempotencyError].
 //
 // # Recognising an error
 //
