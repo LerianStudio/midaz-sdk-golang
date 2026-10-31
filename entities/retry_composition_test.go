@@ -241,3 +241,62 @@ func TestFacadeWritePersistentServerErrorDecodesProblem(t *testing.T) {
 		t.Fatalf("attempts = %d, want 3 (1 + 2 retries)", got)
 	}
 }
+
+// TestFacadeWriteRetriesIdempotencyInFlight: Midaz answers 409/0084 while the
+// first request under the key is in flight; the SDK retries with the SAME key
+// and returns the replayed outcome. Any other 409 is not retried.
+func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		code     string
+		wantErr  bool
+		attempts int
+	}{
+		{"0084 retried", "0084", false, 2},
+		{"other 409 not retried", "0101", true, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				mu   sync.Mutex
+				keys []string
+			)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				keys = append(keys, r.Header.Get(idempotencyHeader))
+				n := len(keys)
+				mu.Unlock()
+
+				w.Header().Set("Content-Type", "application/json")
+
+				if n == 1 {
+					w.WriteHeader(http.StatusConflict)
+					_, _ = w.Write([]byte(`{"code":"` + tc.code + `","title":"Conflict","status":409}`))
+
+					return
+				}
+
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(txResponseBody()))
+			}))
+			defer srv.Close()
+
+			tx, err := newRetryEnabledTxFacade(t, srv, 3).
+				CreateJSON(context.Background(), txOrgID, txLedgerID, sampleTransactionInput())
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+
+			if !tc.wantErr && (tx == nil || tx.ID != txID) {
+				t.Fatalf("decoded tx = %+v, want id %s", tx, txID)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if len(keys) != tc.attempts || keys[0] == "" || keys[len(keys)-1] != keys[0] {
+				t.Fatalf("attempts/keys = %v, want %d attempts with one stable key", keys, tc.attempts)
+			}
+		})
+	}
+}

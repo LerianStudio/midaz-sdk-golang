@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 )
 
@@ -188,6 +189,20 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 	// No custom policy: status-based retry via the configured RetryableHTTPCodes.
 	if statusRetryable(resp.StatusCode, codes) {
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
+	}
+
+	// 409/0084: the key is held by an in-flight request; retrying under the same
+	// key cannot post twice, Midaz replays the first outcome once it finishes.
+	if resp.StatusCode == http.StatusConflict {
+		resp = bufferRetryableResponse(resp)
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+
+		if sdkerrors.IsIdempotencyError(sdkerrors.DecodeProblemJSON(resp.StatusCode, body, "")) {
+			return resp, retryableCustomPolicyError{err: retryableHTTPError{statusCode: resp.StatusCode}}
+		}
+
+		return resp, nil
 	}
 
 	// Non-retryable failure: hand the untouched response back; the caller

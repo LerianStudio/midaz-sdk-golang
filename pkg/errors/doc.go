@@ -50,7 +50,10 @@
 // when a finished request's key is reused with a different payload. It never
 // means "the original transaction was returned": only an identical retry (same
 // key, same payload) of a finished create comes back as HTTP 200 with the
-// original transaction, not as an error. See [IsIdempotencyError].
+// original transaction, not as an error. The SDK retries it under the same key
+// with its usual backoff and attempt limit, so an in-flight conflict resolves to
+// the replayed outcome; a payload mismatch is not retry-fixable and surfaces
+// again after the attempts run out. See [IsIdempotencyError].
 //
 // # Recognising an error
 //
