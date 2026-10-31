@@ -336,7 +336,14 @@ type CreateTransactionInput struct {
 	//     a key across different money movements.
 	//   - A concurrent request with the same key, while the first is still in
 	//     flight: also HTTP 409, pkg/errors.IsIdempotencyError
-	//     (code idempotency_error), non-retryable.
+	//     (code idempotency_error), a conflict, never a success. With a key
+	//     the SDK generated, the facade waits for its own in-flight attempt
+	//     under that key (usual backoff and attempt limit, while the key's
+	//     X-TTL from the call's start lasts), so the call may return the
+	//     replayed outcome. With a key you supplied (this field or
+	//     sdkctx.WithIdempotencyKey) the 409 surfaces as this error.
+	//     Error.Retryable() is false for it, so an outer retry loop never
+	//     re-creates the write under a new key.
 	//   - After the TTL expires: the key is forgotten and a NEW transaction is
 	//     created. A key is not a uniqueness constraint over time.
 	//

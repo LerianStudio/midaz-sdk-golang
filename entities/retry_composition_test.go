@@ -8,15 +8,19 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // retryEnabledOptions is the retry-enabled variant used ONLY by the composition
@@ -29,7 +33,8 @@ func retryEnabledOptions(maxRetries int) retry.Options {
 		InitialDelay:       time.Millisecond,
 		MaxDelay:           5 * time.Millisecond,
 		BackoffFactor:      2.0,
-		RetryableHTTPCodes: []int{http.StatusServiceUnavailable},
+		RetryableHTTPCodes: []int{http.StatusServiceUnavailable, http.StatusGatewayTimeout},
+		RetryableErrors:    []string{"i/o timeout"},
 	}
 }
 
@@ -115,6 +120,13 @@ func TestRetryComposesWithAuthReplay(t *testing.T) {
 func newRetryEnabledTxFacade(t *testing.T, srv *httptest.Server, maxRetries int) *transactionsFacade {
 	t.Helper()
 
+	return newTransactionsFacade(newRetryEnabledPlanes(t, srv, maxRetries).Ledger, true)
+}
+
+// newRetryEnabledPlanes builds the real plane chain (retry RT -> live auth RT -> generated clients).
+func newRetryEnabledPlanes(t *testing.T, srv *httptest.Server, maxRetries int) *PlaneClients {
+	t.Helper()
+
 	planes, err := newPlaneClients(planeClientsConfig{
 		ledgerURL: srv.URL,
 		tracerURL: srv.URL + "/v1",
@@ -128,7 +140,7 @@ func newRetryEnabledTxFacade(t *testing.T, srv *httptest.Server, maxRetries int)
 		t.Fatalf("newPlaneClients: %v", err)
 	}
 
-	return newTransactionsFacade(planes.Ledger, true)
+	return planes
 }
 
 // TestFacadeWriteRetriesWithStableAutoIdempotency is F2(b): a real facade WRITE
@@ -239,5 +251,186 @@ func TestFacadeWritePersistentServerErrorDecodesProblem(t *testing.T) {
 
 	if got := atomic.LoadInt32(&count); got != 3 {
 		t.Fatalf("attempts = %d, want 3 (1 + 2 retries)", got)
+	}
+}
+
+// timeoutFirst makes the first wire attempt fail with a non-dial transport timeout when on,
+// and counts every attempt that leaves the retry layer.
+type timeoutFirst struct {
+	base     http.RoundTripper
+	on       bool
+	attempts atomic.Int32
+}
+
+func (t *timeoutFirst) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.attempts.Add(1) == 1 && t.on {
+		return nil, &net.OpError{Op: "read", Err: timeoutErr{}}
+	}
+
+	return t.base.RoundTrip(req)
+}
+
+type timeoutErr struct{}
+
+func (timeoutErr) Error() string   { return "i/o timeout" }
+func (timeoutErr) Timeout() bool   { return true }
+func (timeoutErr) Temporary() bool { return true }
+
+// TestFacadeWriteRetriesIdempotencyInFlight: a 409/0084 is retried under the same key only when the
+// SDK generated the call's key, so the 0084 can only be this call's own earlier attempt. A key the
+// caller supplied (ctx or input field) may be held by another call's older claim, so its 0084
+// surfaces as an error. Any other 409 is never retried.
+func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		replies  []string // per request that reaches the server: "503", "504", a 409 code, or "201"
+		ctxKey   string
+		inputKey string
+		timeout  bool // the first attempt fails with a transport timeout before reaching the server
+		attempts int32
+		wantErr  bool
+	}{
+		{name: "sdk key 503 then 0084 retried", replies: []string{"503", "0084", "201"}, attempts: 3},
+		{name: "sdk key timeout then 0084 retried", replies: []string{"0084", "201"}, timeout: true, attempts: 3},
+		{name: "caller ctx key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
+		{name: "caller ctx key 503 then 0084 surfaces", replies: []string{"503", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
+		{name: "input key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, inputKey: "input-key", attempts: 2, wantErr: true},
+		{name: "other 409 not retried", replies: []string{"503", "0101", "201"}, attempts: 2, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				mu   sync.Mutex
+				keys []string
+			)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				keys = append(keys, r.Header.Get(idempotencyHeader))
+				reply := tc.replies[len(keys)-1]
+				mu.Unlock()
+
+				writeReply(w, reply)
+			}))
+			defer srv.Close()
+
+			wire := &timeoutFirst{base: srv.Client().Transport, on: tc.timeout}
+			srv.Client().Transport = wire
+
+			input := sampleTransactionInput()
+			input.IdempotencyKey = tc.inputKey
+
+			ctx := sdkctx.WithIdempotencyKey(context.Background(), tc.ctxKey)
+
+			tx, err := newRetryEnabledTxFacade(t, srv, 3).CreateJSON(ctx, txOrgID, txLedgerID, input)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+
+			if !tc.wantErr && (tx == nil || tx.ID != txID) {
+				t.Fatalf("decoded tx = %+v, want id %s", tx, txID)
+			}
+
+			if got := wire.attempts.Load(); got != tc.attempts {
+				t.Fatalf("attempts = %d, want %d", got, tc.attempts)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if !oneKey(keys, tc.ctxKey+tc.inputKey) {
+				t.Fatalf("keys = %v, want one stable key (the caller's when supplied)", keys)
+			}
+		})
+	}
+}
+
+// TestPlaneWriteSurfacesCallerStamped0084: a key the caller stamps itself through the exported
+// plane client carries no SDK mark, so its 0084 surfaces instead of being retried.
+func TestPlaneWriteSurfacesCallerStamped0084(t *testing.T) {
+	var attempts atomic.Int32
+
+	replies := []string{"504", "0084", "201"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeReply(w, replies[attempts.Add(1)-1])
+	}))
+	defer srv.Close()
+
+	stamp := func(_ context.Context, req *http.Request) error {
+		req.Header.Set(idempotencyHeader, "their-key")
+
+		return nil
+	}
+
+	resp, err := newRetryEnabledPlanes(t, srv, 3).Ledger.CreateTransactionJSONWithBody(context.Background(),
+		txOrgID, txLedgerID, &genledger.CreateTransactionJSONParams{}, jsonContentType, strings.NewReader("{}"), stamp)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict || attempts.Load() != 2 {
+		t.Fatalf("status = %d after %d attempts, want 409 after 2", resp.StatusCode, attempts.Load())
+	}
+}
+
+// oneKey reports whether every key is the same non-empty key, equal to want when want is set.
+func oneKey(keys []string, want string) bool {
+	for _, key := range keys {
+		if key == "" || key != keys[0] || (want != "" && key != want) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// writeReply answers "503", "504", "201" with the sample transaction, or a 409 carrying reply as its code.
+func writeReply(w http.ResponseWriter, reply string) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch reply {
+	case "503":
+		w.WriteHeader(http.StatusServiceUnavailable)
+	case "504":
+		w.WriteHeader(http.StatusGatewayTimeout)
+	case "201":
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(txResponseBody()))
+	default:
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"code":"` + reply + `","title":"Conflict","status":409}`))
+	}
+}
+
+// TestFacadeWriteStopsRetryingAfterSlotTTL: a write whose X-TTL has passed since its
+// first send is not retried, since Midaz may no longer hold the key and would run it again.
+// The first attempt answers 503 after the slot's 1 s, so the retry would land past it.
+func TestFacadeWriteStopsRetryingAfterSlotTTL(t *testing.T) {
+	var attempts atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if attempts.Add(1) == 1 {
+			time.Sleep(1100 * time.Millisecond)
+			w.WriteHeader(http.StatusServiceUnavailable)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(txResponseBody()))
+	}))
+	defer srv.Close()
+
+	ctx := sdkctx.WithIdempotencyTTL(context.Background(), 1)
+
+	_, err := newRetryEnabledTxFacade(t, srv, 3).CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+	if err == nil {
+		t.Fatal("err = nil, want the 503 the retry was refused after")
+	}
+
+	if got := attempts.Load(); got != 1 {
+		t.Fatalf("attempts = %d, want 1", got)
 	}
 }

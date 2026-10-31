@@ -50,7 +50,16 @@
 // when a finished request's key is reused with a different payload. It never
 // means "the original transaction was returned": only an identical retry (same
 // key, same payload) of a finished create comes back as HTTP 200 with the
-// original transaction, not as an error. See [IsIdempotencyError].
+// original transaction, not as an error. When the SDK generated the call's key,
+// the facade waits for its own in-flight attempt under that key, with its usual
+// backoff and attempt limit, while the key's X-TTL from the call's start lasts,
+// so the conflict may resolve to the replayed outcome. With a caller key
+// (sdkctx.WithIdempotencyKey, the input's IdempotencyKey, or a key the caller
+// stamps itself on any path) a 0084 surfaces as this error, as does one that
+// outlasts the attempts or the TTL. [Error.Retryable]
+// is false for it, so an outer retry loop never re-creates the write under a new
+// key.
+// See [IsIdempotencyError].
 //
 // # Recognising an error
 //

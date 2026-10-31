@@ -2238,6 +2238,11 @@ func TestIsUnprocessableError(t *testing.T) {
 	}
 }
 
+func TestError_RetryableIdempotencyIsFalse(t *testing.T) {
+	// An outer retry re-calls the facade, which mints a new key and re-creates the write.
+	assert.False(t, (&sdkerrors.Error{Category: sdkerrors.CategoryConflict, Code: sdkerrors.CodeIdempotency}).Retryable())
+}
+
 // TestError_Retryable verifies the canonical SDK-wide retry policy is
 // derived from Category. Audit 8.F: Error.Retryable() is the single
 // source of truth for retry policies.

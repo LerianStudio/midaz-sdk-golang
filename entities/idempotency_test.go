@@ -63,7 +63,7 @@ func TestResolveIdempotency_KeyPrecedence(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			key, _ := resolveIdempotency(tt.ctx, tt.explicitKey, tt.autoGen)
+			key, _, _ := resolveIdempotency(tt.ctx, tt.explicitKey, tt.autoGen)
 
 			if tt.wantAutoGen {
 				if key == "" || key == tt.explicitKey || key == "ctx-key" {
@@ -82,13 +82,13 @@ func TestResolveIdempotency_KeyPrecedence(t *testing.T) {
 func TestResolveIdempotency_TTL(t *testing.T) {
 	t.Run("ttl from ctx", func(t *testing.T) {
 		ctx := sdkctx.WithIdempotencyTTL(context.Background(), 600)
-		if _, ttl := resolveIdempotency(ctx, "k", false); ttl != "600" {
+		if _, ttl, _ := resolveIdempotency(ctx, "k", false); ttl != "600" {
 			t.Errorf("ttl = %q, want %q", ttl, "600")
 		}
 	})
 
 	t.Run("ttl empty when absent", func(t *testing.T) {
-		if _, ttl := resolveIdempotency(context.Background(), "k", false); ttl != "" {
+		if _, ttl, _ := resolveIdempotency(context.Background(), "k", false); ttl != "" {
 			t.Errorf("ttl = %q, want empty", ttl)
 		}
 	})
