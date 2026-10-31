@@ -243,18 +243,19 @@ func TestFacadeWritePersistentServerErrorDecodesProblem(t *testing.T) {
 	}
 }
 
-// TestFacadeWriteRetriesIdempotencyInFlight: Midaz answers 409/0084 while the
-// first request under the key is in flight; the SDK retries with the SAME key
-// and returns the replayed outcome. Any other 409 is not retried.
+// TestFacadeWriteRetriesIdempotencyInFlight: after a 503 the retry finds the key
+// held by the first attempt (409/0084); the SDK retries with the SAME key and
+// returns the replayed outcome. Any other 409, and a 0084 on the first attempt
+// (another call's claim), are not retried.
 func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		code     string
-		wantErr  bool
-		attempts int
+		name    string
+		replies []string // per attempt: "503", a 409 code, or "201"
+		wantErr bool
 	}{
-		{"0084 retried", "0084", false, 2},
-		{"other 409 not retried", "0101", true, 1},
+		{"0084 after an own attempt retried", []string{"503", "0084", "201"}, false},
+		{"other 409 not retried", []string{"503", "0101", "201"}, true},
+		{"0084 on the first attempt not retried", []string{"0084", "201"}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var (
@@ -265,20 +266,10 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
 				keys = append(keys, r.Header.Get(idempotencyHeader))
-				n := len(keys)
+				reply := tc.replies[len(keys)-1]
 				mu.Unlock()
 
-				w.Header().Set("Content-Type", "application/json")
-
-				if n == 1 {
-					w.WriteHeader(http.StatusConflict)
-					_, _ = w.Write([]byte(`{"code":"` + tc.code + `","title":"Conflict","status":409}`))
-
-					return
-				}
-
-				w.WriteHeader(http.StatusCreated)
-				_, _ = w.Write([]byte(txResponseBody()))
+				writeReply(w, reply)
 			}))
 			defer srv.Close()
 
@@ -295,15 +286,37 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			if len(keys) != tc.attempts || keys[0] == "" || keys[len(keys)-1] != keys[0] {
-				t.Fatalf("attempts/keys = %v, want %d attempts with one stable key", keys, tc.attempts)
+			want := len(tc.replies)
+			if tc.wantErr {
+				want--
+			}
+
+			if len(keys) != want || keys[0] == "" || keys[len(keys)-1] != keys[0] {
+				t.Fatalf("attempts/keys = %v, want %d attempts with one stable key", keys, want)
 			}
 		})
 	}
 }
 
+// writeReply answers "503", "201" with the sample transaction, or a 409 carrying reply as its code.
+func writeReply(w http.ResponseWriter, reply string) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch reply {
+	case "503":
+		w.WriteHeader(http.StatusServiceUnavailable)
+	case "201":
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(txResponseBody()))
+	default:
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"code":"` + reply + `","title":"Conflict","status":409}`))
+	}
+}
+
 // TestFacadeWriteStopsRetryingAfterSlotTTL: a write whose X-TTL has passed since its
 // first send is not retried, since Midaz may no longer hold the key and would run it again.
+// The first attempt answers 503 after the slot's 1 s, so the retry would land past it.
 func TestFacadeWriteStopsRetryingAfterSlotTTL(t *testing.T) {
 	var attempts atomic.Int32
 
@@ -311,9 +324,8 @@ func TestFacadeWriteStopsRetryingAfterSlotTTL(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		if attempts.Add(1) == 1 {
-			time.Sleep(1100 * time.Millisecond) // the in-flight answer outlasts the 1 s slot
-			w.WriteHeader(http.StatusConflict)
-			_, _ = w.Write([]byte(`{"code":"0084","title":"Conflict","status":409}`))
+			time.Sleep(1100 * time.Millisecond)
+			w.WriteHeader(http.StatusServiceUnavailable)
 
 			return
 		}
@@ -326,8 +338,8 @@ func TestFacadeWriteStopsRetryingAfterSlotTTL(t *testing.T) {
 	ctx := sdkctx.WithIdempotencyTTL(context.Background(), 1)
 
 	_, err := newRetryEnabledTxFacade(t, srv, 3).CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
-	if !sdkerrors.IsIdempotencyError(err) {
-		t.Fatalf("err = %v, want the 0084 conflict", err)
+	if err == nil {
+		t.Fatal("err = nil, want the 503 the retry was refused after")
 	}
 
 	if got := attempts.Load(); got != 1 {

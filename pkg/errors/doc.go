@@ -50,11 +50,12 @@
 // when a finished request's key is reused with a different payload. It never
 // means "the original transaction was returned": only an identical retry (same
 // key, same payload) of a finished create comes back as HTTP 200 with the
-// original transaction, not as an error. The SDK retries it under the same key
-// with its usual backoff and attempt limit while the key's X-TTL lasts, so an
-// in-flight conflict may resolve to the replayed outcome; one that outlasts the
-// attempts or the TTL, and a payload mismatch, surface as this error. See
-// [IsIdempotencyError].
+// original transaction, not as an error. When an earlier attempt of the same
+// call holds the key, the SDK retries it under that key with its usual backoff
+// and attempt limit while the key's X-TTL lasts, so the conflict may resolve to
+// the replayed outcome. A 0084 on a call's first attempt (another call holds the
+// key), one that outlasts the attempts or the TTL, and a payload mismatch surface
+// as this error. See [IsIdempotencyError].
 //
 // # Recognising an error
 //

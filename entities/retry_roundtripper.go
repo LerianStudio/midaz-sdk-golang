@@ -84,7 +84,7 @@ func (rt *retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		}
 
 		//nolint:bodyclose // the kept response is either returned to the caller (who closes it), superseded by the next attempt, or already drained+rebuilt by bufferRetryableResponse.
-		resp, attemptErr := rt.attempt(ctx, req, effective.RetryableHTTPCodes)
+		resp, attemptErr := rt.attempt(ctx, req, effective.RetryableHTTPCodes, lastErr != nil)
 		lastResp, lastErr = resp, attemptErr
 
 		return attemptErr
@@ -169,7 +169,7 @@ func (rt *retryRoundTripper) resolveOptions(req *http.Request) retry.Options {
 //     decodable response.
 //   - (resp, nil)                        on success or a non-retryable status —
 //     the untouched response, whose body the caller closes.
-func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, codes []int) (*http.Response, error) {
+func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, codes []int, retried bool) (*http.Response, error) {
 	attemptReq := req.Clone(ctx)
 
 	// Rewind the body for THIS attempt. Each attempt gets a fresh reader from
@@ -218,9 +218,10 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
 	}
 
-	// 409/0084: the key is held by an in-flight request; retrying under the same
-	// key cannot post twice, Midaz replays the first outcome once it finishes.
-	if resp.StatusCode == http.StatusConflict {
+	// 409/0084 on a retry: an earlier attempt of this call holds the key, claimed after this call
+	// began, so retrying under it within its TTL cannot post twice. A first-attempt 0084 is
+	// another call's claim, of unknown age, and is returned as is.
+	if resp.StatusCode == http.StatusConflict && retried {
 		body := bufferResponseBody(resp)
 
 		if sdkerrors.IsIdempotencyError(sdkerrors.DecodeProblemJSON(resp.StatusCode, body, "")) {
