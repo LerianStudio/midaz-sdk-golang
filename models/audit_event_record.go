@@ -92,8 +92,7 @@ type AuditEventRecord struct {
 // the batch-link cutover it walks the hash chain up to the event. For newer
 // events it proves only the event's own batch and the hash pointers of its
 // neighbouring links, not every earlier record. When IsValid is false,
-// FirstInvalidID locates the first tampered record. An event not yet linked
-// (up to ~2 s after it was written) is answered with HTTP 409, code 0566.
+// FirstInvalidID locates the first tampered record.
 type HashChainVerificationResult struct {
 	// IsValid reports whether the verification described above passed.
 	IsValid bool `json:"isValid"`
