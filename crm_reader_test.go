@@ -231,7 +231,7 @@ func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 			)
 
 			got.instruments, err = reader.Instruments(ctx, crmTestOrg, InstrumentQuery{
-				AccountID: "acc", Document: crmTestDocument, BankAccount: "123450", IncludeDeleted: true, Page: 2, Limit: 100,
+				AccountID: "acc", Document: crmTestDocument, BankAccount: "123450", BankBranch: "0001", IncludeDeleted: true, Page: 2, Limit: 100,
 			})
 			require.NoError(t, err)
 
@@ -252,7 +252,7 @@ func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 				assert.Equal(t, "Bearer t", reqs[i].Header.Get("Authorization"))
 			}
 
-			assert.Equal(t, "account_id=acc&banking_details_account=123450&document=12345678909&include_deleted=true&limit=100&page=2", reqs[0].URL.RawQuery)
+			assert.Equal(t, "account_id=acc&banking_details_account=123450&banking_details_branch=0001&document=12345678909&include_deleted=true&limit=100&page=2", reqs[0].URL.RawQuery)
 			assert.Equal(t, "document=12345678909&limit=100&page=2", reqs[1].URL.RawQuery)
 			assert.Empty(t, reqs[2].URL.RawQuery)
 			assert.Empty(t, versionAuth, "/version is public; never send the credential there")
@@ -274,6 +274,19 @@ func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 
 // TestCRMReaderRefresh pins the refresh: past 5 minutes a call answers the cached API and starts one
 // re-read; a failed re-read keeps the last API, a changed answer swaps it, OnResolve reports both.
+// TestCRMReaderInstrumentsOmitsEmptyBranch pins that the zero BankBranch sends no filter.
+func TestCRMReaderInstrumentsOmitsEmptyBranch(t *testing.T) {
+	srv := newCRMServer(t, writeBody(crmVersion384))
+	reader := newTestCRMReader(t, srv.URL, nil)
+
+	_, err := reader.Instruments(context.Background(), crmTestOrg, InstrumentQuery{Document: crmTestDocument})
+	require.NoError(t, err)
+
+	reqs := srv.requests()
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "document="+crmTestDocument, reqs[0].URL.RawQuery)
+}
+
 func TestCRMReaderRefresh(t *testing.T) {
 	type report struct {
 		api CRMAPI

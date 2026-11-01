@@ -55,6 +55,7 @@ type InstrumentQuery struct {
 	AccountID      string
 	Document       string
 	BankAccount    string // bankingDetails.account
+	BankBranch     string // bankingDetails.branch
 	IncludeDeleted bool
 	Page           int
 	Limit          int
@@ -117,6 +118,7 @@ func (r *CRMReader) Instruments(ctx context.Context, organizationID string, q In
 	setIfNotEmpty(query, "account_id", q.AccountID)
 	setIfNotEmpty(query, "document", q.Document)
 	setIfNotEmpty(query, "banking_details_account", q.BankAccount)
+	setIfNotEmpty(query, "banking_details_branch", q.BankBranch)
 
 	if q.IncludeDeleted {
 		query.Set("include_deleted", "true")
