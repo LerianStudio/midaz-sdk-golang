@@ -98,7 +98,7 @@ on `/v1` (instruments are its `aliases`, the organization in the
 `X-Organization-Id` header), and the Midaz ledger 4.x embeds the CRM on
 `/v2/organizations/{org}/holders|instruments`. Both read the same Mongo layout
 and take the same query keys (`account_id`, `document`,
-`banking_details_account`, `include_deleted`, `page`, `limit`), so one
+`banking_details_account`, `banking_details_branch`, `include_deleted`, `page`, `limit`), so one
 `midaz.CRMReader` reads either:
 
 ```go
