@@ -128,9 +128,12 @@ func (f *auditEventsFacade) Get(ctx context.Context, id string) (*models.AuditEv
 	return readOne[models.AuditEventRecord](operation, resp, err)
 }
 
-// Verify returns the tracer server's hash-chain integrity verdict for the audit
-// trail up to the given event ID. The server (a Postgres function,
-// verify_audit_hash_chain) walks the SHA-256 chain; the SDK only decodes the
+// Verify returns the tracer server's integrity verdict for the given event ID.
+// Older events are verified by walking the hash chain up to them; events written
+// after the batch-link cutover prove only their own batch and neighbouring link
+// pointers (see models.HashChainVerificationResult). An event not yet linked
+// yields a 409 error (APICode 0566); it is usually linked within ~2 s (p99), so
+// retry later. The SDK only decodes the
 // verdict — it performs NO crypto and never re-computes the chain.
 func (f *auditEventsFacade) Verify(ctx context.Context, id string) (*models.HashChainVerificationResult, error) {
 	const operation = "AuditEvents.Verify"
