@@ -123,11 +123,12 @@ const (
 	CRMAPIV2 CRMAPI = "v2" // CRM embedded in the Midaz ledger 4.x: /v2/organizations/{org}/instruments and holders
 )
 
-// ResolveCRMAPI decides the API from the /version served at the CRM URL: v2 iff Known && major >= 4.
-// No standalone CRM ships major 4 (it ended at 3.8.x), so a major-4 answer is a ledger; a placeholder
-// ("0.0.0", a CRM 3.x with VERSION unset) is a CRM 3.x.
+// ResolveCRMAPI decides the API from the /version served at the CRM URL: v2 iff the body is buildinfo-v1
+// or Known && major >= 4. A standalone CRM (it ended at 3.8.x, on lib-commons v5.10.0's legacy
+// {"version","requestDate"} body) never serves buildinfo-v1, so that body is a ledger 4.x, even an
+// unstamped one ("dev"); a placeholder ("0.0.0", a CRM 3.x with VERSION unset) stays a CRM 3.x.
 func ResolveCRMAPI(v ServerVersion) CRMAPI {
-	if v.Known && v.Major >= 4 {
+	if v.Source == SourceBuildInfoV1 || v.Known && v.Major >= 4 {
 		return CRMAPIV2
 	}
 
