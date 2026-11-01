@@ -40,8 +40,11 @@ type Actor struct {
 // AuditEventRecord is one entry in the tracer's tamper-evident audit trail. It is
 // the TRACER-plane audit event — DISTINCT from the ledger-plane protection audit
 // (models.AuditEvent), a different feature with a flat status-transition shape.
-// Hash/PreviousHash chain each record to the previous one (SHA-256); the server
-// verifies the chain (see HashChainVerificationResult). Mirrors the generated
+// Events written before the server's batch-link cutover carry Hash and
+// PreviousHash chaining each record to the previous one (SHA-256). Newer events
+// carry Hash as the digest of their own row and no PreviousHash; their chain
+// evidence lives in batch links the API does not expose. The server verifies
+// both (see HashChainVerificationResult). Mirrors the generated
 // gentracer.AuditEvent with the UUID as a plain string.
 type AuditEventRecord struct {
 	// EventID is the record identity (UUID).
@@ -65,10 +68,12 @@ type AuditEventRecord struct {
 	// Actor is who performed the action.
 	Actor Actor `json:"actor"`
 
-	// Hash is this record's chain hash (SHA-256), when present.
+	// Hash is this record's SHA-256: chained to PreviousHash for older events, the
+	// digest of the row alone for newer ones.
 	Hash *string `json:"hash,omitempty"`
 
-	// PreviousHash chains this record to the prior one, when present.
+	// PreviousHash chains this record to the prior one; absent on events written
+	// after the batch-link cutover.
 	PreviousHash *string `json:"previousHash,omitempty"`
 
 	// Context is optional structured context captured with the event.
@@ -82,18 +87,22 @@ type AuditEventRecord struct {
 }
 
 // HashChainVerificationResult is the tracer server's verdict on the audit
-// hash-chain integrity (GET /audit-events/{id}/verify). The server (a Postgres
-// function, verify_audit_hash_chain) walks the SHA-256 chain and returns this;
-// the SDK performs NO crypto — it only decodes the verdict. When IsValid is
-// false, FirstInvalidID locates the first tampered record.
+// integrity (GET /audit-events/{id}/verify). The server computes it and the SDK
+// performs NO crypto — it only decodes the verdict. For events written before
+// the batch-link cutover it walks the hash chain up to the event. For newer
+// events it proves only the event's own batch and the hash pointers of its
+// neighbouring links, not every earlier record. When IsValid is false,
+// FirstInvalidID locates the first tampered record. An event not yet linked
+// (up to ~2 s after it was written) is answered with HTTP 409, code 0566.
 type HashChainVerificationResult struct {
-	// IsValid reports whether the chain up to the target verified intact.
+	// IsValid reports whether the verification described above passed.
 	IsValid bool `json:"isValid"`
 
 	// FirstInvalidID locates the first tampered record when IsValid is false.
 	FirstInvalidID *int64 `json:"firstInvalidId,omitempty"`
 
-	// TotalChecked is how many records were walked.
+	// TotalChecked counts records walked for older events, and chain links (at
+	// most 3) for newer ones.
 	TotalChecked int64 `json:"totalChecked"`
 
 	// Message is the human-readable verdict explanation.
