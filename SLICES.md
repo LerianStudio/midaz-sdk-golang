@@ -89,7 +89,7 @@ examples/internal/quickstart/quickstart.go
 
 Review goal: the two-plane transport wiring (Ledger + Tracer generated clients), oapi-codegen output, spec downgrade tooling, contract drift checks, and backend-parity mapping. This slice is the seam between the SDK and the generated OpenAPI surface.
 
-Backend comparison anchor: `../midaz` — the generated clients are produced from the backend's OpenAPI specs. `scripts/check-midaz-drift.sh` and `.github/workflows/midaz-drift.yml` guard drift; `contract/drift_test.go` (its own module) asserts codegen-vs-model parity.
+Backend comparison anchor: `../midaz` — the generated clients are produced from the backend's OpenAPI specs. `scripts/check-midaz-drift.sh` guards drift; `contract/drift_test.go` (its own module) asserts codegen-vs-model parity.
 
 ```text
 entities/plane_clients.go
@@ -112,7 +112,6 @@ contract/go.sum
 scripts/generate-clients.sh
 scripts/check-codegen-drift.sh
 scripts/check-midaz-drift.sh
-.github/workflows/midaz-drift.yml
 
 docs/mapping/external_apis.md
 docs/mapping/internal_apis.md
@@ -920,7 +919,7 @@ at `entities/http.go:597`, `doRawRequest` at `entities/http.go:665`.
 
 Backend parity anchor: `../midaz` is the source of the OpenAPI specs that
 generate `internal/genledger` and `internal/gentracer`. Drift is guarded by
-`scripts/check-midaz-drift.sh` + `.github/workflows/midaz-drift.yml` and by
+`scripts/check-midaz-drift.sh` and by
 `contract/drift_test.go` (a separate Go module under `contract/`). For contract
 review, Ledger-plane slices (5–12, 14, 15) compare against the ledger/CRM
 components; Tracer-plane Slice 13 compares against the tracer component.
