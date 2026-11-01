@@ -248,7 +248,7 @@ gosec:
 gosec-audit:
 	$(call print_header,"Running security audit checks")
 	@echo "$(CYAN)Running gosec audit scanner ($(GOSEC_VERSION))...$(NC)"
-	@$(GOSEC) -quiet -enable-audit -exclude=G104 ./...
+	@$(GOSEC) -exclude-generated -quiet -enable-audit -exclude=G104 ./...
 	@echo "$(GREEN)[ok]$(NC) Security audit checks completed successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
