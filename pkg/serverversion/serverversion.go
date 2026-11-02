@@ -29,6 +29,7 @@ type ServerVersion struct {
 	Patch      int
 	Prerelease string // "beta.5" for "4.2.0-beta.5"; "" otherwise
 	Known      bool   // false for unavailable, unparsable, "0.0.0", "dev"
+	Provenance bool   // legacy body that also carries "commit": a ledger 4.0.x, never a standalone CRM 3.x
 	Source     Source
 }
 
@@ -36,8 +37,9 @@ type ServerVersion struct {
 // unknown or placeholder version: it returns Known=false instead.
 func Parse(body []byte) ServerVersion {
 	var doc struct {
-		SchemaVersion *string `json:"schemaVersion"`
-		Version       *string `json:"version"`
+		SchemaVersion *string         `json:"schemaVersion"`
+		Version       *string         `json:"version"`
+		Commit        json.RawMessage `json:"commit"`
 	}
 
 	if err := json.Unmarshal(body, &doc); err != nil || doc.Version == nil {
@@ -54,12 +56,14 @@ func Parse(body []byte) ServerVersion {
 		source = SourceBuildInfoV1
 	}
 
+	provenance := source == SourceLegacy && doc.Commit != nil
+
 	v, ok := parseSemVer(*doc.Version)
 	if !ok || v.Major == 0 && v.Minor == 0 && v.Patch == 0 {
-		return ServerVersion{Raw: *doc.Version, Source: source}
+		return ServerVersion{Raw: *doc.Version, Source: source, Provenance: provenance}
 	}
 
-	v.Raw, v.Known, v.Source = *doc.Version, true, source
+	v.Raw, v.Known, v.Source, v.Provenance = *doc.Version, true, source, provenance
 
 	return v
 }
@@ -123,12 +127,11 @@ const (
 	CRMAPIV2 CRMAPI = "v2" // CRM embedded in the Midaz ledger 4.x: /v2/organizations/{org}/instruments and holders
 )
 
-// ResolveCRMAPI decides the API from the /version served at the CRM URL: v2 iff the body is buildinfo-v1
-// or Known && major >= 4. A standalone CRM (it ended at 3.8.x, on lib-commons v5.10.0's legacy
-// {"version","requestDate"} body) never serves buildinfo-v1, so that body is a ledger 4.x, even an
-// unstamped one ("dev"); a placeholder ("0.0.0", a CRM 3.x with VERSION unset) stays a CRM 3.x.
+// ResolveCRMAPI decides the API from the /version served at the CRM URL: v2 iff the body is buildinfo-v1,
+// a legacy body with "commit" (a ledger 4.0.x, even serving "0.0.0" or "dev") or Known && major >= 4.
+// A standalone CRM (ended at 3.8.x) serves only {"version","requestDate"}, so a placeholder stays v1.
 func ResolveCRMAPI(v ServerVersion) CRMAPI {
-	if v.Source == SourceBuildInfoV1 || v.Known && v.Major >= 4 {
+	if v.Source == SourceBuildInfoV1 || v.Provenance || v.Known && v.Major >= 4 {
 		return CRMAPIV2
 	}
 

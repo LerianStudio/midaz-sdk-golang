@@ -38,13 +38,13 @@ func TestParse(t *testing.T) {
 		{
 			name: "v4.0.x legacy shape",
 			body: `{"version":"v4.0.7","requestDate":"2026-09-30T12:00:00Z","commit":"abc","buildTime":"2026-09-30T00:00:00Z","dirty":false}`,
-			want: serverversion.ServerVersion{Raw: "v4.0.7", Major: 4, Minor: 0, Patch: 7, Known: true, Source: serverversion.SourceLegacy},
+			want: serverversion.ServerVersion{Raw: "v4.0.7", Major: 4, Minor: 0, Patch: 7, Known: true, Source: serverversion.SourceLegacy, Provenance: true},
 			mode: serverversion.FeeModeLegacy,
 		},
 		{
 			name: "v4.0.x without VERSION serves 0.0.0",
 			body: `{"version":"0.0.0","requestDate":"2026-09-30T12:00:00Z","commit":"abc","buildTime":"2026-09-30T00:00:00Z","dirty":false}`,
-			want: serverversion.ServerVersion{Raw: "0.0.0", Source: serverversion.SourceLegacy},
+			want: serverversion.ServerVersion{Raw: "0.0.0", Source: serverversion.SourceLegacy, Provenance: true},
 			mode: serverversion.FeeModeLegacy,
 		},
 		{
@@ -155,7 +155,8 @@ func TestParse(t *testing.T) {
 	}
 }
 
-// TestResolveCRMAPI pins the CRM rule: v2 iff the CRM URL serves a buildinfo-v1 body or a known major >= 4.
+// TestResolveCRMAPI pins the CRM rule: v2 iff the CRM URL serves a buildinfo-v1 body, a legacy body with
+// commit (ledger 4.0.x) or a known major >= 4.
 func TestResolveCRMAPI(t *testing.T) {
 	tests := []struct {
 		name string
@@ -166,6 +167,8 @@ func TestResolveCRMAPI(t *testing.T) {
 		{"stamped ledger", serverversion.Parse([]byte(`{"schemaVersion":"v1","version":"4.5.0"}`)), serverversion.CRMAPIV2},
 		{"CRM 3.8", serverversion.Parse([]byte(`{"version":"3.8.7","requestDate":"2026-01-01T00:00:00Z"}`)), serverversion.CRMAPIV1},
 		{"CRM 3.x placeholder", serverversion.Parse([]byte(`{"version":"0.0.0","requestDate":"2026-01-01T00:00:00Z"}`)), serverversion.CRMAPIV1},
+		{"ledger 4.0.x without VERSION", serverversion.Parse([]byte(`{"version":"0.0.0","requestDate":"2026-09-30T12:00:00Z","commit":"abc","buildTime":"2026-09-30T00:00:00Z","dirty":false}`)), serverversion.CRMAPIV2},
+		{"CRM 3.x dev placeholder", serverversion.Parse([]byte(`{"version":"dev","requestDate":"2026-01-01T00:00:00Z"}`)), serverversion.CRMAPIV1},
 		{"unreachable", serverversion.Parse([]byte(`nope`)), serverversion.CRMAPIV1},
 		{"ledger 4.2.0 prerelease", serverversion.ServerVersion{Major: 4, Minor: 2, Prerelease: "beta.5", Known: true}, serverversion.CRMAPIV2},
 		{"ledger 5", serverversion.ServerVersion{Major: 5, Known: true}, serverversion.CRMAPIV2},
