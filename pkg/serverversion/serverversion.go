@@ -23,14 +23,14 @@ const (
 
 // ServerVersion is what the connected Midaz ledger says it is.
 type ServerVersion struct {
-	Raw        string // "version" exactly as served ("" when unavailable)
-	Major      int
-	Minor      int
-	Patch      int
-	Prerelease string // "beta.5" for "4.2.0-beta.5"; "" otherwise
-	Known      bool   // false for unavailable, unparsable, "0.0.0", "dev"
-	Provenance bool   // legacy body that also carries "commit": a ledger 4.0.x, never a standalone CRM 3.x
-	Source     Source
+	Raw             string // "version" exactly as served ("" when unavailable)
+	Major           int
+	Minor           int
+	Patch           int
+	Prerelease      string // "beta.5" for "4.2.0-beta.5"; "" otherwise
+	Known           bool   // false for unavailable, unparsable, "0.0.0", "dev"
+	LegacyBuildInfo bool   // legacy body that also carries "commit": a Midaz 4.0.x service (ledger or Tracer)
+	Source          Source
 }
 
 // Parse decodes a /version response body. It never returns an error for an
@@ -60,10 +60,10 @@ func Parse(body []byte) ServerVersion {
 
 	v, ok := parseSemVer(*doc.Version)
 	if !ok || v.Major == 0 && v.Minor == 0 && v.Patch == 0 {
-		return ServerVersion{Raw: *doc.Version, Source: source, Provenance: provenance}
+		return ServerVersion{Raw: *doc.Version, Source: source, LegacyBuildInfo: provenance}
 	}
 
-	v.Raw, v.Known, v.Source, v.Provenance = *doc.Version, true, source, provenance
+	v.Raw, v.Known, v.Source, v.LegacyBuildInfo = *doc.Version, true, source, provenance
 
 	return v
 }
@@ -128,10 +128,10 @@ const (
 )
 
 // ResolveCRMAPI decides the API from the /version served at the CRM URL: v2 iff the body is buildinfo-v1,
-// a legacy body with "commit" (a ledger 4.0.x, even serving "0.0.0" or "dev") or Known && major >= 4.
-// A standalone CRM (ended at 3.8.x) serves only {"version","requestDate"}, so a placeholder stays v1.
+// a legacy body with "commit" (a Midaz 4.0.x service, ledger or Tracer, even serving "0.0.0" or "dev") or
+// Known && major >= 4. A standalone CRM 3.x never served those fields, so a placeholder stays v1.
 func ResolveCRMAPI(v ServerVersion) CRMAPI {
-	if v.Source == SourceBuildInfoV1 || v.Provenance || v.Known && v.Major >= 4 {
+	if v.Source == SourceBuildInfoV1 || v.LegacyBuildInfo || v.Known && v.Major >= 4 {
 		return CRMAPIV2
 	}
 
