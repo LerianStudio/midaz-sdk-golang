@@ -131,10 +131,9 @@ func (f *auditEventsFacade) Get(ctx context.Context, id string) (*models.AuditEv
 // Verify returns the tracer server's integrity verdict for the given event ID.
 // Older events are verified by walking the hash chain up to them; events written
 // after the batch-link cutover prove only their own batch and neighbouring link
-// pointers (see models.HashChainVerificationResult). An event not yet linked
-// yields a 409 error (APICode 0566); it is usually linked within ~2 s (p99), so
-// retry later. The SDK only decodes the
-// verdict — it performs NO crypto and never re-computes the chain.
+// pointers; a not-yet-linked event yields a 409 (see models.HashChainVerificationResult
+// for the retry guidance). The SDK only decodes the verdict — it performs NO
+// crypto and never re-computes the chain.
 func (f *auditEventsFacade) Verify(ctx context.Context, id string) (*models.HashChainVerificationResult, error) {
 	const operation = "AuditEvents.Verify"
 
