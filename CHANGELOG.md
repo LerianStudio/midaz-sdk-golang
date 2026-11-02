@@ -1,5 +1,35 @@
 # Midaz-sdk-golang Changelog
 
+## [6.4.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.4.0)
+
+Features:
+- Release `v6.4.0` with the addition of `closedAt` for accounts and the `v2` batch support. (@fredcamaral)
+- Enable filtering of CRM instruments by bank branch. (@fredcamaral)
+- Expose the account closing date on account reads. (@fredcamaral)
+- Wrap the atomic `v2` transaction batch. (@fredcamaral)
+
+Fixes:
+- Resolve an unstamped ledger `4.0.x` to the embedded CRM API. (@fredcamaral)
+- Name the legacy build-info flag and align its documentation. (@fredcamaral)
+- Retry an in-flight idempotency conflict under its key. (@fredcamaral)
+- Retry `0084` only under a key marked as SDK-generated. (@fredcamaral)
+- Ensure `0084` remains non-retryable to prevent outer retries from re-creating a write. (@fredcamaral)
+- Retry `0084` only after an attempt whose outcome is unknown. (@fredcamaral)
+- Stop retrying a write once its idempotency slot may expire. (@fredcamaral)
+- Accept account aliases up to 100 characters like the server. (@fredcamaral)
+
+Improvements:
+- Show the audit verify retry guidance on the exported API. (@fredcamaral)
+- Describe batch-link audit verify guarantees. (@fredcamaral)
+- Fix gosec audit, narrow routine secrets, and drop dead drift check. (@fredcamaral)
+- Drop unused docs job and push trigger from SDK checks. (@fredcamaral)
+- Refuse a batch item that carries its own idempotency key. (@fredcamaral)
+- Read a conflict body once before the retry check. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.3.0...v6.4.0)
+
+---
+
 ## [6.3.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.3.0)
 
 Features:
