@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 )
 
@@ -67,12 +70,22 @@ func (rt *retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	// non-retryable status it is the untouched response. It stays nil for a
 	// transport failure, so the exhaustion branch can tell "persistent 5xx"
 	// (return the response) from "network down" (return the error).
-	var lastResp *http.Response
+	var (
+		lastResp *http.Response
+		lastErr  error
+	)
+
+	start, held := time.Now(), slotHeldFor(req)
 
 	err := retry.DoWithContext(retry.WithOptionsContext(ctx, &effective), func() error {
+		// A write retried after its idempotency slot expired would run again as a new write.
+		if lastErr != nil && held > 0 && time.Since(start) >= held {
+			return retry.AsNonRetryable(lastErr)
+		}
+
 		//nolint:bodyclose // the kept response is either returned to the caller (who closes it), superseded by the next attempt, or already drained+rebuilt by bufferRetryableResponse.
 		resp, attemptErr := rt.attempt(ctx, req, effective.RetryableHTTPCodes)
-		lastResp = resp
+		lastResp, lastErr = resp, attemptErr
 
 		return attemptErr
 	})
@@ -95,6 +108,21 @@ func (rt *retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	}
 
 	return lastResp, nil
+}
+
+// slotHeldFor is how long Midaz holds a write's idempotency slot after its claim: the X-TTL
+// seconds, or the server default of 300 s. Zero for a safe method, which needs no slot.
+func slotHeldFor(req *http.Request) time.Duration {
+	if !isUnsafeMethod(req.Method) {
+		return 0
+	}
+
+	seconds, err := strconv.Atoi(req.Header.Get(ttlHeader))
+	if err != nil || seconds <= 0 {
+		seconds = 300
+	}
+
+	return time.Duration(seconds) * time.Second
 }
 
 // resolveOptions produces the per-request effective retry policy: it composes
@@ -190,6 +218,18 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
 	}
 
+	// 409/0084 under the key the SDK minted for this call: the claim holding it is this call's own
+	// earlier attempt, so retrying within its TTL cannot post twice. Any other key's 0084 is returned.
+	if minted, ok := req.Context().Value(mintedKeyCtx{}).(string); ok && resp.StatusCode == http.StatusConflict && minted == req.Header.Get(idempotencyHeader) {
+		body := bufferResponseBody(resp)
+
+		if sdkerrors.IsIdempotencyError(sdkerrors.DecodeProblemJSON(resp.StatusCode, body, "")) {
+			return resp, retryableCustomPolicyError{err: retryableHTTPError{statusCode: resp.StatusCode}}
+		}
+
+		return resp, nil
+	}
+
 	// Non-retryable failure: hand the untouched response back; the caller
 	// (generated client) closes its body.
 	return resp, nil
@@ -221,12 +261,16 @@ func (rt *retryRoundTripper) classifyTransportError(rtErr error) error {
 // maxHTTPResponseBodyBytes so a hostile server cannot pin arbitrary memory
 // across retries.
 func bufferRetryableResponse(resp *http.Response) *http.Response {
-	if resp == nil {
-		return nil
-	}
+	bufferResponseBody(resp)
 
-	if resp.Body == nil {
-		return resp
+	return resp
+}
+
+// bufferResponseBody does the draining for bufferRetryableResponse and returns
+// the buffered bytes (nil when there is no body).
+func bufferResponseBody(resp *http.Response) []byte {
+	if resp == nil || resp.Body == nil {
+		return nil
 	}
 
 	// A read error here is non-actionable: we are about to either discard this
@@ -247,7 +291,7 @@ func bufferRetryableResponse(resp *http.Response) *http.Response {
 	resp.Body = io.NopCloser(bytes.NewReader(buf))
 	resp.ContentLength = int64(len(buf))
 
-	return resp
+	return buf
 }
 
 // statusRetryable reports whether status is in the configured retryable set.

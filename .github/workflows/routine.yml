@@ -40,4 +40,5 @@ jobs:
       routine: ${{ inputs.routine || 'all' }}
       dry_run: ${{ inputs.dry_run || false }}
       merged_branch: ${{ github.head_ref }}
-    secrets: inherit
+    secrets:
+      MANAGE_TOKEN: ${{ secrets.MANAGE_TOKEN }}

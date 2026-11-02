@@ -172,19 +172,13 @@ func NewValidationConfig(options ...ValidationOption) (*ValidationConfig, error)
 // "@external/foobarbaz".
 var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 
-// AccountAliasPattern is the regex pattern for account aliases.
-//
-// Midaz aliases support letters, digits, underscores, hyphens, colons, and
-// an optional leading "@"; the server refuses dots. The 50-character cap is
-// the *total* string length and matches the error message in
-// [ValidateAccountAlias]: a leading "@" counts toward the cap, so "@" + 49
-// chars is the longest valid prefixed form, and 50 chars is the longest
-// valid bare form. The previous 100-character cap was too permissive and
-// routinely let test fixtures through that the backend would later reject.
+// AccountAliasPattern matches letters, digits, "_", "-", ":" and an optional
+// leading "@" (no dots), at most 100 characters in total with the "@" counted,
+// as Midaz CreateAccountInput.Alias enforces with max=100.
 //
 // Example aliases that match: "@treasury_checking", "loan_principal:USD",
 // "savings-account-2024", "@alice".
-var AccountAliasPattern = regexp.MustCompile(`^(?:@[a-zA-Z0-9_:-]{1,49}|[a-zA-Z0-9_:-]{1,50})$`)
+var AccountAliasPattern = regexp.MustCompile(`^(?:@[a-zA-Z0-9_:-]{1,99}|[a-zA-Z0-9_:-]{1,100})$`)
 
 // AssetCodePattern is the regex pattern for asset codes (e.g. "USD", "BRL",
 // "USDT"). The 3-4 uppercase-letter bound matches ISO 4217 currency codes
@@ -218,7 +212,7 @@ func ValidateAssetCode(assetCode string) error {
 
 // ValidateAccountAlias checks if an account alias is valid.
 // Account aliases may include letters, numbers, underscores, hyphens, colons,
-// and an optional leading @, up to 50 characters total.
+// and an optional leading @, up to 100 characters total.
 //
 // Example:
 //
@@ -231,7 +225,7 @@ func ValidateAccountAlias(alias string) error {
 	}
 
 	if !AccountAliasPattern.MatchString(alias) {
-		return fmt.Errorf("invalid account alias format: %s (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 50 chars)", alias)
+		return fmt.Errorf("invalid account alias format: %s (must contain only letters, numbers, underscores, hyphens, colons, and an optional leading @; max 100 chars)", alias)
 	}
 
 	return nil

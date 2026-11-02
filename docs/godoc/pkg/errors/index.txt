@@ -48,11 +48,18 @@ one [Code]:
     └────────────────────┴───────────────────────────────┴──────────────┘
 
 idempotency_error (wire code 0084) is a conflict, never a success. The server
-emits it while an earlier request with the same key is still in flight, and when
-a finished request's key is reused with a different payload. It never means
-"the original transaction was returned": only an identical retry (same key,
-same payload) of a finished create comes back as HTTP 200 with the original
-transaction, not as an error. See IsIdempotencyError.
+emits it while an earlier request with the same key is still in flight,
+and when a finished request's key is reused with a different payload.
+It never means "the original transaction was returned": only an identical retry
+(same key, same payload) of a finished create comes back as HTTP 200 with the
+original transaction, not as an error. When the SDK generated the call's key,
+the facade waits for its own in-flight attempt under that key, with its usual
+backoff and attempt limit, while the key's X-TTL from the call's start lasts,
+so the conflict may resolve to the replayed outcome. With a caller key
+(sdkctx.WithIdempotencyKey, the input's IdempotencyKey, or a key the caller
+stamps itself on any path) a 0084 surfaces as this error, as does one that
+outlasts the attempts or the TTL. Error.Retryable is false for it, so an outer
+retry loop never re-creates the write under a new key. See IsIdempotencyError.
 
 # Recognising an error
 
@@ -197,6 +204,7 @@ func IsSensitiveFieldName(name string) bool
 func IsSkipNotPermitted(err error) bool
 func IsStatusPreconditionError(err error) bool
 func IsTimeoutError(err error) bool
+func IsTransactionReservationDenied(err error) bool
 func IsUnprocessableError(err error) bool
 func IsValidationError(err error) bool
 func MarkFeatureNotAvailable(err error) error

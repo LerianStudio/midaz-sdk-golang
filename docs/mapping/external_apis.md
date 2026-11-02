@@ -52,12 +52,12 @@ This map documents the recommended public SDK surface that consumers should use.
 
 ### Server version and fee mode
 
-- `Client.ServerVersion(context.Context) (midaz.ServerVersion, error)` - Reads the ledger's public `GET <LedgerURL>/version`. Returns `{Raw, Major, Minor, Patch, Prerelease, Known, Source}`; the error is non-nil iff `Source` is `serverversion.SourceUnavailable` (transport failure, non-2xx, or a body that is not a `/version` response). A placeholder version (`0.0.0`, `dev`) is `Known=false` with a nil error.
+- `Client.ServerVersion(context.Context) (midaz.ServerVersion, error)` - Reads the ledger's public `GET <LedgerURL>/version`. Returns `{Raw, Major, Minor, Patch, Prerelease, Known, LegacyBuildInfo, Source}`; the error is non-nil iff `Source` is `serverversion.SourceUnavailable` (transport failure, non-2xx, or a body that is not a `/version` response). A placeholder version (`0.0.0`, `dev`) is `Known=false` with a nil error.
 - `midaz.ResolveFeeMode(midaz.ServerVersion) midaz.FeeMode` - `midaz.FeeModeNative` (post on `/v2`, the ledger applies fees) iff `Known` and the version is 4.1.0 or later; `midaz.FeeModeLegacy` (post on `/v1`, the service owns fees) otherwise.
 - `midaz.ReadServerVersion(ctx, midaz.HTTPDoer, baseURL string) (midaz.ServerVersion, error)` - The same read against any Midaz or Tracer base URL; one trailing `/v1` is dropped. Same error contract as `Client.ServerVersion`.
 - `midaz.SupportsRulesOnly(midaz.ServerVersion) bool` - true iff `Known` and the Tracer version is `serverversion.TracerRulesOnlyMinVersion` or later by SemVer precedence, prereleases included, except `4.3.0-rc.1` through `4.3.0-rc.5` (cut before the route existed): that Tracer serves `Validations.EvaluateRulesOnly`.
 
-- `serverversion.ResolveCRMAPI(serverversion.ServerVersion) serverversion.CRMAPI` - `serverversion.CRMAPIV2` (CRM embedded in the ledger, `/v2/organizations/{org}/...`) iff `Known` and major >= 4, read at the CRM URL; `serverversion.CRMAPIV1` (standalone CRM 3.x, `/v1` plus `X-Organization-Id`) otherwise.
+- `serverversion.ResolveCRMAPI(serverversion.ServerVersion) serverversion.CRMAPI` - `serverversion.CRMAPIV2` (CRM embedded in the ledger, `/v2/organizations/{org}/...`) iff the body is buildinfo-v1, `LegacyBuildInfo` (a legacy body with `commit`: a Midaz 4.0.x service, ledger or Tracer) or `Known` and major >= 4, read at the CRM URL; `serverversion.CRMAPIV1` (standalone CRM 3.x, `/v1` plus `X-Organization-Id`) otherwise.
 - `midaz.NewCRMReader(midaz.CRMReaderConfig) (*midaz.CRMReader, error)` - Read-only CRM client over the caller's HTTP doer; resolves the API from `GET {URL}/version` at first use and every 5 minutes. `Instruments(ctx, org, midaz.InstrumentQuery) (*models.ListResponse[models.Instrument], error)`, `Holders(ctx, org, midaz.HolderQuery) (*models.ListResponse[models.Holder], error)`, `Holder(ctx, org, holderID) (*models.Holder, error)`.
 
 See [docs/server-version.md](../server-version.md) and [`examples/11-server-version`](../../examples/11-server-version/).
@@ -349,6 +349,7 @@ The one family whose two surfaces differ in **shape**, not only in path.
 - `CreateDirect(ctx, orgID, ledgerID, input)` - settles immediately
 - `CreateHold(ctx, orgID, ledgerID, input)` - reserves value for a later `Commit`
 - `CreateBlock` / `CreateUnblock(ctx, orgID, ledgerID, input)`
+- `CreateBatch(ctx, orgID, ledgerID, items)` - posts `direct` and `hold` items (`models.TransactionBatchItemV2`) to `POST /v2/transactions/batch` as one atomic batch, all or none, under one idempotency key from `sdkctx` (else auto; an item carrying its own `IdempotencyKey` is refused); returns the transactions in `Order`
 - `Get` / `List` / `All` / `Pages` / `Count(ctx, orgID, ledgerID, ...)`
 - `Update(ctx, orgID, ledgerID, transactionID, input)`
 - `Commit` / `Revert` / `Cancel(ctx, orgID, ledgerID, transactionID)`
@@ -664,6 +665,7 @@ None of the four fee/billing inputs carries a ledger: the ledger is a path segme
 ### Response fields worth knowing
 
 - `models.Account.HolderID` (`*string`) and `models.Account.HolderCheckSkipped` (`bool`) - decode-only, populated **only** by `/v2` endpoints. `/v1` withholds both keys by server contract, so on a `/v1` response `HolderID` is always nil and `HolderCheckSkipped` always false — neither says anything about the account. Account create and update carry no counterpart.
+- `models.Account.ClosedAt` (`*time.Time`) - decode-only, on both `/v1` and `/v2`: the instant the account was closed, nil while it is open. A movement touching a closed account is refused by the ledger with 0519, so a caller can check this field first.
 - `models.TransactionV2Leg.Description` (`string`) - optional per-leg note, distinct from the transaction-level description, refused above 256 characters before the request leaves.
 
 ## Correlation contract package

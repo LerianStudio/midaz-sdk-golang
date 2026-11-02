@@ -78,7 +78,7 @@ func (f *transactionsV2Facade) CreateDirect(ctx context.Context, orgID, ledgerID
 	return writeJSON[models.TransactionV2](ctx, operation, scoped, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionDirectV2WithBody(ctx,
 			&genledger.CreateTransactionDirectV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
-			jsonContentType, body))
+			jsonContentType, body, params.mark...))
 	})
 }
 
@@ -95,7 +95,7 @@ func (f *transactionsV2Facade) CreateHold(ctx context.Context, orgID, ledgerID s
 	return writeJSON[models.TransactionV2](ctx, operation, scoped, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionHoldV2WithBody(ctx,
 			&genledger.CreateTransactionHoldV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
-			jsonContentType, body))
+			jsonContentType, body, params.mark...))
 	})
 }
 
@@ -114,7 +114,7 @@ func (f *transactionsV2Facade) CreateBlock(ctx context.Context, orgID, ledgerID 
 	return writeJSON[models.TransactionV2](ctx, operation, scoped, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionBlockV2WithBody(ctx,
 			&genledger.CreateTransactionBlockV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
-			jsonContentType, body))
+			jsonContentType, body, params.mark...))
 	})
 }
 
@@ -132,8 +132,57 @@ func (f *transactionsV2Facade) CreateUnblock(ctx context.Context, orgID, ledgerI
 	return writeJSON[models.TransactionV2](ctx, operation, scoped, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionUnblockV2WithBody(ctx,
 			&genledger.CreateTransactionUnblockV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
-			jsonContentType, body))
+			jsonContentType, body, params.mark...))
 	})
+}
+
+// CreateBatch posts direct and hold items as ONE atomic batch, all or none in Order,
+// via POST /v2/transactions/batch, each item scoped and validated like a single create;
+// it returns the transactions in Order. The batch has one key, from sdkctx as on every
+// create (else an auto key), so an item carrying its own IdempotencyKey is refused.
+func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID string, items []models.TransactionBatchItemV2) ([]*models.TransactionV2, error) {
+	const operation = "V2.Transactions.CreateBatch"
+
+	scoped := make([]models.TransactionBatchItemV2, len(items))
+
+	for i, item := range items {
+		itemOp := fmt.Sprintf("%s.transactions[%d]", operation, i)
+
+		input, err := scopeTransactionV2(itemOp, orgID, ledgerID, item.CreateTransactionV2Input)
+		if err != nil {
+			return nil, err
+		}
+
+		if input.IdempotencyKey != "" {
+			return nil, errors.NewValidationError(itemOp, "IdempotencyKey is not honoured inside a batch; set the batch key with sdkctx.WithIdempotencyKey", nil)
+		}
+
+		if err := validationErr(itemOp, input.Validate()); err != nil {
+			return nil, err
+		}
+
+		scoped[i] = models.TransactionBatchItemV2{Action: item.Action, Order: item.Order, CreateTransactionV2Input: input}
+	}
+
+	var params genledger.CreateAtomicTransactionBatchV2Params
+
+	key, ttl, mark := resolveIdempotency(ctx, "", f.enableIdempotency)
+	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
+
+	request := struct {
+		Transactions []models.TransactionBatchItemV2 `json:"transactions"`
+	}{scoped}
+
+	out, err := writeJSON[struct {
+		Transactions []*models.TransactionV2 `json:"transactions"`
+	}](ctx, operation, request, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateAtomicTransactionBatchV2WithBody(ctx, &params, jsonContentType, body, mark...))
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return out.Transactions, nil
 }
 
 // createParams carries the resolved idempotency headers between prepareCreate
@@ -143,6 +192,7 @@ func (f *transactionsV2Facade) CreateUnblock(ctx context.Context, orgID, ledgerI
 type createParams struct {
 	XIdempotency *string
 	XTTL         *string
+	mark         []genledger.RequestEditorFn
 }
 
 // prepareCreate runs everything the four create actions share: refuse a bad
@@ -162,9 +212,8 @@ func prepareCreate(ctx context.Context, operation string, gate bool, orgID, ledg
 		return nil, createParams{}, err
 	}
 
-	var params createParams
-
-	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, gate)
+	key, ttl, mark := resolveIdempotency(ctx, input.IdempotencyKey, gate)
+	params := createParams{mark: mark}
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return scoped, params, nil

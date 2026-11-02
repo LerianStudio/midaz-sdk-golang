@@ -23,14 +23,15 @@ mounted before auth. Its body changed twice:
 | Midaz | Served by | Body | `Source` |
 |---|---|---|---|
 | v3.8.x | lib-commons/v5 `commons/net/http.Version` | `{"version", "requestDate"}`; `version` comes from the `VERSION` env, default `"0.0.0"` | `legacy` |
-| v4.0.x | `pkg/buildinfo.VersionHandler` | `{"version", "requestDate", "commit", "buildTime", "dirty"}`; `version` still comes from the `VERSION` env | `legacy` |
+| v4.0.x | `pkg/buildinfo.VersionHandler` | `{"version", "requestDate", "commit", "buildTime", "dirty"}`; `version` still comes from the `VERSION` env | `legacy`, `LegacyBuildInfo=true` |
 | v4.1+ | lib-commons/v7 `commons/buildinfo.Handler` | `{"schemaVersion": "v1", "service", "version", "revision", "buildTime", "modified", "goVersion"}`; `version` is compiled into the binary | `buildinfo-v1` |
 
 Parsing rules:
 
 - A leading `v` is dropped: `"v3.8.0"` is 3.8.0.
 - `schemaVersion: "v1"` gives `buildinfo-v1`; `version` without `schemaVersion`
-  gives `legacy`. Unknown fields are ignored.
+  gives `legacy`. Unknown fields are ignored, except `commit` on a legacy body,
+  which sets `LegacyBuildInfo` (the 4.0.x build fields; no standalone CRM 3.x serves it).
 - Any other `schemaVersion` (a future `v2`) gives `unavailable`, so the SDK
   stays on legacy until it learns the new shape.
 - `"0.0.0"`, `"dev"`, an empty string or an invalid SemVer give `Known=false`.
@@ -98,7 +99,7 @@ on `/v1` (instruments are its `aliases`, the organization in the
 `X-Organization-Id` header), and the Midaz ledger 4.x embeds the CRM on
 `/v2/organizations/{org}/holders|instruments`. Both read the same Mongo layout
 and take the same query keys (`account_id`, `document`,
-`banking_details_account`, `include_deleted`, `page`, `limit`), so one
+`banking_details_account`, `banking_details_branch`, `include_deleted`, `page`, `limit`), so one
 `midaz.CRMReader` reads either:
 
 ```go
@@ -116,9 +117,12 @@ CRM applied. A CRM row whose `accountId` or `ledgerId` is not a UUID (CRM 3.x
 stores any string there) fails the whole page with a ResponseDecode error.
 
 `serverversion.ResolveCRMAPI` reads the `/version` served at the CRM URL, never the
-ledger's: `CRMAPIV2` iff `Known` and major >= 4. No standalone CRM shipped
-major 4, so a major-4 answer is a ledger; a CRM 3.x with `VERSION` unset serves
-`0.0.0` and reads `CRMAPIV1`. The threshold is 4.0, not 4.1: 4.0.x already
+ledger's: `CRMAPIV2` iff the body is buildinfo-v1, `LegacyBuildInfo` or `Known` and major >= 4. No
+standalone CRM shipped major 4 or a buildinfo-v1 body (3.8.x serves the legacy
+`{"version","requestDate"}` body), so any of the three is a ledger, including an
+unstamped one (`"version":"dev"`, `Known` false). A ledger 4.0.x with `VERSION`
+unset also serves `0.0.0` but carries `commit`, so it reads `CRMAPIV2`; a CRM 3.x
+with `VERSION` unset serves only `version` and `requestDate` and reads `CRMAPIV1`. The threshold is 4.0, not 4.1: 4.0.x already
 serves the `/v2` holders and instruments.
 
 The reader resolves at first use; concurrent first calls share one `/version`
