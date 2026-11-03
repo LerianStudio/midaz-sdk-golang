@@ -326,6 +326,10 @@ type CreateTransactionInput struct {
 	//   - No key (the default): no X-Idempotency is sent and the ledger dedupes
 	//     the create by its body. The facade retries a keyless 409/0084 only on
 	//     routes the ledger dedupes by body, waiting for the first attempt.
+	//     A second intentional create with an identical body inside the TTL is
+	//     answered with the first transaction: intentional duplicates need
+	//     distinct keys. The SDK generates a key only with WithIdempotency(true)
+	//     or MIDAZ_IDEMPOTENCY=true.
 	//   - Retry with the same key AND the same payload inside the TTL, after
 	//     the first create finished: the ledger returns the ORIGINAL
 	//     transaction and marks the response X-Idempotency-Replayed: true. It
@@ -340,7 +344,7 @@ type CreateTransactionInput struct {
 	//   - A concurrent request with the same key, while the first is still in
 	//     flight: also HTTP 409, pkg/errors.IsIdempotencyError
 	//     (code idempotency_error), a conflict, never a success. With a key
-	//     the SDK generated, the facade waits for its own in-flight attempt
+	//     the SDK generated (opt-in only), the facade waits for its own in-flight attempt
 	//     under that key (usual backoff and attempt limit, while the key's
 	//     X-TTL from the call's start lasts), so the call may return the
 	//     replayed outcome. With a key you supplied (this field or

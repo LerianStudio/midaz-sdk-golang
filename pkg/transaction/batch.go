@@ -469,9 +469,8 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 			// Inject idempotency key into context so HTTP layer can add header.
 			ctx = sdkctx.WithIdempotencyKey(ctx, idempotencyKey)
 		} else {
-			// Missing keys are allowed only when batch retries are disabled.
-			// Suppress lower-layer auto-idempotency so the HTTP client also
-			// treats the unsafe request as non-retryable.
+			// Keyless: WithoutHTTPRetries above keeps this to a single HTTP
+			// attempt; WithoutAutoIdempotency stops a client opt-in key.
 			ctx = sdkctx.WithoutAutoIdempotency(ctx)
 		}
 		tx, err = bp.transactions.CreateJSON(ctx, bp.orgID, bp.ledgerID, input)

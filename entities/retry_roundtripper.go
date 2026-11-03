@@ -127,8 +127,8 @@ func slotHeldFor(req *http.Request) time.Duration {
 // resolveOptions produces the per-request effective retry policy: it composes
 // the internal "custom policy said retry" predicate with any caller-supplied
 // predicate, and applies the no-double-charge gate that forces a single
-// attempt for suppressed contexts, keyless unsafe methods outside body-deduped creates, and unrewindable
-// bodies.
+// attempt for suppressed contexts, keyless unsafe methods outside body-deduped
+// creates, and unrewindable bodies.
 func (rt *retryRoundTripper) resolveOptions(req *http.Request) retry.Options {
 	// Shallow copy: only MaxRetries and ErrorPredicate are mutated here; the
 	// RetryableErrors/RetryableHTTPCodes slices are read-only and shared.
@@ -152,7 +152,9 @@ func (rt *retryRoundTripper) resolveOptions(req *http.Request) retry.Options {
 	hasIdempotencyKey := strings.TrimSpace(req.Header.Get(idempotencyHeader)) != ""
 	unrewindableBody := req.Body != nil && req.GetBody == nil
 
-	if httpRetriesSuppressed(req.Context()) || (isUnsafeMethod(req.Method) && !hasIdempotencyKey && !ledgerDedupesByBody(req)) || unrewindableBody {
+	keylessUndeduped := isUnsafeMethod(req.Method) && !hasIdempotencyKey && !ledgerDedupesByBody(req)
+
+	if httpRetriesSuppressed(req.Context()) || keylessUndeduped || unrewindableBody {
 		effective.MaxRetries = 0
 	}
 
@@ -217,9 +219,11 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
 	}
 
-	// 409/0084 under the key the SDK minted for this call, or keyless (retries are enabled only on body-deduped routes): the
-	// claim is this call's own earlier attempt (or an identical body), so a retry cannot post twice.
-	// Any other key's 0084 is returned.
+	// 409/0084 under the key the SDK minted for this call, or keyless: the claim
+	// is this call's own earlier attempt (or an identical body), so a retry
+	// cannot post twice. Invariant: a keyless unsafe request is still here only
+	// on a body-deduped route, because resolveOptions zeroes its retries
+	// elsewhere. Any other key's 0084 is returned.
 	minted, ok := req.Context().Value(mintedKeyCtx{}).(string)
 	key := req.Header.Get(idempotencyHeader)
 

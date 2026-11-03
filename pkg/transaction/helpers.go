@@ -477,7 +477,9 @@ func MultiAccountTransfer(
 		return nil, errors.New("transactions service is not initialized")
 	}
 
-	opts = resolveMultiTransferOptions(opts)
+	if opts == nil {
+		opts = DefaultMultiTransferOptions()
+	}
 
 	if err := validateMultiTransferAccounts(sourceAccounts, destAccounts); err != nil {
 		return nil, err
@@ -505,14 +507,6 @@ func MultiAccountTransfer(
 	}
 
 	return transaction, nil
-}
-
-func resolveMultiTransferOptions(opts *MultiTransferOptions) *MultiTransferOptions {
-	if opts == nil {
-		opts = DefaultMultiTransferOptions()
-	}
-
-	return opts
 }
 
 func validateMultiTransferAccounts(sourceAccounts, destAccounts map[string]int64) error {
@@ -619,7 +613,7 @@ type Template struct {
 //   - template: The transaction template to use
 //   - amount: The amount for the transaction
 //   - metadata: Additional metadata to merge with the template's metadata (optional)
-//   - idempotencyKey: A unique key for idempotency (optional; empty sends no key and the ledger dedupes by body)
+//   - idempotencyKey: A unique key for idempotency (optional; empty means the client default: no key, or a generated one on a client opted in)
 //
 // Returns:
 //   - The created transaction if successful

@@ -6,13 +6,8 @@ package workflows
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -124,62 +119,12 @@ func runConcurrentTransactionBatch(ctx context.Context, label, spanName string, 
 	return nil
 }
 
-// GenerateUniqueIdempotencyKey generates a truly unique idempotency key
-// by combining multiple sources of uniqueness
-//
-// Parameters:
-//   - prefix: A prefix to identify the source of the key (e.g., "c2m" for customer to merchant)
-//   - index: An index to identify the specific transaction
-//
-// Returns:
-//   - string: A unique idempotency key
-func GenerateUniqueIdempotencyKey(prefix string, index int) string {
-	// Create a hash of multiple unique components
-	h := sha256.New()
+// runID scopes idempotency keys to this process run; the key of an intent is
+// runID plus its prefix and index, so a resend of the same intent reuses it.
+var runID = uuid.New().String()
 
-	// Add a UUID
-	uuidStr := uuid.New().String()
-	_, _ = h.Write([]byte(uuidStr))
-
-	// Add the current timestamp with nanosecond precision
-	timestamp := time.Now().UnixNano()
-	fmt.Fprintf(h, "%d", timestamp)
-
-	// Add the prefix and index
-	fmt.Fprintf(h, "%s-%d", prefix, index)
-
-	// Add some random bytes
-	randomBytes := make([]byte, 16)
-	_, err := cryptorand.Read(randomBytes)
-	if err != nil {
-		log.Printf("Warning: Failed to generate cryptographically secure random bytes: %v", err)
-
-		// Fallback to a more secure approach than math/rand.Read
-		// Use current time and process-specific values to create entropy
-		timeNow := time.Now()
-		fallbackSource := []byte(fmt.Sprintf("%d-%d-%d-%d-%s-%d",
-			timeNow.UnixNano(),
-			os.Getpid(),
-			os.Getppid(),
-			timeNow.Year(),
-			timeNow.Location().String(),
-			index))
-
-		// Hash the fallback source to get random bytes
-		hasher := sha256.New()
-		_, _ = hasher.Write(fallbackSource)
-		copy(randomBytes, hasher.Sum(nil)[:16])
-
-		log.Printf("Warning: Using fallback method for random bytes generation")
-	}
-
-	_, _ = h.Write(randomBytes)
-
-	// Get the hash as a hex string
-	hash := hex.EncodeToString(h.Sum(nil))
-
-	// Return a combination of components for maximum uniqueness
-	return fmt.Sprintf("%s-%s-%d-%d", prefix, hash[:16], index, timestamp)
+func idempotencyKeyFor(prefix string, index int) string {
+	return fmt.Sprintf("%s-%s-%d", runID, prefix, index)
 }
 
 // handleTransactionError processes errors from transaction creation, categorizing them appropriately
@@ -284,7 +229,7 @@ func createC2MTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID st
 			return "", err
 		}
 
-		idempotencyKey := GenerateUniqueIdempotencyKey("c2m", index)
+		idempotencyKey := idempotencyKeyFor("c2m", index)
 		transferInput := buildC2MTransactionInput(index, customerAccount, merchantAccount, idempotencyKey)
 
 		startTime := time.Now()
@@ -432,7 +377,7 @@ func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAcc
 
 	inputs := make([]*midazmodels.CreateTransactionInput, count)
 	for i := 0; i < count; i++ {
-		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, GenerateUniqueIdempotencyKey("m2c", i))
+		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, idempotencyKeyFor("m2c", i))
 	}
 
 	return inputs, nil

@@ -6,9 +6,10 @@ requests.
 
 ## What this demonstrates
 
-1. **No key (default)** — the SDK sends no `X-Idempotency`. The ledger
-   dedupes a keyless transaction create by its body, so the same body sent
-   again returns the first outcome. Two intentional transactions with
+1. **No key (default)** — the SDK sends no `X-Idempotency` (the demo creates
+   an organization, which the ledger does not dedupe by body; body dedupe
+   applies to transaction creates). The ledger dedupes a keyless transaction
+   create by its body, so the same body sent again returns the first outcome. Two intentional transactions with
    byte-identical bodies inside the ledger's idempotency window are answered
    with the first one: pass a distinct key (mode 2) for each. Opt in to a
    random UUID per unsafe request with `midaz.WithIdempotency(true)` or
@@ -40,7 +41,7 @@ go run ./examples/06-idempotency
 ```
 
 Requires a local Midaz stack with auth disabled. The example creates
-4 organizations (one per mode demonstration). Re-running with the same
+3 organizations (one per demo). Re-running with the same
 caller-supplied key (Mode 2) will not produce a duplicate.
 
 ## Expected output

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
@@ -91,9 +90,8 @@ func UpdateOrganization(ctx context.Context, midazClient *midaz.Client, orgID st
 			WithAddress(org.Address).
 			WithStatus(org.Status).
 			WithMetadata(map[string]any{
-				"industry":      "Technology",
-				"size":          "Medium", // Changed from "Small" to "Medium"
-				"lastUpdatedAt": time.Now().Format(time.RFC3339),
+				"industry": "Technology",
+				"size":     "Medium", // Changed from "Small" to "Medium"
 			}),
 	)
 	if err != nil {

@@ -276,10 +276,10 @@ func (timeoutErr) Error() string   { return "i/o timeout" }
 func (timeoutErr) Timeout() bool   { return true }
 func (timeoutErr) Temporary() bool { return true }
 
-// TestFacadeWriteRetriesIdempotencyInFlight: a 409/0084 is retried under the same key only when the
-// SDK generated the call's key, so the 0084 can only be this call's own earlier attempt. A key the
-// caller supplied (ctx or input field) may be held by another call's older claim, so its 0084
-// surfaces as an error. Any other 409 is never retried.
+// TestFacadeWriteRetriesIdempotencyInFlight: a 409/0084 is retried only when it can be this call's
+// own earlier attempt: under a key the SDK generated (opt-in) or keyless on a body-deduped route. A
+// key the caller supplied (ctx or input field) may be held by another call's older claim, so its
+// 0084 surfaces as an error. Any other 409 is never retried.
 func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -293,7 +293,10 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 	}{
 		{name: "sdk key 503 then 0084 retried", replies: []string{"503", "0084", "201"}, attempts: 3},
 		{name: "sdk key timeout then 0084 retried", replies: []string{"0084", "201"}, timeout: true, attempts: 3},
-		{name: "keyless 504 then 0084 retried on a body-deduped route", replies: []string{"504", "0084", "201"}, keyless: true, attempts: 3},
+		{
+			name:    "keyless 504 then 0084 retried on a body-deduped route",
+			replies: []string{"504", "0084", "201"}, keyless: true, attempts: 3,
+		},
 		{name: "caller ctx key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
 		{name: "caller ctx key 503 then 0084 surfaces", replies: []string{"503", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
 		{name: "input key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, inputKey: "input-key", attempts: 2, wantErr: true},
@@ -341,7 +344,8 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			if !keysMatch(keys, tc.ctxKey+tc.inputKey, tc.keyless) {
+			sent := strings.Join(keys, "") != ""
+			if tc.keyless == sent || (!tc.keyless && !oneKey(keys, tc.ctxKey+tc.inputKey)) {
 				t.Fatalf("keys = %v, want one stable key (the caller's when supplied), or none when keyless", keys)
 			}
 		})
@@ -375,15 +379,6 @@ func TestPlaneWriteSurfacesCallerStamped0084(t *testing.T) {
 	if resp.StatusCode != http.StatusConflict || attempts.Load() != 2 {
 		t.Fatalf("status = %d after %d attempts, want 409 after 2", resp.StatusCode, attempts.Load())
 	}
-}
-
-// keysMatch reports whether no key was sent (keyless) or every key is one non-empty key.
-func keysMatch(keys []string, want string, keyless bool) bool {
-	if keyless {
-		return strings.Join(keys, "") == ""
-	}
-
-	return oneKey(keys, want)
 }
 
 // oneKey reports whether every key is the same non-empty key, equal to want when want is set.

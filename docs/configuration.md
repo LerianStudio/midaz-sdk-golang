@@ -173,7 +173,8 @@ import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "user-action-42-2026-05-06")
 
-// This single call uses the explicit key instead of an auto-generated UUID.
+// This single call sends the explicit key. Without one, the default client sends
+// no X-Idempotency and the ledger dedupes a transaction create by its body.
 _, err := client.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
@@ -344,10 +345,6 @@ request (POST/PUT/PATCH/DELETE) with `WithIdempotency(true)` or
 ctx := sdkctx.WithIdempotencyKey(context.Background(),
     fmt.Sprintf("user-%d-action-%s", userID, actionUUID))
 _, err := client.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
-
-// Skip auto-generation entirely (caller does NOT want the header):
-ctx := sdkctx.WithoutAutoIdempotency(context.Background())
-_, err = client.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 ### 4.2 Retry suppression
@@ -479,15 +476,16 @@ client, _ := midaz.New(
 )
 ```
 
-### 5.7 Idempotency off (the default; upstream gateway handles it)
+### 5.7 SDK-generated idempotency key (opt-in)
 
 ```go
 client, _ := midaz.New(
     midaz.WithAnonymous(),
-    midaz.WithIdempotency(false),
+    midaz.WithIdempotency(true), // or MIDAZ_IDEMPOTENCY=true
 )
-// The SDK never generates X-Idempotency (explicit false, as in the default). The caller can still set
-// one explicitly per request via sdkctx.WithIdempotencyKey.
+// The default client sends no X-Idempotency and the ledger dedupes a create by
+// its body. With the opt-in, the SDK generates a random key per unsafe request.
+// An explicit sdkctx.WithIdempotencyKey always wins.
 ```
 
 ---

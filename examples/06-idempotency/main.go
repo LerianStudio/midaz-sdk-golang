@@ -62,17 +62,19 @@ func main() {
 	demoExplicitWinsOverSuppression(c)
 }
 
-// demoDefaultNoKey shows the default behavior: no X-Idempotency is sent. For a
-// transaction create the ledger dedupes the request by its body.
+// demoDefaultNoKey shows the default behavior: no X-Idempotency is sent. This
+// example has no ledger or accounts, so it creates an organization, which the
+// ledger does NOT dedupe by body; it shows only the absent header. Body dedupe
+// applies to transaction creates.
 func demoDefaultNoKey(c *midaz.Client) {
 	fmt.Println("--- No idempotency key (default) ---")
 
 	input := &models.CreateOrganizationInput{
-		LegalName:     "Idempotency Demo Auto",
+		LegalName:     "Idempotency Demo Keyless",
 		LegalDocument: "00000000000191",
 	}
 	if _, err := c.V2.Organizations.Create(context.Background(), input); err != nil {
-		log.Printf("CreateOrganization (auto-key): %v", err)
+		log.Printf("CreateOrganization (keyless): %v", err)
 		return
 	}
 	fmt.Println("created with NO X-Idempotency header on the wire")
