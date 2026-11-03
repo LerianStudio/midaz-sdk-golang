@@ -12,7 +12,7 @@ requests.
    method, path and body), so the same request sent again returns the first
    outcome, while block and unblock with one body never share the ledger's
    `/v1` slot (the ledger's `/v1` keyless slot ignores the action). Every other
-   create sends no key and the ledger dedupes it by body. Two
+   transaction create sends no key and the ledger dedupes it by body. Two
    intentional transactions with identical requests inside the ledger's
    idempotency window are answered with the first one: pass a distinct key
    (mode 2) for each. Opt in to a random UUID per create, update and delete

@@ -44,7 +44,7 @@ import (
 //
 // The caller gates autoGen on the client-level MIDAZ_IDEMPOTENCY flag, which
 // defaults to false: a keyless create then carries no random key (a /v1 annotation,
-// block or unblock create derives one, see resolveV1Create; the ledger dedupes the rest by body).
+// block or unblock create derives one, see resolveV1Create; the ledger dedupes other transaction, holder and instrument creates by body).
 //
 // mark is non-nil only for a minted key: the editor that tells the retry layer
 // the request carries the SDK's own key for this call (see mintedKeyCtx).

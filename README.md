@@ -71,7 +71,8 @@ Carried over and still current:
   `observability.Provider` wired by `WithObservabilityProvider`.
 - **Idempotency you control**: the SDK sends no random `X-Idempotency`; a
   keyless `/v1` annotation, block or unblock create sends a key derived from
-  the request, and the ledger dedupes every other create by body. Pass `sdkctx.WithIdempotencyKey`
+  the request, and the ledger dedupes other transaction, holder and instrument
+  creates by body; other keyless creates are not deduped. Pass `sdkctx.WithIdempotencyKey`
   for a stable key per intentional request.
 - **Consumer-declared test doubles**: every accessor is a concrete facade, so
   there are no pre-generated mocks to import. Declare the narrow interface your

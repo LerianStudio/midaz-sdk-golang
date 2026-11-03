@@ -7,7 +7,7 @@
 //     (SHA-256 of method, path and body), so the same request sent again (even
 //     from a new SDK call after a timeout) returns the first outcome, and block
 //     and unblock with one body never share the ledger's /v1 slot (it ignores
-//     the action). Every other create sends no key; the ledger dedupes it by body. Two intentional
+//     the action). Every other transaction create sends no key; the ledger dedupes it by body. Two intentional
 //     transactions with identical requests inside the ledger's idempotency
 //     window are answered with the first one: pass a distinct key (mode 2).
 //     Opt-in: [midaz.WithIdempotency](true) or MIDAZ_IDEMPOTENCY=true makes the
