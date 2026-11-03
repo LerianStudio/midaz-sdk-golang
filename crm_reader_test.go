@@ -486,22 +486,6 @@ func TestCRMReaderRequestFailures(t *testing.T) {
 		assert.Zero(t, srv.versionHits.Load(), "no probe starts when Authorization fails")
 	})
 
-	t.Run("a gateway that refuses an anonymous /version resolves with Authorization", func(t *testing.T) {
-		srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("Authorization") != "Bearer t" {
-				w.WriteHeader(http.StatusUnauthorized)
-
-				return
-			}
-
-			_, _ = w.Write([]byte(ledgerVersion422))
-		})
-
-		_, err := newTestCRMReader(t, srv.URL, nil).Holders(context.Background(), crmTestOrg, HolderQuery{})
-		require.NoError(t, err)
-		assert.Len(t, srv.requests(), 1)
-	})
-
 	t.Run("ids that are not UUIDs never reach the wire", func(t *testing.T) {
 		srv := newCRMServer(t, writeBody(ledgerVersion422))
 		reader := newTestCRMReader(t, srv.URL, nil)

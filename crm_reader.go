@@ -43,8 +43,8 @@ type CRMReaderConfig struct {
 	// *http.Client. Required.
 	HTTP HTTPDoer
 	// Authorization returns the Authorization header value of a data read and of the GET /version
-	// probe it starts, sent verbatim ("" sends none). Its error is returned wrapped, unclassified;
-	// it only skips a background /version refresh. Nil sends none.
+	// probe it starts, sent verbatim ("" sends none). Its error is returned wrapped, unclassified.
+	// Nil sends none.
 	Authorization func(ctx context.Context) (string, error)
 	// OnResolve reports the first resolved API, every change, and every failed /version read with
 	// the API kept ("" before the first resolution). It runs on the probe's goroutine. Nil reports nothing.
@@ -171,7 +171,15 @@ func (r *CRMReader) get(ctx context.Context, operation, organizationID, v1Path, 
 		return sdkerrors.NewValidationError(operation, "organizationID must be a UUID", err)
 	}
 
-	api, err := r.api(ctx)
+	var authorization string
+
+	if r.authorization != nil {
+		if authorization, err = r.authorization(ctx); err != nil {
+			return fmt.Errorf("crm authorization: %w", err)
+		}
+	}
+
+	api, err := r.api(ctx, authorization)
 	if err != nil {
 		return err
 	}
@@ -196,15 +204,8 @@ func (r *CRMReader) get(ctx context.Context, operation, organizationID, v1Path, 
 		req.Header.Set("X-Organization-Id", org.String())
 	}
 
-	if r.authorization != nil {
-		authorization, err := r.authorization(ctx)
-		if err != nil {
-			return fmt.Errorf("crm authorization: %w", err)
-		}
-
-		if authorization != "" {
-			req.Header.Set("Authorization", authorization)
-		}
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
 	}
 
 	resp, err := r.http.Do(req) // #nosec G704 -- root was validated by NewCRMReader; ids are parsed UUIDs
@@ -242,23 +243,10 @@ func (r *CRMReader) withoutRequestURL(err error) error {
 
 // api answers the resolved API, starting one background re-read once it has expired. Before the
 // first resolution, callers share one probe and each leaves at its own deadline.
-func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
+func (r *CRMReader) api(ctx context.Context, authorization string) (CRMAPI, error) {
 	resolved := r.resolved.Load()
 	if resolved != nil && r.now().Before(resolved.expiresAt) {
 		return resolved.api, nil
-	}
-
-	var authorization string
-
-	if r.authorization != nil {
-		var err error
-		if authorization, err = r.authorization(ctx); err != nil {
-			if resolved != nil {
-				return resolved.api, nil
-			}
-
-			return "", fmt.Errorf("crm authorization: %w", err)
-		}
 	}
 
 	// The probe may carry the header of the caller that started it; its result, the server version,
