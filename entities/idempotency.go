@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -91,9 +92,9 @@ func deriveKeyFromRequest(_ context.Context, req *http.Request) error {
 	defer body.Close()
 
 	h := sha256.New()
-	h.Write([]byte(req.Method + "\n" + req.URL.Path + "\n"))
+	prefix := strings.NewReader(req.Method + "\n" + req.URL.Path + "\n")
 
-	if _, err := io.Copy(h, body); err != nil {
+	if _, err := io.Copy(h, io.MultiReader(prefix, body)); err != nil {
 		return err
 	}
 
