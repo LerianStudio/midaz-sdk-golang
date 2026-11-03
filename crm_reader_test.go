@@ -380,6 +380,53 @@ func TestCRMReaderSharesFirstProbe(t *testing.T) {
 	assert.Len(t, srv.requests(), callers)
 }
 
+// TestCRMReaderFirstProbeIsPerAuthorization pins that a bad credential's in-flight first probe
+// never fails a caller holding a good one.
+func TestCRMReaderFirstProbeIsPerAuthorization(t *testing.T) {
+	type credKey struct{}
+
+	release := make(chan struct{})
+	badInFlight := make(chan struct{})
+	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "Bearer bad" {
+			close(badInFlight)
+			<-release
+			w.WriteHeader(http.StatusUnauthorized)
+
+			return
+		}
+
+		_, _ = w.Write([]byte(ledgerVersion422))
+	})
+	reader, err := NewCRMReader(CRMReaderConfig{
+		URL:  srv.URL,
+		HTTP: http.DefaultClient,
+		Authorization: func(ctx context.Context) (string, error) {
+			return ctx.Value(credKey{}).(string), nil
+		},
+	})
+	require.NoError(t, err)
+
+	read := func(cred string) error {
+		_, err := reader.Holders(context.WithValue(context.Background(), credKey{}, cred), crmTestOrg, HolderQuery{})
+		return err
+	}
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() { _ = read("Bearer bad") })
+	<-badInFlight
+
+	goodErr := make(chan error, 1)
+	go func() { goodErr <- read("Bearer good") }()
+
+	time.Sleep(100 * time.Millisecond) // let the good caller reach the probe
+	close(release)
+	wg.Wait()
+
+	require.NoError(t, <-goodErr)
+}
+
 type doerFunc func(*http.Request) (*http.Response, error)
 
 func (f doerFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }

@@ -242,15 +242,16 @@ func (r *CRMReader) withoutRequestURL(err error) error {
 }
 
 // api answers the resolved API, starting one background re-read once it has expired. Before the
-// first resolution, callers share one probe and each leaves at its own deadline.
+// first resolution, callers share one probe per Authorization (a tenant's bad credential never
+// fails another's) and each leaves at its own deadline.
 func (r *CRMReader) api(ctx context.Context, authorization string) (CRMAPI, error) {
 	resolved := r.resolved.Load()
 	if resolved != nil && r.now().Before(resolved.expiresAt) {
 		return resolved.api, nil
 	}
 
-	// The probe may carry the header of the caller that started it; its result, the server version,
-	// is shared by every caller and no tenant data crosses.
+	// The probe carries the header of the caller that started it: the first probe is keyed by that
+	// header, the background refresh is shared (a failed refresh keeps the last API).
 	probe := func() (any, error) { return nil, r.probe(authorization) }
 
 	if resolved != nil {
@@ -260,7 +261,7 @@ func (r *CRMReader) api(ctx context.Context, authorization string) (CRMAPI, erro
 	}
 
 	select {
-	case res := <-r.probes.DoChan(crmVersionOperation, probe):
+	case res := <-r.probes.DoChan(crmVersionOperation+"\x00"+authorization, probe):
 		if res.Err != nil {
 			return "", res.Err
 		}
