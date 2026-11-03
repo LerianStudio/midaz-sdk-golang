@@ -183,7 +183,7 @@ The full list:
 | Function | Scope |
 |---|---|
 | `sdkctx.WithIdempotencyKey(ctx, key)` | Set an explicit `X-Idempotency` header (sent as-is, overrides opt-in generation) |
-| `sdkctx.WithoutAutoIdempotency(ctx)` | Skip auto-generation of `X-Idempotency` for this request |
+| `sdkctx.WithoutAutoIdempotency(ctx)` | Skip the opt-in random `X-Idempotency` for this request; a `/v1` transaction create still sends its derived key |
 | `sdkctx.WithoutHTTPRetries(ctx)` | Suppress the SDK HTTP retry loop for this request |
 | `sdkctx.WithIncludeDeleted(ctx, true)` | Include soft-deleted resources in list responses |
 | `sdkctx.WithHardDelete(ctx, true)` | Use hard-delete instead of soft-delete |
