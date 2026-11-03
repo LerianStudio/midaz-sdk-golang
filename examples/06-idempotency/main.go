@@ -21,11 +21,11 @@
 //     transaction does not double-charge.
 //
 //  3. Precedence: an explicit key set via WithIdempotencyKey wins over
-//     [sdkctx.WithoutAutoIdempotency], which only matters on a client that
-//     opted in with midaz.WithIdempotency(true).
+//     [sdkctx.WithoutAutoIdempotency], which only stops the random key of a client
+//     that opted in with midaz.WithIdempotency(true), never the /v1 derived key.
 //
-// Global default: auto-idempotency is off, so only requests with an explicit
-// WithIdempotencyKey emit the X-Idempotency header.
+// Global default: auto-idempotency is off, so only an explicit
+// WithIdempotencyKey or a /v1 transaction create's derived key is sent.
 //
 // Usage:
 //
@@ -64,7 +64,7 @@ func main() {
 	demoExplicitWinsOverSuppression(c)
 }
 
-// demoDefaultNoKey shows the default behavior: no X-Idempotency is sent. This
+// demoDefaultNoKey shows the default behavior: no random X-Idempotency is sent. This
 // example has no ledger or accounts, so it creates an organization, which the
 // ledger does NOT dedupe by body; it shows only the absent header. Body dedupe
 // applies to transaction creates.

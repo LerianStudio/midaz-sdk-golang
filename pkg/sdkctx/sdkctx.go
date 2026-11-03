@@ -135,8 +135,9 @@ func IdempotencyTTLFromContext(ctx context.Context) (string, bool) {
 type suppressAutoIdempotencyType struct{}
 
 // WithoutAutoIdempotency tags the context so the HTTP client will NOT
-// generate an automatic idempotency key for the next unsafe request,
-// even when client-level auto-idempotency is enabled.
+// generate a random opt-in idempotency key for the next unsafe request,
+// even when client-level auto-idempotency is enabled. The key a /v1
+// transaction create derives from the request is still sent.
 //
 // Use this for the rare call where idempotency is genuinely undesired
 // (e.g., fire-and-forget administrative endpoints).

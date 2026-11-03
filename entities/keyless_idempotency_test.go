@@ -109,18 +109,23 @@ func TestKeylessV1CreateDerivesKeyFromRequest(t *testing.T) {
 			_, err := keyless.CreateJSON(sdkctx.WithoutAutoIdempotency(ctx), txOrgID, txLedgerID, sampleTransactionInput())
 			return err
 		},
+		func() error {
+			_, err := keyless.CreateUnblock(sdkctx.WithoutAutoIdempotency(ctx), txOrgID, txLedgerID, sampleTransactionInput())
+			return err
+		},
 	} {
 		require.NoError(t, send())
 	}
 
-	block, unblock, resend, own, random, suppressed := keys[0], keys[1], keys[2], keys[3], keys[4], keys[5]
+	block, unblock, resend, own, random, suppressed, suppressedUnblock := keys[0], keys[1], keys[2], keys[3], keys[4], keys[5], keys[6]
 	assert.Regexp(t, `^[0-9a-f]{64}$`, block)
 	assert.NotEqual(t, block, unblock)
 	assert.Equal(t, block, resend)
 	assert.Equal(t, "mine", own)
 	assert.NotEmpty(t, random)
 	assert.NotEqual(t, block, random)
-	assert.Empty(t, suppressed)
+	assert.Regexp(t, `^[0-9a-f]{64}$`, suppressed) // suppression stops only the random key
+	assert.NotEqual(t, suppressed, suppressedUnblock)
 }
 
 func withKey(in *models.CreateTransactionInput, key string) *models.CreateTransactionInput {

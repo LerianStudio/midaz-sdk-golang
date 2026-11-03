@@ -32,7 +32,8 @@ import (
 //  1. explicitKey — a caller-supplied input-struct field (most explicit).
 //  2. sdkctx.WithIdempotencyKey(ctx) — request-scoped key.
 //  3. auto-generated UUID — only when autoGen is true AND the caller did not
-//     opt out via sdkctx.WithoutAutoIdempotency. Creates are unsafe-but-
+//     opt out via sdkctx.WithoutAutoIdempotency (which never blocks the /v1
+//     derived key, see resolveV1Create). Creates are unsafe-but-
 //     idempotent, so they pass autoGen=true when the client gate is on.
 //     Actions like commit/cancel/revert pass autoGen=false — they carry a key
 //     only when one is supplied explicitly or via ctx.
@@ -69,12 +70,11 @@ func resolveIdempotency(ctx context.Context, explicitKey string, autoGen bool) (
 }
 
 // resolveV1Create is resolveIdempotency for a /v1 transaction create. The ledger's /v1 keyless slot
-// ignores the route's action, so json, annotation, block and unblock with one body would share it
-// (0084 on the second); a create left keyless therefore derives its key from the request, which a
-// resend reproduces and another action never does. A key the SDK derives counts as SDK-generated.
+// ignores the action, so a create without a key derives one from the request; WithoutAutoIdempotency
+// stops only the random key, never this one.
 func resolveV1Create(ctx context.Context, explicitKey string, autoGen bool) (key, ttl string, mark []genledger.RequestEditorFn) {
 	key, ttl, mark = resolveIdempotency(ctx, explicitKey, autoGen)
-	if key == "" && !sdkctx.AutoIdempotencySuppressed(ctx) {
+	if key == "" {
 		mark = []genledger.RequestEditorFn{deriveKeyFromRequest}
 	}
 

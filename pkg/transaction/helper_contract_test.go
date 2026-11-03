@@ -129,8 +129,8 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 	}
 }
 
-// A keyless helper call sends no X-Idempotency and an identical body on every resend,
-// so the ledger can dedupe it by body.
+// A keyless /v1 helper call sends the key derived from the request and an identical body
+// on every resend, so the ledger replays the first outcome.
 func TestTransactionHelpers_KeylessCallsResendTheSameKeyAndBody(t *testing.T) {
 	tests := []struct {
 		name string

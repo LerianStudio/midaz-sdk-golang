@@ -289,7 +289,7 @@ ctx := sdkctx.WithIdempotencyKey(ctx, "tx-2026-05-06-001")
 
 // Opt in to a random SDK-generated key per request (the previous default):
 //   midaz.WithIdempotency(true)  or  MIDAZ_IDEMPOTENCY=true
-// and suppress it for one call with:
+// and suppress that random key for one call (a /v1 derived key still goes out) with:
 ctx := sdkctx.WithoutAutoIdempotency(ctx)
 ```
 

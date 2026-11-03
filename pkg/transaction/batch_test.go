@@ -45,7 +45,7 @@ func TestBatchTransactions_IdempotencyKeyRequiredWhenRetriesEnabled(t *testing.T
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				assert.Empty(t, r.Header.Get("X-Idempotency"))
+				assert.Regexp(t, `^[0-9a-f]{64}$`, r.Header.Get("X-Idempotency"))
 				w.Header().Set("Content-Type", "application/json")
 				assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"id": "tx-1", "status": map[string]any{"code": "APPROVED"}}))
 			}))
@@ -81,6 +81,29 @@ func TestBatchTransactions_IdempotencyKeyRequiredWhenRetriesEnabled(t *testing.T
 			assert.Equal(t, tt.wantCalls, calls.Load())
 		})
 	}
+}
+
+// A keyless batch item and the same input sent through CreateJSON land in one ledger slot.
+func TestBatchTransactions_KeylessItemSendsTheKeyCreateJSONSends(t *testing.T) {
+	var keys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keys = append(keys, r.Header.Get("X-Idempotency"))
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"id": "tx-1", "status": map[string]any{"code": "APPROVED"}}))
+	}))
+	defer server.Close()
+
+	client, err := midaz.New(midaz.WithHTTPClient(server.Client()), midaz.WithLedgerURL(server.URL), midaz.WithAnonymous())
+	require.NoError(t, err)
+
+	_, err = BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{validBatchTransactionInput("")}, &BatchOptions{Concurrency: 1, BatchSize: 1})
+	require.NoError(t, err)
+	_, err = client.V1.Transactions.CreateJSON(context.Background(), "org", "ledger", validBatchTransactionInput(""))
+	require.NoError(t, err)
+
+	require.Len(t, keys, 2)
+	assert.Regexp(t, `^[0-9a-f]{64}$`, keys[0])
+	assert.Equal(t, keys[0], keys[1])
 }
 
 func TestBatchTransactions_RetryUsesCallerIdempotencyKeyAndBatchOwnsRetryBudget(t *testing.T) {

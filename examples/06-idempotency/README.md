@@ -21,8 +21,9 @@ requests.
    at-least-once producers (saga steps, outbox rows, UI submissions).
 
 3. **Precedence rule** — an explicit key set via `WithIdempotencyKey`
-   ALWAYS wins over `WithoutAutoIdempotency` (which only matters on a client
-   opted in with `midaz.WithIdempotency(true)`). Useful when middleware
+   ALWAYS wins over `WithoutAutoIdempotency` (which only stops the random key
+   of a client opted in with `midaz.WithIdempotency(true)`, never the `/v1`
+   derived key). Useful when middleware
    blanket-applies suppression but a specific call-site wants
    idempotency back on.
 
