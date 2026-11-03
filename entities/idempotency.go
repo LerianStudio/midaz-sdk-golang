@@ -30,7 +30,7 @@ import (
 //  2. sdkctx.WithIdempotencyKey(ctx) — request-scoped key.
 //  3. auto-generated UUID — only when autoGen is true AND the caller did not
 //     opt out via sdkctx.WithoutAutoIdempotency. Creates are unsafe-but-
-//     idempotent, so they pass autoGen=true (parity with the legacy default).
+//     idempotent, so they pass autoGen=true when the client gate is on.
 //     Actions like commit/cancel/revert pass autoGen=false — they carry a key
 //     only when one is supplied explicitly or via ctx.
 //
@@ -142,10 +142,9 @@ func idempotencyEditorsTracer(ctx context.Context, autoGen bool) []gentracer.Req
 	return editors
 }
 
-// bodyDedupedCreate matches the ledger creates that, sent without X-Idempotency, are
-// held under a hash of the body: transaction creates (v1 and v2, including block/unblock
-// and the atomic batch) and holder/instrument creates. Every other write without a key
-// is a new write on every attempt.
+// bodyDedupedCreate matches the ledger creates held under a hash of the body when sent
+// without X-Idempotency (transaction, holder and instrument creates); every other
+// keyless write is a new write on every attempt.
 var bodyDedupedCreate = regexp.MustCompile(`/(v1/organizations/[^/]+/ledgers/[^/]+/transactions/(json|inflow|outflow|annotation|block|unblock)|` +
 	`v2/transactions/(direct|hold|block|unblock|batch)|v2/organizations/[^/]+/holders|v2/organizations/[^/]+/holders/[^/]+/instruments)$`)
 

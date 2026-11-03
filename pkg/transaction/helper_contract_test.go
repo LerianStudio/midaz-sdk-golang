@@ -3,6 +3,7 @@ package transaction
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -128,7 +129,9 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 	}
 }
 
-func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *testing.T) {
+// A keyless helper call sends no X-Idempotency and an identical body on every resend,
+// so the ledger can dedupe it by body.
+func TestTransactionHelpers_KeylessCallsSendNoKeyAndStableBody(t *testing.T) {
 	tests := []struct {
 		name string
 		run  func(context.Context, *entities.Entity) error
@@ -181,6 +184,30 @@ func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *
 				return err
 			},
 		},
+		{
+			name: "template",
+			run: func(ctx context.Context, entity *entities.Entity) error {
+				tmpl := &Template{
+					Description: "templated funding",
+					AssetCode:   "USD",
+					Scale:       2,
+					BuildSources: func(amount int64) []models.FromToInput {
+						return []models.FromToInput{{AccountAlias: "a", Amount: models.AmountInput{Asset: "USD", Value: formatAmount(amount, 2)}}}
+					},
+					BuildDestinations: func(amount int64) []models.FromToInput {
+						return []models.FromToInput{{AccountAlias: "b", Amount: models.AmountInput{Asset: "USD", Value: formatAmount(amount, 2)}}}
+					},
+				}
+				if _, err := CreateFromTemplate(ctx, entity, "org-1", "ledger-1", tmpl, 100, nil, ""); err != nil {
+					return err
+				}
+
+				time.Sleep(1100 * time.Millisecond) // a wall-clock field in the body would differ across seconds
+
+				_, err := CreateFromTemplate(ctx, entity, "org-1", "ledger-1", tmpl, 100, nil, "")
+				return err
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -191,9 +218,10 @@ func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *
 			// handler raced with the test's read below under
 			// `go test -race`. Mirrors the pattern used in
 			// entities/http_idempotency_precedence_test.go (seenCh).
-			seenCh := make(chan string, 2)
+			seenCh := make(chan seenRequest, 2)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				seenCh <- r.Header.Get("X-Idempotency")
+				body, _ := io.ReadAll(r.Body)
+				seenCh <- seenRequest{key: r.Header.Get("X-Idempotency"), body: string(body)}
 				writeJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
 			}))
 			defer server.Close()
@@ -201,24 +229,26 @@ func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *
 			entity := newTransactionHelperEntity(t, server)
 			require.NoError(t, tt.run(context.Background(), entity))
 
-			first := receiveIdempotencyHeader(t, seenCh)
-			second := receiveIdempotencyHeader(t, seenCh)
-			assert.NotEmpty(t, first)
-			assert.NotEmpty(t, second)
-			assert.NotEqual(t, first, second)
+			first := receiveSeenRequest(t, seenCh)
+			second := receiveSeenRequest(t, seenCh)
+			assert.Empty(t, first.key)
+			assert.Empty(t, second.key)
+			assert.Equal(t, first.body, second.body)
 		})
 	}
 }
 
-func receiveIdempotencyHeader(t *testing.T, seenCh <-chan string) string {
+type seenRequest struct{ key, body string }
+
+func receiveSeenRequest(t *testing.T, seenCh <-chan seenRequest) seenRequest {
 	t.Helper()
 
 	select {
 	case header := <-seenCh:
 		return header
 	case <-time.After(time.Second):
-		t.Fatal("expected two transaction helper requests with idempotency headers")
-		return ""
+		t.Fatal("expected two transaction helper requests")
+		return seenRequest{}
 	}
 }
 
@@ -287,7 +317,6 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	templateMetadata := requireMap(t, requests[1]["metadata"])
 	assert.Equal(t, "funding", templateMetadata["template"])
 	assert.Equal(t, "yes", templateMetadata["override"])
-	assert.Contains(t, templateMetadata, "timestamp")
 
 	committed, err := CommitPendingTransaction(context.Background(), entity, "org-1", "ledger-1", "tx-created")
 	require.NoError(t, err)

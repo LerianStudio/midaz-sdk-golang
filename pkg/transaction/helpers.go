@@ -8,11 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
-	"github.com/google/uuid"
 )
 
 // formatAmount converts an int64 amount with scale to a decimal string using
@@ -123,11 +121,7 @@ func Transfer(
 		opts = DefaultTransferOptions()
 	}
 
-	// Ensure idempotency key is set
 	idempotencyKey := opts.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
 
 	amountValue := formatAmount(amount, scale)
 
@@ -246,11 +240,7 @@ func Deposit(
 		opts = DefaultDepositOptions()
 	}
 
-	// Ensure idempotency key is set
 	idempotencyKey := opts.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
 
 	// Generate external account ID if not specified
 	externalAccountID := opts.ExternalAccountID
@@ -376,11 +366,7 @@ func Withdrawal(
 		opts = DefaultWithdrawalOptions()
 	}
 
-	// Ensure idempotency key is set
 	idempotencyKey := opts.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
 
 	// Generate external account ID if not specified
 	externalAccountID := opts.ExternalAccountID
@@ -533,9 +519,6 @@ func resolveMultiTransferOptions(opts *MultiTransferOptions) (*MultiTransferOpti
 	}
 
 	idempotencyKey := opts.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
 
 	return opts, idempotencyKey
 }
@@ -644,7 +627,7 @@ type Template struct {
 //   - template: The transaction template to use
 //   - amount: The amount for the transaction
 //   - metadata: Additional metadata to merge with the template's metadata (optional)
-//   - idempotencyKey: A unique key for idempotency (optional, will generate one if empty)
+//   - idempotencyKey: A unique key for idempotency (optional; empty sends no key and the ledger dedupes by body)
 //
 // Returns:
 //   - The created transaction if successful
@@ -670,11 +653,6 @@ func CreateFromTemplate(
 		return nil, errors.New("transaction template cannot be nil")
 	}
 
-	// Ensure idempotency key is set
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
-
 	// Merge metadata
 	mergedMetadata := make(map[string]any)
 
@@ -687,8 +665,6 @@ func CreateFromTemplate(
 	for k, v := range metadata {
 		mergedMetadata[k] = v
 	}
-	// Add timestamp to metadata
-	mergedMetadata["timestamp"] = time.Now().Unix()
 
 	// Convert amount to string with scale
 	amountValue := formatAmount(amount, template.Scale)

@@ -270,7 +270,8 @@ Page-based and cursor-based endpoints use separate opts types. See
 Off by default. Without an integrator key the SDK sends no `X-Idempotency`,
 and the ledger dedupes a keyless transaction create (and a holder or
 instrument create) by its body: the same body sent again, even from a new SDK
-call after a timeout, is answered with the first outcome. Two intentional
+call after a timeout, is answered with the first outcome, or processed once if
+the first attempt never completed. Two intentional
 transactions with byte-identical bodies inside the ledger's idempotency
 window are therefore answered with the first one, so pass a distinct key for
 each intentional duplicate:
@@ -281,7 +282,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 // Stable key for at-least-once producers (saga steps, outbox rows, UI submissions):
 ctx := sdkctx.WithIdempotencyKey(ctx, "tx-2026-05-06-001")
 
-// Opt in to a random SDK-generated key per request (the pre-v6.5 behavior):
+// Opt in to a random SDK-generated key per request (the previous default):
 //   midaz.WithIdempotency(true)  or  MIDAZ_IDEMPOTENCY=true
 // and suppress it for one call with:
 ctx := sdkctx.WithoutAutoIdempotency(ctx)

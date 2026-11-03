@@ -479,14 +479,14 @@ client, _ := midaz.New(
 )
 ```
 
-### 5.7 Idempotency off (upstream gateway handles it)
+### 5.7 Idempotency off (the default; upstream gateway handles it)
 
 ```go
 client, _ := midaz.New(
     midaz.WithAnonymous(),
     midaz.WithIdempotency(false),
 )
-// Now the SDK never generates X-Idempotency. The caller can still set
+// The SDK never generates X-Idempotency (explicit false, as in the default). The caller can still set
 // one explicitly per request via sdkctx.WithIdempotencyKey.
 ```
 

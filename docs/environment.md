@@ -188,7 +188,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "transaction-2026-04-27-001")
 ```
 
-Unsafe requests retry only when `X-Idempotency` is present. Caller-supplied and SDK-generated keys both satisfy this retry gate.
+Unsafe requests retry only when `X-Idempotency` is present, or when the ledger dedupes the create by body (transaction, holder and instrument creates). Caller-supplied and SDK-generated keys both satisfy the key gate.
 
 ## Observability
 

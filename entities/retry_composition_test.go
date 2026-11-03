@@ -287,11 +287,13 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 		ctxKey   string
 		inputKey string
 		timeout  bool // the first attempt fails with a transport timeout before reaching the server
+		keyless  bool // the facade does not mint a key: the ledger dedupes this route by body
 		attempts int32
 		wantErr  bool
 	}{
 		{name: "sdk key 503 then 0084 retried", replies: []string{"503", "0084", "201"}, attempts: 3},
 		{name: "sdk key timeout then 0084 retried", replies: []string{"0084", "201"}, timeout: true, attempts: 3},
+		{name: "keyless 504 then 0084 retried on a body-deduped route", replies: []string{"504", "0084", "201"}, keyless: true, attempts: 3},
 		{name: "caller ctx key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
 		{name: "caller ctx key 503 then 0084 surfaces", replies: []string{"503", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
 		{name: "input key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, inputKey: "input-key", attempts: 2, wantErr: true},
@@ -321,7 +323,9 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 
 			ctx := sdkctx.WithIdempotencyKey(context.Background(), tc.ctxKey)
 
-			tx, err := newRetryEnabledTxFacade(t, srv, 3).CreateJSON(ctx, txOrgID, txLedgerID, input)
+			facade := newTransactionsFacade(newRetryEnabledPlanes(t, srv, 3).Ledger, !tc.keyless)
+
+			tx, err := facade.CreateJSON(ctx, txOrgID, txLedgerID, input)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -337,8 +341,8 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			if !oneKey(keys, tc.ctxKey+tc.inputKey) {
-				t.Fatalf("keys = %v, want one stable key (the caller's when supplied)", keys)
+			if !keysMatch(keys, tc.ctxKey+tc.inputKey, tc.keyless) {
+				t.Fatalf("keys = %v, want one stable key (the caller's when supplied), or none when keyless", keys)
 			}
 		})
 	}
@@ -374,6 +378,14 @@ func TestPlaneWriteSurfacesCallerStamped0084(t *testing.T) {
 }
 
 // oneKey reports whether every key is the same non-empty key, equal to want when want is set.
+func keysMatch(keys []string, want string, keyless bool) bool {
+	if keyless {
+		return strings.Join(keys, "") == ""
+	}
+
+	return oneKey(keys, want)
+}
+
 func oneKey(keys []string, want string) bool {
 	for _, key := range keys {
 		if key == "" || key != keys[0] || (want != "" && key != want) {

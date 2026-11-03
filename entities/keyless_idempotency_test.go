@@ -2,7 +2,6 @@ package entities
 
 import (
 	"bytes"
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -10,42 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
-
-// A request without an integrator key leaves the SDK with no X-Idempotency, so the ledger
-// dedupes a keyless transaction create by its body. The integrator key and the explicit
-// opt-in keep working.
-func TestKeylessIdempotencyDefaults(t *testing.T) {
-	assert.False(t, config.DefaultEnableIdempotency)
-	assert.False(t, configEnableIdempotency(nil), "a Config without the gate must not auto-generate")
-
-	post := func(hc *HTTPClient, ctx context.Context) string {
-		var seen string
-
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			seen = r.Header.Get(idempotencyHeader)
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{}`))
-		}))
-		defer srv.Close()
-
-		var out map[string]any
-
-		require.NoError(t, hc.doRequest(ctx, http.MethodPost, srv.URL, nil, map[string]string{"a": "b"}, &out))
-
-		return seen
-	}
-
-	assert.Empty(t, post(NewHTTPClient(nil, "", nil), context.Background()), "default sends no key")
-	assert.Equal(t, "mine", post(NewHTTPClient(nil, "", nil), sdkctx.WithIdempotencyKey(context.Background(), "mine")))
-
-	optIn := NewHTTPClient(nil, "", nil)
-	optIn.SetEnableIdempotency(true)
-	assert.NotEmpty(t, post(optIn, context.Background()), "explicit opt-in still generates")
-}
 
 // A keyless unsafe request retries only where the ledger dedupes it by body.
 func TestKeylessRetryOnlyWhereLedgerDedupesByBody(t *testing.T) {
@@ -98,24 +62,20 @@ func TestKeylessRetryOnlyWhereLedgerDedupesByBody(t *testing.T) {
 		})
 	}
 
-	// The legacy path applies the same rule.
-	for path, wantRetries := range map[string]bool{"/v2/transactions/direct": true, "/v1/organizations/o/ledgers/l/accounts": false} {
-		var count int32
+	// A keyless 409/0084 is retried only on a body-deduped route.
+	var count int32
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			atomic.AddInt32(&count, 1)
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&count, 1)
+		writeReply(w, "0084")
+	}))
+	defer srv.Close()
 
-		opts := fastRetryOpts()
-		hc := NewHTTPClient(nil, "", nil)
-		hc.retryOptions = &opts
+	rt := newRetryRoundTripper(http.DefaultTransport, fastRetryOpts(), nil)
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/organizations/o/ledgers/l/accounts", bytes.NewReader([]byte(`{"x":1}`)))
 
-		var out map[string]any
-
-		_ = hc.doRequest(context.Background(), http.MethodPost, srv.URL+path, nil, map[string]string{"a": "b"}, &out)
-		srv.Close()
-
-		assert.Equal(t, wantRetries, atomic.LoadInt32(&count) > 1, path)
-	}
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.EqualValues(t, 1, atomic.LoadInt32(&count))
 }

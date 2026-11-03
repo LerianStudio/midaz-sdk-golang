@@ -124,7 +124,7 @@ editors and the shared `*http.Client` built for each plane, **not** on
 - Adds idempotency keys — generated only when opted in (`MIDAZ_IDEMPOTENCY=true`), or caller-supplied via `sdkctx.WithIdempotencyKey(ctx, key)` / an input's `IdempotencyKey` field.
 - Injects OpenTelemetry trace context and baggage into outbound HTTP headers when observability is enabled.
 - Applies retry behavior for retryable responses and transient network failures.
-- Avoids retrying unsafe methods unless `X-Idempotency` is present.
+- Avoids retrying unsafe methods unless `X-Idempotency` is present or the ledger dedupes the create by body.
 - Converts HTTP failures into `pkg/errors` structured errors, decoding both RFC 9457 problem documents and the /v1 legacy error shape (`message` / `fields` / `entityType`).
 - Attaches raw, unredacted, truncated upstream 4xx/5xx response bodies to structured errors when error body exposure is enabled.
 - Emits debug logs when `MIDAZ_DEBUG=true` or debug options are enabled.
@@ -327,7 +327,7 @@ Root-client retry defaults come from `pkg/config` and are applied to entity HTTP
 - Jitter factor: 0.25
 - Retryable status codes: 408, 425, 429, 500, 502, 503, 504
 
-Unsafe requests are retried only when an idempotency key is present.
+Unsafe requests are retried only when an idempotency key is present, or when the ledger dedupes the create by body.
 
 ## Maintainer checklist
 

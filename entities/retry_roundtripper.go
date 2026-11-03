@@ -24,10 +24,9 @@ import (
 // upholding the money-path no-double-charge invariant:
 //
 //   - Unsafe methods (POST/PUT/PATCH/DELETE) retry ONLY when an X-Idempotency
-//     key is present, mirroring the legacy *HTTPClient gate
-//     (entities/http.go executeRequestWithRetry). A keyless write is tried
-//     exactly once — a retried keyless write could be a second balance
-//     mutation.
+//     key is present or the ledger dedupes the create by body
+//     (ledgerDedupesByBody). Any other keyless write is tried exactly once — a
+//     retried keyless write could be a second balance mutation.
 //   - Every attempt carries the IDENTICAL request headers (idempotency key
 //     included) and an identical, freshly-rewound body, so a retry is a
 //     byte-for-byte replay of the same operation.
@@ -128,7 +127,7 @@ func slotHeldFor(req *http.Request) time.Duration {
 // resolveOptions produces the per-request effective retry policy: it composes
 // the internal "custom policy said retry" predicate with any caller-supplied
 // predicate, and applies the no-double-charge gate that forces a single
-// attempt for suppressed contexts, keyless unsafe methods, and unrewindable
+// attempt for suppressed contexts, keyless unsafe methods outside body-deduped creates, and unrewindable
 // bodies.
 func (rt *retryRoundTripper) resolveOptions(req *http.Request) retry.Options {
 	// Shallow copy: only MaxRetries and ErrorPredicate are mutated here; the
@@ -218,9 +217,13 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
 	}
 
-	// 409/0084 under the key the SDK minted for this call: the claim holding it is this call's own
-	// earlier attempt, so retrying within its TTL cannot post twice. Any other key's 0084 is returned.
-	if minted, ok := req.Context().Value(mintedKeyCtx{}).(string); ok && resp.StatusCode == http.StatusConflict && minted == req.Header.Get(idempotencyHeader) {
+	// 409/0084 under the key the SDK minted for this call, or keyless on a body-deduped route: the
+	// claim is this call's own earlier attempt (or an identical body), so a retry cannot post twice.
+	// Any other key's 0084 is returned.
+	minted, ok := req.Context().Value(mintedKeyCtx{}).(string)
+	key := req.Header.Get(idempotencyHeader)
+
+	if resp.StatusCode == http.StatusConflict && ((ok && minted == key) || (key == "" && ledgerDedupesByBody(req))) {
 		body := bufferResponseBody(resp)
 
 		if sdkerrors.IsIdempotencyError(sdkerrors.DecodeProblemJSON(resp.StatusCode, body, "")) {
