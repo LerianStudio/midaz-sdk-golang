@@ -1,10 +1,18 @@
-// Package main demonstrates the idempotency surface — the three modes
+// Package main demonstrates the idempotency surface — the modes
 // the SDK supports for the X-Idempotency request header on unsafe (POST,
 // PUT, PATCH, DELETE) requests:
 //
-//  1. Auto-generated key (default): the SDK generates a UUID per request
-//     and emits it as X-Idempotency. This is the right default for retry
-//     safety without forcing every caller to think about idempotency.
+//  1. No key (default): the SDK sends no random X-Idempotency. A keyless /v1
+//     annotation, block or unblock create sends a key derived from the request
+//     (SHA-256 of method, path and body), so the same request sent again (even
+//     from a new SDK call after a timeout) returns the first outcome, and block
+//     and unblock with one body never share the ledger's /v1 slot (it ignores
+//     the action). Every other transaction create sends no key; the ledger dedupes it by body. Two intentional
+//     transactions with identical requests inside the ledger's idempotency
+//     window are answered with the first one: pass a distinct key (mode 2).
+//     Opt-in: [midaz.WithIdempotency](true) or MIDAZ_IDEMPOTENCY=true makes the
+//     SDK generate a random UUID per create, update and delete request instead;
+//     commit, cancel and revert carry a key only when you supply one.
 //
 //  2. Explicit caller-supplied key (recommended for at-least-once
 //     producers): pass a stable key via [sdkctx.WithIdempotencyKey]
@@ -13,16 +21,12 @@
 //     YOUR consumer's perspective — re-issuing the same logical
 //     transaction does not double-charge.
 //
-//  3. Per-call opt-out: [sdkctx.WithoutAutoIdempotency] suppresses the
-//     auto-generated key for the next request. Use for the rare endpoint
-//     where idempotency is genuinely undesired (e.g., fire-and-forget
-//     diagnostics) AND you have no caller-supplied key. Note: an explicit
-//     key set via WithIdempotencyKey ALWAYS wins, even when
-//     WithoutAutoIdempotency is also on the same context.
+//  3. Precedence: an explicit key set via WithIdempotencyKey wins over
+//     [sdkctx.WithoutAutoIdempotency], which only stops the random key of a client
+//     that opted in with midaz.WithIdempotency(true), never the /v1 annotation, block or unblock derived key.
 //
-// Global default: [midaz.WithIdempotency(false)] disables auto-idempotency
-// for the entire client lifetime. After that, only requests with an
-// explicit WithIdempotencyKey emit the X-Idempotency header.
+// Global default: auto-idempotency is off, so only an explicit
+// WithIdempotencyKey or the derived key of a /v1 annotation, block or unblock create is sent.
 //
 // Usage:
 //
@@ -56,28 +60,27 @@ func main() {
 		}
 	}()
 
-	demoAutoKey(c)
+	demoDefaultNoKey(c)
 	demoExplicitKey(c)
-	demoSuppressedKey(c)
 	demoExplicitWinsOverSuppression(c)
 }
 
-// demoAutoKey shows the default behavior: every unsafe request gets a
-// fresh UUID emitted as X-Idempotency. No caller code change required.
-// Server-side, the auto header lets the gateway transparently deduplicate
-// retries the SDK issues itself (e.g., on a 5xx with retries enabled).
-func demoAutoKey(c *midaz.Client) {
-	fmt.Println("--- Auto-generated idempotency key (default) ---")
+// demoDefaultNoKey shows the default behavior: no random X-Idempotency is sent. This
+// example has no ledger or accounts, so it creates an organization, which the
+// ledger does NOT dedupe by body; it shows only the absent header. Body dedupe
+// applies to transaction creates.
+func demoDefaultNoKey(c *midaz.Client) {
+	fmt.Println("--- No idempotency key (default) ---")
 
 	input := &models.CreateOrganizationInput{
-		LegalName:     "Idempotency Demo Auto",
+		LegalName:     "Idempotency Demo Keyless",
 		LegalDocument: "00000000000191",
 	}
 	if _, err := c.V2.Organizations.Create(context.Background(), input); err != nil {
-		log.Printf("CreateOrganization (auto-key): %v", err)
+		log.Printf("CreateOrganization (keyless): %v", err)
 		return
 	}
-	fmt.Println("created with SDK-generated X-Idempotency header")
+	fmt.Println("created with NO X-Idempotency header on the wire")
 }
 
 // demoExplicitKey shows the recommended pattern for at-least-once
@@ -100,25 +103,6 @@ func demoExplicitKey(c *midaz.Client) {
 		return
 	}
 	fmt.Println("created with X-Idempotency=demo-stable-key-001 (re-runs are safe)")
-}
-
-// demoSuppressedKey shows the per-call opt-out. The SDK emits NO
-// X-Idempotency header for this request. Use sparingly — only when
-// the endpoint genuinely should not be deduplicated.
-func demoSuppressedKey(c *midaz.Client) {
-	fmt.Println("--- Auto-idempotency suppressed for one call ---")
-
-	ctx := sdkctx.WithoutAutoIdempotency(context.Background())
-
-	input := &models.CreateOrganizationInput{
-		LegalName:     "Idempotency Demo Suppressed",
-		LegalDocument: "00000000000191",
-	}
-	if _, err := c.V2.Organizations.Create(ctx, input); err != nil {
-		log.Printf("CreateOrganization (suppressed): %v", err)
-		return
-	}
-	fmt.Println("created with NO X-Idempotency header on the wire")
 }
 
 // demoExplicitWinsOverSuppression illustrates the precedence rule:

@@ -20,7 +20,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/transaction"
-	"github.com/google/uuid"
 )
 
 // TransferFunds transfers funds between two accounts within a ledger.
@@ -173,7 +172,6 @@ func newTransferFundsInput(sourceAccountAlias, destAccountAlias, assetCode strin
 				},
 			},
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 }
 
@@ -218,7 +216,6 @@ func ExecuteTransferWithHelper(
 			"source": "go-sdk-example",
 			"type":   "transfer-with-helper",
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 
 	// Convert amount string to int64 (assuming 2 decimal places)
@@ -282,7 +279,6 @@ func ExecuteDepositWithHelper(
 			"source": "go-sdk-example",
 			"type":   "deposit-with-helper",
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 
 	// Convert amount string to int64 (assuming 2 decimal places)
@@ -345,7 +341,6 @@ func ExecuteWithdrawalWithHelper(
 			"source": "go-sdk-example",
 			"type":   "withdrawal-with-helper",
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 
 	// Convert amount string to int64 (assuming 2 decimal places)
@@ -410,7 +405,6 @@ func ExecuteMultiAccountTransferWithHelper(
 			"source": "go-sdk-example",
 			"type":   "multi-transfer-with-helper",
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 
 	// Convert string amounts to int64 amounts (assuming 2 decimal places)

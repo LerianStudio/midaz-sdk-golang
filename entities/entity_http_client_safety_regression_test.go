@@ -272,6 +272,7 @@ func TestHTTPClient_AutoIdempotencyForAllUnsafeMethods(t *testing.T) {
 			defer srv.Close()
 
 			c := NewHTTPClient(srv.Client(), "", nil)
+			c.SetEnableIdempotency(true)
 
 			var out map[string]any
 

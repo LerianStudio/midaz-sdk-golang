@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
@@ -91,7 +90,6 @@ func createDirectTransaction(ctx context.Context, txService transactionCreator) 
 		Credits:     []models.TransactionV2Leg{{Alias: "account456", Amount: "100"}},
 		Metadata: map[string]any{
 			"source": "sdk-example",
-			"time":   time.Now().Format(time.RFC3339),
 		},
 	}
 

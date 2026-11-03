@@ -42,7 +42,7 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | `MIDAZ_TIMEOUT` | HTTP timeout in seconds. | `60` |
 | `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
 | `MIDAZ_MAX_RETRIES` | Maximum retry attempts. Set to `0` to disable retries entirely. | `3` |
-| `MIDAZ_IDEMPOTENCY` | Enables (`true`) or disables (`false`) auto idempotency support. | `true` |
+| `MIDAZ_IDEMPOTENCY` | Enables (`true`) or disables (`false`) auto idempotency support. | `false` |
 | `MIDAZ_ERROR_EXPOSE_BODY` | Attaches raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; enable only for controlled diagnostics. | `false` |
 | `PLUGIN_AUTH_ENABLED` | Enables Access Manager authentication when set to `true`. | `false` |
 | `PLUGIN_AUTH_ADDRESS` | Access Manager base address. | empty |
@@ -170,7 +170,7 @@ The SDK does not read retry wait environment variables. Configure retry timing i
 MIDAZ_IDEMPOTENCY=true
 ```
 
-Idempotency is enabled by default for ordinary unsafe SDK requests. Set it to `false` to disable SDK-generated idempotency behavior. Transaction and HTTP batch retries are stricter: when their retry count is greater than zero, callers must supply stable per-transaction or per-item idempotency keys so replayed batch attempts are deterministic.
+SDK-generated idempotency keys are off by default: without an integrator key a `/v1` annotation, block or unblock create sends a key derived from the request (the ledger's `/v1` keyless slot ignores the action) and every other create sends none. The ledger dedupes only transaction (`/v1` json, inflow, outflow and `/v2`), holder and instrument creates by body; a keyless organization or account create is not deduped. Set it to `true` to opt in to a random key per create, update and delete request. Transaction and HTTP batch retries are stricter: when their retry count is greater than zero, callers must supply stable per-transaction or per-item idempotency keys so replayed batch attempts are deterministic.
 
 Automatic key generation applies to unsafe entity HTTP requests. The entity HTTP client generates an `X-Idempotency` UUID only when all of these are true:
 
@@ -188,7 +188,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "transaction-2026-04-27-001")
 ```
 
-Unsafe requests retry only when `X-Idempotency` is present. Caller-supplied and SDK-generated keys both satisfy this retry gate.
+Unsafe requests retry only when `X-Idempotency` is present, or when the ledger dedupes the create by body (transaction, holder and instrument creates). Caller-supplied and SDK-generated keys both satisfy the key gate.
 
 ## Observability
 

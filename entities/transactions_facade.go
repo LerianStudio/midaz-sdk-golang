@@ -198,7 +198,7 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 	}
 
 	params := &genledger.CreateTransactionAnnotationParams{}
-	key, ttl, mark := resolveIdempotency(ctx, "", f.enableIdempotency)
+	key, ttl, mark := resolveV1Create(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
@@ -227,7 +227,7 @@ func (f *transactionsFacade) CreateBlock(ctx context.Context, orgID, ledgerID st
 	}
 
 	params := &genledger.CreateTransactionBlockParams{}
-	key, ttl, mark := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
+	key, ttl, mark := resolveV1Create(ctx, input.IdempotencyKey, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
@@ -250,7 +250,7 @@ func (f *transactionsFacade) CreateUnblock(ctx context.Context, orgID, ledgerID 
 	}
 
 	params := &genledger.CreateTransactionUnblockParams{}
-	key, ttl, mark := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
+	key, ttl, mark := resolveV1Create(ctx, input.IdempotencyKey, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {

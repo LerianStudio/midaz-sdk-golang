@@ -87,6 +87,7 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 		WithConfig(createTestConfig(t)),
 		WithBaseURL(srv.URL),
 		WithUserAgent("client-options-agent/1.0"),
+		WithIdempotency(true),
 	)
 	require.NoError(t, err)
 

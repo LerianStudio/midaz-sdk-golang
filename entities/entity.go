@@ -93,20 +93,19 @@ func configTracerAPIKey(config Config) string {
 // enableIdempotencyConfig is an OPTIONAL extension of [Config] exposing whether
 // automatic idempotency-key generation is enabled. Read via a type assertion
 // (same pattern as [tracerAPIKeyConfig]); a Config that does not satisfy it is
-// treated as ENABLED — parity with the legacy default (DefaultEnableIdempotency
-// == true) so test fixtures and pre-gate Config implementations keep auto-gen.
+// treated as DISABLED, matching DefaultEnableIdempotency (false).
 type enableIdempotencyConfig interface {
 	GetEnableIdempotency() bool
 }
 
 // configEnableIdempotency reads the optional idempotency gate from a Config
-// implementation, defaulting to true (enabled) when the method is absent.
+// implementation, defaulting to false (disabled) when the method is absent.
 func configEnableIdempotency(config Config) bool {
 	if ext, ok := config.(enableIdempotencyConfig); ok {
 		return ext.GetEnableIdempotency()
 	}
 
-	return true
+	return false
 }
 
 // planeRetryConfig is an OPTIONAL extension of [Config] carrying the effective

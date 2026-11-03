@@ -183,6 +183,7 @@ func TestAutomaticIdempotencyHeaderForUnsafeMethods(t *testing.T) {
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.Client(), "", nil)
+	c.SetEnableIdempotency(true)
 
 	var out map[string]any
 
@@ -314,6 +315,7 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 			defer srv.Close()
 
 			c := NewHTTPClient(srv.Client(), "", nil)
+			c.SetEnableIdempotency(true)
 			require.NoError(t, c.WithRetryOptions(
 				retry.WithMaxRetries(1),
 				retry.WithInitialDelay(time.Millisecond),

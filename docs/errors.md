@@ -278,7 +278,7 @@ Root-client retry defaults are:
 - Backoff factor: `2.0`
 - Jitter factor: `0.25`
 
-Unsafe HTTP methods are retried only when an idempotency key is present. Attach one with:
+Unsafe HTTP methods are retried only when an idempotency key is present, or when the ledger dedupes the create by body (transaction, holder and instrument creates). Attach a key with:
 
 ```go
 ctx = sdkctx.WithIdempotencyKey(ctx, "request-unique-key")

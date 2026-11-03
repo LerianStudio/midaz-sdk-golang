@@ -123,7 +123,7 @@ This is a per-plane override, not a third construction-time auth gate: it does n
 
 The SDK sends only `X-Idempotency`; it does not send `Idempotency-Key`. The Midaz server contract currently accepts `X-Idempotency`.
 
-Automatic retries for unsafe requests require `X-Idempotency`, but transaction action endpoints have additional server-contract boundaries: commit and cancel do not honor `X-Idempotency`, and revert is not cleanly endpoint-idempotent. The SDK suppresses automatic retries for those actions rather than implying duplicate-safe behavior.
+Automatic retries for unsafe requests require `X-Idempotency` (or a ledger body-deduped create), but transaction action endpoints have additional server-contract boundaries: commit and cancel do not honor `X-Idempotency`, and revert is not cleanly endpoint-idempotent. The SDK suppresses automatic retries for those actions rather than implying duplicate-safe behavior.
 
 ## Auth-required gate
 

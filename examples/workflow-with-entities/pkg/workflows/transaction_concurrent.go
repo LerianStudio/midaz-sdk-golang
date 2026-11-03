@@ -6,13 +6,8 @@ package workflows
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -124,62 +119,10 @@ func runConcurrentTransactionBatch(ctx context.Context, label, spanName string, 
 	return nil
 }
 
-// GenerateUniqueIdempotencyKey generates a truly unique idempotency key
-// by combining multiple sources of uniqueness
-//
-// Parameters:
-//   - prefix: A prefix to identify the source of the key (e.g., "c2m" for customer to merchant)
-//   - index: An index to identify the specific transaction
-//
-// Returns:
-//   - string: A unique idempotency key
-func GenerateUniqueIdempotencyKey(prefix string, index int) string {
-	// Create a hash of multiple unique components
-	h := sha256.New()
-
-	// Add a UUID
-	uuidStr := uuid.New().String()
-	_, _ = h.Write([]byte(uuidStr))
-
-	// Add the current timestamp with nanosecond precision
-	timestamp := time.Now().UnixNano()
-	fmt.Fprintf(h, "%d", timestamp)
-
-	// Add the prefix and index
-	fmt.Fprintf(h, "%s-%d", prefix, index)
-
-	// Add some random bytes
-	randomBytes := make([]byte, 16)
-	_, err := cryptorand.Read(randomBytes)
-	if err != nil {
-		log.Printf("Warning: Failed to generate cryptographically secure random bytes: %v", err)
-
-		// Fallback to a more secure approach than math/rand.Read
-		// Use current time and process-specific values to create entropy
-		timeNow := time.Now()
-		fallbackSource := []byte(fmt.Sprintf("%d-%d-%d-%d-%s-%d",
-			timeNow.UnixNano(),
-			os.Getpid(),
-			os.Getppid(),
-			timeNow.Year(),
-			timeNow.Location().String(),
-			index))
-
-		// Hash the fallback source to get random bytes
-		hasher := sha256.New()
-		_, _ = hasher.Write(fallbackSource)
-		copy(randomBytes, hasher.Sum(nil)[:16])
-
-		log.Printf("Warning: Using fallback method for random bytes generation")
-	}
-
-	_, _ = h.Write(randomBytes)
-
-	// Get the hash as a hex string
-	hash := hex.EncodeToString(h.Sum(nil))
-
-	// Return a combination of components for maximum uniqueness
-	return fmt.Sprintf("%s-%s-%d-%d", prefix, hash[:16], index, timestamp)
+// idempotencyKeyFor keys an intent by its invocation's runID, prefix and index,
+// so a resend within one invocation reuses it and a new invocation does not.
+func idempotencyKeyFor(runID, prefix string, index int) string {
+	return fmt.Sprintf("%s-%s-%d", runID, prefix, index)
 }
 
 // handleTransactionError processes errors from transaction creation, categorizing them appropriately
@@ -226,6 +169,7 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteCustomerToMerchantConcurrent")
 	defer span.End()
+	runID := uuid.New().String()
 	if customerAccount == nil || merchantAccount == nil {
 		return errors.New("customer and merchant accounts are required")
 	}
@@ -246,7 +190,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *midaz
 
 	applyC2MPerformanceOptions()
 
-	processTransaction := createC2MTransactionProcessor(midazClient, orgID, ledgerID, customerAccount, merchantAccount, rateLimiter)
+	processTransaction := createC2MTransactionProcessor(runID, midazClient, orgID, ledgerID, customerAccount, merchantAccount, rateLimiter)
 
 	startTime := time.Now()
 	results := concurrent.WorkerPool(ctx, indices, processTransaction,
@@ -272,7 +216,7 @@ func applyC2MPerformanceOptions() {
 	performance.ApplyGlobalPerformanceOptions(perfOptions)
 }
 
-func createC2MTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, rateLimiter *concurrent.RateLimiter) func(context.Context, int) (string, error) {
+func createC2MTransactionProcessor(runID string, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, rateLimiter *concurrent.RateLimiter) func(context.Context, int) (string, error) {
 	return func(ctx context.Context, index int) (string, error) {
 		txCtx, txSpan := observability.StartSpan(ctx, "ProcessCustomerToMerchantTransaction")
 		defer txSpan.End()
@@ -284,7 +228,7 @@ func createC2MTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID st
 			return "", err
 		}
 
-		idempotencyKey := GenerateUniqueIdempotencyKey("c2m", index)
+		idempotencyKey := idempotencyKeyFor(runID, "c2m", index)
 		transferInput := buildC2MTransactionInput(index, customerAccount, merchantAccount, idempotencyKey)
 
 		startTime := time.Now()
@@ -380,11 +324,12 @@ func recordC2MMetrics(ctx context.Context, duration time.Duration, successCount,
 func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteMerchantToCustomerConcurrent")
 	defer span.End()
+	runID := uuid.New().String()
 	if customerAccount == nil || merchantAccount == nil {
 		return errors.New("customer and merchant accounts are required")
 	}
 
-	transactionInputs, err := buildM2CTransactionInputs(ctx, merchantAccount, customerAccount, count)
+	transactionInputs, err := buildM2CTransactionInputs(ctx, runID, merchantAccount, customerAccount, count)
 	if err != nil {
 		return err
 	}
@@ -412,7 +357,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *midaz
 	return firstError
 }
 
-func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAccount *midazmodels.Account, count int) ([]*midazmodels.CreateTransactionInput, error) {
+func buildM2CTransactionInputs(ctx context.Context, runID string, merchantAccount, customerAccount *midazmodels.Account, count int) ([]*midazmodels.CreateTransactionInput, error) {
 	if merchantAccount == nil || customerAccount == nil {
 		return nil, errors.New("merchant and customer accounts are required")
 	}
@@ -432,7 +377,7 @@ func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAcc
 
 	inputs := make([]*midazmodels.CreateTransactionInput, count)
 	for i := 0; i < count; i++ {
-		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, GenerateUniqueIdempotencyKey("m2c", i))
+		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, idempotencyKeyFor(runID, "m2c", i))
 	}
 
 	return inputs, nil

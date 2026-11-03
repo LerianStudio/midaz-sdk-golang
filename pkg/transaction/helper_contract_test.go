@@ -3,6 +3,7 @@ package transaction
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -128,7 +129,9 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 	}
 }
 
-func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *testing.T) {
+// A keyless /v1 helper call sends no key and an identical body on every resend: the ledger's
+// bare-body slot replays the first outcome.
+func TestTransactionHelpers_KeylessCallsSendNoKeyAndTheSameBody(t *testing.T) {
 	tests := []struct {
 		name string
 		run  func(context.Context, *entities.Entity) error
@@ -185,15 +188,11 @@ func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Buffered channel of size 2 instead of a shared slice +
-			// raw append: the httptest handler runs on a goroutine
-			// owned by the *http.Server, so the slice append from the
-			// handler raced with the test's read below under
-			// `go test -race`. Mirrors the pattern used in
-			// entities/http_idempotency_precedence_test.go (seenCh).
-			seenCh := make(chan string, 2)
+			// A channel, not a shared slice: the handler goroutine would race the read under -race.
+			seenCh := make(chan seenRequest, 2)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				seenCh <- r.Header.Get("X-Idempotency")
+				body, _ := io.ReadAll(r.Body)
+				seenCh <- seenRequest{key: r.Header.Get("X-Idempotency"), body: string(body)}
 				writeJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
 			}))
 			defer server.Close()
@@ -201,34 +200,37 @@ func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *
 			entity := newTransactionHelperEntity(t, server)
 			require.NoError(t, tt.run(context.Background(), entity))
 
-			first := receiveIdempotencyHeader(t, seenCh)
-			second := receiveIdempotencyHeader(t, seenCh)
-			assert.NotEmpty(t, first)
-			assert.NotEmpty(t, second)
-			assert.NotEqual(t, first, second)
+			first := receiveSeenRequest(t, seenCh)
+			second := receiveSeenRequest(t, seenCh)
+			assert.Empty(t, first.key)
+			assert.Equal(t, first, second)
 		})
 	}
 }
 
-func receiveIdempotencyHeader(t *testing.T, seenCh <-chan string) string {
+type seenRequest struct{ key, body string }
+
+func receiveSeenRequest(t *testing.T, seenCh <-chan seenRequest) seenRequest {
 	t.Helper()
 
 	select {
 	case header := <-seenCh:
 		return header
 	case <-time.After(time.Second):
-		t.Fatal("expected two transaction helper requests with idempotency headers")
-		return ""
+		t.Fatal("expected two transaction helper requests")
+		return seenRequest{}
 	}
 }
 
 func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	requests := make([]map[string]any, 0, 2)
+	keys := make([]string, 0, 2)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.EscapedPath() {
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/json":
 			assert.Equal(t, http.MethodPost, r.Method)
+			keys = append(keys, r.Header.Get("X-Idempotency"))
 			requests = append(requests, decodeJSONBody(t, r))
 			writeJSON(t, w, map[string]any{"id": "tx-created", "status": map[string]any{"code": "PENDING"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-created/commit":
@@ -273,7 +275,7 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 		},
 	}
 
-	_, err = CreateFromTemplate(context.Background(), entity, "org-1", "ledger-1", template, 1234, map[string]any{"override": "yes"}, "idem-template")
+	_, err = CreateFromTemplate(context.Background(), entity, "org-1", "ledger-1", template, 1234, map[string]any{"override": "yes"}, "")
 	require.NoError(t, err)
 	require.Len(t, requests, 2)
 
@@ -285,9 +287,11 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	templateSend := requireMap(t, requests[1]["send"])
 	assert.Equal(t, "12.34", templateSend["value"])
 	templateMetadata := requireMap(t, requests[1]["metadata"])
-	assert.Equal(t, "funding", templateMetadata["template"])
-	assert.Equal(t, "yes", templateMetadata["override"])
-	assert.Contains(t, templateMetadata, "timestamp")
+	// Exact match: a wall-clock field would make a resend a different body.
+	assert.Equal(t, map[string]any{"template": "funding", "override": "yes"}, templateMetadata)
+	require.Len(t, keys, 2)
+	assert.Equal(t, "idem-multi", keys[0])
+	assert.Empty(t, keys[1])
 
 	committed, err := CommitPendingTransaction(context.Background(), entity, "org-1", "ledger-1", "tx-created")
 	require.NoError(t, err)
@@ -394,4 +398,30 @@ func writeJSON(t *testing.T, w http.ResponseWriter, body any) {
 
 	w.Header().Set("Content-Type", "application/json")
 	require.NoError(t, json.NewEncoder(w).Encode(body))
+}
+
+func TestMultiAccountTransfer_KeylessResendBuildsIdenticalBody(t *testing.T) {
+	const sends = 40
+
+	seenCh := make(chan seenRequest, sends)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seenCh <- seenRequest{key: r.Header.Get("X-Idempotency"), body: string(body)}
+		writeJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
+	}))
+	defer server.Close()
+
+	entity := newTransactionHelperEntity(t, server)
+	sources := map[string]int64{"a": 10, "b": 20, "c": 30, "d": 40}
+	dests := map[string]int64{"w": 25, "x": 25, "y": 25, "z": 25}
+
+	for range sends {
+		_, err := MultiAccountTransfer(context.Background(), entity, "org-1", "ledger-1", sources, dests, 100, 2, "USD", DefaultMultiTransferOptions())
+		require.NoError(t, err)
+	}
+
+	first := receiveSeenRequest(t, seenCh)
+	for range sends - 1 {
+		assert.Equal(t, first.body, receiveSeenRequest(t, seenCh).body)
+	}
 }

@@ -276,10 +276,10 @@ func (timeoutErr) Error() string   { return "i/o timeout" }
 func (timeoutErr) Timeout() bool   { return true }
 func (timeoutErr) Temporary() bool { return true }
 
-// TestFacadeWriteRetriesIdempotencyInFlight: a 409/0084 is retried under the same key only when the
-// SDK generated the call's key, so the 0084 can only be this call's own earlier attempt. A key the
-// caller supplied (ctx or input field) may be held by another call's older claim, so its 0084
-// surfaces as an error. Any other 409 is never retried.
+// TestFacadeWriteRetriesIdempotencyInFlight: a 409/0084 is retried only when it can be this call's
+// own earlier attempt: under a key the SDK generated (opt-in random, or derived from the request). A
+// key the caller supplied (ctx or input field) may be held by another call's older claim, so its
+// 0084 surfaces as an error. Any other 409 is never retried.
 func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -287,30 +287,25 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 		ctxKey   string
 		inputKey string
 		timeout  bool // the first attempt fails with a transport timeout before reaching the server
+		block    bool // a /v1 block on a client that is not opted in: the key is derived from the request
+		keyless  bool // a /v1 json create on a client that is not opted in: no key on the wire, the ledger dedupes by body
 		attempts int32
 		wantErr  bool
 	}{
 		{name: "sdk key 503 then 0084 retried", replies: []string{"503", "0084", "201"}, attempts: 3},
 		{name: "sdk key timeout then 0084 retried", replies: []string{"0084", "201"}, timeout: true, attempts: 3},
+		{
+			name:    "derived key 504 then 0084 retried",
+			replies: []string{"504", "0084", "201"}, block: true, attempts: 3,
+		},
+		{name: "keyless 504 then 0084 retried", replies: []string{"504", "0084", "201"}, keyless: true, attempts: 3},
 		{name: "caller ctx key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
 		{name: "caller ctx key 503 then 0084 surfaces", replies: []string{"503", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
 		{name: "input key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, inputKey: "input-key", attempts: 2, wantErr: true},
 		{name: "other 409 not retried", replies: []string{"503", "0101", "201"}, attempts: 2, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var (
-				mu   sync.Mutex
-				keys []string
-			)
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				mu.Lock()
-				keys = append(keys, r.Header.Get(idempotencyHeader))
-				reply := tc.replies[len(keys)-1]
-				mu.Unlock()
-
-				writeReply(w, reply)
-			}))
+			srv, seenKeys := keyRecordingServer(tc.replies)
 			defer srv.Close()
 
 			wire := &timeoutFirst{base: srv.Client().Transport, on: tc.timeout}
@@ -321,7 +316,14 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 
 			ctx := sdkctx.WithIdempotencyKey(context.Background(), tc.ctxKey)
 
-			tx, err := newRetryEnabledTxFacade(t, srv, 3).CreateJSON(ctx, txOrgID, txLedgerID, input)
+			facade := newTransactionsFacade(newRetryEnabledPlanes(t, srv, 3).Ledger, !tc.block && !tc.keyless)
+
+			create := facade.CreateJSON
+			if tc.block {
+				create = facade.CreateBlock
+			}
+
+			tx, err := create(ctx, txOrgID, txLedgerID, input)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -334,11 +336,8 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 				t.Fatalf("attempts = %d, want %d", got, tc.attempts)
 			}
 
-			mu.Lock()
-			defer mu.Unlock()
-
-			if !oneKey(keys, tc.ctxKey+tc.inputKey) {
-				t.Fatalf("keys = %v, want one stable key (the caller's when supplied)", keys)
+			if keys := seenKeys(); !oneKey(keys, tc.ctxKey+tc.inputKey, tc.keyless) {
+				t.Fatalf("keys = %v, want one stable key (the caller's when supplied; none when keyless)", keys)
 			}
 		})
 	}
@@ -373,10 +372,36 @@ func TestPlaneWriteSurfacesCallerStamped0084(t *testing.T) {
 	}
 }
 
-// oneKey reports whether every key is the same non-empty key, equal to want when want is set.
-func oneKey(keys []string, want string) bool {
+// keyRecordingServer answers each request with the next reply and returns the X-Idempotency
+// header of every request it has seen.
+func keyRecordingServer(replies []string) (*httptest.Server, func() []string) {
+	var (
+		mu   sync.Mutex
+		keys []string
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		keys = append(keys, r.Header.Get(idempotencyHeader))
+		reply := replies[len(keys)-1]
+		mu.Unlock()
+
+		writeReply(w, reply)
+	}))
+
+	return srv, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return append([]string(nil), keys...)
+	}
+}
+
+// oneKey reports whether every key is the same non-empty key, equal to want when want is set;
+// with none, whether no request carried a key.
+func oneKey(keys []string, want string, none bool) bool {
 	for _, key := range keys {
-		if key == "" || key != keys[0] || (want != "" && key != want) {
+		if none != (key == "") || key != keys[0] || (want != "" && key != want) {
 			return false
 		}
 	}
