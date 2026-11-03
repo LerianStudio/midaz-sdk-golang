@@ -384,8 +384,8 @@ type doerFunc func(*http.Request) (*http.Response, error)
 
 func (f doerFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
 
-// TestCRMReaderProbeCarriesNoCallerValues pins that GET /version runs on a fresh context: a value on
-// the first caller's context (an actor-relay token, a diagnostic capture) never reaches the probe.
+// TestCRMReaderProbeCarriesNoCallerValues pins that GET /version runs on a fresh context: of the first
+// caller's context only the Authorization value is sent (no actor-relay token, no diagnostic capture).
 func TestCRMReaderProbeCarriesNoCallerValues(t *testing.T) {
 	type callerKey struct{}
 

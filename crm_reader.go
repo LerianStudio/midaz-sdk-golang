@@ -271,7 +271,7 @@ func (r *CRMReader) api(ctx context.Context, authorization string) (CRMAPI, erro
 	}
 }
 
-// probe reads /version on a fresh context, carrying no value of the caller that started it. A failure
+// probe reads /version on a fresh context: of the caller that started it, only the Authorization value is sent. A failure
 // keeps the last API; with none yet it caches nothing and returns a retryable error.
 func (r *CRMReader) probe(authorization string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
