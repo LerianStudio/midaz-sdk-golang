@@ -432,23 +432,13 @@ func (bp *batchProcessor) processTransaction(index int) error {
 		return result.Error
 	}
 
-	idempotencyKey := bp.ensureIdempotencyKey(input)
-	tx, err := bp.executeWithRetries(input, idempotencyKey)
+	tx, err := bp.executeWithRetries(input, strings.TrimSpace(input.IdempotencyKey))
 
 	result := bp.createResult(index, tx, err, time.Since(startTime))
 	bp.results[index] = result
 	bp.callProgressCallback(result)
 
 	return err
-}
-
-// ensureIdempotencyKey ensures the transaction has an idempotency key.
-func (*batchProcessor) ensureIdempotencyKey(input *models.CreateTransactionInput) string {
-	if key := strings.TrimSpace(input.IdempotencyKey); key != "" {
-		return key
-	}
-
-	return ""
 }
 
 // executeWithRetries executes a transaction with retry logic.
@@ -469,9 +459,8 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 			// Inject idempotency key into context so HTTP layer can add header.
 			ctx = sdkctx.WithIdempotencyKey(ctx, idempotencyKey)
 		} else {
-			// Missing keys are allowed only when batch retries are disabled.
-			// Suppress lower-layer auto-idempotency so the HTTP client also
-			// treats the unsafe request as non-retryable.
+			// Keyless: one HTTP attempt (WithoutHTTPRetries); the item sends no key
+			// (CreateJSON), WithoutAutoIdempotency stops only a client opt-in key.
 			ctx = sdkctx.WithoutAutoIdempotency(ctx)
 		}
 		tx, err = bp.transactions.CreateJSON(ctx, bp.orgID, bp.ledgerID, input)

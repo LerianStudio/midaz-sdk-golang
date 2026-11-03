@@ -173,7 +173,8 @@ import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "user-action-42-2026-05-06")
 
-// This single call uses the explicit key instead of an auto-generated UUID.
+// This single call sends the explicit key. Without one, the default client sends
+// a key derived from the request on a /v1 annotation, block or unblock create.
 _, err := client.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
@@ -181,8 +182,8 @@ The full list:
 
 | Function | Scope |
 |---|---|
-| `sdkctx.WithIdempotencyKey(ctx, key)` | Set an explicit `X-Idempotency` header (overrides auto-generation) |
-| `sdkctx.WithoutAutoIdempotency(ctx)` | Skip auto-generation of `X-Idempotency` for this request |
+| `sdkctx.WithIdempotencyKey(ctx, key)` | Set an explicit `X-Idempotency` header (sent as-is, overrides opt-in generation) |
+| `sdkctx.WithoutAutoIdempotency(ctx)` | Skip the opt-in random `X-Idempotency` for this request; a `/v1` annotation, block or unblock create still sends its derived key |
 | `sdkctx.WithoutHTTPRetries(ctx)` | Suppress the SDK HTTP retry loop for this request |
 | `sdkctx.WithIncludeDeleted(ctx, true)` | Include soft-deleted resources in list responses |
 | `sdkctx.WithHardDelete(ctx, true)` | Use hard-delete instead of soft-delete |
@@ -282,7 +283,7 @@ environment.
 | `MIDAZ_TIMEOUT` | duration | `60s` | HTTP request timeout |
 | `MIDAZ_DEBUG` | bool | `false` | Enable verbose request/response logging (also upgrades the default logger to stderr) |
 | `MIDAZ_MAX_RETRIES` | int | `3` | Maximum retry attempts; `0` disables retries |
-| `MIDAZ_IDEMPOTENCY` | bool | `true` | Toggle automatic `X-Idempotency` header generation |
+| `MIDAZ_IDEMPOTENCY` | bool | `false` | Opt in to a random SDK-generated `X-Idempotency` header |
 | `MIDAZ_ERROR_EXPOSE_BODY` | bool | `false` | Attach raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; enable only for tightly controlled diagnostics and never as a production default. |
 | `PLUGIN_AUTH_ENABLED` | bool | `false` | Enable plugin-based OAuth authentication |
 | `PLUGIN_AUTH_ADDRESS` | URL | — | Auth plugin endpoint (required when `PLUGIN_AUTH_ENABLED=true`) |
@@ -334,19 +335,20 @@ configuration.
 
 ### 4.1 Idempotency keys
 
-By default, the SDK generates a UUID-based `X-Idempotency` header for
-every unsafe HTTP method (POST/PUT/PATCH/DELETE). You can override the
-auto-generated key for a specific call:
+By default, the SDK sends no random `X-Idempotency` header. A keyless `/v1`
+annotation, block or unblock create sends a key derived from the request
+(SHA-256 of method, path and body), because the three share one body shape, the
+ledger's `/v1` keyless slot ignores the action and block and unblock with one
+body would otherwise collide; every other create (`/v1` json, inflow, outflow
+and `/v2`) sends no key and the ledger dedupes it by body. Opt in to a random UUID per create, update
+and delete request (POST/PUT/PATCH/DELETE) with `WithIdempotency(true)` or
+`MIDAZ_IDEMPOTENCY=true`. You can set a stable key for a specific call:
 
 ```go
 // Use an explicit key (e.g. derived from a user-action ID):
 ctx := sdkctx.WithIdempotencyKey(context.Background(),
     fmt.Sprintf("user-%d-action-%s", userID, actionUUID))
 _, err := client.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
-
-// Skip auto-generation entirely (caller does NOT want the header):
-ctx := sdkctx.WithoutAutoIdempotency(context.Background())
-_, err = client.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 ### 4.2 Retry suppression
@@ -478,15 +480,16 @@ client, _ := midaz.New(
 )
 ```
 
-### 5.7 Idempotency off (upstream gateway handles it)
+### 5.7 SDK-generated idempotency key (opt-in)
 
 ```go
 client, _ := midaz.New(
     midaz.WithAnonymous(),
-    midaz.WithIdempotency(false),
+    midaz.WithIdempotency(true), // or MIDAZ_IDEMPOTENCY=true
 )
-// Now the SDK never generates X-Idempotency. The caller can still set
-// one explicitly per request via sdkctx.WithIdempotencyKey.
+// The default client derives a key from a /v1 annotation, block or unblock create and
+// sends none on any other create. With the opt-in, the SDK generates a random key per write.
+// An explicit sdkctx.WithIdempotencyKey always wins.
 ```
 
 ---

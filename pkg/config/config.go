@@ -96,7 +96,7 @@ const (
 	DefaultRetryWaitMax = 30 * time.Second
 
 	// Default feature flags
-	DefaultEnableIdempotency = true
+	DefaultEnableIdempotency = false
 	DefaultExposeErrorBody   = false
 )
 

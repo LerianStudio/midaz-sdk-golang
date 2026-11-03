@@ -83,6 +83,29 @@ func TestBatchTransactions_IdempotencyKeyRequiredWhenRetriesEnabled(t *testing.T
 	}
 }
 
+// A keyless batch item and the same input sent through CreateJSON both send no key: the ledger's bare-body slot.
+func TestBatchTransactions_KeylessItemSendsTheKeyCreateJSONSends(t *testing.T) {
+	var keys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keys = append(keys, r.Header.Get("X-Idempotency"))
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"id": "tx-1", "status": map[string]any{"code": "APPROVED"}}))
+	}))
+	defer server.Close()
+
+	client, err := midaz.New(midaz.WithHTTPClient(server.Client()), midaz.WithLedgerURL(server.URL), midaz.WithAnonymous())
+	require.NoError(t, err)
+
+	_, err = BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{validBatchTransactionInput("")}, &BatchOptions{Concurrency: 1, BatchSize: 1})
+	require.NoError(t, err)
+	_, err = client.V1.Transactions.CreateJSON(context.Background(), "org", "ledger", validBatchTransactionInput(""))
+	require.NoError(t, err)
+
+	require.Len(t, keys, 2)
+	assert.Empty(t, keys[0])
+	assert.Empty(t, keys[1])
+}
+
 func TestBatchTransactions_RetryUsesCallerIdempotencyKeyAndBatchOwnsRetryBudget(t *testing.T) {
 	var calls atomic.Int32
 	var keys []string
@@ -975,39 +998,6 @@ func TestBatchProcessorCheckFinalErrors(t *testing.T) {
 		results, err := bp.checkFinalErrors(errChan)
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
-	})
-}
-
-// TestBatchProcessorEnsureIdempotencyKey tests the ensureIdempotencyKey method
-func TestBatchProcessorEnsureIdempotencyKey(t *testing.T) {
-	t.Run("does not generate idempotency key when empty", func(t *testing.T) {
-		bp := &batchProcessor{
-			options: &BatchOptions{IdempotencyKeyPrefix: "test-prefix", RetryCount: 1},
-		}
-
-		input := &models.CreateTransactionInput{
-			IdempotencyKey: "",
-		}
-
-		key := bp.ensureIdempotencyKey(input)
-
-		assert.Empty(t, key)
-		assert.Empty(t, input.IdempotencyKey)
-	})
-
-	t.Run("preserves existing idempotency key", func(t *testing.T) {
-		bp := &batchProcessor{
-			options: &BatchOptions{IdempotencyKeyPrefix: "test-prefix"},
-		}
-
-		input := &models.CreateTransactionInput{
-			IdempotencyKey: "existing-key",
-		}
-
-		key := bp.ensureIdempotencyKey(input)
-
-		assert.Equal(t, "existing-key", key)
-		assert.Equal(t, "existing-key", input.IdempotencyKey)
 	})
 }
 

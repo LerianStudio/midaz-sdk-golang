@@ -69,9 +69,11 @@ Carried over and still current:
   SDK callbacks.
 - **OpenTelemetry first-class**: spans + metrics + logs through one
   `observability.Provider` wired by `WithObservabilityProvider`.
-- **Idempotency by default**: auto-generated `X-Idempotency` per unsafe
-  request. Override with `sdkctx.WithIdempotencyKey` for stable
-  caller-supplied keys; suppress per-call with `WithoutAutoIdempotency`.
+- **Idempotency you control**: the SDK sends no random `X-Idempotency`; a
+  keyless `/v1` annotation, block or unblock create sends a key derived from
+  the request, and the ledger dedupes other transaction, holder and instrument
+  creates by body; other keyless creates are not deduped. Pass `sdkctx.WithIdempotencyKey`
+  for a stable key per intentional request.
 - **Consumer-declared test doubles**: every accessor is a concrete facade, so
   there are no pre-generated mocks to import. Declare the narrow interface your
   code actually calls — the accessor satisfies it structurally. See
@@ -267,8 +269,18 @@ Page-based and cursor-based endpoints use separate opts types. See
 
 ### Idempotency
 
-Auto-on by default. The SDK emits `X-Idempotency: <uuid>` on every unsafe
-request. Override per-call:
+Random keys are off by default. Without an integrator key, a `/v1` annotation,
+block or unblock create sends an `X-Idempotency` derived from the request
+(SHA-256 of method, path and body): the three share one body shape and the
+ledger's `/v1` keyless slot ignores the action, so a body-only slot would
+refuse an unblock after a block with the same input (`0084`). The same request
+sent again, even from a new SDK call after a timeout, is answered with the
+first outcome, or processed once if the first attempt never completed. A
+`/v1` json, inflow or outflow create, a `/v2` transaction create, a holder
+create and an instrument create send no key: the ledger dedupes them by body. Two intentional
+transactions with byte-identical bodies inside the ledger's idempotency
+window are therefore answered with the first one, so pass a distinct key for
+each intentional duplicate:
 
 ```go
 import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
@@ -276,11 +288,13 @@ import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 // Stable key for at-least-once producers (saga steps, outbox rows, UI submissions):
 ctx := sdkctx.WithIdempotencyKey(ctx, "tx-2026-05-06-001")
 
-// Suppress for one call (rare — fire-and-forget administrative endpoints):
+// Opt in to a random SDK-generated key per request (the previous default):
+//   midaz.WithIdempotency(true)  or  MIDAZ_IDEMPOTENCY=true
+// and suppress that random key for one call (a /v1 annotation, block or unblock derived key still goes out) with:
 ctx := sdkctx.WithoutAutoIdempotency(ctx)
 ```
 
-Disable globally with `midaz.WithIdempotency(false)`. See
+See
 [`examples/06-idempotency/`](examples/06-idempotency/).
 
 ### Errors
@@ -344,9 +358,11 @@ Default policy: 3 retries, exponential backoff with 25% jitter, retryable
 on transport errors + 5xx + 408 + 425 + 429. Customize:
 
 Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) retry only when
-`X-Idempotency` is present. The SDK auto-generates this header by default;
-`WithoutAutoIdempotency` or `WithIdempotency(false)` disables automatic unsafe
-retries unless the caller supplies `X-Idempotency` explicitly.
+`X-Idempotency` is present, or when the request is a transaction, holder or
+instrument create (the SDK derives a key for `/v1` annotation, block and unblock, and the ledger
+dedupes the rest by body when no key is sent). Any
+other keyless unsafe request is sent once. The SDK generates a key only with
+`WithIdempotency(true)` / `MIDAZ_IDEMPOTENCY=true`.
 
 ```go
 import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
@@ -459,7 +475,7 @@ templates are [`.env.example`](.env.example) (alias of
 | `MIDAZ_TIMEOUT` | int (seconds) | HTTP client timeout |
 | `MIDAZ_MAX_RETRIES` | int | Maximum retry attempts |
 | `MIDAZ_DEBUG` | bool | Verbose SDK logging |
-| `MIDAZ_IDEMPOTENCY` | bool | Toggle auto-generated `X-Idempotency` headers |
+| `MIDAZ_IDEMPOTENCY` | bool | Opt in (`true`) to a random SDK-generated `X-Idempotency`; default `false` |
 | `MIDAZ_ERROR_EXPOSE_BODY` | bool | Include the raw response body inside `*pkg/errors.Error` |
 | `PLUGIN_AUTH_ENABLED` | bool | **Sentinel** — must be set for the four Access Manager vars below to take effect |
 | `PLUGIN_AUTH_ADDRESS` | URL | Access Manager endpoint |

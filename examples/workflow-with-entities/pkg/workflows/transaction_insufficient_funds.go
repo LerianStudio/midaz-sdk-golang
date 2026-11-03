@@ -183,7 +183,6 @@ func createInsufficientFundsTransferInput(test insufficientFundsTest, testIndex 
 		"test_type":        "insufficient_funds",
 		"test_index":       testIndex,
 		"expected_to_fail": true,
-		"timestamp":        time.Now().Unix(),
 	})
 
 	return transferInput, nil

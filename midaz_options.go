@@ -635,9 +635,11 @@ func WithErrorBodyExposure(enabled bool) Option {
 // which most callers should not invoke directly. Prefer this option when
 // constructing the client via [New].
 //
-// Default: enabled (Config.EnableIdempotency = DefaultEnableIdempotency = true).
-// Disable when you have an upstream gateway that handles idempotency, or
-// when running tests that assert exact request bodies.
+// Default: disabled (Config.EnableIdempotency = DefaultEnableIdempotency = false):
+// a keyless /v1 annotation, block or unblock create sends a key derived from the request
+// (the ledger's /v1 slot ignores the action), and the ledger dedupes every other keyless
+// transaction create by body. Enable it (or MIDAZ_IDEMPOTENCY=true)
+// to send a random key per create, update and delete request.
 //
 // Parameters:
 //   - enabled: Whether to enable automatic idempotency-key generation

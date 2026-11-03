@@ -112,8 +112,8 @@ func TestV2TransactionCreateRouting(t *testing.T) {
 			require.Equal(t, http.MethodPost, gotMethod)
 			require.Equal(t, tt.wantPath, gotPath,
 				"the v2 creates are top-level; no organization or ledger belongs in this path")
-			require.NotEmpty(t, gotIdempotency,
-				"a create without an idempotency key lets a network retry post a second balance mutation")
+			require.Empty(t, gotIdempotency,
+				"a create without an integrator key sends none, so the ledger dedupes it by body")
 
 			var wire struct {
 				Asset   string `json:"asset"`

@@ -5,7 +5,12 @@ package entities
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -28,20 +33,18 @@ import (
 //  1. explicitKey — a caller-supplied input-struct field (most explicit).
 //  2. sdkctx.WithIdempotencyKey(ctx) — request-scoped key.
 //  3. auto-generated UUID — only when autoGen is true AND the caller did not
-//     opt out via sdkctx.WithoutAutoIdempotency. Creates are unsafe-but-
-//     idempotent, so they pass autoGen=true (parity with the legacy default).
+//     opt out via sdkctx.WithoutAutoIdempotency (which never blocks the /v1
+//     derived key of /v1 annotation, block and unblock, see resolveV1Create). Creates are unsafe-but-
+//     idempotent, so they pass autoGen=true when the client gate is on.
 //     Actions like commit/cancel/revert pass autoGen=false — they carry a key
 //     only when one is supplied explicitly or via ctx.
 //
 // ttl comes from sdkctx.WithIdempotencyTTL(ctx); it is "" when unset, in which
 // case the caller must omit X-TTL and let the server apply its default (300s).
 //
-// This resolver assumes idempotency is ENABLED: it does not consult the
-// client-level MIDAZ_IDEMPOTENCY flag (the legacy ensureIdempotencyHeader gates
-// on it). During coexistence the facade has no access to that flag; the enable
-// gate is applied one layer up, in the Phase 5 wiring cutover. Defaulting to
-// auto-generate errs toward more deduplication, which is the safe side for an
-// unsafe money write.
+// The caller gates autoGen on the client-level MIDAZ_IDEMPOTENCY flag, which
+// defaults to false: a keyless create then carries no random key (a /v1 annotation,
+// block or unblock create derives one, see resolveV1Create; the ledger dedupes other transaction, holder and instrument creates by body).
 //
 // mark is non-nil only for a minted key: the editor that tells the retry layer
 // the request carries the SDK's own key for this call (see mintedKeyCtx).
@@ -65,6 +68,42 @@ func resolveIdempotency(ctx context.Context, explicitKey string, autoGen bool) (
 	default:
 		return "", ttl, nil
 	}
+}
+
+// resolveV1Create is resolveIdempotency for a /v1 annotation, block or unblock create. They share one
+// body shape and the ledger's /v1 keyless slot ignores the action, so a keyless one derives a key from
+// the request; json, inflow and outflow stay keyless (the bare-body slot v6.4.0 used).
+// WithoutAutoIdempotency stops only the random key, never this one.
+func resolveV1Create(ctx context.Context, explicitKey string, autoGen bool) (key, ttl string, mark []genledger.RequestEditorFn) {
+	key, ttl, mark = resolveIdempotency(ctx, explicitKey, autoGen)
+	if key == "" {
+		mark = []genledger.RequestEditorFn{deriveKeyFromRequest}
+	}
+
+	return key, ttl, mark
+}
+
+// deriveKeyFromRequest stamps X-Idempotency with the lowercase hex SHA-256 of method, path and body.
+func deriveKeyFromRequest(_ context.Context, req *http.Request) error {
+	body, err := req.GetBody()
+	if err != nil {
+		return err
+	}
+
+	defer body.Close()
+
+	h := sha256.New()
+	prefix := strings.NewReader(req.Method + "\n" + req.URL.Path + "\n")
+
+	if _, err := io.Copy(h, io.MultiReader(prefix, body)); err != nil {
+		return err
+	}
+
+	key := hex.EncodeToString(h.Sum(nil))
+	req.Header.Set(idempotencyHeader, key)
+	*req = *req.WithContext(context.WithValue(req.Context(), mintedKeyCtx{}, key))
+
+	return nil
 }
 
 // mintedKeyCtx marks on a request's context the X-Idempotency key the SDK minted
@@ -142,4 +181,16 @@ func idempotencyEditorsTracer(ctx context.Context, autoGen bool) []gentracer.Req
 	}
 
 	return editors
+}
+
+// bodyDedupedCreate matches the ledger creates held under a hash of the body when sent
+// without X-Idempotency (transaction, holder and instrument creates); every other
+// keyless write is a new write on every attempt.
+var bodyDedupedCreate = regexp.MustCompile(`/(v1/organizations/[^/]+/ledgers/[^/]+/transactions/(json|inflow|outflow|annotation|block|unblock)|` +
+	`v2/transactions/(direct|hold|block|unblock|batch)|v2/organizations/[^/]+/holders|v2/organizations/[^/]+/holders/[^/]+/instruments)$`)
+
+// ledgerDedupesByBody reports whether a keyless request may be retried because the ledger
+// answers its replay with the first outcome instead of running it again.
+func ledgerDedupesByBody(req *http.Request) bool {
+	return req.Method == http.MethodPost && bodyDedupedCreate.MatchString(req.URL.Path)
 }

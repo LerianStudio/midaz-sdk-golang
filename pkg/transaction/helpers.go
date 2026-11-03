@@ -7,12 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
-	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
-	"github.com/google/uuid"
 )
 
 // formatAmount converts an int64 amount with scale to a decimal string using
@@ -123,12 +123,6 @@ func Transfer(
 		opts = DefaultTransferOptions()
 	}
 
-	// Ensure idempotency key is set
-	idempotencyKey := opts.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
-
 	amountValue := formatAmount(amount, scale)
 
 	// Create the transaction input
@@ -136,7 +130,7 @@ func Transfer(
 		Description:              opts.Description,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
-		IdempotencyKey:           idempotencyKey,
+		IdempotencyKey:           opts.IdempotencyKey,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -246,12 +240,6 @@ func Deposit(
 		opts = DefaultDepositOptions()
 	}
 
-	// Ensure idempotency key is set
-	idempotencyKey := opts.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
-
 	// Generate external account ID if not specified
 	externalAccountID := opts.ExternalAccountID
 	if externalAccountID == "" {
@@ -266,7 +254,7 @@ func Deposit(
 		Description:              opts.Description,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
-		IdempotencyKey:           idempotencyKey,
+		IdempotencyKey:           opts.IdempotencyKey,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -376,12 +364,6 @@ func Withdrawal(
 		opts = DefaultWithdrawalOptions()
 	}
 
-	// Ensure idempotency key is set
-	idempotencyKey := opts.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
-
 	// Generate external account ID if not specified
 	externalAccountID := opts.ExternalAccountID
 	if externalAccountID == "" {
@@ -396,7 +378,7 @@ func Withdrawal(
 		Description:              opts.Description,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
-		IdempotencyKey:           idempotencyKey,
+		IdempotencyKey:           opts.IdempotencyKey,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -497,7 +479,9 @@ func MultiAccountTransfer(
 		return nil, errors.New("transactions service is not initialized")
 	}
 
-	opts, idempotencyKey := resolveMultiTransferOptions(opts)
+	if opts == nil {
+		opts = DefaultMultiTransferOptions()
+	}
 
 	if err := validateMultiTransferAccounts(sourceAccounts, destAccounts); err != nil {
 		return nil, err
@@ -517,7 +501,7 @@ func MultiAccountTransfer(
 		return nil, err
 	}
 
-	multiTransferInput := buildMultiTransferInput(opts, idempotencyKey, totalAmount, scale, assetCode, fromList, toList)
+	multiTransferInput := buildMultiTransferInput(opts, totalAmount, scale, assetCode, fromList, toList)
 
 	transaction, err := entity.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, multiTransferInput)
 	if err != nil {
@@ -525,19 +509,6 @@ func MultiAccountTransfer(
 	}
 
 	return transaction, nil
-}
-
-func resolveMultiTransferOptions(opts *MultiTransferOptions) (*MultiTransferOptions, string) {
-	if opts == nil {
-		opts = DefaultMultiTransferOptions()
-	}
-
-	idempotencyKey := opts.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
-
-	return opts, idempotencyKey
 }
 
 func validateMultiTransferAccounts(sourceAccounts, destAccounts map[string]int64) error {
@@ -560,7 +531,9 @@ func buildAccountInputList(accounts map[string]int64, scale int64, assetCode, ac
 
 	var sum int64
 
-	for alias, amount := range accounts {
+	// Sorted: a keyless resend must rebuild a byte-identical body for the ledger to dedupe it.
+	for _, alias := range slices.Sorted(maps.Keys(accounts)) {
+		amount := accounts[alias]
 		if amount <= 0 {
 			return nil, 0, fmt.Errorf("amount for %s account %s must be positive", accountType, alias)
 		}
@@ -592,14 +565,14 @@ func validateMultiTransferAmounts(sourceSum, destSum, totalAmount int64) error {
 	return nil
 }
 
-func buildMultiTransferInput(opts *MultiTransferOptions, idempotencyKey string, totalAmount, scale int64, assetCode string, fromList, toList []models.FromToInput) *models.CreateTransactionInput {
+func buildMultiTransferInput(opts *MultiTransferOptions, totalAmount, scale int64, assetCode string, fromList, toList []models.FromToInput) *models.CreateTransactionInput {
 	totalAmountValue := formatAmount(totalAmount, scale)
 
 	return &models.CreateTransactionInput{
 		Description:              opts.Description,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
-		IdempotencyKey:           idempotencyKey,
+		IdempotencyKey:           opts.IdempotencyKey,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -644,7 +617,7 @@ type Template struct {
 //   - template: The transaction template to use
 //   - amount: The amount for the transaction
 //   - metadata: Additional metadata to merge with the template's metadata (optional)
-//   - idempotencyKey: A unique key for idempotency (optional, will generate one if empty)
+//   - idempotencyKey: A unique key for idempotency (optional; empty means the client default: no key (a derived one for /v1 annotation, block and unblock), or a random one on a client opted in)
 //
 // Returns:
 //   - The created transaction if successful
@@ -670,11 +643,6 @@ func CreateFromTemplate(
 		return nil, errors.New("transaction template cannot be nil")
 	}
 
-	// Ensure idempotency key is set
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.New().String()
-	}
-
 	// Merge metadata
 	mergedMetadata := make(map[string]any)
 
@@ -687,8 +655,6 @@ func CreateFromTemplate(
 	for k, v := range metadata {
 		mergedMetadata[k] = v
 	}
-	// Add timestamp to metadata
-	mergedMetadata["timestamp"] = time.Now().Unix()
 
 	// Convert amount to string with scale
 	amountValue := formatAmount(amount, template.Scale)

@@ -121,10 +121,10 @@ editors and the shared `*http.Client` built for each plane, **not** on
 `entities.HTTPClient`, which no longer carries request traffic:
 
 - Adds authorization after Access Manager resolves a token. The Tracer plane can authenticate with an `X-API-Key` (`MIDAZ_TRACER_API_KEY`) instead of the shared Bearer token.
-- Adds idempotency keys — auto-generated for unsafe methods by default, or caller-supplied via `sdkctx.WithIdempotencyKey(ctx, key)` / an input's `IdempotencyKey` field.
+- Adds idempotency keys — generated only when opted in (`MIDAZ_IDEMPOTENCY=true`), or caller-supplied via `sdkctx.WithIdempotencyKey(ctx, key)` / an input's `IdempotencyKey` field.
 - Injects OpenTelemetry trace context and baggage into outbound HTTP headers when observability is enabled.
 - Applies retry behavior for retryable responses and transient network failures.
-- Avoids retrying unsafe methods unless `X-Idempotency` is present.
+- Avoids retrying unsafe methods unless `X-Idempotency` is present or the ledger dedupes the create by body.
 - Converts HTTP failures into `pkg/errors` structured errors, decoding both RFC 9457 problem documents and the /v1 legacy error shape (`message` / `fields` / `entityType`).
 - Attaches raw, unredacted, truncated upstream 4xx/5xx response bodies to structured errors when error body exposure is enabled.
 - Emits debug logs when `MIDAZ_DEBUG=true` or debug options are enabled.
@@ -197,7 +197,7 @@ Common builders:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, through `WithSend(...)` — the legacy operation-adaptation path was removed in v4.2. Unsafe SDK requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, through `WithSend(...)` — the legacy operation-adaptation path was removed in v4.2. Without a key a `/v1` json, inflow or outflow create sends none and the ledger dedupes it by body; annotation, block and unblock send an `X-Idempotency` derived from the request (SHA-256 of method, path and body, so block and unblock never share a ledger slot); set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a distinct or stable key.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.
@@ -327,7 +327,7 @@ Root-client retry defaults come from `pkg/config` and are applied to entity HTTP
 - Jitter factor: 0.25
 - Retryable status codes: 408, 425, 429, 500, 502, 503, 504
 
-Unsafe requests are retried only when an idempotency key is present.
+Unsafe requests are retried only when an idempotency key is present, or when the ledger dedupes the create by body.
 
 ## Maintainer checklist
 
