@@ -326,7 +326,7 @@ type CreateTransactionInput struct {
 	//   - No key (the default): a /v1 annotation, block or unblock create sends a
 	//     key derived from the request (SHA-256 of method, path and body: they share
 	//     one body shape and the ledger's /v1 keyless slot ignores the action, so
-	//     they must not share it); every other create (/v1 json, inflow, outflow
+	//     they must not share it); every other transaction create (/v1 json, inflow, outflow
 	//     and /v2) sends none and the ledger dedupes it by body.
 	//     A second intentional create with an identical request inside the TTL is
 	//     answered with the first transaction: intentional duplicates need

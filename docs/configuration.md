@@ -339,8 +339,10 @@ By default, the SDK sends no random `X-Idempotency` header. A keyless `/v1`
 annotation, block or unblock create sends a key derived from the request
 (SHA-256 of method, path and body), because the three share one body shape, the
 ledger's `/v1` keyless slot ignores the action and block and unblock with one
-body would otherwise collide; every other create (`/v1` json, inflow, outflow
-and `/v2`) sends no key and the ledger dedupes it by body. Opt in to a random UUID per create, update
+body would otherwise collide. Every other create sends no key; the ledger
+dedupes only transaction (`/v1` json, inflow, outflow and `/v2`), holder and
+instrument creates by body, so a keyless organization or account create is not
+deduped. Opt in to a random UUID per create, update
 and delete request (POST/PUT/PATCH/DELETE) with `WithIdempotency(true)` or
 `MIDAZ_IDEMPOTENCY=true`. You can set a stable key for a specific call:
 

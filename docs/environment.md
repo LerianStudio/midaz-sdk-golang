@@ -170,7 +170,7 @@ The SDK does not read retry wait environment variables. Configure retry timing i
 MIDAZ_IDEMPOTENCY=true
 ```
 
-SDK-generated idempotency keys are off by default: without an integrator key a `/v1` annotation, block or unblock create sends a key derived from the request (the ledger's `/v1` keyless slot ignores the action) and every other create (`/v1` json, inflow, outflow and `/v2`) sends none, the ledger deduping them by body. Set it to `true` to opt in to a random key per create, update and delete request. Transaction and HTTP batch retries are stricter: when their retry count is greater than zero, callers must supply stable per-transaction or per-item idempotency keys so replayed batch attempts are deterministic.
+SDK-generated idempotency keys are off by default: without an integrator key a `/v1` annotation, block or unblock create sends a key derived from the request (the ledger's `/v1` keyless slot ignores the action) and every other create sends none. The ledger dedupes only transaction (`/v1` json, inflow, outflow and `/v2`), holder and instrument creates by body; a keyless organization or account create is not deduped. Set it to `true` to opt in to a random key per create, update and delete request. Transaction and HTTP batch retries are stricter: when their retry count is greater than zero, callers must supply stable per-transaction or per-item idempotency keys so replayed batch attempts are deterministic.
 
 Automatic key generation applies to unsafe entity HTTP requests. The entity HTTP client generates an `X-Idempotency` UUID only when all of these are true:
 
