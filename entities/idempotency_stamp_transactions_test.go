@@ -28,8 +28,8 @@ func TestTransactionsCreateIdempotencyGated(t *testing.T) {
 		t.Fatal("gate on: want auto-generated X-Idempotency")
 	}
 
-	if got := create(context.Background(), false, sampleTransactionInput()); len(got) != 64 {
-		t.Fatalf("gate off: want the request-derived key, got %q", got)
+	if got := create(context.Background(), false, sampleTransactionInput()); got != "" {
+		t.Fatalf("gate off: want no auto-gen, got %q", got)
 	}
 
 	in := sampleTransactionInput()

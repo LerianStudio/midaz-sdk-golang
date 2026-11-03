@@ -78,8 +78,8 @@
 //
 // # Idempotency and retries
 //
-// Random auto-idempotency is off by default (a keyless /v1 transaction create
-// sends a key derived from the request; the ledger dedupes /v2 by body); with
+// Random auto-idempotency is off by default (a keyless /v1 annotation, block or
+// unblock create sends a key derived from the request; the ledger dedupes the other creates by body); with
 // [WithIdempotency](true) the SDK emits a random X-Idempotency header per create,
 // update and delete request. Override per-call via
 // [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithIdempotencyKey]

@@ -673,7 +673,7 @@ Automatic idempotency applies to unsafe entity HTTP requests. When opted in, the
 3. no idempotency key is already present,
 4. the request context has not opted out with `sdkctx.WithoutAutoIdempotency(ctx)`.
 
-The HTTP layer sends only the public `X-Idempotency` header. Unsafe retries require `X-Idempotency`; caller-supplied and SDK-generated keys both satisfy this retry gate. A keyless `/v1` transaction create carries a key the SDK derives from the request (SHA-256 of method, path and body), because the ledger's `/v1` slot ignores the action; it counts as SDK-generated. The other exception is a keyless `/v2` transaction, holder or instrument create, which the ledger dedupes by body and the SDK therefore retries.
+The HTTP layer sends only the public `X-Idempotency` header. Unsafe retries require `X-Idempotency`; caller-supplied and SDK-generated keys both satisfy this retry gate. A keyless `/v1` annotation, block or unblock create carries a key the SDK derives from the request (SHA-256 of method, path and body), because the ledger's `/v1` keyless slot ignores the action; it counts as SDK-generated. The other exception is a keyless `/v1` json, inflow or outflow create or a keyless `/v2` transaction, holder or instrument create, which the ledger dedupes by body and the SDK therefore retries.
 
 ## Observability
 

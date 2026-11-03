@@ -129,9 +129,9 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 	}
 }
 
-// A keyless /v1 helper call sends the key derived from the request and an identical body
-// on every resend, so the ledger replays the first outcome.
-func TestTransactionHelpers_KeylessCallsResendTheSameKeyAndBody(t *testing.T) {
+// A keyless /v1 helper call sends no key and an identical body on every resend: the ledger's
+// bare-body slot replays the first outcome.
+func TestTransactionHelpers_KeylessCallsSendNoKeyAndTheSameBody(t *testing.T) {
 	tests := []struct {
 		name string
 		run  func(context.Context, *entities.Entity) error
@@ -202,7 +202,7 @@ func TestTransactionHelpers_KeylessCallsResendTheSameKeyAndBody(t *testing.T) {
 
 			first := receiveSeenRequest(t, seenCh)
 			second := receiveSeenRequest(t, seenCh)
-			assert.Regexp(t, `^[0-9a-f]{64}$`, first.key)
+			assert.Empty(t, first.key)
 			assert.Equal(t, first, second)
 		})
 	}
@@ -291,7 +291,7 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	assert.Equal(t, map[string]any{"template": "funding", "override": "yes"}, templateMetadata)
 	require.Len(t, keys, 2)
 	assert.Equal(t, "idem-multi", keys[0])
-	assert.Regexp(t, `^[0-9a-f]{64}$`, keys[1])
+	assert.Empty(t, keys[1])
 
 	committed, err := CommitPendingTransaction(context.Background(), entity, "org-1", "ledger-1", "tx-created")
 	require.NoError(t, err)

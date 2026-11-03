@@ -3,10 +3,11 @@
 // PUT, PATCH, DELETE) requests:
 //
 //  1. No key (default): the SDK sends no random X-Idempotency. A keyless /v1
-//     transaction create sends a key derived from the request (SHA-256 of
-//     method, path and body), so the same request sent again (even from a new
-//     SDK call after a timeout) returns the first outcome, and block and
-//     unblock with one body never share the ledger's /v1 slot. Two intentional
+//     annotation, block or unblock create sends a key derived from the request
+//     (SHA-256 of method, path and body), so the same request sent again (even
+//     from a new SDK call after a timeout) returns the first outcome, and block
+//     and unblock with one body never share the ledger's /v1 slot (it ignores
+//     the action). Every other create sends no key; the ledger dedupes it by body. Two intentional
 //     transactions with identical requests inside the ledger's idempotency
 //     window are answered with the first one: pass a distinct key (mode 2).
 //     Opt-in: [midaz.WithIdempotency](true) or MIDAZ_IDEMPOTENCY=true makes the
@@ -22,10 +23,10 @@
 //
 //  3. Precedence: an explicit key set via WithIdempotencyKey wins over
 //     [sdkctx.WithoutAutoIdempotency], which only stops the random key of a client
-//     that opted in with midaz.WithIdempotency(true), never the /v1 derived key.
+//     that opted in with midaz.WithIdempotency(true), never the /v1 annotation, block or unblock derived key.
 //
 // Global default: auto-idempotency is off, so only an explicit
-// WithIdempotencyKey or a /v1 transaction create's derived key is sent.
+// WithIdempotencyKey or the derived key of a /v1 annotation, block or unblock create is sent.
 //
 // Usage:
 //

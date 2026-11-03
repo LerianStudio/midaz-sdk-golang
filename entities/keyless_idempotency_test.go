@@ -67,8 +67,9 @@ func TestKeylessRetryOnlyWhereLedgerDedupesByBody(t *testing.T) {
 	}
 }
 
-// A keyless /v1 create sends a key derived from the request: a resend reuses it, and block and
-// unblock with one input never share a slot (the ledger's /v1 slot ignores the action).
+// A keyless /v1 annotation, block or unblock create sends a key derived from the request: a resend
+// reuses it, and block and unblock with one input never share a slot (the ledger's /v1 slot ignores
+// the action). A keyless json create sends no key, the bare-body slot v6.4.0 used.
 func TestKeylessV1CreateDerivesKeyFromRequest(t *testing.T) {
 	var keys []string
 
@@ -110,6 +111,10 @@ func TestKeylessV1CreateDerivesKeyFromRequest(t *testing.T) {
 			return err
 		},
 		func() error {
+			_, err := keyless.CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+			return err
+		},
+		func() error {
 			_, err := keyless.CreateUnblock(sdkctx.WithoutAutoIdempotency(ctx), txOrgID, txLedgerID, sampleTransactionInput())
 			return err
 		},
@@ -117,15 +122,17 @@ func TestKeylessV1CreateDerivesKeyFromRequest(t *testing.T) {
 		require.NoError(t, send())
 	}
 
-	block, unblock, resend, own, random, suppressed, suppressedUnblock := keys[0], keys[1], keys[2], keys[3], keys[4], keys[5], keys[6]
+	block, unblock, resend, own, random, suppressed, bare, suppressedUnblock := keys[0], keys[1], keys[2], keys[3], keys[4], keys[5], keys[6], keys[7]
 	assert.Regexp(t, `^[0-9a-f]{64}$`, block)
 	assert.NotEqual(t, block, unblock)
 	assert.Equal(t, block, resend)
 	assert.Equal(t, "mine", own)
 	assert.NotEmpty(t, random)
 	assert.NotEqual(t, block, random)
-	assert.Regexp(t, `^[0-9a-f]{64}$`, suppressed) // suppression stops only the random key
-	assert.NotEqual(t, suppressed, suppressedUnblock)
+	assert.Empty(t, suppressed) // json is keyless; suppression stops only the random key
+	assert.Empty(t, bare)
+	assert.Regexp(t, `^[0-9a-f]{64}$`, suppressedUnblock)
+	assert.NotEqual(t, block, suppressedUnblock)
 }
 
 func withKey(in *models.CreateTransactionInput, key string) *models.CreateTransactionInput {

@@ -7,10 +7,12 @@ requests.
 ## What this demonstrates
 
 1. **No key (default)** — the SDK sends no random `X-Idempotency` (the demo
-   creates an organization, which carries no key). A keyless `/v1` transaction
-   create sends a key derived from the request (SHA-256 of method, path and
-   body), so the same request sent again returns the first outcome, while
-   block and unblock with one body never share the ledger's `/v1` slot. Two
+   creates an organization, which carries no key). A keyless `/v1` annotation,
+   block or unblock create sends a key derived from the request (SHA-256 of
+   method, path and body), so the same request sent again returns the first
+   outcome, while block and unblock with one body never share the ledger's
+   `/v1` slot (the ledger's `/v1` keyless slot ignores the action). Every other
+   create sends no key and the ledger dedupes it by body. Two
    intentional transactions with identical requests inside the ledger's
    idempotency window are answered with the first one: pass a distinct key
    (mode 2) for each. Opt in to a random UUID per create, update and delete
@@ -23,7 +25,7 @@ requests.
 3. **Precedence rule** — an explicit key set via `WithIdempotencyKey`
    ALWAYS wins over `WithoutAutoIdempotency` (which only stops the random key
    of a client opted in with `midaz.WithIdempotency(true)`, never the `/v1`
-   derived key). Useful when middleware
+   annotation, block or unblock derived key). Useful when middleware
    blanket-applies suppression but a specific call-site wants
    idempotency back on.
 

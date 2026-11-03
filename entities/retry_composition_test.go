@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
@@ -287,7 +288,7 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 		ctxKey   string
 		inputKey string
 		timeout  bool // the first attempt fails with a transport timeout before reaching the server
-		keyless  bool // the client is not opted in: the key is derived from the request
+		keyless  bool // a keyless /v1 block on a client that is not opted in: the key is derived from the request
 		attempts int32
 		wantErr  bool
 	}{
@@ -328,7 +329,7 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 
 			facade := newTransactionsFacade(newRetryEnabledPlanes(t, srv, 3).Ledger, !tc.keyless)
 
-			tx, err := facade.CreateJSON(ctx, txOrgID, txLedgerID, input)
+			tx, err := createJSONOrBlock(facade, tc.keyless)(ctx, txOrgID, txLedgerID, input)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -378,6 +379,15 @@ func TestPlaneWriteSurfacesCallerStamped0084(t *testing.T) {
 	if resp.StatusCode != http.StatusConflict || attempts.Load() != 2 {
 		t.Fatalf("status = %d after %d attempts, want 409 after 2", resp.StatusCode, attempts.Load())
 	}
+}
+
+// createJSONOrBlock picks the /v1 create under test: block when it must carry a derived key.
+func createJSONOrBlock(f *transactionsFacade, block bool) func(context.Context, string, string, *models.CreateTransactionInput) (*models.Transaction, error) {
+	if block {
+		return f.CreateBlock
+	}
+
+	return f.CreateJSON
 }
 
 // oneKey reports whether every key is the same non-empty key, equal to want when want is set.

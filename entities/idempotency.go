@@ -34,7 +34,7 @@ import (
 //  2. sdkctx.WithIdempotencyKey(ctx) — request-scoped key.
 //  3. auto-generated UUID — only when autoGen is true AND the caller did not
 //     opt out via sdkctx.WithoutAutoIdempotency (which never blocks the /v1
-//     derived key, see resolveV1Create). Creates are unsafe-but-
+//     derived key of /v1 annotation, block and unblock, see resolveV1Create). Creates are unsafe-but-
 //     idempotent, so they pass autoGen=true when the client gate is on.
 //     Actions like commit/cancel/revert pass autoGen=false — they carry a key
 //     only when one is supplied explicitly or via ctx.
@@ -43,8 +43,8 @@ import (
 // case the caller must omit X-TTL and let the server apply its default (300s).
 //
 // The caller gates autoGen on the client-level MIDAZ_IDEMPOTENCY flag, which
-// defaults to false: a keyless create then carries no random key (a /v1 transaction
-// create derives one, see resolveV1Create; the ledger dedupes the rest by body).
+// defaults to false: a keyless create then carries no random key (a /v1 annotation,
+// block or unblock create derives one, see resolveV1Create; the ledger dedupes the rest by body).
 //
 // mark is non-nil only for a minted key: the editor that tells the retry layer
 // the request carries the SDK's own key for this call (see mintedKeyCtx).
@@ -70,9 +70,10 @@ func resolveIdempotency(ctx context.Context, explicitKey string, autoGen bool) (
 	}
 }
 
-// resolveV1Create is resolveIdempotency for a /v1 transaction create. The ledger's /v1 keyless slot
-// ignores the action, so a create without a key derives one from the request; WithoutAutoIdempotency
-// stops only the random key, never this one.
+// resolveV1Create is resolveIdempotency for a /v1 annotation, block or unblock create. They share one
+// body shape and the ledger's /v1 keyless slot ignores the action, so a keyless one derives a key from
+// the request; json, inflow and outflow stay keyless (the bare-body slot v6.4.0 used).
+// WithoutAutoIdempotency stops only the random key, never this one.
 func resolveV1Create(ctx context.Context, explicitKey string, autoGen bool) (key, ttl string, mark []genledger.RequestEditorFn) {
 	key, ttl, mark = resolveIdempotency(ctx, explicitKey, autoGen)
 	if key == "" {

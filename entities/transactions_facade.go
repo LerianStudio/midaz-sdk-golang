@@ -128,7 +128,7 @@ func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID str
 	}
 
 	params := &genledger.CreateTransactionJSONParams{}
-	key, ttl, mark := resolveV1Create(ctx, input.IdempotencyKey, f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
@@ -151,7 +151,7 @@ func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID s
 	}
 
 	params := &genledger.CreateTransactionInflowParams{}
-	key, ttl, mark := resolveV1Create(ctx, "", f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
@@ -174,7 +174,7 @@ func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID 
 	}
 
 	params := &genledger.CreateTransactionOutflowParams{}
-	key, ttl, mark := resolveV1Create(ctx, "", f.enableIdempotency)
+	key, ttl, mark := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {

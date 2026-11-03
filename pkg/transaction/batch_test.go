@@ -45,7 +45,7 @@ func TestBatchTransactions_IdempotencyKeyRequiredWhenRetriesEnabled(t *testing.T
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				assert.Regexp(t, `^[0-9a-f]{64}$`, r.Header.Get("X-Idempotency"))
+				assert.Empty(t, r.Header.Get("X-Idempotency"))
 				w.Header().Set("Content-Type", "application/json")
 				assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"id": "tx-1", "status": map[string]any{"code": "APPROVED"}}))
 			}))
@@ -83,7 +83,7 @@ func TestBatchTransactions_IdempotencyKeyRequiredWhenRetriesEnabled(t *testing.T
 	}
 }
 
-// A keyless batch item and the same input sent through CreateJSON land in one ledger slot.
+// A keyless batch item and the same input sent through CreateJSON both send no key: the ledger's bare-body slot.
 func TestBatchTransactions_KeylessItemSendsTheKeyCreateJSONSends(t *testing.T) {
 	var keys []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,8 +102,8 @@ func TestBatchTransactions_KeylessItemSendsTheKeyCreateJSONSends(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, keys, 2)
-	assert.Regexp(t, `^[0-9a-f]{64}$`, keys[0])
-	assert.Equal(t, keys[0], keys[1])
+	assert.Empty(t, keys[0])
+	assert.Empty(t, keys[1])
 }
 
 func TestBatchTransactions_RetryUsesCallerIdempotencyKeyAndBatchOwnsRetryBudget(t *testing.T) {

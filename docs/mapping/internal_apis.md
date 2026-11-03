@@ -197,7 +197,7 @@ Common builders:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, through `WithSend(...)` — the legacy operation-adaptation path was removed in v4.2. Without a key the SDK sends an `X-Idempotency` derived from the request (SHA-256 of method, path and body, so block and unblock never share a ledger slot); set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a distinct or stable key.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, through `WithSend(...)` — the legacy operation-adaptation path was removed in v4.2. Without a key a `/v1` json, inflow or outflow create sends none and the ledger dedupes it by body; annotation, block and unblock send an `X-Idempotency` derived from the request (SHA-256 of method, path and body, so block and unblock never share a ledger slot); set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a distinct or stable key.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.
