@@ -119,11 +119,9 @@ func runConcurrentTransactionBatch(ctx context.Context, label, spanName string, 
 	return nil
 }
 
-// runID scopes idempotency keys to this process run; the key of an intent is
-// runID plus its prefix and index, so a resend of the same intent reuses it.
-var runID = uuid.New().String()
-
-func idempotencyKeyFor(prefix string, index int) string {
+// idempotencyKeyFor keys an intent by its invocation's runID, prefix and index,
+// so a resend within one invocation reuses it and a new invocation does not.
+func idempotencyKeyFor(runID, prefix string, index int) string {
 	return fmt.Sprintf("%s-%s-%d", runID, prefix, index)
 }
 
@@ -171,6 +169,7 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteCustomerToMerchantConcurrent")
 	defer span.End()
+	runID := uuid.New().String()
 	if customerAccount == nil || merchantAccount == nil {
 		return errors.New("customer and merchant accounts are required")
 	}
@@ -191,7 +190,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *midaz
 
 	applyC2MPerformanceOptions()
 
-	processTransaction := createC2MTransactionProcessor(midazClient, orgID, ledgerID, customerAccount, merchantAccount, rateLimiter)
+	processTransaction := createC2MTransactionProcessor(runID, midazClient, orgID, ledgerID, customerAccount, merchantAccount, rateLimiter)
 
 	startTime := time.Now()
 	results := concurrent.WorkerPool(ctx, indices, processTransaction,
@@ -217,7 +216,7 @@ func applyC2MPerformanceOptions() {
 	performance.ApplyGlobalPerformanceOptions(perfOptions)
 }
 
-func createC2MTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, rateLimiter *concurrent.RateLimiter) func(context.Context, int) (string, error) {
+func createC2MTransactionProcessor(runID string, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, rateLimiter *concurrent.RateLimiter) func(context.Context, int) (string, error) {
 	return func(ctx context.Context, index int) (string, error) {
 		txCtx, txSpan := observability.StartSpan(ctx, "ProcessCustomerToMerchantTransaction")
 		defer txSpan.End()
@@ -229,7 +228,7 @@ func createC2MTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID st
 			return "", err
 		}
 
-		idempotencyKey := idempotencyKeyFor("c2m", index)
+		idempotencyKey := idempotencyKeyFor(runID, "c2m", index)
 		transferInput := buildC2MTransactionInput(index, customerAccount, merchantAccount, idempotencyKey)
 
 		startTime := time.Now()
@@ -325,11 +324,12 @@ func recordC2MMetrics(ctx context.Context, duration time.Duration, successCount,
 func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteMerchantToCustomerConcurrent")
 	defer span.End()
+	runID := uuid.New().String()
 	if customerAccount == nil || merchantAccount == nil {
 		return errors.New("customer and merchant accounts are required")
 	}
 
-	transactionInputs, err := buildM2CTransactionInputs(ctx, merchantAccount, customerAccount, count)
+	transactionInputs, err := buildM2CTransactionInputs(ctx, runID, merchantAccount, customerAccount, count)
 	if err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *midaz
 	return firstError
 }
 
-func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAccount *midazmodels.Account, count int) ([]*midazmodels.CreateTransactionInput, error) {
+func buildM2CTransactionInputs(ctx context.Context, runID string, merchantAccount, customerAccount *midazmodels.Account, count int) ([]*midazmodels.CreateTransactionInput, error) {
 	if merchantAccount == nil || customerAccount == nil {
 		return nil, errors.New("merchant and customer accounts are required")
 	}
@@ -377,7 +377,7 @@ func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAcc
 
 	inputs := make([]*midazmodels.CreateTransactionInput, count)
 	for i := 0; i < count; i++ {
-		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, idempotencyKeyFor("m2c", i))
+		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, idempotencyKeyFor(runID, "m2c", i))
 	}
 
 	return inputs, nil

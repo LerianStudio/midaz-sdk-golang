@@ -398,3 +398,29 @@ func writeJSON(t *testing.T, w http.ResponseWriter, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	require.NoError(t, json.NewEncoder(w).Encode(body))
 }
+
+func TestMultiAccountTransfer_KeylessResendBuildsIdenticalBody(t *testing.T) {
+	const sends = 40
+
+	seenCh := make(chan seenRequest, sends)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seenCh <- seenRequest{key: r.Header.Get("X-Idempotency"), body: string(body)}
+		writeJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
+	}))
+	defer server.Close()
+
+	entity := newTransactionHelperEntity(t, server)
+	sources := map[string]int64{"a": 10, "b": 20, "c": 30, "d": 40}
+	dests := map[string]int64{"w": 25, "x": 25, "y": 25, "z": 25}
+
+	for range sends {
+		_, err := MultiAccountTransfer(context.Background(), entity, "org-1", "ledger-1", sources, dests, 100, 2, "USD", DefaultMultiTransferOptions())
+		require.NoError(t, err)
+	}
+
+	first := receiveSeenRequest(t, seenCh)
+	for range sends - 1 {
+		assert.Equal(t, first.body, receiveSeenRequest(t, seenCh).body)
+	}
+}

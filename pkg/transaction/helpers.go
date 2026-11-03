@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/entities"
@@ -529,7 +531,9 @@ func buildAccountInputList(accounts map[string]int64, scale int64, assetCode, ac
 
 	var sum int64
 
-	for alias, amount := range accounts {
+	// Sorted: a keyless resend must rebuild a byte-identical body for the ledger to dedupe it.
+	for _, alias := range slices.Sorted(maps.Keys(accounts)) {
+		amount := accounts[alias]
 		if amount <= 0 {
 			return nil, 0, fmt.Errorf("amount for %s account %s must be positive", accountType, alias)
 		}

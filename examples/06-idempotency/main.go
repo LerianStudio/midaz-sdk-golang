@@ -9,7 +9,8 @@
 //     ledger's idempotency window are answered with the first one: pass a
 //     distinct key (mode 2) for each intentional duplicate.
 //     Opt-in: [midaz.WithIdempotency](true) or MIDAZ_IDEMPOTENCY=true makes the
-//     SDK generate a random UUID per unsafe request instead.
+//     SDK generate a random UUID per create request instead; commit, cancel and
+//     revert carry a key only when you supply one.
 //
 //  2. Explicit caller-supplied key (recommended for at-least-once
 //     producers): pass a stable key via [sdkctx.WithIdempotencyKey]
