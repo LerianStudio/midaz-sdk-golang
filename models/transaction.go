@@ -323,12 +323,14 @@ type CreateTransactionInput struct {
 	// (api/ledger.openapi.yaml, createTransactionJSON: X-Idempotency, X-TTL
 	// "default 300" seconds, and the X-Idempotency-Replayed response header):
 	//
-	//   - No key (the default): no X-Idempotency is sent and the ledger dedupes
-	//     the create by its body. The facade retries a keyless 409/0084 only on
-	//     routes the ledger dedupes by body, waiting for the first attempt.
-	//     A second intentional create with an identical body inside the TTL is
+	//   - No key (the default): a /v1 create sends a key derived from the request
+	//     (SHA-256 of method, path and body: the ledger's /v1 slot ignores the
+	//     action, so block and unblock with one body must not share it); a /v2
+	//     create sends none and the ledger dedupes it by body. A derived key is
+	//     SDK-generated, so a 409/0084 is retried, waiting for the first attempt.
+	//     A second intentional create with an identical request inside the TTL is
 	//     answered with the first transaction: intentional duplicates need
-	//     distinct keys. The SDK generates a key only with WithIdempotency(true)
+	//     distinct keys. A random key is sent only with WithIdempotency(true)
 	//     or MIDAZ_IDEMPOTENCY=true.
 	//   - Retry with the same key AND the same payload inside the TTL, after
 	//     the first create finished: the ledger returns the ORIGINAL

@@ -78,9 +78,10 @@ retry-policy source.
 
 # Idempotency and retries
 
-Auto-idempotency is off by default (the ledger dedupes a keyless
-transaction create by its body); with WithIdempotency(true) the SDK
-emits an X-Idempotency header per unsafe request. Override per-call via
+Random auto-idempotency is off by default (a keyless /v1 transaction
+create sends a key derived from the request; the ledger dedupes /v2 by
+body); with WithIdempotency(true) the SDK emits a random X-Idempotency
+header per create, update and delete request. Override per-call via
 github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithIdempotencyKey
 (caller-supplied key) or
 github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithoutAutoIdempotency

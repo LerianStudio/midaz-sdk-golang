@@ -131,7 +131,7 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 
 // A keyless helper call sends no X-Idempotency and an identical body on every resend,
 // so the ledger can dedupe it by body.
-func TestTransactionHelpers_KeylessCallsSendNoKeyAndStableBody(t *testing.T) {
+func TestTransactionHelpers_KeylessCallsResendTheSameKeyAndBody(t *testing.T) {
 	tests := []struct {
 		name string
 		run  func(context.Context, *entities.Entity) error
@@ -202,9 +202,8 @@ func TestTransactionHelpers_KeylessCallsSendNoKeyAndStableBody(t *testing.T) {
 
 			first := receiveSeenRequest(t, seenCh)
 			second := receiveSeenRequest(t, seenCh)
-			assert.Empty(t, first.key)
-			assert.Empty(t, second.key)
-			assert.Equal(t, first.body, second.body)
+			assert.Regexp(t, `^[0-9a-f]{64}$`, first.key)
+			assert.Equal(t, first, second)
 		})
 	}
 }
@@ -290,7 +289,9 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	templateMetadata := requireMap(t, requests[1]["metadata"])
 	// Exact match: a wall-clock field would make a resend a different body.
 	assert.Equal(t, map[string]any{"template": "funding", "override": "yes"}, templateMetadata)
-	assert.Equal(t, []string{"idem-multi", ""}, keys)
+	require.Len(t, keys, 2)
+	assert.Equal(t, "idem-multi", keys[0])
+	assert.Regexp(t, `^[0-9a-f]{64}$`, keys[1])
 
 	committed, err := CommitPendingTransaction(context.Background(), entity, "org-1", "ledger-1", "tx-created")
 	require.NoError(t, err)

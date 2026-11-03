@@ -6,14 +6,15 @@ requests.
 
 ## What this demonstrates
 
-1. **No key (default)** — the SDK sends no `X-Idempotency` (the demo creates
-   an organization, which the ledger does not dedupe by body; body dedupe
-   applies to transaction creates). The ledger dedupes a keyless transaction
-   create by its body, so the same body sent again returns the first outcome. Two intentional transactions with
-   byte-identical bodies inside the ledger's idempotency window are answered
-   with the first one: pass a distinct key (mode 2) for each. Opt in to a
-   random UUID per unsafe request with `midaz.WithIdempotency(true)` or
-   `MIDAZ_IDEMPOTENCY=true`.
+1. **No key (default)** — the SDK sends no random `X-Idempotency` (the demo
+   creates an organization, which carries no key). A keyless `/v1` transaction
+   create sends a key derived from the request (SHA-256 of method, path and
+   body), so the same request sent again returns the first outcome, while
+   block and unblock with one body never share the ledger's `/v1` slot. Two
+   intentional transactions with identical requests inside the ledger's
+   idempotency window are answered with the first one: pass a distinct key
+   (mode 2) for each. Opt in to a random UUID per create, update and delete
+   with `midaz.WithIdempotency(true)` or `MIDAZ_IDEMPOTENCY=true`.
 
 2. **Caller-supplied key** — `sdkctx.WithIdempotencyKey(ctx, "stable-key")`
    makes the SDK emit the caller's key. The recommended pattern for
@@ -26,7 +27,7 @@ requests.
    idempotency back on.
 
 Global default: auto-idempotency is off; `midaz.WithIdempotency(true)` turns
-on a random key per unsafe request for the client lifetime.
+on a random key per create, update and delete request for the client lifetime.
 
 ## When to use this pattern
 

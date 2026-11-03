@@ -2,6 +2,7 @@ package entities
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -9,6 +10,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // A keyless unsafe request retries only where the ledger dedupes it by body.
@@ -61,4 +65,85 @@ func TestKeylessRetryOnlyWhereLedgerDedupesByBody(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A keyless /v1 create sends a key derived from the request: a resend reuses it, and block and
+// unblock with one input never share a slot (the ledger's /v1 slot ignores the action).
+func TestKeylessV1CreateDerivesKeyFromRequest(t *testing.T) {
+	var keys []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keys = append(keys, r.Header.Get("X-Idempotency"))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(txResponseBody()))
+	}))
+	defer srv.Close()
+
+	ctx := context.Background()
+	opted := newTransactionsFacade(newTestLedgerClient(t, srv), true)
+	keyless := newTransactionsFacade(newTestLedgerClient(t, srv), false)
+
+	for _, send := range []func() error{
+		func() error {
+			_, err := keyless.CreateBlock(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+			return err
+		},
+		func() error {
+			_, err := keyless.CreateUnblock(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+			return err
+		},
+		func() error {
+			_, err := keyless.CreateBlock(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+			return err
+		},
+		func() error {
+			_, err := keyless.CreateJSON(ctx, txOrgID, txLedgerID, withKey(sampleTransactionInput(), "mine"))
+			return err
+		},
+		func() error {
+			_, err := opted.CreateJSON(ctx, txOrgID, txLedgerID, sampleTransactionInput())
+			return err
+		},
+		func() error {
+			_, err := keyless.CreateJSON(sdkctx.WithoutAutoIdempotency(ctx), txOrgID, txLedgerID, sampleTransactionInput())
+			return err
+		},
+	} {
+		require.NoError(t, send())
+	}
+
+	block, unblock, resend, own, random, suppressed := keys[0], keys[1], keys[2], keys[3], keys[4], keys[5]
+	assert.Regexp(t, `^[0-9a-f]{64}$`, block)
+	assert.NotEqual(t, block, unblock)
+	assert.Equal(t, block, resend)
+	assert.Equal(t, "mine", own)
+	assert.NotEmpty(t, random)
+	assert.NotEqual(t, block, random)
+	assert.Empty(t, suppressed)
+}
+
+func withKey(in *models.CreateTransactionInput, key string) *models.CreateTransactionInput {
+	in.IdempotencyKey = key
+
+	return in
+}
+
+// A /v2 keyless create still sends no key: the ledger's /v2 slot already separates actions.
+func TestKeylessV2CreateSendsNoKey(t *testing.T) {
+	var (
+		key  string
+		seen *http.Request
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		key = r.Header.Get("X-Idempotency")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	_, _ = newTransactionsV2Facade(newTestLedgerClient(t, srv), false).CreateDirect(context.Background(), txOrgID, txLedgerID, sampleV2Input())
+	require.NotNil(t, seen)
+	assert.Empty(t, key)
 }

@@ -5,6 +5,9 @@ package entities
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"net/http"
 	"regexp"
 
@@ -38,8 +41,8 @@ import (
 // case the caller must omit X-TTL and let the server apply its default (300s).
 //
 // The caller gates autoGen on the client-level MIDAZ_IDEMPOTENCY flag, which
-// defaults to false: a keyless create then carries no key and the ledger dedupes
-// it by body.
+// defaults to false: a keyless create then carries no random key (a /v1 transaction
+// create derives one, see resolveV1Create; the ledger dedupes the rest by body).
 //
 // mark is non-nil only for a minted key: the editor that tells the retry layer
 // the request carries the SDK's own key for this call (see mintedKeyCtx).
@@ -63,6 +66,42 @@ func resolveIdempotency(ctx context.Context, explicitKey string, autoGen bool) (
 	default:
 		return "", ttl, nil
 	}
+}
+
+// resolveV1Create is resolveIdempotency for a /v1 transaction create. The ledger's /v1 keyless slot
+// ignores the route's action, so json, annotation, block and unblock with one body would share it
+// (0084 on the second); a create left keyless therefore derives its key from the request, which a
+// resend reproduces and another action never does. A key the SDK derives counts as SDK-generated.
+func resolveV1Create(ctx context.Context, explicitKey string, autoGen bool) (key, ttl string, mark []genledger.RequestEditorFn) {
+	key, ttl, mark = resolveIdempotency(ctx, explicitKey, autoGen)
+	if key == "" && !sdkctx.AutoIdempotencySuppressed(ctx) {
+		mark = []genledger.RequestEditorFn{deriveKeyFromRequest}
+	}
+
+	return key, ttl, mark
+}
+
+// deriveKeyFromRequest stamps X-Idempotency with the lowercase hex SHA-256 of method, path and body.
+func deriveKeyFromRequest(_ context.Context, req *http.Request) error {
+	body, err := req.GetBody()
+	if err != nil {
+		return err
+	}
+
+	defer body.Close()
+
+	h := sha256.New()
+	h.Write([]byte(req.Method + "\n" + req.URL.Path + "\n"))
+
+	if _, err := io.Copy(h, body); err != nil {
+		return err
+	}
+
+	key := hex.EncodeToString(h.Sum(nil))
+	req.Header.Set(idempotencyHeader, key)
+	*req = *req.WithContext(context.WithValue(req.Context(), mintedKeyCtx{}, key))
+
+	return nil
 }
 
 // mintedKeyCtx marks on a request's context the X-Idempotency key the SDK minted

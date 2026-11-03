@@ -121,4 +121,4 @@ c, err := midaz.New(
 
 See [Environment variables](./environment.md) for the full list of supported variables.
 
-Unsafe SDK requests (`POST`, `PUT`, `PATCH`, `DELETE`) send no `X-Idempotency` header by default, so the ledger dedupes a keyless transaction create by its body. Use `sdkctx.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required; `WithIdempotency(true)` / `MIDAZ_IDEMPOTENCY=true` opts in to a random key per request.
+Unsafe SDK requests (`POST`, `PUT`, `PATCH`, `DELETE`) send no random `X-Idempotency` header by default: a keyless `/v1` transaction create sends a key derived from the request (the ledger's `/v1` slot ignores the action, so block and unblock with one body would otherwise collide), and the ledger dedupes `/v2` creates by body. Use `sdkctx.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required; `WithIdempotency(true)` / `MIDAZ_IDEMPOTENCY=true` opts in to a random key per request.

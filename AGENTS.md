@@ -76,7 +76,7 @@
 - Access Manager variables: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`, `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`.
 - Behavior variables: `MIDAZ_ENVIRONMENT`, `MIDAZ_TIMEOUT`, `MIDAZ_DEBUG`, `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`, `MIDAZ_ERROR_EXPOSE_BODY`.
 - Environment loading is explicit: use `config.NewConfig(config.FromEnvironment())`. The SDK does not auto-read env vars otherwise.
-- Ensure idempotent unsafe requests by setting `X-Idempotency` via `sdkctx.WithIdempotencyKey(ctx, key)` when a stable caller-supplied key is required. The SDK sends no key by default so the ledger dedupes a keyless transaction create by its body; `MIDAZ_IDEMPOTENCY=true` / `midaz.WithIdempotency(true)` opts in to a random key per request.
+- Ensure idempotent unsafe requests by setting `X-Idempotency` via `sdkctx.WithIdempotencyKey(ctx, key)` when a stable caller-supplied key is required. By default a keyless `/v1` transaction create sends a key derived from the request (the ledger's `/v1` slot ignores the action, so block and unblock with one body would collide) and `/v2` sends none; `MIDAZ_IDEMPOTENCY=true` / `midaz.WithIdempotency(true)` opts in to a random key per create, update and delete.
 
 ## Agent-specific instructions
 

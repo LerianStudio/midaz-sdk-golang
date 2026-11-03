@@ -174,7 +174,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "user-action-42-2026-05-06")
 
 // This single call sends the explicit key. Without one, the default client sends
-// no X-Idempotency and the ledger dedupes a transaction create by its body.
+// a key derived from the request on a /v1 transaction create.
 _, err := client.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
@@ -335,9 +335,12 @@ configuration.
 
 ### 4.1 Idempotency keys
 
-By default, the SDK sends no `X-Idempotency` header, so the ledger dedupes a
-keyless transaction create by its body. Opt in to a random UUID per unsafe
-request (POST/PUT/PATCH/DELETE) with `WithIdempotency(true)` or
+By default, the SDK sends no random `X-Idempotency` header. A keyless `/v1`
+transaction create sends a key derived from the request (SHA-256 of method,
+path and body), because the ledger's `/v1` slot ignores the action and block
+and unblock with one body would otherwise collide; `/v2` creates send no key
+and the ledger dedupes them by body. Opt in to a random UUID per create, update
+and delete request (POST/PUT/PATCH/DELETE) with `WithIdempotency(true)` or
 `MIDAZ_IDEMPOTENCY=true`. You can set a stable key for a specific call:
 
 ```go
@@ -483,8 +486,8 @@ client, _ := midaz.New(
     midaz.WithAnonymous(),
     midaz.WithIdempotency(true), // or MIDAZ_IDEMPOTENCY=true
 )
-// The default client sends no X-Idempotency and the ledger dedupes a create by
-// its body. With the opt-in, the SDK generates a random key per unsafe request.
+// The default client derives a key from a /v1 transaction create and sends none
+// on a /v2 create. With the opt-in, the SDK generates a random key per write.
 // An explicit sdkctx.WithIdempotencyKey always wins.
 ```
 

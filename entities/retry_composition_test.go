@@ -277,7 +277,7 @@ func (timeoutErr) Timeout() bool   { return true }
 func (timeoutErr) Temporary() bool { return true }
 
 // TestFacadeWriteRetriesIdempotencyInFlight: a 409/0084 is retried only when it can be this call's
-// own earlier attempt: under a key the SDK generated (opt-in) or keyless on a body-deduped route. A
+// own earlier attempt: under a key the SDK generated (opt-in random, or derived from the request). A
 // key the caller supplied (ctx or input field) may be held by another call's older claim, so its
 // 0084 surfaces as an error. Any other 409 is never retried.
 func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
@@ -287,14 +287,14 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 		ctxKey   string
 		inputKey string
 		timeout  bool // the first attempt fails with a transport timeout before reaching the server
-		keyless  bool // the facade does not mint a key: the ledger dedupes this route by body
+		keyless  bool // the client is not opted in: the key is derived from the request
 		attempts int32
 		wantErr  bool
 	}{
 		{name: "sdk key 503 then 0084 retried", replies: []string{"503", "0084", "201"}, attempts: 3},
 		{name: "sdk key timeout then 0084 retried", replies: []string{"0084", "201"}, timeout: true, attempts: 3},
 		{
-			name:    "keyless 504 then 0084 retried on a body-deduped route",
+			name:    "derived key 504 then 0084 retried",
 			replies: []string{"504", "0084", "201"}, keyless: true, attempts: 3,
 		},
 		{name: "caller ctx key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
@@ -344,9 +344,8 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			sent := strings.Join(keys, "") != ""
-			if tc.keyless == sent || (!tc.keyless && !oneKey(keys, tc.ctxKey+tc.inputKey)) {
-				t.Fatalf("keys = %v, want one stable key (the caller's when supplied), or none when keyless", keys)
+			if !oneKey(keys, tc.ctxKey+tc.inputKey) {
+				t.Fatalf("keys = %v, want one stable key (the caller's when supplied)", keys)
 			}
 		})
 	}

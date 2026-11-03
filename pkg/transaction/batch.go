@@ -432,23 +432,13 @@ func (bp *batchProcessor) processTransaction(index int) error {
 		return result.Error
 	}
 
-	idempotencyKey := bp.ensureIdempotencyKey(input)
-	tx, err := bp.executeWithRetries(input, idempotencyKey)
+	tx, err := bp.executeWithRetries(input, strings.TrimSpace(input.IdempotencyKey))
 
 	result := bp.createResult(index, tx, err, time.Since(startTime))
 	bp.results[index] = result
 	bp.callProgressCallback(result)
 
 	return err
-}
-
-// ensureIdempotencyKey ensures the transaction has an idempotency key.
-func (*batchProcessor) ensureIdempotencyKey(input *models.CreateTransactionInput) string {
-	if key := strings.TrimSpace(input.IdempotencyKey); key != "" {
-		return key
-	}
-
-	return ""
 }
 
 // executeWithRetries executes a transaction with retry logic.

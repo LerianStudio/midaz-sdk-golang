@@ -2,15 +2,16 @@
 // the SDK supports for the X-Idempotency request header on unsafe (POST,
 // PUT, PATCH, DELETE) requests:
 //
-//  1. No key (default): the SDK sends no X-Idempotency. The ledger dedupes a
-//     keyless transaction create by its body, so the same body sent again
-//     (even from a new SDK call after a timeout) returns the first outcome.
-//     Two intentional transactions with byte-identical bodies inside the
-//     ledger's idempotency window are answered with the first one: pass a
-//     distinct key (mode 2) for each intentional duplicate.
+//  1. No key (default): the SDK sends no random X-Idempotency. A keyless /v1
+//     transaction create sends a key derived from the request (SHA-256 of
+//     method, path and body), so the same request sent again (even from a new
+//     SDK call after a timeout) returns the first outcome, and block and
+//     unblock with one body never share the ledger's /v1 slot. Two intentional
+//     transactions with identical requests inside the ledger's idempotency
+//     window are answered with the first one: pass a distinct key (mode 2).
 //     Opt-in: [midaz.WithIdempotency](true) or MIDAZ_IDEMPOTENCY=true makes the
-//     SDK generate a random UUID per create request instead; commit, cancel and
-//     revert carry a key only when you supply one.
+//     SDK generate a random UUID per create, update and delete request instead;
+//     commit, cancel and revert carry a key only when you supply one.
 //
 //  2. Explicit caller-supplied key (recommended for at-least-once
 //     producers): pass a stable key via [sdkctx.WithIdempotencyKey]

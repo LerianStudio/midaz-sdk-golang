@@ -978,39 +978,6 @@ func TestBatchProcessorCheckFinalErrors(t *testing.T) {
 	})
 }
 
-// TestBatchProcessorEnsureIdempotencyKey tests the ensureIdempotencyKey method
-func TestBatchProcessorEnsureIdempotencyKey(t *testing.T) {
-	t.Run("does not generate idempotency key when empty", func(t *testing.T) {
-		bp := &batchProcessor{
-			options: &BatchOptions{IdempotencyKeyPrefix: "test-prefix", RetryCount: 1},
-		}
-
-		input := &models.CreateTransactionInput{
-			IdempotencyKey: "",
-		}
-
-		key := bp.ensureIdempotencyKey(input)
-
-		assert.Empty(t, key)
-		assert.Empty(t, input.IdempotencyKey)
-	})
-
-	t.Run("preserves existing idempotency key", func(t *testing.T) {
-		bp := &batchProcessor{
-			options: &BatchOptions{IdempotencyKeyPrefix: "test-prefix"},
-		}
-
-		input := &models.CreateTransactionInput{
-			IdempotencyKey: "existing-key",
-		}
-
-		key := bp.ensureIdempotencyKey(input)
-
-		assert.Equal(t, "existing-key", key)
-		assert.Equal(t, "existing-key", input.IdempotencyKey)
-	})
-}
-
 // TestBatchProcessorEmptyInputs tests batch processing with empty inputs
 func TestBatchProcessorEmptyInputs(t *testing.T) {
 	bp := &batchProcessor{

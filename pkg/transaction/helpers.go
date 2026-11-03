@@ -617,7 +617,7 @@ type Template struct {
 //   - template: The transaction template to use
 //   - amount: The amount for the transaction
 //   - metadata: Additional metadata to merge with the template's metadata (optional)
-//   - idempotencyKey: A unique key for idempotency (optional; empty means the client default: no key, or a generated one on a client opted in)
+//   - idempotencyKey: A unique key for idempotency (optional; empty means the client default: a key derived from the request, or a random one on a client opted in)
 //
 // Returns:
 //   - The created transaction if successful

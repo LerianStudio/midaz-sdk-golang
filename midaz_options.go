@@ -636,8 +636,9 @@ func WithErrorBodyExposure(enabled bool) Option {
 // constructing the client via [New].
 //
 // Default: disabled (Config.EnableIdempotency = DefaultEnableIdempotency = false):
-// without a key the ledger dedupes a keyless transaction create by its body.
-// Enable it (or MIDAZ_IDEMPOTENCY=true) to send a random key per request.
+// a keyless /v1 transaction create sends a key derived from the request, and the
+// ledger dedupes a keyless /v2 create by body. Enable it (or MIDAZ_IDEMPOTENCY=true)
+// to send a random key per create, update and delete request.
 //
 // Parameters:
 //   - enabled: Whether to enable automatic idempotency-key generation
