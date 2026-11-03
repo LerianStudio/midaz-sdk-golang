@@ -14,12 +14,12 @@ type idemGateConfig struct {
 
 func (c *idemGateConfig) GetEnableIdempotency() bool { return c.enabled }
 
-// TestConfigEnableIdempotency proves 5.2.3: the gate defaults to true when a
-// Config does not expose GetEnableIdempotency (parity with the legacy default),
+// TestConfigEnableIdempotency proves 5.2.3: the gate defaults to false when a
+// Config does not expose GetEnableIdempotency (the default sends no key),
 // and reflects the value when it does.
 func TestConfigEnableIdempotency(t *testing.T) {
-	if !configEnableIdempotency(&typedNilConfig{}) {
-		t.Fatal("want true when GetEnableIdempotency is absent (legacy default)")
+	if configEnableIdempotency(&typedNilConfig{}) {
+		t.Fatal("want false when GetEnableIdempotency is absent (default is no auto key)")
 	}
 
 	if configEnableIdempotency(&idemGateConfig{enabled: false}) {

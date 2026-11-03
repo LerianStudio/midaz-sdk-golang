@@ -59,7 +59,7 @@ func TestDefaultConstants(t *testing.T) {
 		{"DefaultMaxRetries", DefaultMaxRetries, 3},
 		{"DefaultMinRetryWait", DefaultMinRetryWait, 1 * time.Second},
 		{"DefaultRetryWaitMax", DefaultRetryWaitMax, 30 * time.Second},
-		{"DefaultEnableIdempotency", DefaultEnableIdempotency, true},
+		{"DefaultEnableIdempotency", DefaultEnableIdempotency, false},
 		{"DefaultExposeErrorBody", DefaultExposeErrorBody, false},
 	}
 
@@ -102,7 +102,7 @@ func TestNewConfig_Defaults(t *testing.T) {
 	assert.Equal(t, DefaultRetryWaitMax, config.RetryWaitMax)
 	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
 	assert.Positive(t, config.MaxRetries)
-	assert.True(t, config.EnableIdempotency)
+	assert.False(t, config.EnableIdempotency)
 	assert.False(t, config.ExposeErrorBody)
 	assert.False(t, config.Debug)
 	assert.NotNil(t, config.HTTPClient)
@@ -842,7 +842,7 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 	assert.True(t, config.Debug)
 	assert.Equal(t, 90*time.Second, config.Timeout)
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
-	assert.True(t, config.EnableIdempotency)
+	assert.False(t, config.EnableIdempotency)
 	assert.False(t, config.ExposeErrorBody)
 }
 
@@ -936,7 +936,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, DefaultRetryWaitMax, config.RetryWaitMax)
 	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
 	assert.Positive(t, config.MaxRetries)
-	assert.True(t, config.EnableIdempotency)
+	assert.False(t, config.EnableIdempotency)
 	assert.False(t, config.ExposeErrorBody)
 	assert.NotNil(t, config.HTTPClient)
 	assert.NotNil(t, config.ServiceURLs)

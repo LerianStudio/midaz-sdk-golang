@@ -155,7 +155,7 @@ type httpClientConfigSnapshot struct {
 // for observability). Callers who want env-driven configuration must opt in via
 // config.NewConfig(config.FromEnvironment()).
 //
-// Defaults: debug=false, userAgent=version.UserAgent(), enableIdempotency=true,
+// Defaults: debug=false, userAgent=version.UserAgent(), enableIdempotency=false,
 // exposeErrorBody=false, retryOptions=retry.DefaultOptions().
 //
 // Parameters:
@@ -180,7 +180,7 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 
 	defaultUA := defaultUserAgent()
 	c.userAgent.Store(&defaultUA)
-	c.enableIdempotency.Store(true)
+	c.enableIdempotency.Store(false)
 	c.exposeErrorBody.Store(false)
 
 	return c
@@ -323,7 +323,7 @@ func (c *HTTPClient) SetSlowCallThreshold(threshold time.Duration) {
 // SetEnableIdempotency enables or disables automatic idempotency header
 // generation at the HTTP client level.
 //
-// When enabled (the default unless MIDAZ_IDEMPOTENCY=false), every unsafe
+// When enabled (opt-in; the default is off), every unsafe
 // request (POST/PUT/PATCH/DELETE) gets an automatic UUIDv4 idempotency key
 // in the X-Idempotency header — UNLESS the caller already supplied one via
 // [sdkctx.WithIdempotencyKey], in which case the explicit key wins.
@@ -1051,7 +1051,7 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 		return userRetryPredicate != nil && userRetryPredicate(err)
 	}
 
-	if httpRetriesSuppressed(ctx) || (isUnsafeMethod(req.Method) && !hasIdempotencyKey) {
+	if httpRetriesSuppressed(ctx) || (isUnsafeMethod(req.Method) && !hasIdempotencyKey && !ledgerDedupesByBody(req)) {
 		effectiveRetryOptions.MaxRetries = 0
 	}
 

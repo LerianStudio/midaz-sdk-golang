@@ -42,7 +42,7 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | `MIDAZ_TIMEOUT` | HTTP timeout in seconds. | `60` |
 | `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
 | `MIDAZ_MAX_RETRIES` | Maximum retry attempts. Set to `0` to disable retries entirely. | `3` |
-| `MIDAZ_IDEMPOTENCY` | Enables (`true`) or disables (`false`) auto idempotency support. | `true` |
+| `MIDAZ_IDEMPOTENCY` | Enables (`true`) or disables (`false`) auto idempotency support. | `false` |
 | `MIDAZ_ERROR_EXPOSE_BODY` | Attaches raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; enable only for controlled diagnostics. | `false` |
 | `PLUGIN_AUTH_ENABLED` | Enables Access Manager authentication when set to `true`. | `false` |
 | `PLUGIN_AUTH_ADDRESS` | Access Manager base address. | empty |
@@ -170,7 +170,7 @@ The SDK does not read retry wait environment variables. Configure retry timing i
 MIDAZ_IDEMPOTENCY=true
 ```
 
-Idempotency is enabled by default for ordinary unsafe SDK requests. Set it to `false` to disable SDK-generated idempotency behavior. Transaction and HTTP batch retries are stricter: when their retry count is greater than zero, callers must supply stable per-transaction or per-item idempotency keys so replayed batch attempts are deterministic.
+SDK-generated idempotency keys are off by default: without an integrator key no `X-Idempotency` is sent and the ledger dedupes a keyless transaction create by its body. Set it to `true` to opt in to a random key per unsafe request. Transaction and HTTP batch retries are stricter: when their retry count is greater than zero, callers must supply stable per-transaction or per-item idempotency keys so replayed batch attempts are deterministic.
 
 Automatic key generation applies to unsafe entity HTTP requests. The entity HTTP client generates an `X-Idempotency` UUID only when all of these are true:
 

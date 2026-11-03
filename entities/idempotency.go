@@ -6,6 +6,7 @@ package entities
 import (
 	"context"
 	"net/http"
+	"regexp"
 
 	"github.com/google/uuid"
 
@@ -36,12 +37,9 @@ import (
 // ttl comes from sdkctx.WithIdempotencyTTL(ctx); it is "" when unset, in which
 // case the caller must omit X-TTL and let the server apply its default (300s).
 //
-// This resolver assumes idempotency is ENABLED: it does not consult the
-// client-level MIDAZ_IDEMPOTENCY flag (the legacy ensureIdempotencyHeader gates
-// on it). During coexistence the facade has no access to that flag; the enable
-// gate is applied one layer up, in the Phase 5 wiring cutover. Defaulting to
-// auto-generate errs toward more deduplication, which is the safe side for an
-// unsafe money write.
+// The caller gates autoGen on the client-level MIDAZ_IDEMPOTENCY flag, which
+// defaults to false: a keyless create then carries no key and the ledger dedupes
+// it by body.
 //
 // mark is non-nil only for a minted key: the editor that tells the retry layer
 // the request carries the SDK's own key for this call (see mintedKeyCtx).
@@ -142,4 +140,17 @@ func idempotencyEditorsTracer(ctx context.Context, autoGen bool) []gentracer.Req
 	}
 
 	return editors
+}
+
+// bodyDedupedCreate matches the ledger creates that, sent without X-Idempotency, are
+// held under a hash of the body: transaction creates (v1 and v2, including block/unblock
+// and the atomic batch) and holder/instrument creates. Every other write without a key
+// is a new write on every attempt.
+var bodyDedupedCreate = regexp.MustCompile(`/(v1/organizations/[^/]+/ledgers/[^/]+/transactions/(json|inflow|outflow|annotation|block|unblock)|` +
+	`v2/transactions/(direct|hold|block|unblock|batch)|v2/organizations/[^/]+/holders|v2/organizations/[^/]+/holders/[^/]+/instruments)$`)
+
+// ledgerDedupesByBody reports whether a keyless request may be retried because the ledger
+// answers its replay with the first outcome instead of running it again.
+func ledgerDedupesByBody(req *http.Request) bool {
+	return req.Method == http.MethodPost && bodyDedupedCreate.MatchString(req.URL.Path)
 }

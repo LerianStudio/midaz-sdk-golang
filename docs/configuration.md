@@ -181,7 +181,7 @@ The full list:
 
 | Function | Scope |
 |---|---|
-| `sdkctx.WithIdempotencyKey(ctx, key)` | Set an explicit `X-Idempotency` header (overrides auto-generation) |
+| `sdkctx.WithIdempotencyKey(ctx, key)` | Set an explicit `X-Idempotency` header (sent as-is, overrides opt-in generation) |
 | `sdkctx.WithoutAutoIdempotency(ctx)` | Skip auto-generation of `X-Idempotency` for this request |
 | `sdkctx.WithoutHTTPRetries(ctx)` | Suppress the SDK HTTP retry loop for this request |
 | `sdkctx.WithIncludeDeleted(ctx, true)` | Include soft-deleted resources in list responses |
@@ -282,7 +282,7 @@ environment.
 | `MIDAZ_TIMEOUT` | duration | `60s` | HTTP request timeout |
 | `MIDAZ_DEBUG` | bool | `false` | Enable verbose request/response logging (also upgrades the default logger to stderr) |
 | `MIDAZ_MAX_RETRIES` | int | `3` | Maximum retry attempts; `0` disables retries |
-| `MIDAZ_IDEMPOTENCY` | bool | `true` | Toggle automatic `X-Idempotency` header generation |
+| `MIDAZ_IDEMPOTENCY` | bool | `false` | Opt in to a random SDK-generated `X-Idempotency` header |
 | `MIDAZ_ERROR_EXPOSE_BODY` | bool | `false` | Attach raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; enable only for tightly controlled diagnostics and never as a production default. |
 | `PLUGIN_AUTH_ENABLED` | bool | `false` | Enable plugin-based OAuth authentication |
 | `PLUGIN_AUTH_ADDRESS` | URL | — | Auth plugin endpoint (required when `PLUGIN_AUTH_ENABLED=true`) |
@@ -334,9 +334,10 @@ configuration.
 
 ### 4.1 Idempotency keys
 
-By default, the SDK generates a UUID-based `X-Idempotency` header for
-every unsafe HTTP method (POST/PUT/PATCH/DELETE). You can override the
-auto-generated key for a specific call:
+By default, the SDK sends no `X-Idempotency` header, so the ledger dedupes a
+keyless transaction create by its body. Opt in to a random UUID per unsafe
+request (POST/PUT/PATCH/DELETE) with `WithIdempotency(true)` or
+`MIDAZ_IDEMPOTENCY=true`. You can set a stable key for a specific call:
 
 ```go
 // Use an explicit key (e.g. derived from a user-action ID):

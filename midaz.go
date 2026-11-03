@@ -78,13 +78,15 @@
 //
 // # Idempotency and retries
 //
-// Auto-idempotency is on by default; the SDK emits an X-Idempotency
+// Auto-idempotency is off by default (the ledger dedupes a keyless transaction
+// create by its body); with [WithIdempotency](true) the SDK emits an X-Idempotency
 // header per unsafe request. Override per-call via
 // [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithIdempotencyKey]
 // (caller-supplied key) or
 // [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithoutAutoIdempotency]
-// (suppression). Disable globally via [WithIdempotency](false). Unsafe
-// requests retry only when X-Idempotency is present; caller-supplied and
+// (suppression). Unsafe
+// requests retry only when X-Idempotency is present or the ledger dedupes the
+// create by body (transaction, holder and instrument creates); caller-supplied and
 // SDK-generated keys both satisfy that gate. Retries follow the default
 // exponential-backoff policy on 5xx + 408/425/429 + transport errors; customize via [WithRetryOptions] /
 // [WithCustomRetryPolicy] / [WithoutRetries]. See examples/06-idempotency

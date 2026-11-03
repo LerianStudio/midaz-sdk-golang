@@ -153,7 +153,7 @@ func (rt *retryRoundTripper) resolveOptions(req *http.Request) retry.Options {
 	hasIdempotencyKey := strings.TrimSpace(req.Header.Get(idempotencyHeader)) != ""
 	unrewindableBody := req.Body != nil && req.GetBody == nil
 
-	if httpRetriesSuppressed(req.Context()) || (isUnsafeMethod(req.Method) && !hasIdempotencyKey) || unrewindableBody {
+	if httpRetriesSuppressed(req.Context()) || (isUnsafeMethod(req.Method) && !hasIdempotencyKey && !ledgerDedupesByBody(req)) || unrewindableBody {
 		effective.MaxRetries = 0
 	}
 

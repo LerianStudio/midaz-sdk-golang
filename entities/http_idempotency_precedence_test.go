@@ -85,8 +85,8 @@ func TestIdempotencyPrecedence_CtxKeyUsedWhenInputAbsent(t *testing.T) {
 
 // TestIdempotencyPrecedence_AutoGenWhenBothAbsent verifies that when
 // neither an input-level header nor a ctx-supplied key is present, the
-// SDK auto-generates a UUIDv4 idempotency key (the default with
-// client-level idempotency enabled).
+// SDK auto-generates a UUIDv4 idempotency key (only with
+// client-level idempotency opted in).
 func TestIdempotencyPrecedence_AutoGenWhenBothAbsent(t *testing.T) {
 	seenCh := make(chan string, 1)
 
@@ -100,6 +100,7 @@ func TestIdempotencyPrecedence_AutoGenWhenBothAbsent(t *testing.T) {
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.Client(), "", nil)
+	c.SetEnableIdempotency(true)
 
 	var out map[string]any
 

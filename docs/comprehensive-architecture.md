@@ -625,7 +625,7 @@ Unsafe methods are:
 - `PATCH`
 - `DELETE`
 
-If an unsafe request has no `X-Idempotency` header, the HTTP layer sets the effective retry count to `0` for that request. This prevents automatic retries from duplicating state-changing operations.
+If an unsafe request has no `X-Idempotency` header and is not a ledger create deduped by body (transactions, holders, instruments), the HTTP layer sets the effective retry count to `0` for that request. This prevents automatic retries from duplicating state-changing operations.
 
 You can attach an idempotency key to any request context:
 
@@ -664,16 +664,16 @@ Idempotency key precedence is first non-empty source wins:
 
 1. explicit input/header value, such as `CreateTransactionInput.IdempotencyKey`,
 2. context value from `sdkctx.WithIdempotencyKey(ctx, ...)`,
-3. automatic UUID generation by the HTTP layer.
+3. automatic UUID generation by the HTTP layer, only when opted in (`MIDAZ_IDEMPOTENCY=true`).
 
-Automatic idempotency applies to unsafe entity HTTP requests. The HTTP layer auto-generates a UUIDv4 `X-Idempotency` value when:
+Automatic idempotency applies to unsafe entity HTTP requests. When opted in, the HTTP layer auto-generates a UUIDv4 `X-Idempotency` value when:
 
-1. idempotency is enabled,
+1. idempotency is enabled (default: off),
 2. the method is unsafe,
 3. no idempotency key is already present,
 4. the request context has not opted out with `sdkctx.WithoutAutoIdempotency(ctx)`.
 
-The HTTP layer sends only the public `X-Idempotency` header. Unsafe retries require `X-Idempotency`; caller-supplied and SDK-generated keys both satisfy this retry gate.
+The HTTP layer sends only the public `X-Idempotency` header. Unsafe retries require `X-Idempotency`; caller-supplied and SDK-generated keys both satisfy this retry gate. The one exception is a keyless transaction, holder or instrument create, which the ledger dedupes by body and the SDK therefore retries.
 
 ## Observability
 
