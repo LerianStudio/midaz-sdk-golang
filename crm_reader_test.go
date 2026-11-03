@@ -182,7 +182,7 @@ func TestCRMReaderResolvesAPIFromVersion(t *testing.T) {
 }
 
 // TestCRMReaderRoutesAndDecodesBothAPIs pins each API's routes and organization placement, the
-// identical query on both, the configured "/v1" suffix being dropped, no Authorization on /version,
+// identical query on both, the configured "/v1" suffix being dropped, the same Authorization on /version,
 // and one golden body decoding to the same models through both APIs.
 func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 	type decoded struct {
@@ -255,7 +255,7 @@ func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 			assert.Equal(t, "account_id=acc&banking_details_account=123450&banking_details_branch=0001&document=12345678909&include_deleted=true&limit=100&page=2", reqs[0].URL.RawQuery)
 			assert.Equal(t, "document=12345678909&limit=100&page=2", reqs[1].URL.RawQuery)
 			assert.Empty(t, reqs[2].URL.RawQuery)
-			assert.Empty(t, versionAuth, "/version is public; never send the credential there")
+			assert.Equal(t, "Bearer t", versionAuth, "/version carries the credential the data reads carry")
 		})
 	}
 
@@ -483,6 +483,23 @@ func TestCRMReaderRequestFailures(t *testing.T) {
 
 		assert.NotErrorAs(t, err, &sdkErr, "the caller keeps its own token codes")
 		assert.Empty(t, srv.requests())
+		assert.Zero(t, srv.versionHits.Load(), "no probe starts when Authorization fails")
+	})
+
+	t.Run("a gateway that refuses an anonymous /version resolves with Authorization", func(t *testing.T) {
+		srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer t" {
+				w.WriteHeader(http.StatusUnauthorized)
+
+				return
+			}
+
+			_, _ = w.Write([]byte(ledgerVersion422))
+		})
+
+		_, err := newTestCRMReader(t, srv.URL, nil).Holders(context.Background(), crmTestOrg, HolderQuery{})
+		require.NoError(t, err)
+		assert.Len(t, srv.requests(), 1)
 	})
 
 	t.Run("ids that are not UUIDs never reach the wire", func(t *testing.T) {

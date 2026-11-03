@@ -42,8 +42,9 @@ type CRMReaderConfig struct {
 	// HTTP sends every request, GET /version included: anything with Do(*http.Request), such as an
 	// *http.Client. Required.
 	HTTP HTTPDoer
-	// Authorization returns the Authorization header value of a data read, sent verbatim ("" sends
-	// none). Its error is returned wrapped, unclassified. Nil sends none. /version is never authorized.
+	// Authorization returns the Authorization header value of a data read and of the GET /version
+	// probe it starts, sent verbatim ("" sends none). Its error is returned wrapped, unclassified;
+	// it only skips a background /version refresh. Nil sends none.
 	Authorization func(ctx context.Context) (string, error)
 	// OnResolve reports the first resolved API, every change, and every failed /version read with
 	// the API kept ("" before the first resolution). It runs on the probe's goroutine. Nil reports nothing.
@@ -242,12 +243,30 @@ func (r *CRMReader) withoutRequestURL(err error) error {
 // api answers the resolved API, starting one background re-read once it has expired. Before the
 // first resolution, callers share one probe and each leaves at its own deadline.
 func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
-	probe := func() (any, error) { return nil, r.probe() }
+	resolved := r.resolved.Load()
+	if resolved != nil && r.now().Before(resolved.expiresAt) {
+		return resolved.api, nil
+	}
 
-	if resolved := r.resolved.Load(); resolved != nil {
-		if !r.now().Before(resolved.expiresAt) {
-			r.probes.DoChan(crmVersionOperation, probe)
+	var authorization string
+
+	if r.authorization != nil {
+		var err error
+		if authorization, err = r.authorization(ctx); err != nil {
+			if resolved != nil {
+				return resolved.api, nil
+			}
+
+			return "", fmt.Errorf("crm authorization: %w", err)
 		}
+	}
+
+	// The probe may carry the header of the caller that started it; its result, the server version,
+	// is shared by every caller and no tenant data crosses.
+	probe := func() (any, error) { return nil, r.probe(authorization) }
+
+	if resolved != nil {
+		r.probes.DoChan(crmVersionOperation, probe)
 
 		return resolved.api, nil
 	}
@@ -266,11 +285,11 @@ func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
 
 // probe reads /version on a fresh context, carrying no value of the caller that started it. A failure
 // keeps the last API; with none yet it caches nothing and returns a retryable error.
-func (r *CRMReader) probe() error {
+func (r *CRMReader) probe(authorization string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 	defer cancel()
 
-	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation)
+	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation, authorization)
 	last := r.resolved.Load()
 
 	if err != nil {
