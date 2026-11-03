@@ -327,8 +327,7 @@ type CreateTransactionInput struct {
 	//     key derived from the request (SHA-256 of method, path and body: they share
 	//     one body shape and the ledger's /v1 keyless slot ignores the action, so
 	//     they must not share it); every other create (/v1 json, inflow, outflow
-	//     and /v2) sends none and the ledger dedupes it by body. A derived key is
-	//     SDK-generated, so a 409/0084 is retried, waiting for the first attempt.
+	//     and /v2) sends none and the ledger dedupes it by body.
 	//     A second intentional create with an identical request inside the TTL is
 	//     answered with the first transaction: intentional duplicates need
 	//     distinct keys. A random key is sent only with WithIdempotency(true)
@@ -346,11 +345,13 @@ type CreateTransactionInput struct {
 	//     a key across different money movements.
 	//   - A concurrent request with the same key, while the first is still in
 	//     flight: also HTTP 409, pkg/errors.IsIdempotencyError
-	//     (code idempotency_error), a conflict, never a success. With a key
-	//     the SDK generated (opt-in only), the facade waits for its own in-flight attempt
-	//     under that key (usual backoff and attempt limit, while the key's
-	//     X-TTL from the call's start lasts), so the call may return the
-	//     replayed outcome. With a key you supplied (this field or
+	//     (code idempotency_error), a conflict, never a success. The facade waits
+	//     for its own in-flight attempt, and the call may return the replayed
+	//     outcome, when the 0084 can only be that attempt: a random key
+	//     (opt-in), a derived key (annotation, block, unblock) or no key on a
+	//     body-deduped create (/v1 json, inflow, outflow). It retries with the
+	//     usual backoff and attempt limit, within the key's X-TTL from the call's
+	//     start. With a key you supplied (this field or
 	//     sdkctx.WithIdempotencyKey) the 409 surfaces as this error.
 	//     Error.Retryable() is false for it, so an outer retry loop never
 	//     re-creates the write under a new key.

@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
@@ -288,7 +287,8 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 		ctxKey   string
 		inputKey string
 		timeout  bool // the first attempt fails with a transport timeout before reaching the server
-		keyless  bool // a keyless /v1 block on a client that is not opted in: the key is derived from the request
+		block    bool // a /v1 block on a client that is not opted in: the key is derived from the request
+		keyless  bool // a /v1 json create on a client that is not opted in: no key on the wire, the ledger dedupes by body
 		attempts int32
 		wantErr  bool
 	}{
@@ -296,27 +296,16 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 		{name: "sdk key timeout then 0084 retried", replies: []string{"0084", "201"}, timeout: true, attempts: 3},
 		{
 			name:    "derived key 504 then 0084 retried",
-			replies: []string{"504", "0084", "201"}, keyless: true, attempts: 3,
+			replies: []string{"504", "0084", "201"}, block: true, attempts: 3,
 		},
+		{name: "keyless 504 then 0084 retried", replies: []string{"504", "0084", "201"}, keyless: true, attempts: 3},
 		{name: "caller ctx key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
 		{name: "caller ctx key 503 then 0084 surfaces", replies: []string{"503", "0084", "201"}, ctxKey: "caller-key", attempts: 2, wantErr: true},
 		{name: "input key 504 then 0084 surfaces", replies: []string{"504", "0084", "201"}, inputKey: "input-key", attempts: 2, wantErr: true},
 		{name: "other 409 not retried", replies: []string{"503", "0101", "201"}, attempts: 2, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var (
-				mu   sync.Mutex
-				keys []string
-			)
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				mu.Lock()
-				keys = append(keys, r.Header.Get(idempotencyHeader))
-				reply := tc.replies[len(keys)-1]
-				mu.Unlock()
-
-				writeReply(w, reply)
-			}))
+			srv, seenKeys := keyRecordingServer(tc.replies)
 			defer srv.Close()
 
 			wire := &timeoutFirst{base: srv.Client().Transport, on: tc.timeout}
@@ -327,9 +316,14 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 
 			ctx := sdkctx.WithIdempotencyKey(context.Background(), tc.ctxKey)
 
-			facade := newTransactionsFacade(newRetryEnabledPlanes(t, srv, 3).Ledger, !tc.keyless)
+			facade := newTransactionsFacade(newRetryEnabledPlanes(t, srv, 3).Ledger, !tc.block && !tc.keyless)
 
-			tx, err := createJSONOrBlock(facade, tc.keyless)(ctx, txOrgID, txLedgerID, input)
+			create := facade.CreateJSON
+			if tc.block {
+				create = facade.CreateBlock
+			}
+
+			tx, err := create(ctx, txOrgID, txLedgerID, input)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -342,11 +336,8 @@ func TestFacadeWriteRetriesIdempotencyInFlight(t *testing.T) {
 				t.Fatalf("attempts = %d, want %d", got, tc.attempts)
 			}
 
-			mu.Lock()
-			defer mu.Unlock()
-
-			if !oneKey(keys, tc.ctxKey+tc.inputKey) {
-				t.Fatalf("keys = %v, want one stable key (the caller's when supplied)", keys)
+			if keys := seenKeys(); !oneKey(keys, tc.ctxKey+tc.inputKey, tc.keyless) {
+				t.Fatalf("keys = %v, want one stable key (the caller's when supplied; none when keyless)", keys)
 			}
 		})
 	}
@@ -381,19 +372,36 @@ func TestPlaneWriteSurfacesCallerStamped0084(t *testing.T) {
 	}
 }
 
-// createJSONOrBlock picks the /v1 create under test: block when it must carry a derived key.
-func createJSONOrBlock(f *transactionsFacade, block bool) func(context.Context, string, string, *models.CreateTransactionInput) (*models.Transaction, error) {
-	if block {
-		return f.CreateBlock
-	}
+// keyRecordingServer answers each request with the next reply and returns the X-Idempotency
+// header of every request it has seen.
+func keyRecordingServer(replies []string) (*httptest.Server, func() []string) {
+	var (
+		mu   sync.Mutex
+		keys []string
+	)
 
-	return f.CreateJSON
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		keys = append(keys, r.Header.Get(idempotencyHeader))
+		reply := replies[len(keys)-1]
+		mu.Unlock()
+
+		writeReply(w, reply)
+	}))
+
+	return srv, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return append([]string(nil), keys...)
+	}
 }
 
-// oneKey reports whether every key is the same non-empty key, equal to want when want is set.
-func oneKey(keys []string, want string) bool {
+// oneKey reports whether every key is the same non-empty key, equal to want when want is set;
+// with none, whether no request carried a key.
+func oneKey(keys []string, want string, none bool) bool {
 	for _, key := range keys {
-		if key == "" || key != keys[0] || (want != "" && key != want) {
+		if none != (key == "") || key != keys[0] || (want != "" && key != want) {
 			return false
 		}
 	}
