@@ -1,5 +1,30 @@
 # Midaz-sdk-golang Changelog
 
+## [6.5.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.0)
+
+Features:
+- Release `v6.5.0` without the random idempotency key. (@fredcamaral)
+- Stop sending a random idempotency key by default. (@fredcamaral)
+
+Fixes:
+- Derive the `/v1` key only for annotation, block, and unblock operations. (@fredcamaral)
+- Discard the hash write result explicitly. (@fredcamaral)
+- Send the `/v1` derived key under `WithoutAutoIdempotency`. (@fredcamaral)
+- Derive the `/v1` keyless transaction key from the request. (@fredcamaral)
+- Build multi-transfer legs in a stable order for keyless deduplication. (@fredcamaral)
+- Complete keyless idempotency cleanup in documentation, examples, and comments. (@fredcamaral)
+- Remove obsolete keyless conjunct and keyless-era remnants. (@fredcamaral)
+- Ensure keyless helpers send no key and retry keyless `0084` on deduplicated routes. (@fredcamaral)
+
+Improvements:
+- Scope the body-dedupe claim in the configuration guides. (@fredcamaral)
+- Limit the body-dedupe claim to deduplicated creates. (@fredcamaral)
+- Update documentation to indicate that `WithoutAutoIdempotency` retains the `/v1` derived key. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.4.0...v6.5.0)
+
+---
+
 ## [6.4.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.4.0)
 
 Features:
