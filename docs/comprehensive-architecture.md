@@ -137,7 +137,7 @@ Default config values include:
 | Retry wait minimum | `1s` at the config layer |
 | Retry wait maximum | `30s` at the config layer |
 | Retries enabled | `true` |
-| Idempotency enabled | `true` |
+| Idempotency enabled | `false` |
 | Local Ledger base URL | `http://localhost:3002` |
 | Local Tracer base URL | `http://localhost:4020/v1` (the SDK stamps `/v1` onto a bare base) |
 

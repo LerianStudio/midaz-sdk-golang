@@ -118,6 +118,14 @@ func TestKeylessV1CreateDerivesKeyFromRequest(t *testing.T) {
 			_, err := keyless.CreateUnblock(sdkctx.WithoutAutoIdempotency(ctx), txOrgID, txLedgerID, sampleTransactionInput())
 			return err
 		},
+		func() error {
+			_, err := keyless.CreateInflow(ctx, txOrgID, txLedgerID, wireInflowInput())
+			return err
+		},
+		func() error {
+			_, err := keyless.CreateOutflow(ctx, txOrgID, txLedgerID, wireOutflowInput())
+			return err
+		},
 	} {
 		require.NoError(t, send())
 	}
@@ -133,6 +141,8 @@ func TestKeylessV1CreateDerivesKeyFromRequest(t *testing.T) {
 	assert.Empty(t, bare)
 	assert.Regexp(t, `^[0-9a-f]{64}$`, suppressedUnblock)
 	assert.NotEqual(t, block, suppressedUnblock)
+	assert.Empty(t, keys[8]) // inflow is keyless like json
+	assert.Empty(t, keys[9]) // so is outflow
 }
 
 func withKey(in *models.CreateTransactionInput, key string) *models.CreateTransactionInput {
