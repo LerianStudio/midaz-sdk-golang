@@ -377,7 +377,7 @@ func TestPlaneWriteSurfacesCallerStamped0084(t *testing.T) {
 	}
 }
 
-// oneKey reports whether every key is the same non-empty key, equal to want when want is set.
+// keysMatch reports whether no key was sent (keyless) or every key is one non-empty key.
 func keysMatch(keys []string, want string, keyless bool) bool {
 	if keyless {
 		return strings.Join(keys, "") == ""
@@ -386,6 +386,7 @@ func keysMatch(keys []string, want string, keyless bool) bool {
 	return oneKey(keys, want)
 }
 
+// oneKey reports whether every key is the same non-empty key, equal to want when want is set.
 func oneKey(keys []string, want string) bool {
 	for _, key := range keys {
 		if key == "" || key != keys[0] || (want != "" && key != want) {

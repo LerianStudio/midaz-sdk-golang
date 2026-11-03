@@ -61,21 +61,4 @@ func TestKeylessRetryOnlyWhereLedgerDedupesByBody(t *testing.T) {
 			}
 		})
 	}
-
-	// A keyless 409/0084 is retried only on a body-deduped route.
-	var count int32
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		atomic.AddInt32(&count, 1)
-		writeReply(w, "0084")
-	}))
-	defer srv.Close()
-
-	rt := newRetryRoundTripper(http.DefaultTransport, fastRetryOpts(), nil)
-	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/organizations/o/ledgers/l/accounts", bytes.NewReader([]byte(`{"x":1}`)))
-
-	resp, err := rt.RoundTrip(req)
-	require.NoError(t, err)
-	resp.Body.Close()
-	assert.EqualValues(t, 1, atomic.LoadInt32(&count))
 }

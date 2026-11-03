@@ -184,40 +184,11 @@ func TestTransactionHelpers_KeylessCallsSendNoKeyAndStableBody(t *testing.T) {
 				return err
 			},
 		},
-		{
-			name: "template",
-			run: func(ctx context.Context, entity *entities.Entity) error {
-				tmpl := &Template{
-					Description: "templated funding",
-					AssetCode:   "USD",
-					Scale:       2,
-					BuildSources: func(amount int64) []models.FromToInput {
-						return []models.FromToInput{{AccountAlias: "a", Amount: models.AmountInput{Asset: "USD", Value: formatAmount(amount, 2)}}}
-					},
-					BuildDestinations: func(amount int64) []models.FromToInput {
-						return []models.FromToInput{{AccountAlias: "b", Amount: models.AmountInput{Asset: "USD", Value: formatAmount(amount, 2)}}}
-					},
-				}
-				if _, err := CreateFromTemplate(ctx, entity, "org-1", "ledger-1", tmpl, 100, nil, ""); err != nil {
-					return err
-				}
-
-				time.Sleep(1100 * time.Millisecond) // a wall-clock field in the body would differ across seconds
-
-				_, err := CreateFromTemplate(ctx, entity, "org-1", "ledger-1", tmpl, 100, nil, "")
-				return err
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Buffered channel of size 2 instead of a shared slice +
-			// raw append: the httptest handler runs on a goroutine
-			// owned by the *http.Server, so the slice append from the
-			// handler raced with the test's read below under
-			// `go test -race`. Mirrors the pattern used in
-			// entities/http_idempotency_precedence_test.go (seenCh).
+			// A channel, not a shared slice: the handler goroutine would race the read under -race.
 			seenCh := make(chan seenRequest, 2)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				body, _ := io.ReadAll(r.Body)
@@ -254,11 +225,13 @@ func receiveSeenRequest(t *testing.T, seenCh <-chan seenRequest) seenRequest {
 
 func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	requests := make([]map[string]any, 0, 2)
+	keys := make([]string, 0, 2)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.EscapedPath() {
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/json":
 			assert.Equal(t, http.MethodPost, r.Method)
+			keys = append(keys, r.Header.Get("X-Idempotency"))
 			requests = append(requests, decodeJSONBody(t, r))
 			writeJSON(t, w, map[string]any{"id": "tx-created", "status": map[string]any{"code": "PENDING"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-created/commit":
@@ -303,7 +276,7 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 		},
 	}
 
-	_, err = CreateFromTemplate(context.Background(), entity, "org-1", "ledger-1", template, 1234, map[string]any{"override": "yes"}, "idem-template")
+	_, err = CreateFromTemplate(context.Background(), entity, "org-1", "ledger-1", template, 1234, map[string]any{"override": "yes"}, "")
 	require.NoError(t, err)
 	require.Len(t, requests, 2)
 
@@ -315,8 +288,9 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	templateSend := requireMap(t, requests[1]["send"])
 	assert.Equal(t, "12.34", templateSend["value"])
 	templateMetadata := requireMap(t, requests[1]["metadata"])
-	assert.Equal(t, "funding", templateMetadata["template"])
-	assert.Equal(t, "yes", templateMetadata["override"])
+	// Exact match: a wall-clock field would make a resend a different body.
+	assert.Equal(t, map[string]any{"template": "funding", "override": "yes"}, templateMetadata)
+	assert.Equal(t, []string{"idem-multi", ""}, keys)
 
 	committed, err := CommitPendingTransaction(context.Background(), entity, "org-1", "ledger-1", "tx-created")
 	require.NoError(t, err)

@@ -1,6 +1,6 @@
 # 06-idempotency
 
-Demonstrates the idempotency surface — three modes for the
+Demonstrates the idempotency surface — the modes for the
 `X-Idempotency` request header on unsafe (POST/PUT/PATCH/DELETE)
 requests.
 
@@ -18,11 +18,9 @@ requests.
    makes the SDK emit the caller's key. The recommended pattern for
    at-least-once producers (saga steps, outbox rows, UI submissions).
 
-3. **Per-call opt-out** — on an opted-in client,
-   `sdkctx.WithoutAutoIdempotency(ctx)` suppresses the generated key.
-
-4. **Precedence rule** — an explicit key set via `WithIdempotencyKey`
-   ALWAYS wins over `WithoutAutoIdempotency`. Useful when middleware
+3. **Precedence rule** — an explicit key set via `WithIdempotencyKey`
+   ALWAYS wins over `WithoutAutoIdempotency` (which only matters on a client
+   opted in with `midaz.WithIdempotency(true)`). Useful when middleware
    blanket-applies suppression but a specific call-site wants
    idempotency back on.
 
@@ -52,8 +50,6 @@ caller-supplied key (Mode 2) will not produce a duplicate.
 created with NO X-Idempotency header on the wire
 --- Caller-supplied idempotency key ---
 created with X-Idempotency=demo-stable-key-001 (re-runs are safe)
---- Auto-idempotency suppressed for one call (opt-in clients) ---
-created with NO X-Idempotency header on the wire
 --- Explicit key wins over suppression ---
 created with X-Idempotency=demo-overrides-suppression-002
 ```

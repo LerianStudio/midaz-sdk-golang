@@ -365,7 +365,7 @@ Runnable examples live in `examples/`:
 
 **Behavior & resilience**
 
-- `06-idempotency/` - Auto, manual, and per-call opt-out.
+- `06-idempotency/` - Keyless default, explicit key, and key precedence.
 - `07-retries/` - Default policy, custom policy, disabled.
 - `08-logging-slog/` - `*slog.Logger` integration.
 

@@ -1,4 +1,4 @@
-// Package main demonstrates the idempotency surface — the three modes
+// Package main demonstrates the idempotency surface — the modes
 // the SDK supports for the X-Idempotency request header on unsafe (POST,
 // PUT, PATCH, DELETE) requests:
 //
@@ -18,12 +18,9 @@
 //     YOUR consumer's perspective — re-issuing the same logical
 //     transaction does not double-charge.
 //
-//  3. Per-call opt-out: [sdkctx.WithoutAutoIdempotency] suppresses the
-//     auto-generated key for the next request. Use for the rare endpoint
-//     where idempotency is genuinely undesired (e.g., fire-and-forget
-//     diagnostics) AND you have no caller-supplied key. Note: an explicit
-//     key set via WithIdempotencyKey ALWAYS wins, even when
-//     WithoutAutoIdempotency is also on the same context.
+//  3. Precedence: an explicit key set via WithIdempotencyKey wins over
+//     [sdkctx.WithoutAutoIdempotency], which only matters on a client that
+//     opted in with midaz.WithIdempotency(true).
 //
 // Global default: auto-idempotency is off, so only requests with an explicit
 // WithIdempotencyKey emit the X-Idempotency header.
@@ -62,7 +59,6 @@ func main() {
 
 	demoDefaultNoKey(c)
 	demoExplicitKey(c)
-	demoSuppressedKey(c)
 	demoExplicitWinsOverSuppression(c)
 }
 
@@ -102,25 +98,6 @@ func demoExplicitKey(c *midaz.Client) {
 		return
 	}
 	fmt.Println("created with X-Idempotency=demo-stable-key-001 (re-runs are safe)")
-}
-
-// demoSuppressedKey shows the per-call opt-out, which only matters on a client
-// that opted in with midaz.WithIdempotency(true): the SDK emits NO X-Idempotency
-// header for this request.
-func demoSuppressedKey(c *midaz.Client) {
-	fmt.Println("--- Auto-idempotency suppressed for one call (opt-in clients) ---")
-
-	ctx := sdkctx.WithoutAutoIdempotency(context.Background())
-
-	input := &models.CreateOrganizationInput{
-		LegalName:     "Idempotency Demo Suppressed",
-		LegalDocument: "00000000000191",
-	}
-	if _, err := c.V2.Organizations.Create(ctx, input); err != nil {
-		log.Printf("CreateOrganization (suppressed): %v", err)
-		return
-	}
-	fmt.Println("created with NO X-Idempotency header on the wire")
 }
 
 // demoExplicitWinsOverSuppression illustrates the precedence rule:

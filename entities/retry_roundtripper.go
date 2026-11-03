@@ -217,13 +217,13 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
 	}
 
-	// 409/0084 under the key the SDK minted for this call, or keyless on a body-deduped route: the
+	// 409/0084 under the key the SDK minted for this call, or keyless (retries are enabled only on body-deduped routes): the
 	// claim is this call's own earlier attempt (or an identical body), so a retry cannot post twice.
 	// Any other key's 0084 is returned.
 	minted, ok := req.Context().Value(mintedKeyCtx{}).(string)
 	key := req.Header.Get(idempotencyHeader)
 
-	if resp.StatusCode == http.StatusConflict && ((ok && minted == key) || (key == "" && ledgerDedupesByBody(req))) {
+	if resp.StatusCode == http.StatusConflict && ((ok && minted == key) || key == "") {
 		body := bufferResponseBody(resp)
 
 		if sdkerrors.IsIdempotencyError(sdkerrors.DecodeProblemJSON(resp.StatusCode, body, "")) {

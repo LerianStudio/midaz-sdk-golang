@@ -121,8 +121,6 @@ func Transfer(
 		opts = DefaultTransferOptions()
 	}
 
-	idempotencyKey := opts.IdempotencyKey
-
 	amountValue := formatAmount(amount, scale)
 
 	// Create the transaction input
@@ -130,7 +128,7 @@ func Transfer(
 		Description:              opts.Description,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
-		IdempotencyKey:           idempotencyKey,
+		IdempotencyKey:           opts.IdempotencyKey,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -240,8 +238,6 @@ func Deposit(
 		opts = DefaultDepositOptions()
 	}
 
-	idempotencyKey := opts.IdempotencyKey
-
 	// Generate external account ID if not specified
 	externalAccountID := opts.ExternalAccountID
 	if externalAccountID == "" {
@@ -256,7 +252,7 @@ func Deposit(
 		Description:              opts.Description,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
-		IdempotencyKey:           idempotencyKey,
+		IdempotencyKey:           opts.IdempotencyKey,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -366,8 +362,6 @@ func Withdrawal(
 		opts = DefaultWithdrawalOptions()
 	}
 
-	idempotencyKey := opts.IdempotencyKey
-
 	// Generate external account ID if not specified
 	externalAccountID := opts.ExternalAccountID
 	if externalAccountID == "" {
@@ -382,7 +376,7 @@ func Withdrawal(
 		Description:              opts.Description,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
-		IdempotencyKey:           idempotencyKey,
+		IdempotencyKey:           opts.IdempotencyKey,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -483,7 +477,7 @@ func MultiAccountTransfer(
 		return nil, errors.New("transactions service is not initialized")
 	}
 
-	opts, idempotencyKey := resolveMultiTransferOptions(opts)
+	opts = resolveMultiTransferOptions(opts)
 
 	if err := validateMultiTransferAccounts(sourceAccounts, destAccounts); err != nil {
 		return nil, err
@@ -503,7 +497,7 @@ func MultiAccountTransfer(
 		return nil, err
 	}
 
-	multiTransferInput := buildMultiTransferInput(opts, idempotencyKey, totalAmount, scale, assetCode, fromList, toList)
+	multiTransferInput := buildMultiTransferInput(opts, totalAmount, scale, assetCode, fromList, toList)
 
 	transaction, err := entity.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, multiTransferInput)
 	if err != nil {
@@ -513,14 +507,12 @@ func MultiAccountTransfer(
 	return transaction, nil
 }
 
-func resolveMultiTransferOptions(opts *MultiTransferOptions) (*MultiTransferOptions, string) {
+func resolveMultiTransferOptions(opts *MultiTransferOptions) *MultiTransferOptions {
 	if opts == nil {
 		opts = DefaultMultiTransferOptions()
 	}
 
-	idempotencyKey := opts.IdempotencyKey
-
-	return opts, idempotencyKey
+	return opts
 }
 
 func validateMultiTransferAccounts(sourceAccounts, destAccounts map[string]int64) error {
@@ -575,14 +567,14 @@ func validateMultiTransferAmounts(sourceSum, destSum, totalAmount int64) error {
 	return nil
 }
 
-func buildMultiTransferInput(opts *MultiTransferOptions, idempotencyKey string, totalAmount, scale int64, assetCode string, fromList, toList []models.FromToInput) *models.CreateTransactionInput {
+func buildMultiTransferInput(opts *MultiTransferOptions, totalAmount, scale int64, assetCode string, fromList, toList []models.FromToInput) *models.CreateTransactionInput {
 	totalAmountValue := formatAmount(totalAmount, scale)
 
 	return &models.CreateTransactionInput{
 		Description:              opts.Description,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
-		IdempotencyKey:           idempotencyKey,
+		IdempotencyKey:           opts.IdempotencyKey,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
