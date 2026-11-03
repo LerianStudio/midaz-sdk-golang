@@ -182,7 +182,7 @@ func TestCRMReaderResolvesAPIFromVersion(t *testing.T) {
 }
 
 // TestCRMReaderRoutesAndDecodesBothAPIs pins each API's routes and organization placement, the
-// identical query on both, the configured "/v1" suffix being dropped, no Authorization on /version,
+// identical query on both, the configured "/v1" suffix being dropped, the same Authorization on /version,
 // and one golden body decoding to the same models through both APIs.
 func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 	type decoded struct {
@@ -255,7 +255,7 @@ func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 			assert.Equal(t, "account_id=acc&banking_details_account=123450&banking_details_branch=0001&document=12345678909&include_deleted=true&limit=100&page=2", reqs[0].URL.RawQuery)
 			assert.Equal(t, "document=12345678909&limit=100&page=2", reqs[1].URL.RawQuery)
 			assert.Empty(t, reqs[2].URL.RawQuery)
-			assert.Empty(t, versionAuth, "/version is public; never send the credential there")
+			assert.Equal(t, "Bearer t", versionAuth, "/version carries the credential the data reads carry")
 		})
 	}
 
@@ -380,12 +380,59 @@ func TestCRMReaderSharesFirstProbe(t *testing.T) {
 	assert.Len(t, srv.requests(), callers)
 }
 
+// TestCRMReaderFirstProbeIsPerAuthorization pins that a bad credential's in-flight first probe
+// never fails a caller holding a good one.
+func TestCRMReaderFirstProbeIsPerAuthorization(t *testing.T) {
+	type credKey struct{}
+
+	release := make(chan struct{})
+	badInFlight := make(chan struct{})
+	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "Bearer bad" {
+			close(badInFlight)
+			<-release
+			w.WriteHeader(http.StatusUnauthorized)
+
+			return
+		}
+
+		_, _ = w.Write([]byte(ledgerVersion422))
+	})
+	reader, err := NewCRMReader(CRMReaderConfig{
+		URL:  srv.URL,
+		HTTP: http.DefaultClient,
+		Authorization: func(ctx context.Context) (string, error) {
+			return ctx.Value(credKey{}).(string), nil
+		},
+	})
+	require.NoError(t, err)
+
+	read := func(cred string) error {
+		_, err := reader.Holders(context.WithValue(context.Background(), credKey{}, cred), crmTestOrg, HolderQuery{})
+		return err
+	}
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() { _ = read("Bearer bad") })
+	<-badInFlight
+
+	goodErr := make(chan error, 1)
+	go func() { goodErr <- read("Bearer good") }()
+
+	time.Sleep(100 * time.Millisecond) // let the good caller reach the probe
+	close(release)
+	wg.Wait()
+
+	require.NoError(t, <-goodErr)
+}
+
 type doerFunc func(*http.Request) (*http.Response, error)
 
 func (f doerFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
 
-// TestCRMReaderProbeCarriesNoCallerValues pins that GET /version runs on a fresh context: a value on
-// the first caller's context (an actor-relay token, a diagnostic capture) never reaches the probe.
+// TestCRMReaderProbeCarriesNoCallerValues pins that GET /version runs on a fresh context: of the first
+// caller's context only the Authorization value is sent (no actor-relay token, no diagnostic capture).
 func TestCRMReaderProbeCarriesNoCallerValues(t *testing.T) {
 	type callerKey struct{}
 
@@ -483,6 +530,7 @@ func TestCRMReaderRequestFailures(t *testing.T) {
 
 		assert.NotErrorAs(t, err, &sdkErr, "the caller keeps its own token codes")
 		assert.Empty(t, srv.requests())
+		assert.Zero(t, srv.versionHits.Load(), "no probe starts when Authorization fails")
 	})
 
 	t.Run("ids that are not UUIDs never reach the wire", func(t *testing.T) {
