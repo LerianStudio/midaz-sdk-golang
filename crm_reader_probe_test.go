@@ -64,6 +64,56 @@ func TestCRMReaderProbe_CallbackCanReadCachedResolution(t *testing.T) {
 	}
 }
 
+func TestCRMReaderProbe_CachedRefusalCallbackDoesNotRestartFlight(t *testing.T) {
+	var refresh atomic.Bool
+	var callbacks atomic.Int32
+	duplicate := make(chan struct{}, 1)
+	var hits atomic.Int32
+	srv := newCRMServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		if !refresh.Load() {
+			_, _ = w.Write([]byte(ledgerVersion422))
+			return
+		}
+		if hits.Add(1) > 1 {
+			duplicate <- struct{}{}
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result := make(chan error, 1)
+	release := make(chan struct{})
+	defer close(release)
+	var reader *CRMReader
+	reader = newTestCRMReader(t, srv.URL, func(_ CRMAPI, _ ServerVersion, err error) {
+		if err != nil && callbacks.Add(1) == 1 {
+			_, readErr := reader.Holders(ctx, crmTestOrg, HolderQuery{})
+			result <- readErr
+			<-release
+		}
+	})
+	var clock atomic.Int64
+	start := time.Now()
+	reader.now = func() time.Time { return start.Add(time.Duration(clock.Load())) }
+	_, err := reader.Holders(ctx, crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	refresh.Store(true)
+	clock.Store(int64(crmRefreshInterval))
+	_, err = reader.Holders(ctx, crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	select {
+	case err := <-result:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal("cached callback read blocked")
+	}
+	select {
+	case <-duplicate:
+		t.Fatal("callback restarted the active refresh")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
 func TestCRMReaderProbe_InitialFailureCallbackCanRetry(t *testing.T) {
 	t.Parallel()
 	var renewed atomic.Bool

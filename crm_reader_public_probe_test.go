@@ -70,29 +70,61 @@ func TestCRMReaderPublicMetadataDoesNotWaitForUnusedCredential(t *testing.T) {
 
 func TestCRMReaderProtectedMetadataUsesCallerContext(t *testing.T) {
 	type key struct{}
-	var hits atomic.Int32
-	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
-		hits.Add(1)
-		if r.Header.Get("Authorization") != "Bearer tenant" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		_, _ = w.Write([]byte(ledgerVersion422))
-	})
-	reader, err := NewCRMReader(CRMReaderConfig{
-		URL: srv.URL, HTTP: http.DefaultClient,
-		Authorization: func(ctx context.Context) (string, error) {
-			if ctx.Value(key{}) != "tenant" {
-				return "", errors.New("missing tenant")
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			var hits atomic.Int32
+			srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+				hits.Add(1)
+				if r.Header.Get("Authorization") != "Bearer tenant" {
+					w.WriteHeader(status)
+					return
+				}
+				_, _ = w.Write([]byte(ledgerVersion422))
+			})
+			reader, err := NewCRMReader(CRMReaderConfig{
+				URL: srv.URL, HTTP: http.DefaultClient,
+				Authorization: func(ctx context.Context) (string, error) {
+					if ctx.Value(key{}) != "tenant" {
+						return "", errors.New("missing tenant")
+					}
+					return "Bearer tenant", nil
+				},
+			})
+			require.NoError(t, err)
+			_, err = reader.Holders(context.WithValue(context.Background(), key{}, "tenant"), crmTestOrg, HolderQuery{})
+			require.NoError(t, err)
+			require.EqualValues(t, 2, hits.Load())
+			require.Equal(t, "Bearer tenant", srv.requests()[0].Header.Get("Authorization"))
+		})
+	}
+}
+
+func TestCRMReaderDiscoveryRefusalClassification(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		hits   int64
+	}{
+		{http.StatusUnauthorized, 2},
+		{http.StatusForbidden, 2},
+		{http.StatusNotFound, 1},
+		{http.StatusInternalServerError, 1},
+	} {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			srv := newCRMServer(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(tc.status) })
+			reader, err := NewCRMReader(CRMReaderConfig{URL: srv.URL, HTTP: http.DefaultClient,
+				Authorization: func(context.Context) (string, error) { return "Bearer tenant", nil },
+			})
+			require.NoError(t, err)
+			_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+			if tc.status == http.StatusUnauthorized {
+				require.True(t, sdkerrors.IsAuthenticationError(err))
+			} else {
+				require.True(t, sdkerrors.IsNetworkError(err))
 			}
-			return "Bearer tenant", nil
-		},
-	})
-	require.NoError(t, err)
-	_, err = reader.Holders(context.WithValue(context.Background(), key{}, "tenant"), crmTestOrg, HolderQuery{})
-	require.NoError(t, err)
-	require.EqualValues(t, 2, hits.Load())
-	require.Equal(t, "Bearer tenant", srv.requests()[0].Header.Get("Authorization"))
+			require.EqualValues(t, tc.hits, srv.versionHits.Load())
+			require.Empty(t, srv.requests())
+		})
+	}
 }
 
 func TestCRMReaderPublicFailureCallbackRetriesSameFlight(t *testing.T) {
@@ -234,6 +266,60 @@ func TestCRMReaderRefreshIsolatedByCredential(t *testing.T) {
 		require.Equal(t, serverversion.CRMAPIV2, api)
 	case <-time.After(2 * time.Second):
 		t.Fatal("valid credential refresh was blocked by failed credential")
+	}
+}
+
+func TestCRMReaderFailedCredentialDoesNotDelayRefresh(t *testing.T) {
+	type contextKey struct{}
+	var refresh atomic.Bool
+	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if !refresh.Load() {
+			_, _ = w.Write([]byte(crmVersion384))
+		} else if r.Header.Get("Authorization") == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+			_, _ = w.Write([]byte(ledgerVersion422))
+		}
+	})
+	reports := make(chan CRMAPI, 3)
+	reader, err := NewCRMReader(CRMReaderConfig{URL: srv.URL, HTTP: http.DefaultClient,
+		Authorization: func(ctx context.Context) (string, error) {
+			if ctx.Value(contextKey{}) != nil {
+				return "", errors.New("credential unavailable")
+			}
+			return "Bearer valid", nil
+		},
+		OnResolve: func(api CRMAPI, _ ServerVersion, _ error) { reports <- api },
+	})
+	require.NoError(t, err)
+	var clock atomic.Int64
+	start := time.Now()
+	reader.now = func() time.Time { return start.Add(time.Duration(clock.Load())) }
+	_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	select {
+	case api := <-reports:
+		require.Equal(t, serverversion.CRMAPIV1, api)
+	case <-time.After(2 * time.Second):
+		t.Fatal("initial resolution did not complete")
+	}
+	refresh.Store(true)
+	clock.Store(int64(crmRefreshInterval))
+	_, err = reader.Holders(context.WithValue(context.Background(), contextKey{}, true), crmTestOrg, HolderQuery{})
+	require.Error(t, err)
+	select {
+	case api := <-reports:
+		require.Equal(t, serverversion.CRMAPIV1, api)
+	case <-time.After(2 * time.Second):
+		t.Fatal("failed refresh did not complete")
+	}
+	_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	select {
+	case api := <-reports:
+		require.Equal(t, serverversion.CRMAPIV2, api)
+	case <-time.After(2 * time.Second):
+		t.Fatal("failed credential delayed valid refresh")
 	}
 }
 

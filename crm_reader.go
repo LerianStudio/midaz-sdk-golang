@@ -268,12 +268,17 @@ func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
 	return resolved.api, nil
 }
 
+func crmAuthRefusal(err error) bool {
+	status, ok := sdkerrors.ActualHTTPStatus(err)
+	return ok && (status == http.StatusUnauthorized || status == http.StatusForbidden)
+}
+
 func (r *CRMReader) discover(ctx context.Context) error {
 	public := r.probes.DoChan(crmVersionOperation, func() (any, error) {
 		probeCtx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 		defer cancel()
 		v, err := readServerVersion(probeCtx, r.http, r.root, crmVersionOperation, "")
-		if status, ok := sdkerrors.ActualHTTPStatus(err); ok && status == http.StatusUnauthorized && r.authorization != nil {
+		if crmAuthRefusal(err) && r.authorization != nil {
 			return v, err
 		}
 		if err != nil {
@@ -287,8 +292,7 @@ func (r *CRMReader) discover(ctx context.Context) error {
 	case <-ctx.Done():
 		return sdkerrors.ClassifyTransportError(crmReaderOperation, ctx.Err())
 	}
-	status, challenged := sdkerrors.ActualHTTPStatus(result.Err)
-	if !challenged || status != http.StatusUnauthorized || r.authorization == nil {
+	if !crmAuthRefusal(result.Err) || r.authorization == nil {
 		return result.Err
 	}
 	authorization, err := r.authorization(ctx)
@@ -318,7 +322,7 @@ func (r *CRMReader) probe(authorization, key string) error {
 	defer cancel()
 
 	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation, authorization)
-	if err != nil {
+	if err != nil && r.resolved.Load() == nil {
 		r.probes.Forget(key)
 	}
 	return r.commitProbe(v, err)
@@ -333,17 +337,18 @@ func (r *CRMReader) commitProbe(v ServerVersion, err error) error {
 	defer r.resolveMu.Unlock()
 	last := r.resolved.Load()
 
-	if err != nil {
-		if last == nil {
-			if status, ok := sdkerrors.ActualHTTPStatus(err); ok && status == http.StatusUnauthorized {
-				return err
-			}
-
-			// The cause's text only: a /version 404 in the chain would match ErrNotFound, "account not found".
-			return sdkerrors.NewNetworkError(crmReaderOperation, errors.New("CRM API unresolved: "+err.Error()))
+	if err != nil && last == nil {
+		if status, ok := sdkerrors.ActualHTTPStatus(err); ok && status == http.StatusUnauthorized {
+			return err
 		}
 
-		r.resolved.Store(&crmResolution{api: last.api, expiresAt: r.now().Add(crmRefreshInterval)})
+		// The cause's text only: a /version 404 in the chain would match ErrNotFound, "account not found".
+		return sdkerrors.NewNetworkError(crmReaderOperation, errors.New("CRM API unresolved: "+err.Error()))
+	}
+	if err != nil {
+		if !crmAuthRefusal(err) {
+			r.resolved.Store(&crmResolution{api: last.api, expiresAt: r.now().Add(crmRefreshInterval)})
+		}
 		r.onResolve(last.api, v, err)
 
 		return nil

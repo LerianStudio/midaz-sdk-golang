@@ -126,7 +126,7 @@ with `VERSION` unset serves only `version` and `requestDate` and reads `CRMAPIV1
 serves the `/v2` holders and instruments.
 
 The reader resolves at first use, first requesting `/version` without credentials.
-If a gateway responds with HTTP 401, the reader obtains Authorization in the
+If a gateway responds with HTTP 401 or 403, the reader obtains Authorization in the
 caller context and retries once; concurrent authenticated probes share a read
 only when their Authorization values match. Each caller keeps its own deadline.
 Data reads always obtain their own Authorization after resolution.
@@ -141,7 +141,8 @@ After 5 minutes the next call snapshots Authorization in the caller context and
 re-reads `/version` in the background with that value, independently of the
 caller's cancellation. If the snapshot fails, the refresh proceeds without a
 header; the data read obtains its own Authorization as usual. A failed re-read
-keeps the last API, a different answer replaces it. Point the engines at a new
+keeps the last API; a 401 or 403 does not delay a retry with another credential.
+A different answer replaces the API. Point the engines at a new
 CRM URL with a restart, not by waiting for the refresh.
 
 When the doer returns a `*url.Error` (the standard client and lib-observability
