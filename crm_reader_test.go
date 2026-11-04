@@ -387,13 +387,17 @@ func TestCRMReaderFirstProbeIsPerAuthorization(t *testing.T) {
 
 	release := make(chan struct{})
 	badInFlight := make(chan struct{})
+	goodProbed := make(chan struct{})
 	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") == "Bearer bad" {
+		switch r.Header.Get("Authorization") {
+		case "Bearer bad":
 			close(badInFlight)
 			<-release
 			w.WriteHeader(http.StatusUnauthorized)
 
 			return
+		case "Bearer good":
+			close(goodProbed)
 		}
 
 		_, _ = w.Write([]byte(ledgerVersion422))
@@ -420,10 +424,17 @@ func TestCRMReaderFirstProbeIsPerAuthorization(t *testing.T) {
 	goodErr := make(chan error, 1)
 	go func() { goodErr <- read("Bearer good") }()
 
-	time.Sleep(100 * time.Millisecond) // let the good caller reach the probe
+	probedAlone := false
+	select {
+	case <-goodProbed: // the bad probe is still held, so the good caller probed on its own
+		probedAlone = true
+	case <-time.After(2 * time.Second):
+	}
+
 	close(release)
 	wg.Wait()
 
+	require.True(t, probedAlone, "the good caller joined the bad caller's probe")
 	require.NoError(t, <-goodErr)
 }
 
