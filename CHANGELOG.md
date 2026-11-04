@@ -1,5 +1,24 @@
 # Midaz-sdk-golang Changelog
 
+## [6.5.4](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.4)
+
+Features:
+- Promote the reviewed CRM discovery fix to production. (@fredcamaral)
+
+Fixes:
+- Preserve the public CRM version discovery to ensure consistent access to version information. (@fredcamaral)
+- Implement a backoff mechanism for refused CRM refreshes to prevent excessive retries. (@fredcamaral)
+- Maintain newer CRM metadata when receiving late replies to avoid overwriting with outdated information. (@fredcamaral)
+- Ensure recovery from CRM authentication refusals to maintain service continuity. (@fredcamaral)
+- Isolate CRM refresh operations by credential to prevent cross-credential interference. (@fredcamaral)
+
+Improvements:
+- Document the CRM refresh refusal backoff process to clarify the handling of refresh refusals. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.5.3...v6.5.4)
+
+---
+
 ## [6.5.3](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.3)
 
 Fixes:
