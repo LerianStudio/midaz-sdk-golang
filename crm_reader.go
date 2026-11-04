@@ -2,6 +2,7 @@ package midaz
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,7 +44,7 @@ type CRMReaderConfig struct {
 	// HTTP sends every request, GET /version included: anything with Do(*http.Request), such as an
 	// *http.Client. Required.
 	HTTP HTTPDoer
-	// Authorization returns the header for each probe and data read; values may differ after discovery.
+	// Authorization returns the header for challenged metadata and each data read; values may differ after discovery.
 	// It is sent verbatim ("" or nil sends none); errors are returned wrapped, unclassified.
 	Authorization func(ctx context.Context) (string, error)
 	// OnResolve reports the first resolved API, every change, and every failed /version read with
@@ -80,13 +81,16 @@ type CRMReader struct {
 	now           func() time.Time
 
 	probes    singleflight.Group
+	probeSeq  atomic.Uint64
 	resolveMu sync.Mutex
+	refusals  map[[32]byte]time.Time
 	resolved  atomic.Pointer[crmResolution]
 }
 
 type crmResolution struct {
-	api       CRMAPI
-	expiresAt time.Time
+	api        CRMAPI
+	expiresAt  time.Time
+	generation uint64
 }
 
 // NewCRMReader validates cfg. It makes no request.
@@ -111,6 +115,7 @@ func NewCRMReader(cfg CRMReaderConfig) (*CRMReader, error) {
 		authorization: cfg.Authorization,
 		onResolve:     onResolve,
 		now:           time.Now,
+		refusals:      make(map[[32]byte]time.Time),
 	}, nil
 }
 
@@ -241,52 +246,108 @@ func (r *CRMReader) withoutRequestURL(err error) error {
 	return &url.Error{Op: urlErr.Op, URL: r.root, Err: urlErr.Err}
 }
 
-// api answers the resolved API, starting one background re-read once it has expired. Before the
-// first resolution, callers share one probe per Authorization (a tenant's bad credential never
-// fails another's) and each leaves at its own deadline.
+// api returns cached metadata immediately, refreshing expired metadata in the background.
 func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
 	resolved := r.resolved.Load()
-	if resolved != nil && r.now().Before(resolved.expiresAt) {
+	if resolved == nil {
+		if err := r.discover(ctx); err != nil {
+			return "", err
+		}
+		return r.resolved.Load().api, nil
+	}
+	if r.now().Before(resolved.expiresAt) {
 		return resolved.api, nil
 	}
-
 	var authorization string
 	if r.authorization != nil {
 		var err error
-		if authorization, err = r.authorization(ctx); err != nil {
-			return "", fmt.Errorf("crm authorization: %w", err)
+		authorization, err = r.authorization(ctx)
+		if err != nil {
+			authorization = ""
 		}
 	}
+	key := "refresh:" + crmVersionOperation + "\x00" + authorization
+	r.probes.DoChan(key, func() (any, error) {
+		r.resolveMu.Lock()
+		now := r.now()
+		for header, deadline := range r.refusals {
+			if !now.Before(deadline) {
+				delete(r.refusals, header)
+			}
+		}
+		_, refused := r.refusals[sha256.Sum256([]byte(authorization))]
+		r.resolveMu.Unlock()
+		if refused {
+			return struct{}{}, nil
+		}
+		return nil, r.probe(authorization, key)
+	})
+	return resolved.api, nil
+}
 
-	// The probe carries the header of the caller that started it: the first probe is keyed by that
-	// header, the background refresh is shared (a failed refresh keeps the last API).
-	probe := func() (any, error) { return nil, r.probe(authorization) }
+func crmAuthRefusal(err error) bool {
+	status, ok := sdkerrors.ActualHTTPStatus(err)
+	return ok && (status == http.StatusUnauthorized || status == http.StatusForbidden)
+}
 
-	if resolved != nil {
-		r.probes.DoChan(crmVersionOperation, probe)
-
-		return resolved.api, nil
-	}
-
+func (r *CRMReader) discover(ctx context.Context) error {
+	public := r.probes.DoChan(crmVersionOperation, func() (any, error) {
+		generation := r.probeSeq.Add(1)
+		probeCtx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
+		defer cancel()
+		v, err := readServerVersion(probeCtx, r.http, r.root, crmVersionOperation, "")
+		if crmAuthRefusal(err) && r.authorization != nil {
+			return v, err
+		}
+		if err != nil {
+			r.probes.Forget(crmVersionOperation)
+		}
+		return v, r.commitProbe(generation, v, err, "", false)
+	})
+	var result singleflight.Result
 	select {
-	case res := <-r.probes.DoChan(crmVersionOperation+"\x00"+authorization, probe):
-		if res.Err != nil {
-			return "", res.Err
-		}
-
-		return r.resolved.Load().api, nil
+	case result = <-public:
 	case <-ctx.Done():
-		return "", sdkerrors.ClassifyTransportError(crmReaderOperation, ctx.Err())
+		return sdkerrors.ClassifyTransportError(crmReaderOperation, ctx.Err())
+	}
+	if !crmAuthRefusal(result.Err) || r.authorization == nil {
+		return result.Err
+	}
+	authorization, err := r.authorization(ctx)
+	if err != nil {
+		return fmt.Errorf("crm authorization: %w", err)
+	}
+	key := crmVersionOperation + "\x00" + authorization
+	private := r.probes.DoChan(key, func() (any, error) {
+		if authorization != "" {
+			return nil, r.probe(authorization, key)
+		}
+		r.probes.Forget(key)
+		return nil, r.commitProbe(0, ServerVersion{Source: serverversion.SourceUnavailable}, result.Err, "", false)
+	})
+	select {
+	case privateResult := <-private:
+		return privateResult.Err
+	case <-ctx.Done():
+		return sdkerrors.ClassifyTransportError(crmReaderOperation, ctx.Err())
 	}
 }
 
 // probe reads /version on a fresh context: of the caller that started it, only the Authorization value is sent. A failure
 // keeps the last API; with none yet it caches nothing and returns the initial failure.
-func (r *CRMReader) probe(authorization string) error {
+func (r *CRMReader) probe(authorization, key string) error {
+	generation := r.probeSeq.Add(1)
 	ctx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 	defer cancel()
 
 	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation, authorization)
+	if err != nil && r.resolved.Load() == nil {
+		r.probes.Forget(key)
+	}
+	return r.commitProbe(generation, v, err, authorization, strings.HasPrefix(key, "refresh:"))
+}
+
+func (r *CRMReader) commitProbe(generation uint64, v ServerVersion, err error, authorization string, refresh bool) error {
 	if err != nil && r.resolved.Load() == nil {
 		r.onResolve("", v, err)
 	}
@@ -295,24 +356,30 @@ func (r *CRMReader) probe(authorization string) error {
 	defer r.resolveMu.Unlock()
 	last := r.resolved.Load()
 
-	if err != nil {
-		if last == nil {
-			if status, ok := sdkerrors.ActualHTTPStatus(err); ok && status == http.StatusUnauthorized {
-				return err
-			}
-
-			// The cause's text only: a /version 404 in the chain would match ErrNotFound, "account not found".
-			return sdkerrors.NewNetworkError(crmReaderOperation, errors.New("CRM API unresolved: "+err.Error()))
+	if err != nil && last == nil {
+		if status, ok := sdkerrors.ActualHTTPStatus(err); ok && status == http.StatusUnauthorized {
+			return err
 		}
 
-		r.resolved.Store(&crmResolution{api: last.api, expiresAt: r.now().Add(crmRefreshInterval)})
+		// The cause's text only: a /version 404 in the chain would match ErrNotFound, "account not found".
+		return sdkerrors.NewNetworkError(crmReaderOperation, errors.New("CRM API unresolved: "+err.Error()))
+	}
+	if err != nil {
+		if crmAuthRefusal(err) && refresh {
+			r.refusals[sha256.Sum256([]byte(authorization))] = r.now().Add(crmRefreshInterval)
+		} else if !crmAuthRefusal(err) {
+			r.resolved.Store(&crmResolution{api: last.api, expiresAt: r.now().Add(crmRefreshInterval), generation: last.generation})
+		}
 		r.onResolve(last.api, v, err)
 
 		return nil
 	}
 
+	if last != nil && generation < last.generation {
+		return nil
+	}
 	api := serverversion.ResolveCRMAPI(v)
-	r.resolved.Store(&crmResolution{api: api, expiresAt: r.now().Add(crmRefreshInterval)})
+	r.resolved.Store(&crmResolution{api: api, expiresAt: r.now().Add(crmRefreshInterval), generation: generation})
 
 	if last == nil || last.api != api {
 		r.onResolve(api, v, nil)
