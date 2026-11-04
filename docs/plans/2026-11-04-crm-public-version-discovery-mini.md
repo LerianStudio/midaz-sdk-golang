@@ -49,14 +49,14 @@
 
 - [x] Done
 
-**Context:** Consumer /srv/worktrees/bump-midaz-sdk remains uncommitted at published SDK 6.5.3. The immutable original reproduction is in the session scratch crm-contract-repro directory; its final authoritative results preserve the old/new failure evidence.
+**Context:** An external, constructor-based reproduction of a downstream consumer pinned to published SDK 6.5.3 preserves the old and new failure evidence and stays unchanged.
 
-**Implementation vision:** An independent verifier checks the actual diff, runs full SDK race/vet/build and repository pinned lint, then copies the reproduction to a separate scratch directory and points only that temporary module at this SDK tree. Preserve the original reproduction and consumer files. Require real consumer reads to pass with public v2 plus failing or slow unused CRM providers, while ledger data refusal, missing-tenant isolation and protected version 401 semantics remain intact. Run heavy work only in owned verified 64 GiB scopes with shared Go caches. No production APIs, secrets, login, Docker, installs, synthetic CPU load, commit, push or release.
+**Implementation vision:** An independent verifier checks the actual diff, runs full SDK race/vet/build and repository pinned lint, then copies the reproduction to a separate scratch directory and points only that temporary module at this SDK tree. Preserve the original reproduction and consumer files. Require real consumer reads to pass with public v2 plus failing or slow unused CRM providers, while ledger data refusal, missing-tenant isolation and protected version 401 semantics remain intact. No production APIs, secrets, login, Docker, installs, synthetic CPU load, commit, push or release.
 
 **Files:**
 - Test: existing SDK suites and a scratch copy of crm-contract-repro/contract_test.go
 - Modify: none
 
-**Verification:** Record exact commands, raw exits, source delta and caller-context/credential assertions. Any unresolved regression blocks the ready PR. Later independent review, stable publication and the consumer pin remain owned by the fleet plan.
+**Verification:** Record exact commands, raw exits, source delta and caller-context/credential assertions. Any unresolved regression blocks the ready PR. Independent review, stable publication and the consumer pin follow separately.
 
 **Done when:** Focused and full SDK gates and the compatible consumer proof pass without source workarounds or suppressed failures.

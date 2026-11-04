@@ -141,7 +141,9 @@ After 5 minutes the next call snapshots Authorization in the caller context and
 re-reads `/version` in the background with that value, independently of the
 caller's cancellation. If the snapshot fails, the refresh proceeds without a
 header; the data read obtains its own Authorization as usual. A failed re-read
-keeps the last API; a 401 or 403 does not delay a retry with another credential.
+keeps the last API; a 401 or 403 does not delay a retry with another credential,
+but the refused Authorization value, including none, is not re-read for 5 minutes.
+A refresh suppressed this way sends no request and reports nothing to `OnResolve`.
 A different answer replaces the API. Point the engines at a new
 CRM URL with a restart, not by waiting for the refresh.
 
