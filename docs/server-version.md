@@ -105,7 +105,7 @@ and take the same query keys (`account_id`, `document`,
 ```go
 crm, err := midaz.NewCRMReader(midaz.CRMReaderConfig{
 	URL:           crmURL,     // a trailing "/v1" is dropped
-	HTTP:          httpClient, // also sends GET /version, without Authorization
+	HTTP:          httpClient, // also sends GET /version, with the same Authorization
 	Authorization: token,      // the Authorization header value of each read
 	OnResolve:     logCRMAPI,  // first API, each change, each failed /version read
 })
