@@ -1,5 +1,23 @@
 # Midaz-sdk-golang Changelog
 
+## [6.5.1](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.1)
+
+Features:
+- Release `v6.5.1` with the authorized CRM version probe. (@fredcamaral)
+
+Fixes:
+- Send the data-read authorization on the CRM version probe. (@fredcamaral)
+- Share the first CRM version probe only within one authorization. (@fredcamaral)
+- Call CRM authorization once per read. (@fredcamaral)
+
+Improvements:
+- Wait for the good CRM probe instead of sleeping. (@fredcamaral)
+- Update documentation to state that the CRM version probe sends the read's authorization. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.5.0...v6.5.1)
+
+---
+
 ## [6.5.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.0)
 
 Features:
