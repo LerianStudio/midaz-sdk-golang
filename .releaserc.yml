@@ -26,7 +26,7 @@ plugins:
     prepareCmd: |-
       sed -i -E 's/Version = "[^"]*"/Version = "${nextRelease.version}"/' pkg/version/version.go
       git add pkg/version/version.go
-      git commit -m "chore(release): ${nextRelease.version} [skip ci]"
+      git commit -m "chore(release): ${nextRelease.version}"
       git push origin HEAD:$(git rev-parse --abbrev-ref HEAD)
 
 branches:
