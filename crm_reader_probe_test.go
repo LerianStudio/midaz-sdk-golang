@@ -115,74 +115,76 @@ func TestCRMReaderProbe_InitialFailureCallbackCanRetry(t *testing.T) {
 
 func TestCRMReaderProbe_NotificationsRemainOrdered(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		name     string
-		failures int
-	}{{"one failure", 1}, {"two failures", 2}} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			started := make(chan struct{}, tc.failures)
-			release := make(chan struct{})
-			defer func() {
-				select {
-				case <-release:
-				default:
-					close(release)
-				}
-			}()
-			var selected atomic.Bool
-			srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
-				if r.Header.Get("Authorization") != "good" {
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-				_, _ = w.Write([]byte(ledgerVersion422))
-			})
-			reader := newTestCRMReader(t, srv.URL, func(api CRMAPI, _ ServerVersion, err error) {
-				if api == "" && err != nil {
-					started <- struct{}{}
-					select {
-					case <-release:
-					case <-ctx.Done():
-						return
-					}
-				}
-				selected.Store(api == serverversion.CRMAPIV2)
-			})
-			done := make(chan error, tc.failures)
-			for _, credential := range []string{"bad-one", "bad-two"}[:tc.failures] {
-				go func() { done <- reader.probe(credential) }()
-			}
-			for range tc.failures {
-				select {
-				case <-started:
-				case <-ctx.Done():
-					t.Fatal("initial callbacks did not start")
-				}
-			}
-			good := make(chan error, 1)
-			go func() { good <- reader.probe("good") }()
-			select {
-			case err := <-good:
-				require.NoError(t, err)
-			case <-ctx.Done():
-				t.Fatal("successful probe did not finish while callbacks were held")
-			}
+	assertCRMReaderProbeNotificationsRemainOrdered(t, 1)
+}
+
+func TestCRMReaderProbe_TwoFailuresNotificationsRemainOrdered(t *testing.T) {
+	t.Parallel()
+	assertCRMReaderProbeNotificationsRemainOrdered(t, 2)
+}
+
+func assertCRMReaderProbeNotificationsRemainOrdered(t *testing.T, failures int) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	started := make(chan struct{}, failures)
+	release := make(chan struct{})
+	defer func() {
+		select {
+		case <-release:
+		default:
 			close(release)
-			for range tc.failures {
-				select {
-				case err := <-done:
-					require.NoError(t, err)
-				case <-ctx.Done():
-					t.Fatal("initial probes did not finish")
-				}
+		}
+	}()
+	var selected atomic.Bool
+	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "good" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_, _ = w.Write([]byte(ledgerVersion422))
+	})
+	reader := newTestCRMReader(t, srv.URL, func(api CRMAPI, _ ServerVersion, err error) {
+		if api == "" && err != nil {
+			started <- struct{}{}
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return
 			}
-			require.True(t, selected.Load())
-			_, err := reader.Holders(ctx, crmTestOrg, HolderQuery{})
-			require.NoError(t, err)
-			require.Contains(t, srv.requests()[0].URL.Path, "/v2/organizations/")
-		})
+		}
+		selected.Store(api == serverversion.CRMAPIV2)
+	})
+	done := make(chan error, failures)
+	for _, credential := range []string{"bad-one", "bad-two"}[:failures] {
+		go func() { done <- reader.probe(credential) }()
 	}
+	for range failures {
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatal("initial callbacks did not start")
+		}
+	}
+	good := make(chan error, 1)
+	go func() { good <- reader.probe("good") }()
+	select {
+	case err := <-good:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal("successful probe did not finish while callbacks were held")
+	}
+	close(release)
+	for range failures {
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-ctx.Done():
+			t.Fatal("initial probes did not finish")
+		}
+	}
+	require.True(t, selected.Load())
+	_, err := reader.Holders(ctx, crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	require.Contains(t, srv.requests()[0].URL.Path, "/v2/organizations/")
 }
