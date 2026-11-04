@@ -2,6 +2,7 @@ package midaz
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,6 +83,7 @@ type CRMReader struct {
 	probes    singleflight.Group
 	probeSeq  atomic.Uint64
 	resolveMu sync.Mutex
+	refusals  map[[32]byte]time.Time
 	resolved  atomic.Pointer[crmResolution]
 }
 
@@ -113,6 +115,7 @@ func NewCRMReader(cfg CRMReaderConfig) (*CRMReader, error) {
 		authorization: cfg.Authorization,
 		onResolve:     onResolve,
 		now:           time.Now,
+		refusals:      make(map[[32]byte]time.Time),
 	}, nil
 }
 
@@ -265,6 +268,18 @@ func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
 	}
 	key := "refresh:" + crmVersionOperation + "\x00" + authorization
 	r.probes.DoChan(key, func() (any, error) {
+		r.resolveMu.Lock()
+		now := r.now()
+		for header, deadline := range r.refusals {
+			if !now.Before(deadline) {
+				delete(r.refusals, header)
+			}
+		}
+		_, refused := r.refusals[sha256.Sum256([]byte(authorization))]
+		r.resolveMu.Unlock()
+		if refused {
+			return struct{}{}, nil
+		}
 		return nil, r.probe(authorization, key)
 	})
 	return resolved.api, nil
@@ -287,7 +302,7 @@ func (r *CRMReader) discover(ctx context.Context) error {
 		if err != nil {
 			r.probes.Forget(crmVersionOperation)
 		}
-		return v, r.commitProbe(generation, v, err)
+		return v, r.commitProbe(generation, v, err, "", false)
 	})
 	var result singleflight.Result
 	select {
@@ -308,7 +323,7 @@ func (r *CRMReader) discover(ctx context.Context) error {
 			return nil, r.probe(authorization, key)
 		}
 		r.probes.Forget(key)
-		return nil, r.commitProbe(0, ServerVersion{Source: serverversion.SourceUnavailable}, result.Err)
+		return nil, r.commitProbe(0, ServerVersion{Source: serverversion.SourceUnavailable}, result.Err, "", false)
 	})
 	select {
 	case privateResult := <-private:
@@ -329,10 +344,10 @@ func (r *CRMReader) probe(authorization, key string) error {
 	if err != nil && r.resolved.Load() == nil {
 		r.probes.Forget(key)
 	}
-	return r.commitProbe(generation, v, err)
+	return r.commitProbe(generation, v, err, authorization, strings.HasPrefix(key, "refresh:"))
 }
 
-func (r *CRMReader) commitProbe(generation uint64, v ServerVersion, err error) error {
+func (r *CRMReader) commitProbe(generation uint64, v ServerVersion, err error, authorization string, refresh bool) error {
 	if err != nil && r.resolved.Load() == nil {
 		r.onResolve("", v, err)
 	}
@@ -350,7 +365,9 @@ func (r *CRMReader) commitProbe(generation uint64, v ServerVersion, err error) e
 		return sdkerrors.NewNetworkError(crmReaderOperation, errors.New("CRM API unresolved: "+err.Error()))
 	}
 	if err != nil {
-		if !crmAuthRefusal(err) {
+		if crmAuthRefusal(err) && refresh {
+			r.refusals[sha256.Sum256([]byte(authorization))] = r.now().Add(crmRefreshInterval)
+		} else if !crmAuthRefusal(err) {
 			r.resolved.Store(&crmResolution{api: last.api, expiresAt: r.now().Add(crmRefreshInterval), generation: last.generation})
 		}
 		r.onResolve(last.api, v, err)
