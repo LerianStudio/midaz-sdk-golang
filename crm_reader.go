@@ -80,13 +80,15 @@ type CRMReader struct {
 	now           func() time.Time
 
 	probes    singleflight.Group
+	probeSeq  atomic.Uint64
 	resolveMu sync.Mutex
 	resolved  atomic.Pointer[crmResolution]
 }
 
 type crmResolution struct {
-	api       CRMAPI
-	expiresAt time.Time
+	api        CRMAPI
+	expiresAt  time.Time
+	generation uint64
 }
 
 // NewCRMReader validates cfg. It makes no request.
@@ -275,6 +277,7 @@ func crmAuthRefusal(err error) bool {
 
 func (r *CRMReader) discover(ctx context.Context) error {
 	public := r.probes.DoChan(crmVersionOperation, func() (any, error) {
+		generation := r.probeSeq.Add(1)
 		probeCtx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 		defer cancel()
 		v, err := readServerVersion(probeCtx, r.http, r.root, crmVersionOperation, "")
@@ -284,7 +287,7 @@ func (r *CRMReader) discover(ctx context.Context) error {
 		if err != nil {
 			r.probes.Forget(crmVersionOperation)
 		}
-		return v, r.commitProbe(v, err)
+		return v, r.commitProbe(generation, v, err)
 	})
 	var result singleflight.Result
 	select {
@@ -305,7 +308,7 @@ func (r *CRMReader) discover(ctx context.Context) error {
 			return nil, r.probe(authorization, key)
 		}
 		r.probes.Forget(key)
-		return nil, r.commitProbe(ServerVersion{Source: serverversion.SourceUnavailable}, result.Err)
+		return nil, r.commitProbe(0, ServerVersion{Source: serverversion.SourceUnavailable}, result.Err)
 	})
 	select {
 	case privateResult := <-private:
@@ -318,6 +321,7 @@ func (r *CRMReader) discover(ctx context.Context) error {
 // probe reads /version on a fresh context: of the caller that started it, only the Authorization value is sent. A failure
 // keeps the last API; with none yet it caches nothing and returns the initial failure.
 func (r *CRMReader) probe(authorization, key string) error {
+	generation := r.probeSeq.Add(1)
 	ctx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 	defer cancel()
 
@@ -325,10 +329,10 @@ func (r *CRMReader) probe(authorization, key string) error {
 	if err != nil && r.resolved.Load() == nil {
 		r.probes.Forget(key)
 	}
-	return r.commitProbe(v, err)
+	return r.commitProbe(generation, v, err)
 }
 
-func (r *CRMReader) commitProbe(v ServerVersion, err error) error {
+func (r *CRMReader) commitProbe(generation uint64, v ServerVersion, err error) error {
 	if err != nil && r.resolved.Load() == nil {
 		r.onResolve("", v, err)
 	}
@@ -347,15 +351,18 @@ func (r *CRMReader) commitProbe(v ServerVersion, err error) error {
 	}
 	if err != nil {
 		if !crmAuthRefusal(err) {
-			r.resolved.Store(&crmResolution{api: last.api, expiresAt: r.now().Add(crmRefreshInterval)})
+			r.resolved.Store(&crmResolution{api: last.api, expiresAt: r.now().Add(crmRefreshInterval), generation: last.generation})
 		}
 		r.onResolve(last.api, v, err)
 
 		return nil
 	}
 
+	if last != nil && generation < last.generation {
+		return nil
+	}
 	api := serverversion.ResolveCRMAPI(v)
-	r.resolved.Store(&crmResolution{api: api, expiresAt: r.now().Add(crmRefreshInterval)})
+	r.resolved.Store(&crmResolution{api: api, expiresAt: r.now().Add(crmRefreshInterval), generation: generation})
 
 	if last == nil || last.api != api {
 		r.onResolve(api, v, nil)

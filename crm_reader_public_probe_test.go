@@ -323,6 +323,83 @@ func TestCRMReaderFailedCredentialDoesNotDelayRefresh(t *testing.T) {
 	}
 }
 
+func TestCRMReaderLateRefreshDoesNotReplaceNewerResolution(t *testing.T) {
+	type contextKey struct{}
+	var refresh atomic.Bool
+	started := make(chan struct{})
+	release := make(chan struct{}, 1)
+	defer close(release)
+	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if refresh.Load() && r.Header.Get("Authorization") == "Bearer old" {
+			close(started)
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+		} else if refresh.Load() {
+			_, _ = w.Write([]byte(ledgerVersion422))
+			return
+		}
+		_, _ = w.Write([]byte(crmVersion384))
+	})
+	reports := make(chan CRMAPI, 4)
+	reader, err := NewCRMReader(CRMReaderConfig{URL: srv.URL, HTTP: http.DefaultClient,
+		Authorization: func(ctx context.Context) (string, error) {
+			if ctx.Value(contextKey{}) == "old" {
+				return "Bearer old", nil
+			}
+			return "Bearer new", nil
+		},
+		OnResolve: func(api CRMAPI, _ ServerVersion, err error) {
+			if err == nil {
+				reports <- api
+			}
+		},
+	})
+	require.NoError(t, err)
+	var clock atomic.Int64
+	start := time.Now()
+	reader.now = func() time.Time { return start.Add(time.Duration(clock.Load())) }
+	_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	select {
+	case api := <-reports:
+		require.Equal(t, serverversion.CRMAPIV1, api)
+	case <-time.After(2 * time.Second):
+		t.Fatal("initial resolution did not complete")
+	}
+	refresh.Store(true)
+	clock.Store(int64(crmRefreshInterval))
+	_, err = reader.Holders(context.WithValue(context.Background(), contextKey{}, "old"), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("older refresh did not start")
+	}
+	oldFlight := reader.probes.DoChan("refresh:"+crmVersionOperation+"\x00Bearer old", func() (any, error) {
+		return nil, errors.New("older refresh not in flight")
+	})
+	_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	select {
+	case api := <-reports:
+		require.Equal(t, serverversion.CRMAPIV2, api)
+	case <-time.After(2 * time.Second):
+		t.Fatal("newer refresh did not resolve")
+	}
+	release <- struct{}{}
+	select {
+	case result := <-oldFlight:
+		require.NoError(t, result.Err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("older refresh did not complete")
+	}
+	_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	require.Contains(t, srv.requests()[len(srv.requests())-1].URL.Path, "/v2/")
+}
+
 func TestCRMReaderPrivateRefreshAfterCallerCanceled(t *testing.T) {
 	var calls atomic.Int32
 	release := make(chan struct{})

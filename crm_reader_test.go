@@ -343,6 +343,12 @@ func TestCRMReaderRefresh(t *testing.T) {
 	assert.Equal(t, report{api: serverversion.CRMAPIV2}, next(), "a changed answer swaps the API")
 	assert.Equal(t, "/v2/organizations/"+crmTestOrg+"/holders", read())
 	assert.EqualValues(t, 3, srv.versionHits.Load(), "one probe per expiry")
+
+	clock.Store(int64(4 * crmRefreshInterval))
+	srv.setVersion(writeBody(crmVersion384))
+	assert.Equal(t, "/v2/organizations/"+crmTestOrg+"/holders", read())
+	assert.Equal(t, report{api: serverversion.CRMAPIV1}, next(), "a later rollback replaces the API")
+	assert.Equal(t, "/v1/holders", read())
 }
 
 // TestCRMReaderSharesFirstProbe pins that concurrent first calls share one GET /version.
