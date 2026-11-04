@@ -125,13 +125,19 @@ unset also serves `0.0.0` but carries `commit`, so it reads `CRMAPIV2`; a CRM 3.
 with `VERSION` unset serves only `version` and `requestDate` and reads `CRMAPIV1`. The threshold is 4.0, not 4.1: 4.0.x already
 serves the `/v2` holders and instruments.
 
-The reader resolves at first use; concurrent first calls share one `/version`
-read and each leaves at its own deadline. Until one read succeeds, every call
-fails with a retryable error and nothing is cached: there is no
-default, because the wrong API answers 404 on a CRM that is up. After 5 minutes
-the next call answers the cached API and re-reads `/version` in the background;
-a failed re-read keeps the last API, a different answer replaces it. Point the
-engines at a new CRM URL with a restart, not by waiting for the refresh.
+The reader resolves at first use. Concurrent first calls with the same
+Authorization share one `/version` read; each caller keeps its own deadline.
+Until a read succeeds, no API is cached. An initial HTTP 401 preserves its
+authentication error so the caller can invalidate the refused token; other
+initial discovery failures remain retryable. There is no default API because
+the wrong API answers 404 even when the CRM is up. An initial failure callback
+may retry with a different credential. If another probe resolves an API while
+that callback runs, a further failure notification reports the retained API.
+
+After 5 minutes the next call answers the cached API and re-reads `/version`
+in the background; a failed re-read keeps the last API, a different answer
+replaces it. Point the engines at a new CRM URL with a restart, not by waiting
+for the refresh.
 
 When the doer returns a `*url.Error` (the standard client and lib-observability
 httpobs do), a transport error renders the CRM root instead of the request URL,
