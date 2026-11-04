@@ -1,5 +1,23 @@
 # Midaz-sdk-golang Changelog
 
+## [6.5.2](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.2)
+
+Features:
+
+- Promote the `develop` branch to `main`. (@fredcamaral)
+
+Fixes:
+
+- Select CRM data credentials after discovery to ensure proper functionality. (@fredcamaral)
+
+Improvements:
+
+- Keep release commits eligible for validation to maintain consistency in the CI process. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.5.1...v6.5.2)
+
+---
+
 ## [6.5.1](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.1)
 
 Features:
