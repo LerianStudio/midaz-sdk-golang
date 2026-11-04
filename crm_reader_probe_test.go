@@ -68,7 +68,7 @@ func TestCRMReaderProbe_InitialFailureCallbackCanRetry(t *testing.T) {
 	t.Parallel()
 	var renewed atomic.Bool
 	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") == "refused" {
+		if r.Header.Get("Authorization") == "" || r.Header.Get("Authorization") == "refused" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -157,7 +157,7 @@ func assertCRMReaderProbeNotificationsRemainOrdered(t *testing.T, failures int) 
 	})
 	done := make(chan error, failures)
 	for _, credential := range []string{"bad-one", "bad-two"}[:failures] {
-		go func() { done <- reader.probe(credential) }()
+		go func() { done <- reader.probe(credential, "") }()
 	}
 	for range failures {
 		select {
@@ -167,7 +167,7 @@ func assertCRMReaderProbeNotificationsRemainOrdered(t *testing.T, failures int) 
 		}
 	}
 	good := make(chan error, 1)
-	go func() { good <- reader.probe("good") }()
+	go func() { good <- reader.probe("good", "") }()
 	select {
 	case err := <-good:
 		require.NoError(t, err)

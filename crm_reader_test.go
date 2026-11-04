@@ -182,7 +182,7 @@ func TestCRMReaderResolvesAPIFromVersion(t *testing.T) {
 }
 
 // TestCRMReaderRoutesAndDecodesBothAPIs pins each API's routes and organization placement, the
-// identical query on both, the configured "/v1" suffix being dropped, the same Authorization on /version,
+// identical query on both, the configured "/v1" suffix being dropped, public version discovery,
 // and one golden body decoding to the same models through both APIs.
 func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 	type decoded struct {
@@ -255,7 +255,7 @@ func TestCRMReaderRoutesAndDecodesBothAPIs(t *testing.T) {
 			assert.Equal(t, "account_id=acc&banking_details_account=123450&banking_details_branch=0001&document=12345678909&include_deleted=true&limit=100&page=2", reqs[0].URL.RawQuery)
 			assert.Equal(t, "document=12345678909&limit=100&page=2", reqs[1].URL.RawQuery)
 			assert.Empty(t, reqs[2].URL.RawQuery)
-			assert.Equal(t, "Bearer t", versionAuth, "/version carries the credential the data reads carry")
+			assert.Empty(t, versionAuth, "public metadata needs no credential")
 		})
 	}
 
@@ -390,6 +390,9 @@ func TestCRMReaderFirstProbeIsPerAuthorization(t *testing.T) {
 	goodProbed := make(chan struct{})
 	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Header.Get("Authorization") {
+		case "":
+			w.WriteHeader(http.StatusUnauthorized)
+			return
 		case "Bearer bad":
 			close(badInFlight)
 			<-release
@@ -419,7 +422,13 @@ func TestCRMReaderFirstProbeIsPerAuthorization(t *testing.T) {
 	var wg sync.WaitGroup
 
 	wg.Go(func() { _ = read("Bearer bad") })
-	<-badInFlight
+	select {
+	case <-badInFlight:
+	case <-time.After(2 * time.Second):
+		close(release)
+		wg.Wait()
+		t.Fatal("bad credential probe did not start")
+	}
 
 	goodErr := make(chan error, 1)
 	go func() { goodErr <- read("Bearer good") }()
@@ -541,7 +550,7 @@ func TestCRMReaderRequestFailures(t *testing.T) {
 
 		assert.NotErrorAs(t, err, &sdkErr, "the caller keeps its own token codes")
 		assert.Empty(t, srv.requests())
-		assert.Zero(t, srv.versionHits.Load(), "no probe starts when Authorization fails")
+		assert.EqualValues(t, 1, srv.versionHits.Load(), "public metadata resolves before data authorization")
 	})
 
 	t.Run("ids that are not UUIDs never reach the wire", func(t *testing.T) {
@@ -602,7 +611,7 @@ func TestCRMReaderAuthorizationAfterResolution(t *testing.T) {
 			})
 			require.NoError(t, err)
 			_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
-			assert.Equal(t, "Bearer crm", versionAuth)
+			assert.Empty(t, versionAuth)
 			if tt.err != nil {
 				require.ErrorIs(t, err, tt.err)
 				require.ErrorContains(t, err, "crm authorization:")
