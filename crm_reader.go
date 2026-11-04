@@ -42,9 +42,8 @@ type CRMReaderConfig struct {
 	// HTTP sends every request, GET /version included: anything with Do(*http.Request), such as an
 	// *http.Client. Required.
 	HTTP HTTPDoer
-	// Authorization returns the Authorization header value of a data read and of the GET /version
-	// probe it starts, sent verbatim ("" sends none). Its error is returned wrapped, unclassified.
-	// Nil sends none.
+	// Authorization returns the header for each probe and data read; values may differ after discovery.
+	// It is sent verbatim ("" or nil sends none); errors are returned wrapped, unclassified.
 	Authorization func(ctx context.Context) (string, error)
 	// OnResolve reports the first resolved API, every change, and every failed /version read with
 	// the API kept ("" before the first resolution). It runs on the probe's goroutine. Nil reports nothing.
@@ -171,17 +170,16 @@ func (r *CRMReader) get(ctx context.Context, operation, organizationID, v1Path, 
 		return sdkerrors.NewValidationError(operation, "organizationID must be a UUID", err)
 	}
 
-	var authorization string
+	api, err := r.api(ctx)
+	if err != nil {
+		return err
+	}
 
+	var authorization string
 	if r.authorization != nil {
 		if authorization, err = r.authorization(ctx); err != nil {
 			return fmt.Errorf("crm authorization: %w", err)
 		}
-	}
-
-	api, err := r.api(ctx, authorization)
-	if err != nil {
-		return err
 	}
 
 	endpoint := r.root + "/v1/" + v1Path
@@ -244,10 +242,18 @@ func (r *CRMReader) withoutRequestURL(err error) error {
 // api answers the resolved API, starting one background re-read once it has expired. Before the
 // first resolution, callers share one probe per Authorization (a tenant's bad credential never
 // fails another's) and each leaves at its own deadline.
-func (r *CRMReader) api(ctx context.Context, authorization string) (CRMAPI, error) {
+func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
 	resolved := r.resolved.Load()
 	if resolved != nil && r.now().Before(resolved.expiresAt) {
 		return resolved.api, nil
+	}
+
+	var authorization string
+	if r.authorization != nil {
+		var err error
+		if authorization, err = r.authorization(ctx); err != nil {
+			return "", fmt.Errorf("crm authorization: %w", err)
+		}
 	}
 
 	// The probe carries the header of the caller that started it: the first probe is keyed by that

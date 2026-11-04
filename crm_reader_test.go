@@ -569,3 +569,52 @@ func TestNewCRMReaderRefusesBadConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestCRMReaderAuthorizationAfterResolution(t *testing.T) {
+	tokenErr := errors.New("token refused after resolution")
+	for _, tt := range []struct {
+		name, version, want string
+		err                 error
+	}{
+		{name: "v2", version: ledgerVersion422, want: "Bearer ledger"},
+		{name: "callback error", version: ledgerVersion422, err: tokenErr},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var versionAuth string
+			var resolved atomic.Bool
+			srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+				versionAuth = r.Header.Get("Authorization")
+				_, _ = w.Write([]byte(tt.version))
+			})
+			reader, err := NewCRMReader(CRMReaderConfig{
+				URL: srv.URL, HTTP: http.DefaultClient,
+				Authorization: func(context.Context) (string, error) {
+					if !resolved.Load() {
+						return "Bearer crm", nil
+					}
+					return tt.want, tt.err
+				},
+				OnResolve: func(api CRMAPI, _ ServerVersion, err error) {
+					if api == serverversion.CRMAPIV2 && err == nil {
+						resolved.Store(true)
+					}
+				},
+			})
+			require.NoError(t, err)
+			_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+			assert.Equal(t, "Bearer crm", versionAuth)
+			if tt.err != nil {
+				require.ErrorIs(t, err, tt.err)
+				require.ErrorContains(t, err, "crm authorization:")
+				var sdkErr *sdkerrors.Error
+				assert.NotErrorAs(t, err, &sdkErr)
+				assert.Empty(t, srv.requests())
+				return
+			}
+			require.NoError(t, err)
+			reqs := srv.requests()
+			require.Len(t, reqs, 1)
+			assert.Equal(t, tt.want, reqs[0].Header.Get("Authorization"))
+		})
+	}
+}
