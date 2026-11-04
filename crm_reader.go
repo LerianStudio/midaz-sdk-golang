@@ -287,14 +287,16 @@ func (r *CRMReader) probe(authorization string) error {
 	defer cancel()
 
 	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation, authorization)
+	if err != nil && r.resolved.Load() == nil {
+		r.onResolve("", v, err)
+	}
+
 	r.resolveMu.Lock()
 	defer r.resolveMu.Unlock()
 	last := r.resolved.Load()
 
 	if err != nil {
 		if last == nil {
-			r.onResolve("", v, err)
-
 			if status, ok := sdkerrors.ActualHTTPStatus(err); ok && status == http.StatusUnauthorized {
 				return err
 			}

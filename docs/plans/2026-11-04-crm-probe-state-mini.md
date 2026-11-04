@@ -20,6 +20,22 @@
 **Done when:** both regressions fail before their fixes and pass afterward; existing contracts and SDK gates pass.
 **Status:** Done
 
+#### Task 1.1.4: Allow a failed initial callback to retry
+
+- [x] Done
+
+**Evidence:** The new retry test failed with `callback retry blocked` before the fix and passed with race detection afterward. Channel barriers prove one and two initial failures converge after an overtaking success; an initial 401 without success reports once. The full SDK race suite, unit-tagged race/coverage suite, vet, build and repository lint passed, as did the consumer's existing credential routing and invalidation tests with a temporary modfile. The SDK root package reached 86.2% coverage; other existing packages report below 85%, so a repository-wide 85% threshold is not established. Heavy gates ran in owned scopes capped at 64 GiB, without installation or real services.
+
+**Context:** An initial failure callback may replace its refused credential and synchronously read holders. Holding the resolution mutex across that callback blocks the new probe. A concurrent successful probe can also finish while the empty callback is still running.
+
+**Implementation vision:** Notify an unresolved initial failure outside the mutex, then lock and re-read the resolved API. If a success overtook the callback, notify the retained API under the existing lock; otherwise return the initial failure without a duplicate notification. Preserve credential-isolated flights, cached reentrancy and existing refresh behavior.
+
+**Files:** Modify `crm_reader.go`, `crm_reader_probe_test.go`, and `docs/server-version.md` as needed.
+
+**Verification:** First demonstrate the synchronous rotated-credential retry failure, then pass it. Replace the timing-based ordering check with bounded channel barriers proving an overtaking success and final v2 selection. Run focused regressions, SDK race/vet/build/lint and consumer credential tests using a temporary modfile and owned bounded scope; no real services, containers, installations or load.
+
+**Done when:** the callback retry finishes, the concurrent callbacks converge on v2, and the existing 401, 404, credential and cached-read contracts pass.
+
 #### Task 1.1.1: Serialize probe result publication and notification
 
 - [x] Done

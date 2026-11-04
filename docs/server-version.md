@@ -130,7 +130,9 @@ Authorization share one `/version` read; each caller keeps its own deadline.
 Until a read succeeds, no API is cached. An initial HTTP 401 preserves its
 authentication error so the caller can invalidate the refused token; other
 initial discovery failures remain retryable. There is no default API because
-the wrong API answers 404 even when the CRM is up.
+the wrong API answers 404 even when the CRM is up. An initial failure callback
+may retry with a different credential. If another probe resolves an API while
+that callback runs, a further failure notification reports the retained API.
 
 After 5 minutes the next call answers the cached API and re-reads `/version`
 in the background; a failed re-read keeps the last API, a different answer
