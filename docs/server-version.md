@@ -105,7 +105,7 @@ and take the same query keys (`account_id`, `document`,
 ```go
 crm, err := midaz.NewCRMReader(midaz.CRMReaderConfig{
 	URL:           crmURL,     // a trailing "/v1" is dropped
-	HTTP:          httpClient, // also sends GET /version, with the same Authorization
+	HTTP:          httpClient, // also sends GET /version
 	Authorization: token,      // the Authorization header value of each read
 	OnResolve:     logCRMAPI,  // first API, each change, each failed /version read
 })
@@ -125,8 +125,11 @@ unset also serves `0.0.0` but carries `commit`, so it reads `CRMAPIV2`; a CRM 3.
 with `VERSION` unset serves only `version` and `requestDate` and reads `CRMAPIV1`. The threshold is 4.0, not 4.1: 4.0.x already
 serves the `/v2` holders and instruments.
 
-The reader resolves at first use. Concurrent first calls with the same
-Authorization share one `/version` read; each caller keeps its own deadline.
+The reader resolves at first use, first requesting `/version` without credentials.
+If a gateway responds with HTTP 401 or 403, the reader obtains Authorization in the
+caller context and retries once; concurrent authenticated probes share a read
+only when their Authorization values match. Each caller keeps its own deadline.
+Data reads always obtain their own Authorization after resolution.
 Until a read succeeds, no API is cached. An initial HTTP 401 preserves its
 authentication error so the caller can invalidate the refused token; other
 initial discovery failures remain retryable. There is no default API because
@@ -134,10 +137,13 @@ the wrong API answers 404 even when the CRM is up. An initial failure callback
 may retry with a different credential. If another probe resolves an API while
 that callback runs, a further failure notification reports the retained API.
 
-After 5 minutes the next call answers the cached API and re-reads `/version`
-in the background; a failed re-read keeps the last API, a different answer
-replaces it. Point the engines at a new CRM URL with a restart, not by waiting
-for the refresh.
+After 5 minutes the next call snapshots Authorization in the caller context and
+re-reads `/version` in the background with that value, independently of the
+caller's cancellation. If the snapshot fails, the refresh proceeds without a
+header; the data read obtains its own Authorization as usual. A failed re-read
+keeps the last API; a 401 or 403 does not delay a retry with another credential.
+A different answer replaces the API. Point the engines at a new
+CRM URL with a restart, not by waiting for the refresh.
 
 When the doer returns a `*url.Error` (the standard client and lib-observability
 httpobs do), a transport error renders the CRM root instead of the request URL,
