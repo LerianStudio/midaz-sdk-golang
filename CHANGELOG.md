@@ -1,5 +1,18 @@
 # Midaz-sdk-golang Changelog
 
+## [6.5.3](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.3)
+
+Fixes:
+- Promoted CRM probe fixes to stable, ensuring that the state and authentication errors are preserved. (@fredcamaral)
+- Addressed an issue where initial CRM callbacks were not allowed to retry, improving reliability. (@fredcamaral)
+
+Improvements:
+- Simplified the convergence checks for CRM probes, enhancing test clarity and efficiency. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v6.5.2...v6.5.3)
+
+---
+
 ## [6.5.2](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v6.5.2)
 
 Features:
