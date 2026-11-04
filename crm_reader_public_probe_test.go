@@ -170,6 +170,73 @@ func TestCRMReaderProtectedMetadataWithoutAuthorization(t *testing.T) {
 	}
 }
 
+func TestCRMReaderRefreshIsolatedByCredential(t *testing.T) {
+	type contextKey struct{}
+	var refresh atomic.Bool
+	badStarted := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	srv := newCRMServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if !refresh.Load() {
+			_, _ = w.Write([]byte(crmVersion384))
+			return
+		}
+		if r.Header.Get("Authorization") == "" {
+			close(badStarted)
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_, _ = w.Write([]byte(ledgerVersion422))
+	})
+	reports := make(chan CRMAPI, 2)
+	reader, err := NewCRMReader(CRMReaderConfig{URL: srv.URL, HTTP: http.DefaultClient,
+		Authorization: func(ctx context.Context) (string, error) {
+			if ctx.Value(contextKey{}) != nil {
+				return "", errors.New("credential unavailable")
+			}
+			return "Bearer valid", nil
+		},
+		OnResolve: func(api CRMAPI, _ ServerVersion, err error) {
+			if err == nil {
+				reports <- api
+			}
+		},
+	})
+	require.NoError(t, err)
+	var clock atomic.Int64
+	start := time.Now()
+	reader.now = func() time.Time { return start.Add(time.Duration(clock.Load())) }
+	_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	select {
+	case api := <-reports:
+		require.Equal(t, serverversion.CRMAPIV1, api)
+	case <-time.After(2 * time.Second):
+		t.Fatal("initial resolution did not complete")
+	}
+	refresh.Store(true)
+	clock.Store(int64(crmRefreshInterval))
+	_, err = reader.Holders(context.WithValue(context.Background(), contextKey{}, true), crmTestOrg, HolderQuery{})
+	require.Error(t, err)
+	select {
+	case <-badStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("empty-credential refresh did not start")
+	}
+	_, err = reader.Holders(context.Background(), crmTestOrg, HolderQuery{})
+	require.NoError(t, err)
+	select {
+	case api := <-reports:
+		require.Equal(t, serverversion.CRMAPIV2, api)
+	case <-time.After(2 * time.Second):
+		t.Fatal("valid credential refresh was blocked by failed credential")
+	}
+}
+
 func TestCRMReaderPrivateRefreshAfterCallerCanceled(t *testing.T) {
 	var calls atomic.Int32
 	release := make(chan struct{})

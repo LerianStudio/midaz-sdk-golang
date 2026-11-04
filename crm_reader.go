@@ -261,7 +261,7 @@ func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
 			authorization = ""
 		}
 	}
-	key := "refresh:" + crmVersionOperation
+	key := "refresh:" + crmVersionOperation + "\x00" + authorization
 	r.probes.DoChan(key, func() (any, error) {
 		return nil, r.probe(authorization, key)
 	})
