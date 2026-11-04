@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -70,7 +71,7 @@ type HolderQuery struct {
 
 // CRMReader reads holders and instruments from the standalone CRM 3.x (/v1, instruments are its aliases)
 // or the CRM embedded in the ledger 4.x (/v2), picked by [serverversion.ResolveCRMAPI] from GET {URL}/version at first
-// use and every 5 minutes. Until one /version read succeeds, reads fail retryable. One per CRM URL.
+// use and every 5 minutes. Until /version succeeds, reads fail; an HTTP 401 remains an authentication error. One per CRM URL.
 type CRMReader struct {
 	root          string
 	http          HTTPDoer
@@ -78,8 +79,9 @@ type CRMReader struct {
 	onResolve     func(CRMAPI, ServerVersion, error)
 	now           func() time.Time
 
-	probes   singleflight.Group
-	resolved atomic.Pointer[crmResolution]
+	probes    singleflight.Group
+	resolveMu sync.Mutex
+	resolved  atomic.Pointer[crmResolution]
 }
 
 type crmResolution struct {
@@ -279,17 +281,25 @@ func (r *CRMReader) api(ctx context.Context) (CRMAPI, error) {
 }
 
 // probe reads /version on a fresh context: of the caller that started it, only the Authorization value is sent. A failure
-// keeps the last API; with none yet it caches nothing and returns a retryable error.
+// keeps the last API; with none yet it caches nothing and returns the initial failure.
 func (r *CRMReader) probe(authorization string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), crmProbeTimeout)
 	defer cancel()
 
 	v, err := readServerVersion(ctx, r.http, r.root, crmVersionOperation, authorization)
+	if err != nil && r.resolved.Load() == nil {
+		r.onResolve("", v, err)
+	}
+
+	r.resolveMu.Lock()
+	defer r.resolveMu.Unlock()
 	last := r.resolved.Load()
 
 	if err != nil {
 		if last == nil {
-			r.onResolve("", v, err)
+			if status, ok := sdkerrors.ActualHTTPStatus(err); ok && status == http.StatusUnauthorized {
+				return err
+			}
 
 			// The cause's text only: a /version 404 in the chain would match ErrNotFound, "account not found".
 			return sdkerrors.NewNetworkError(crmReaderOperation, errors.New("CRM API unresolved: "+err.Error()))
