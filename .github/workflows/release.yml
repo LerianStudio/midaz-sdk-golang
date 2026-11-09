@@ -39,7 +39,7 @@ jobs:
 
   post-release-steps:
     name: 📦 Post Release Tasks
-    runs-on: ${{ vars.GENERAL_RUNNERS || vars.FALLBACK_RUNNERS }}
+    runs-on: ${{ (github.event.repository.visibility == 'public' && vars.PUBLIC_RUNNERS) || vars.GENERAL_RUNNERS || vars.FALLBACK_RUNNERS }}
     needs: pipeline
     if: needs.pipeline.outputs.new_release_published == 'true'
     permissions:
