@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
@@ -67,4 +68,21 @@ func TestAccessManagerFromEnvironmentRequiresExplicitTarget(t *testing.T) {
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "explicit environment or service URL is required")
+}
+
+func TestAccessManagerCredentialSourceReplacesStaticPair(t *testing.T) {
+	source := func(context.Context) (string, string, error) { return "id", "secret", nil }
+
+	cfg, err := NewConfig(
+		WithEnvironment(EnvironmentProduction),
+		WithAccessManager(auth.AccessManager{Address: "https://auth.example.com", CredentialSource: auth.CredentialSourceFunc(source)}),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.GetPluginAuth().CredentialSource)
+
+	_, err = NewConfig(
+		WithEnvironment(EnvironmentProduction),
+		WithAccessManager(auth.AccessManager{Address: "https://auth.example.com"}),
+	)
+	require.Error(t, err)
 }

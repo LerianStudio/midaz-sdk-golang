@@ -51,14 +51,6 @@ type retryExecution struct {
 	// caller can emit "max_retries"/"attempts" attributes without
 	// re-deriving the value.
 	maxRetries int
-	// refreshedAuth latches true once a 401 has triggered a successful token
-	// refresh for this request. It prevents a second refresh attempt within
-	// the same request even across the inline auth-refresh loop.
-	refreshedAuth bool
-	// justRefreshedAuth is the per-iteration signal from performSingleAttempt
-	// to executeRetryAttempt: "I just refreshed the token, loop once more
-	// with the fresh credentials." It is reset between iterations.
-	justRefreshedAuth bool
 }
 
 type httpPhaseError struct {
@@ -132,31 +124,8 @@ func HTTPPhase(err error) (string, bool) {
 	return phase, requestSent
 }
 
-func (c *HTTPClient) executeRetryAttempt(req *http.Request, method, requestURL string, execution *retryExecution) error {
-	// Inner loop runs at most twice: the original attempt, plus one
-	// re-execution if a 401 triggers a successful token refresh.
-	//
-	// Auth-refresh-retry is request-scoped, not retry-loop-scoped. It must
-	// fire whenever a tokenProvider is wired and refresh succeeds, even when
-	// the caller has disabled the generic retry loop via WithoutRetries
-	// (MaxRetries=0). The execution.refreshedAuth flag bounds this to a
-	// single re-execution — a second 401 cannot re-enter this branch.
-	for {
-		err := c.performSingleAttempt(req, method, requestURL, execution)
-		if !execution.justRefreshedAuth {
-			return err
-		}
-
-		execution.justRefreshedAuth = false
-	}
-}
-
 // performSingleAttempt runs one HTTP round trip and post-processes the
-// response. If a 401 fires AND a tokenProvider is wired AND refresh
-// succeeds, it sets execution.justRefreshedAuth so executeRetryAttempt
-// knows to loop once more with the fresh token. The execution.refreshedAuth
-// flag prevents a second refresh from being attempted within the same
-// request.
+// response.
 func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL string, execution *retryExecution) error {
 	execution.responseBodyTruncated = false
 
@@ -199,82 +168,7 @@ func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL 
 
 	execution.responseBody = responseBody
 
-	// Snapshot only when we may need tokenProvider/tokenInvalidator — the
-	// 401-and-refresh-eligible branch. Successful 2xx and most non-401
-	// failures bypass this allocation entirely.
-	if resp.StatusCode == http.StatusUnauthorized && !execution.refreshedAuth {
-		snapshot := c.cloneConfiguration()
-		if snapshot.tokenProvider == nil {
-			return c.handleRetryAttemptResponse(req.Context(), resp, responseBody, execution.responseBodyTruncated, method, requestURL)
-		}
-
-		c.logAuthRefresh(req.Context(), "started", method, requestURL, resp, nil)
-
-		token, refreshed, refreshErr := c.refreshAuthToken(req.Context(), snapshot)
-		if refreshed {
-			c.logAuthRefresh(req.Context(), "succeeded", method, requestURL, resp, nil)
-			req.Header.Set("Authorization", formatAuthorizationHeader(token))
-			execution.refreshedAuth = true
-			execution.justRefreshedAuth = true
-
-			// Returned error is consumed inside executeRetryAttempt's loop
-			// when justRefreshedAuth is set, so it never reaches the outer
-			// retry layer. It exists only to keep the signature uniform.
-			return errors.New("access manager token refreshed after unauthorized response")
-		}
-
-		c.logAuthRefresh(req.Context(), "failed", method, requestURL, resp, refreshErr)
-	}
-
 	return c.handleRetryAttemptResponse(req.Context(), resp, responseBody, execution.responseBodyTruncated, method, requestURL)
-}
-
-// refreshAuthToken obtains a fresh token via the configured tokenProvider.
-// Concurrent callers that hit a 401 at roughly the same time funnel through
-// a singleflight so the underlying provider call runs once. The token, once
-// fetched, is written through setAuthTokenLocked so other in-flight
-// requests will see it on their next header build.
-//
-// Returns the token and true on success; empty string and false plus a safe
-// diagnostic error when no fresh token could be obtained.
-func (c *HTTPClient) refreshAuthToken(ctx context.Context, snapshot httpClientConfigSnapshot) (string, bool, error) {
-	if snapshot.tokenProvider == nil {
-		return "", false, errors.New("token provider is not configured")
-	}
-
-	// Use a stable singleflight key so all concurrent refreshers on this
-	// HTTPClient share one underlying call. When an invalidator is present,
-	// include its function identity so callers that intentionally install
-	// different invalidation callbacks do not collapse onto the same refresh.
-	groupKey := "tokenrefresh"
-	if snapshot.tokenInvalidator != nil {
-		groupKey = fmt.Sprintf("tokenrefresh|%p", snapshot.tokenInvalidator)
-	}
-
-	result, err, _ := c.tokenRefreshGroup.Do(groupKey, func() (any, error) {
-		if snapshot.tokenInvalidator != nil {
-			snapshot.tokenInvalidator()
-		}
-
-		token, tokenErr := snapshot.tokenProvider(ctx)
-		if tokenErr != nil {
-			return "", tokenErr
-		}
-
-		return strings.TrimSpace(token), nil
-	})
-	if err != nil {
-		return "", false, err
-	}
-
-	token, ok := result.(string)
-	if !ok || token == "" {
-		return "", false, errors.New("token provider returned an empty token")
-	}
-
-	c.setAuthTokenLocked(token)
-
-	return token, true, nil
 }
 
 // drainAndCloseResponseBody is the defense-in-depth body cleanup used by
@@ -733,28 +627,6 @@ func (c *HTTPClient) logHTTPTerminalFailure(ctx context.Context, method, request
 	}
 
 	c.logDiagnostic(ctx, slog.LevelWarn, "HTTP response error", attrs...)
-}
-
-// logAuthRefresh emits a structured log line for an auth-refresh state
-// transition. Level routing: "started" and "succeeded" are routine
-// operational signals → Debug. "failed" indicates the bootstrap or
-// refresh credential is wrong, which surfaces as 401-loop cascades → Warn.
-func (c *HTTPClient) logAuthRefresh(ctx context.Context, state, method, requestURL string, resp *http.Response, err error) {
-	attrs := safeHTTPLogAttrs(method, requestURL, resp, true)
-	attrs = append(attrs, slog.String("auth_refresh.state", state))
-	if err != nil {
-		attrs = append(attrs, slog.String("error", safeLogError(err)))
-		if category := errorCategory(err); category != "" {
-			attrs = append(attrs, slog.String("error.category", category))
-		}
-	}
-
-	level := slog.LevelDebug
-	if state == "failed" {
-		level = slog.LevelWarn
-	}
-
-	c.logDiagnostic(ctx, level, "token refresh "+state, attrs...)
 }
 
 // logRetryExhausted emits the terminal "retry budget gone" log line.

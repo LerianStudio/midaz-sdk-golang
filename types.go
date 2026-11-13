@@ -144,7 +144,9 @@ type (
 // -----------------------------------------------------------------------------
 
 type (
-	AccessManager = auth.AccessManager
+	AccessManager        = auth.AccessManager
+	CredentialSource     = auth.CredentialSource
+	CredentialSourceFunc = auth.CredentialSourceFunc
 )
 
 // -----------------------------------------------------------------------------

@@ -1477,7 +1477,7 @@ func validateAuthSettings(config *Config) error {
 		return fmt.Errorf("invalid plugin auth address: %w", err)
 	}
 
-	if strings.TrimSpace(config.AccessManager.ClientID) == "" {
+	if config.AccessManager.CredentialSource == nil && strings.TrimSpace(config.AccessManager.ClientID) == "" {
 		return errors.New("plugin auth client id is required")
 	}
 
@@ -1485,7 +1485,7 @@ func validateAuthSettings(config *Config) error {
 }
 
 func validateAccessManagerClientSettings(config *Config) error {
-	if strings.TrimSpace(config.AccessManager.ClientSecret) == "" {
+	if config.AccessManager.CredentialSource == nil && strings.TrimSpace(config.AccessManager.ClientSecret) == "" {
 		return errors.New("plugin auth client secret is required")
 	}
 
@@ -1528,6 +1528,7 @@ func (c *Config) GetPluginAuth() auth.AccessManager {
 		ClientSecret:      c.AccessManager.ClientSecret,
 		Enabled:           c.AccessManager.Enabled,
 		AllowInsecureHTTP: c.AccessManager.AllowInsecureHTTP,
+		CredentialSource:  c.AccessManager.CredentialSource,
 	}
 }
 

@@ -298,3 +298,11 @@ func TestAccessManagerTokenRequestErrorErrorRedactsAndHandlesTypedNilCause(t *te
 		assert.NoError(t, err.Unwrap())
 	})
 }
+
+// AccessManager is part of the public v6 contract and must stay comparable.
+func TestAccessManagerStaysComparable(t *testing.T) {
+	a, b := AccessManager{Address: "https://auth.example.com"}, AccessManager{Address: "https://auth.example.com"}
+	if a != b {
+		t.Fatal("equal access managers compare unequal")
+	}
+}

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/security"
 	"golang.org/x/sync/singleflight"
 )
@@ -212,7 +213,9 @@ var (
 // typical setup needs only one import.
 //
 // The Enabled field is auto-populated by WithAccessManager — callers do not
-// set it themselves. Address, ClientID, and ClientSecret are all required.
+// set it themselves. Address, ClientID, and ClientSecret are all required,
+// unless CredentialSource is set: then the pair is resolved from each
+// request's context and the static ClientID/ClientSecret may be empty.
 //
 // AllowInsecureHTTP opts INTO accepting plain http:// Access Manager URLs
 // for non-loopback hosts. The default is strict (HTTPS or loopback only),
@@ -228,6 +231,56 @@ type AccessManager struct {
 	ClientID          string
 	ClientSecret      string // #nosec G117 -- configuration field required by public SDK and OAuth client-credentials flow
 	AllowInsecureHTTP bool
+
+	// CredentialSource, when set, supplies the client id and secret per
+	// request from the request context, so one client serves many tenants.
+	// It runs on every request, concurrently, so it must be safe for
+	// concurrent use and cheap (cache inside it). No exchange happens at
+	// construction, and a source error is not retried.
+	CredentialSource CredentialSource
+}
+
+// CredentialSource supplies the Access Manager client id and secret for a
+// request context. An interface keeps AccessManager comparable.
+type CredentialSource interface {
+	Credential(ctx context.Context) (clientID, clientSecret string, err error)
+}
+
+// CredentialSourceFunc adapts a function to CredentialSource.
+type CredentialSourceFunc func(ctx context.Context) (clientID, clientSecret string, err error)
+
+// Credential calls f(ctx).
+func (f CredentialSourceFunc) Credential(ctx context.Context) (clientID, clientSecret string, err error) {
+	return f(ctx)
+}
+
+// resolveCredential returns a copy of the access manager carrying the
+// credential for ctx: the source's pair when CredentialSource is set, the
+// static pair otherwise. A source error is returned non-retryable.
+func (a AccessManager) resolveCredential(ctx context.Context) (AccessManager, error) {
+	if a.CredentialSource == nil {
+		return a, nil
+	}
+
+	id, secret, err := a.CredentialSource.Credential(ctx)
+	if err != nil {
+		return a, retry.AsNonRetryable(fmt.Errorf("access manager credential source: %w", err))
+	}
+
+	a.ClientID, a.ClientSecret = id, secret
+
+	return a, nil
+}
+
+// TokenCacheKey returns the token cache key (endpoint|clientID|secret hash) of
+// the credential resolved for ctx.
+func (a AccessManager) TokenCacheKey(ctx context.Context) (string, error) {
+	resolved, err := a.resolveCredential(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return accessManagerCacheKey(resolved)
 }
 
 // TokenResponse represents the response from the plugin auth service
@@ -404,6 +457,11 @@ func (e *AccessManagerTokenRequestError) AccessManagerValidationReason() string 
 func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, httpClient *http.Client) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+
+	accessMgr, err := accessMgr.resolveCredential(ctx)
+	if err != nil {
+		return "", err
 	}
 
 	if err := validateAccessManagerTokenRequest(accessMgr, httpClient); err != nil {
@@ -776,8 +834,16 @@ func decodeAccessManagerTokenResponse(body []byte) (TokenResponse, error) {
 }
 
 // InvalidateAccessManagerToken removes any cached token for the provided access manager configuration.
+// With a CredentialSource it resolves under context.Background(); use
+// InvalidateAccessManagerTokenContext with the request context instead.
 func InvalidateAccessManagerToken(accessMgr AccessManager) {
-	cacheKey, err := accessManagerCacheKey(accessMgr)
+	InvalidateAccessManagerTokenContext(context.Background(), accessMgr)
+}
+
+// InvalidateAccessManagerTokenContext removes the cached token of the
+// credential resolved for ctx.
+func InvalidateAccessManagerTokenContext(ctx context.Context, accessMgr AccessManager) {
+	cacheKey, err := accessMgr.TokenCacheKey(ctx)
 	if err != nil {
 		return
 	}

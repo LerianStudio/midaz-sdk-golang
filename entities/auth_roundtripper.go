@@ -25,7 +25,12 @@ type authRoundTripperConfig struct {
 	// tokenInvalidator drops the cached token so the next tokenProvider call
 	// performs a real exchange. Invoked before the post-401 refresh. Nil is a
 	// no-op.
-	tokenInvalidator func()
+	tokenInvalidator func(context.Context)
+
+	// refreshKey names the credential a request authenticates with, so a
+	// concurrent 401 burst collapses per credential and never replays one
+	// credential's token on another's request.
+	refreshKey func(context.Context) (string, error)
 
 	// apiKey, when non-empty, switches the plane to X-API-Key auth: the round
 	// tripper injects "X-API-Key: <apiKey>" and does NOT attach a Bearer token.
@@ -51,15 +56,11 @@ type authRoundTripperConfig struct {
 //     survive the replay byte-for-byte. Reauthenticating never mutates the
 //     idempotency key or the body — that would be a second balance mutation and
 //     a double-entry violation.
-//
-// The refresh-once behavior mirrors the legacy entities/http_retry_response.go
-// wrapper (singleflight tokenRefreshGroup + refreshedAuth latch); it is
-// re-homed here because the generated client routes every request through a
-// single RoundTripper rather than the legacy per-service *HTTPClient.
 type authRefreshRoundTripper struct {
 	base             http.RoundTripper
 	tokenProvider    func(context.Context) (string, error)
-	tokenInvalidator func()
+	tokenInvalidator func(context.Context)
+	refreshKey       func(context.Context) (string, error)
 	apiKey           string
 	refreshGroup     singleflight.Group
 }
@@ -75,6 +76,7 @@ func newAuthRefreshRoundTripper(base http.RoundTripper, cfg authRoundTripperConf
 		base:             base,
 		tokenProvider:    cfg.tokenProvider,
 		tokenInvalidator: cfg.tokenInvalidator,
+		refreshKey:       cfg.refreshKey,
 		apiKey:           cfg.apiKey,
 	}
 }
@@ -149,9 +151,19 @@ func (rt *authRefreshRoundTripper) injectAuth(ctx context.Context, req *http.Req
 // concurrent post-401 refreshers through a singleflight so the underlying
 // exchange runs once. Returns the fresh token and true on success.
 func (rt *authRefreshRoundTripper) refreshToken(ctx context.Context) (string, bool) {
-	result, err, _ := rt.refreshGroup.Do("tokenrefresh", func() (any, error) {
+	key := "tokenrefresh"
+
+	if rt.refreshKey != nil {
+		var keyErr error
+
+		if key, keyErr = rt.refreshKey(ctx); keyErr != nil {
+			return "", false
+		}
+	}
+
+	result, err, _ := rt.refreshGroup.Do(key, func() (any, error) {
 		if rt.tokenInvalidator != nil {
-			rt.tokenInvalidator()
+			rt.tokenInvalidator(ctx)
 		}
 
 		token, tokenErr := rt.tokenProvider(ctx)

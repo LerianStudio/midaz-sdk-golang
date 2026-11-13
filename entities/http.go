@@ -24,7 +24,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -113,8 +112,6 @@ type HTTPClient struct {
 	metrics           *observability.MetricsCollector
 	observability     observability.Provider
 	customRetryPolicy func(*http.Response, error) bool
-	tokenProvider     func(context.Context) (string, error)
-	tokenInvalidator  func()
 	// logger is the canonical *slog.Logger for retry/slow-call/internal
 	// warnings. Always non-nil after midaz.New() wires the parent client's
 	// logger via SetLogger. Every entity service shares the same *HTTPClient,
@@ -123,12 +120,6 @@ type HTTPClient struct {
 	// slowCallThreshold is the duration above which a successful call
 	// emits a Warn-level structured log. Zero disables the warning.
 	slowCallThreshold time.Duration
-	// tokenRefreshGroup serializes concurrent 401-driven token refreshes per
-	// cache key. A burst of in-flight requests that all hit a 401 at the
-	// same time funnel through one underlying call to tokenProvider, which
-	// matters when tokenProvider is the network-bound access-manager
-	// exchange.
-	tokenRefreshGroup singleflight.Group
 }
 
 type httpClientConfigSnapshot struct {
@@ -140,8 +131,6 @@ type httpClientConfigSnapshot struct {
 	observability     observability.Provider
 	enableIdempotency bool
 	customRetryPolicy func(*http.Response, error) bool
-	tokenProvider     func(context.Context) (string, error)
-	tokenInvalidator  func()
 	logger            *slog.Logger
 	slowCallThreshold time.Duration
 	exposeErrorBody   bool
@@ -395,18 +384,6 @@ func (c *HTTPClient) SetCustomRetryPolicy(shouldRetry func(*http.Response, error
 	c.customRetryPolicy = shouldRetry
 }
 
-func (c *HTTPClient) setAuthTokenProvider(provider func(context.Context) (string, error), invalidator func()) {
-	if c == nil {
-		return
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.tokenProvider = provider
-	c.tokenInvalidator = invalidator
-}
-
 // cloneConfiguration captures a value-copy of the HTTPClient's read-mostly
 // state for a single request scope. The hot-path scalars (debug, userAgent,
 // enableIdempotency) come from atomic loads; the remaining pointer fields
@@ -433,8 +410,6 @@ func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 		observability:     c.observability,
 		enableIdempotency: c.enableIdempotency.Load(),
 		customRetryPolicy: c.customRetryPolicy,
-		tokenProvider:     c.tokenProvider,
-		tokenInvalidator:  c.tokenInvalidator,
 		logger:            c.logger,
 		slowCallThreshold: c.slowCallThreshold,
 		exposeErrorBody:   c.exposeErrorBody.Load(),
@@ -452,8 +427,6 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 	c.metrics = snapshot.metrics
 	c.observability = snapshot.observability
 	c.customRetryPolicy = snapshot.customRetryPolicy
-	c.tokenProvider = snapshot.tokenProvider
-	c.tokenInvalidator = snapshot.tokenInvalidator
 	c.logger = snapshot.logger
 	c.slowCallThreshold = snapshot.slowCallThreshold
 	c.mu.Unlock()
@@ -523,22 +496,6 @@ func (c *HTTPClient) setObservabilityLocked(provider observability.Provider, met
 
 	c.observability = provider
 	c.metrics = metrics
-}
-
-// setAuthTokenLocked sets the auth token under the write lock. Used by
-// the access-manager token-refresh path (refreshAuthToken) and the initial
-// token seeding inside NewEntityWithConfig. The auth token is read on every
-// request to populate the Authorization header, so concurrent mutation
-// absolutely must go through the same lock the readers use.
-func (c *HTTPClient) setAuthTokenLocked(token string) {
-	if c == nil {
-		return
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.authToken = token
 }
 
 // injectContextHeaders adds context-based headers (idempotency key) to the provided
@@ -1059,7 +1016,7 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 	execution := &retryExecution{maxRetries: effectiveRetryOptions.MaxRetries}
 
 	err := retry.DoWithContext(retryCtx, func() error {
-		return c.executeRetryAttempt(req, method, requestURL, execution)
+		return c.performSingleAttempt(req, method, requestURL, execution)
 	})
 	// Terminal logging is centralised in [doRequest] / [doRawRequest] /
 	// [doCountRequest] via [logHTTPTerminalFailure]. This function only
