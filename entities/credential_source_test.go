@@ -128,7 +128,7 @@ func TestCredentialSource_Concurrent401BurstKeepsCredentialsApart(t *testing.T) 
 
 				resp, err := rt.RoundTrip(req)
 				if assert.NoError(t, err) {
-					resp.Body.Close()
+					_ = resp.Body.Close()
 				}
 			}()
 		}
@@ -158,7 +158,7 @@ func TestCredentialSource_ErrorIsNotRetried(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:1", nil)
 	resp, err := newRetryRoundTripper(authRT, *opts, nil).RoundTrip(req)
 	if resp != nil {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	require.Error(t, err)
