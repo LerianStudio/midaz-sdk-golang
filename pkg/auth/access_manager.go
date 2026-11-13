@@ -237,7 +237,21 @@ type AccessManager struct {
 	// It runs on every request, concurrently, so it must be safe for
 	// concurrent use and cheap (cache inside it). No exchange happens at
 	// construction, and a source error is not retried.
-	CredentialSource func(ctx context.Context) (clientID, clientSecret string, err error)
+	CredentialSource CredentialSource
+}
+
+// CredentialSource supplies the Access Manager client id and secret for a
+// request context. An interface keeps AccessManager comparable.
+type CredentialSource interface {
+	Credential(ctx context.Context) (clientID, clientSecret string, err error)
+}
+
+// CredentialSourceFunc adapts a function to CredentialSource.
+type CredentialSourceFunc func(ctx context.Context) (clientID, clientSecret string, err error)
+
+// Credential calls f(ctx).
+func (f CredentialSourceFunc) Credential(ctx context.Context) (clientID, clientSecret string, err error) {
+	return f(ctx)
 }
 
 // resolveCredential returns a copy of the access manager carrying the
@@ -248,7 +262,7 @@ func (a AccessManager) resolveCredential(ctx context.Context) (AccessManager, er
 		return a, nil
 	}
 
-	id, secret, err := a.CredentialSource(ctx)
+	id, secret, err := a.CredentialSource.Credential(ctx)
 	if err != nil {
 		return a, retry.AsNonRetryable(fmt.Errorf("access manager credential source: %w", err))
 	}

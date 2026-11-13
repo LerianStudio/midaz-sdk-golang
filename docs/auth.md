@@ -51,7 +51,7 @@ func main() {
 
 ### Per-request credentials
 
-Set `AccessManager.CredentialSource` (`func(ctx context.Context) (clientID, clientSecret string, err error)`) to resolve the credential from each request's context instead of binding one fixed pair. With a source set, `ClientID` and `ClientSecret` may be empty and `midaz.New` skips the initial token exchange; the first request exchanges, caches and refreshes tokens per resolved credential.
+Set `AccessManager.CredentialSource` (an `auth.CredentialSource`; wrap a function with `auth.CredentialSourceFunc`) to resolve the credential from each request's context instead of binding one fixed pair. With a source set, `ClientID` and `ClientSecret` may be empty and `midaz.New` skips the initial token exchange; the first request exchanges, caches and refreshes tokens per resolved credential.
 
 A source error is returned as-is and never retried. See [multi-tenancy](multi-tenancy.md) for serving many tenants from one client.
 

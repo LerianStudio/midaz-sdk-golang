@@ -75,7 +75,7 @@ func TestAccessManagerCredentialSourceReplacesStaticPair(t *testing.T) {
 
 	cfg, err := NewConfig(
 		WithEnvironment(EnvironmentProduction),
-		WithAccessManager(auth.AccessManager{Address: "https://auth.example.com", CredentialSource: source}),
+		WithAccessManager(auth.AccessManager{Address: "https://auth.example.com", CredentialSource: auth.CredentialSourceFunc(source)}),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, cfg.GetPluginAuth().CredentialSource)

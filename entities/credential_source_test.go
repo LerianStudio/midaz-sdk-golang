@@ -69,7 +69,7 @@ func TestCredentialSource_NoExchangeAtNew(t *testing.T) {
 	am, hits := newTokenServer(t)
 
 	cfg := createMockPluginAuthConfig(auth.AccessManager{
-		Enabled: true, Address: am.URL, CredentialSource: ctxCredentialSource,
+		Enabled: true, Address: am.URL, CredentialSource: auth.CredentialSourceFunc(ctxCredentialSource),
 	})
 
 	entity, err := NewEntityWithConfig(cfg)
@@ -109,7 +109,7 @@ func TestCredentialSource_Concurrent401BurstKeepsCredentialsApart(t *testing.T) 
 	defer data.Close()
 
 	cfg := createMockPluginAuthConfig(auth.AccessManager{
-		Enabled: true, Address: am.URL, CredentialSource: ctxCredentialSource,
+		Enabled: true, Address: am.URL, CredentialSource: auth.CredentialSourceFunc(ctxCredentialSource),
 	})
 	rt := newAuthRefreshRoundTripper(http.DefaultTransport, accessManagerAuthConfig(cfg, cfg.pluginAuth))
 
@@ -147,7 +147,7 @@ func TestCredentialSource_ErrorIsNotRetried(t *testing.T) {
 	}
 
 	cfg := createMockPluginAuthConfig(auth.AccessManager{
-		Enabled: true, Address: "http://127.0.0.1:1", CredentialSource: source,
+		Enabled: true, Address: "http://127.0.0.1:1", CredentialSource: auth.CredentialSourceFunc(source),
 	})
 	authRT := newAuthRefreshRoundTripper(http.DefaultTransport, accessManagerAuthConfig(cfg, cfg.pluginAuth))
 	opts := retry.DefaultOptions()

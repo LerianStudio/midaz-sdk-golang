@@ -31,9 +31,9 @@ Set `AccessManager.CredentialSource` to resolve the credential per request from 
 ```go
 midaz.WithAccessManager(midaz.AccessManager{
     Address: accessManagerURL,
-    CredentialSource: func(ctx context.Context) (string, string, error) {
+    CredentialSource: midaz.CredentialSourceFunc(func(ctx context.Context) (string, string, error) {
         return credentialsFor(ctx) // e.g. looked up by the tenant in ctx
-    },
+    }),
 })
 ```
 
