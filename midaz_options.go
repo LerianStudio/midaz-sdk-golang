@@ -659,9 +659,9 @@ func WithIdempotency(enabled bool) Option {
 }
 
 // WithAccessManager configures plugin-based authentication via the Lerian
-// Access Manager service. The supplied AccessManager must have Address,
-// ClientID, and ClientSecret populated; the Enabled field is auto-set to
-// true (the act of calling this option is the opt-in).
+// Access Manager service. The supplied AccessManager must have Address and
+// either ClientID and ClientSecret or a CredentialSource; the Enabled field is
+// auto-set to true (the act of calling this option is the opt-in).
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
 // [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config.WithAccessManager],
@@ -687,8 +687,8 @@ func WithIdempotency(enabled bool) Option {
 // See docs/auth.md for the full setup walkthrough.
 //
 // Parameters:
-//   - am: AccessManager configuration. Address, ClientID, ClientSecret are
-//     all required; Enabled is auto-populated.
+//   - am: AccessManager configuration. Address is required, plus either
+//     ClientID and ClientSecret or CredentialSource; Enabled is auto-populated.
 //
 // Returns:
 //   - Option: a function that wires AccessManager onto the underlying Config.

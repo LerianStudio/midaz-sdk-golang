@@ -234,8 +234,9 @@ type AccessManager struct {
 
 	// CredentialSource, when set, supplies the client id and secret per
 	// request from the request context, so one client serves many tenants.
-	// The client then performs no token exchange at construction. A source
-	// error is not retried.
+	// It runs on every request, concurrently, so it must be safe for
+	// concurrent use and cheap (cache inside it). No exchange happens at
+	// construction, and a source error is not retried.
 	CredentialSource func(ctx context.Context) (clientID, clientSecret string, err error)
 }
 
@@ -819,6 +820,8 @@ func decodeAccessManagerTokenResponse(body []byte) (TokenResponse, error) {
 }
 
 // InvalidateAccessManagerToken removes any cached token for the provided access manager configuration.
+// With a CredentialSource it resolves under context.Background(); use
+// InvalidateAccessManagerTokenContext with the request context instead.
 func InvalidateAccessManagerToken(accessMgr AccessManager) {
 	InvalidateAccessManagerTokenContext(context.Background(), accessMgr)
 }
