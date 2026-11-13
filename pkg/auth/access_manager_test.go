@@ -301,5 +301,6 @@ func TestAccessManagerTokenRequestErrorErrorRedactsAndHandlesTypedNilCause(t *te
 
 // AccessManager is part of the public v6 contract and must stay comparable.
 func TestAccessManagerStaysComparable(t *testing.T) {
-	assert.True(t, AccessManager{} == AccessManager{})
+	a, b := AccessManager{Address: "https://auth.example.com"}, AccessManager{Address: "https://auth.example.com"}
+	assert.True(t, a == b)
 }
