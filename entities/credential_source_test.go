@@ -22,7 +22,7 @@ import (
 type credCtxKey struct{}
 
 // ctxCredentialSource resolves the credential stored in the request context.
-func ctxCredentialSource(ctx context.Context) (string, string, error) {
+func ctxCredentialSource(ctx context.Context) (clientID, clientSecret string, err error) {
 	id, ok := ctx.Value(credCtxKey{}).(string)
 	if !ok {
 		return "", "", errors.New("no credential in context")

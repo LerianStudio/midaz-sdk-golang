@@ -411,11 +411,3 @@ func TestHTTPClient_UserRetryPredicateComposesWithInternalPredicate(t *testing.T
 	requireHandlerNoError(t, writeErrs)
 	require.Equal(t, int32(2), calls.Load())
 }
-
-// refreshFailureError is a test-only typed error used to drive the
-// tokenProvider-fail branch.
-type refreshFailureError struct {
-	cause string
-}
-
-func (e *refreshFailureError) Error() string { return "token refresh: " + e.cause }

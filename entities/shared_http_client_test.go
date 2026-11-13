@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -83,8 +82,4 @@ func TestSharedHTTPClient_SetDebugMidLifetimePropagates(t *testing.T) {
 
 	require.True(t, parent.cloneConfiguration().debug,
 		"the client must observe the SetDebug(true) made on it")
-}
-
-func formatToken(seq int32) string {
-	return "fresh-token-" + strconv.Itoa(int(seq))
 }

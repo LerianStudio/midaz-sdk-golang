@@ -239,10 +239,10 @@ type AccessManager struct {
 	CredentialSource func(ctx context.Context) (clientID, clientSecret string, err error)
 }
 
-// ResolveCredential returns a copy of the access manager carrying the
+// resolveCredential returns a copy of the access manager carrying the
 // credential for ctx: the source's pair when CredentialSource is set, the
 // static pair otherwise. A source error is returned non-retryable.
-func (a AccessManager) ResolveCredential(ctx context.Context) (AccessManager, error) {
+func (a AccessManager) resolveCredential(ctx context.Context) (AccessManager, error) {
 	if a.CredentialSource == nil {
 		return a, nil
 	}
@@ -260,7 +260,7 @@ func (a AccessManager) ResolveCredential(ctx context.Context) (AccessManager, er
 // TokenCacheKey returns the token cache key (endpoint|clientID|secret hash) of
 // the credential resolved for ctx.
 func (a AccessManager) TokenCacheKey(ctx context.Context) (string, error) {
-	resolved, err := a.ResolveCredential(ctx)
+	resolved, err := a.resolveCredential(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -444,7 +444,7 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 		ctx = context.Background()
 	}
 
-	accessMgr, err := accessMgr.ResolveCredential(ctx)
+	accessMgr, err := accessMgr.resolveCredential(ctx)
 	if err != nil {
 		return "", err
 	}
