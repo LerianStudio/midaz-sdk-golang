@@ -209,9 +209,6 @@ func httpClientLogProbes(client *HTTPClient) []nilPairProbe {
 		{"HTTPClient.logHTTPTerminalFailure", func(require.TestingT) {
 			client.logHTTPTerminalFailure(ctx, method, url, nil, nil, 0)
 		}},
-		{"HTTPClient.logAuthRefresh", func(require.TestingT) {
-			client.logAuthRefresh(ctx, "failed", method, url, nil, nil)
-		}},
 		{"HTTPClient.logRetryExhausted", func(require.TestingT) {
 			client.logRetryExhausted(ctx, method, url, nil, nil, 0)
 		}},

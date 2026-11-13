@@ -49,6 +49,12 @@ func main() {
 4. `entities.NewEntityWithConfig` eagerly fetches an initial token from `Address` so misconfigurations surface as construction errors, not as 401s on the first request.
 5. The token is cached in-process and refreshed by the SDK on 401 responses.
 
+### Per-request credentials
+
+Set `AccessManager.CredentialSource` (`func(ctx context.Context) (clientID, clientSecret string, err error)`) to resolve the credential from each request's context instead of binding one fixed pair. With a source set, `ClientID` and `ClientSecret` may be empty and `midaz.New` skips the initial token exchange; the first request exchanges, caches and refreshes tokens per resolved credential.
+
+A source error is returned as-is and never retried. See [multi-tenancy](multi-tenancy.md) for serving many tenants from one client.
+
 ### Access Manager URL security
 
 Access Manager receives your `clientId` and `clientSecret`, so the SDK rejects plaintext remote token endpoints by default.

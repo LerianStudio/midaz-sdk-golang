@@ -144,19 +144,12 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 // It bridges the entity-construction inputs (Config, AccessManager, normalized
 // base URLs) into the [planeClientsConfig] the low-level builder consumes.
 //
-// The Bearer token provider is the same shared Access Manager exchange the
-// legacy per-service *HTTPClient uses (GetTokenFromAccessManager is internally
-// cached + singleflighted), so a refresh triggered on either plane hits the
-// auth service once. When auth is disabled (anonymous stack) the provider is
+// The Bearer token provider is the shared Access Manager exchange
+// (GetTokenFromAccessManager is internally cached + singleflighted), so a
+// refresh triggered on either plane hits the auth service once. When auth is disabled (anonymous stack) the provider is
 // nil and requests go out unauthenticated.
 func buildPlaneClients(config Config, pluginAuth auth.AccessManager, normalizedBaseURLs map[string]string) (*PlaneClients, error) {
-	authCfg := authRoundTripperConfig{}
-	if pluginAuth.Enabled {
-		authCfg.tokenProvider = func(ctx context.Context) (string, error) {
-			return auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
-		}
-		authCfg.tokenInvalidator = func() { auth.InvalidateAccessManagerToken(pluginAuth) }
-	}
+	authCfg := accessManagerAuthConfig(config, pluginAuth)
 
 	//nolint:bodyclose // configPlaneRetry returns a retry-policy func (with *http.Response in its signature), not an HTTP response.
 	retryOptions, customRetryPolicy := configPlaneRetry(config)
@@ -170,6 +163,22 @@ func buildPlaneClients(config Config, pluginAuth auth.AccessManager, normalizedB
 		retryOptions:      retryOptions,
 		customRetryPolicy: customRetryPolicy,
 	})
+}
+
+// accessManagerAuthConfig wires the Access Manager token exchange into the
+// plane round tripper. Anonymous stacks get an empty config (no provider).
+func accessManagerAuthConfig(config Config, pluginAuth auth.AccessManager) authRoundTripperConfig {
+	if !pluginAuth.Enabled {
+		return authRoundTripperConfig{}
+	}
+
+	return authRoundTripperConfig{
+		tokenProvider: func(ctx context.Context) (string, error) {
+			return auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
+		},
+		refreshKey:       pluginAuth.TokenCacheKey,
+		tokenInvalidator: func(ctx context.Context) { auth.InvalidateAccessManagerTokenContext(ctx, pluginAuth) },
+	}
 }
 
 // Planes returns the two generated, typed plane clients (Ledger + Tracer).

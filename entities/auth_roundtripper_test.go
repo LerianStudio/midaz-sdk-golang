@@ -179,7 +179,7 @@ func TestAuthRefreshRoundTripper_RefreshOnlyOnceOnPersistent401(t *testing.T) {
 	var refreshes int32
 	rt := newAuthRefreshRoundTripper(http.DefaultTransport, authRoundTripperConfig{
 		tokenProvider:    func(context.Context) (string, error) { return "any-token", nil },
-		tokenInvalidator: func() { atomic.AddInt32(&refreshes, 1) },
+		tokenInvalidator: func(context.Context) { atomic.AddInt32(&refreshes, 1) },
 	})
 
 	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)

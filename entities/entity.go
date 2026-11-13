@@ -225,7 +225,9 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 
 	pluginAuth := config.GetPluginAuth()
 
-	if pluginAuth.Enabled {
+	// With a credential source the credential is per request, so there is
+	// nothing to exchange at construction.
+	if pluginAuth.Enabled && pluginAuth.CredentialSource == nil {
 		// Get a token from the plugin auth service
 		provider := func(ctx context.Context) (string, error) {
 			return auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
@@ -254,15 +256,6 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 		observability:     config.GetObservabilityProvider(),
 		enableIdempotency: configEnableIdempotency(config),
 	}
-	if pluginAuth.Enabled {
-		entity.httpClient.setAuthTokenProvider(
-			func(ctx context.Context) (string, error) {
-				return auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
-			},
-			func() { auth.InvalidateAccessManagerToken(pluginAuth) },
-		)
-	}
-
 	planes, err := buildPlaneClients(config, pluginAuth, normalizedBaseURLs)
 	if err != nil {
 		return nil, err
