@@ -6,13 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/LerianStudio/lib-observability/v3/tracing"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/gentracer"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/security"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 // PlaneClients holds the two generated, typed plane clients that back the
@@ -73,7 +72,7 @@ type planeClientsConfig struct {
 // propagator (a no-op when the host installed none). A host transport such as
 // otelhttp runs later in the chain and overwrites the header with its own span.
 func propagateTrace(ctx context.Context, req *http.Request) error {
-	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+	tracing.InjectHTTPContext(ctx, req.Header)
 
 	return nil
 }
