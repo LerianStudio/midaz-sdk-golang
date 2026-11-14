@@ -11,6 +11,8 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/security"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // PlaneClients holds the two generated, typed plane clients that back the
@@ -65,6 +67,15 @@ type planeClientsConfig struct {
 	// customRetryPolicy, when non-nil, is the caller-supplied retry predicate
 	// threaded onto the plane retry round tripper. Nil is safe.
 	customRetryPolicy func(*http.Response, error) bool
+}
+
+// propagateTrace injects the caller's trace context through the OTel global
+// propagator (a no-op when the host installed none). A host transport such as
+// otelhttp runs later in the chain and overwrites the header with its own span.
+func propagateTrace(ctx context.Context, req *http.Request) error {
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
+	return nil
 }
 
 // newPlaneClients builds the two typed plane clients, each wired to an auth
@@ -124,6 +135,7 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 	ledger, err := genledger.NewClientWithResponses(
 		cfg.ledgerURL,
 		genledger.WithHTTPClient(newPlaneHTTPClient(retryLedgerRT, cfg.httpClient)),
+		genledger.WithRequestEditorFn(propagateTrace),
 	)
 	if err != nil {
 		return nil, err
@@ -132,6 +144,7 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 	tracer, err := gentracer.NewClientWithResponses(
 		cfg.tracerURL,
 		gentracer.WithHTTPClient(newPlaneHTTPClient(retryTracerRT, cfg.httpClient)),
+		gentracer.WithRequestEditorFn(propagateTrace),
 	)
 	if err != nil {
 		return nil, err

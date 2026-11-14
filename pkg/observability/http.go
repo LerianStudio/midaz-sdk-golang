@@ -158,7 +158,7 @@ func WithSecurityDefaults() HTTPOption {
 // function that wraps an [http.RoundTripper] with W3C trace-context
 // propagation, per-request span creation, and metric recording. It is
 // intended for outbound HTTP traffic on a transport the host wraps (the
-// SDK's facade does not apply it), not as an [http.Handler] for serving
+// SDK's facade only injects the caller's trace context, no spans), not as an [http.Handler] for serving
 // inbound requests.
 func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTripper) http.RoundTripper {
 	if provider == nil {
