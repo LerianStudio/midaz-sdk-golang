@@ -21,8 +21,9 @@ import (
 // the caller's trace context through the OTel global propagator, and add nothing
 // when the host installed none. It swaps process-global state, so it is not parallel.
 func TestFacadesPropagateCallerTraceContext(t *testing.T) {
-	original := otel.GetTextMapPropagator()
-	t.Cleanup(func() { otel.SetTextMapPropagator(original) })
+	// otel's default global delegates once to the first propagator ever set, so the
+	// only faithful restore is an explicit no-op.
+	t.Cleanup(func() { otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator()) })
 
 	traceID, err := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
 	require.NoError(t, err)
@@ -31,7 +32,7 @@ func TestFacadesPropagateCallerTraceContext(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := trace.ContextWithSpanContext(context.Background(), trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID: traceID, SpanID: spanID, TraceFlags: trace.FlagsSampled, Remote: true,
+		TraceID: traceID, SpanID: spanID, TraceFlags: trace.FlagsSampled,
 	}))
 
 	var (
@@ -81,15 +82,13 @@ func TestFacadesPropagateCallerTraceContext(t *testing.T) {
 		return map[string]string{"ledger": traces["/v1/organizations"], "tracer": traces["/v1/rules"]}
 	}
 
+	for plane, header := range call() {
+		assert.Empty(t, header, "%s plane must add no header without a propagator", plane)
+	}
+
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
 	for plane, header := range call() {
 		assert.Contains(t, header, traceID.String(), "%s plane must carry the caller's trace id", plane)
-	}
-
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator())
-
-	for plane, header := range call() {
-		assert.Empty(t, header, "%s plane must add no header without a propagator", plane)
 	}
 }
