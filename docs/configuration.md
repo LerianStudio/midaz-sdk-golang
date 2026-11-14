@@ -261,8 +261,8 @@ noop. One warning goes to the provider's logger.
 **Spans.** Facade calls to Midaz (`client.V1.*`, `client.V2.*`, `client.Rules`
 and the other Tracer services) create no SDK span but send the caller's trace
 context (`traceparent`, `tracestate`, `baggage`) from `ctx` through the global
-propagator; with none installed they add nothing. SDK client spans come from
-`observability.NewHTTPMiddleware` (or lib-observability `httpobs`) on a wrapped
+propagator; with none installed they add nothing. Client spans come from
+`observability.NewHTTPMiddleware` or the host's own `httpobs`/`otelhttp`
 transport; without an endpoint they become children of the host's spans.
 
 ---

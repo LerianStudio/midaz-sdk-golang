@@ -725,7 +725,7 @@ otel-collector:4317           plaintext (a bare host:port is treated as plaintex
 
 `observability.WithCollectorInsecure(true)` remains available for local and trusted in-cluster deployments, but it cannot request TLS: a scheme-less endpoint is plaintext regardless of that flag. Use the `https://` prefix to get TLS. As a last resort the refusal can be overridden with `ALLOW_INSECURE_OTEL="<reason>"` in the environment, which should be reserved for a plaintext collector reached over an already-trusted network path.
 
-Facade calls to Midaz (`client.V1.*`, `client.V2.*`) are not instrumented today; SDK HTTP spans and trace headers come only from `observability.NewHTTPMiddleware` (see [configuration §2.2](./configuration.md#22-the-one-exception-withobservabilityoptions-and-withobservabilityprovider)).
+Facade calls to Midaz (`client.V1.*`, `client.V2.*`) carry the caller's trace context from `ctx` through the global propagator; SDK HTTP spans come only from `observability.NewHTTPMiddleware` (see [configuration §2.2](./configuration.md#22-the-one-exception-withobservabilityoptions-and-withobservabilityprovider)).
 
 Business logs are allowlisted. Safe identifiers such as `organizationId`, `ledgerId`, `assetId`, `accountId`, `transactionId`, `operationId`, `portfolioId`, `segmentId`, `balanceId`, `holderId`, `aliasId`, `routeId`, `status`, `operation`, and `event` may appear in logs and span events. Payloads, metadata, documents, names, addresses, auth headers, idempotency keys, secrets, and raw request/response bodies are not logged.
 
