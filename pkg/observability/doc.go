@@ -3,9 +3,10 @@
 //
 // The provider is the unit of lifecycle: build one at process boot,
 // hand it to [github.com/LerianStudio/midaz-sdk-golang/v6.WithObservabilityProvider],
-// shut it down on exit. Only [NewHTTPMiddleware] creates SDK HTTP spans and
-// sends trace headers; facade calls to Midaz are not instrumented today. With
-// no collector endpoint the tracer, meter and propagator are the host's globals.
+// shut it down on exit. Facade calls to Midaz carry the caller's trace context
+// from ctx through the global propagator; SDK HTTP spans come only from
+// [NewHTTPMiddleware]. With no collector endpoint the tracer, meter and
+// propagator are the host's globals.
 //
 // # Quickstart
 //

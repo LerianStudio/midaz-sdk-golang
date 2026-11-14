@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/LerianStudio/lib-observability/v3/tracing"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/gentracer"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
@@ -67,6 +68,15 @@ type planeClientsConfig struct {
 	customRetryPolicy func(*http.Response, error) bool
 }
 
+// propagateTrace injects the caller's trace context through the OTel global
+// propagator (a no-op when the host installed none). A host transport such as
+// otelhttp runs later in the chain and overwrites the header with its own span.
+func propagateTrace(ctx context.Context, req *http.Request) error {
+	tracing.InjectHTTPContext(ctx, req.Header)
+
+	return nil
+}
+
 // newPlaneClients builds the two typed plane clients, each wired to an auth
 // round tripper over the shared pooled transport. The Ledger plane always
 // authenticates with the shared Bearer; the Tracer plane uses X-API-Key when
@@ -124,6 +134,7 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 	ledger, err := genledger.NewClientWithResponses(
 		cfg.ledgerURL,
 		genledger.WithHTTPClient(newPlaneHTTPClient(retryLedgerRT, cfg.httpClient)),
+		genledger.WithRequestEditorFn(propagateTrace),
 	)
 	if err != nil {
 		return nil, err
@@ -132,6 +143,7 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 	tracer, err := gentracer.NewClientWithResponses(
 		cfg.tracerURL,
 		gentracer.WithHTTPClient(newPlaneHTTPClient(retryTracerRT, cfg.httpClient)),
+		gentracer.WithRequestEditorFn(propagateTrace),
 	)
 	if err != nil {
 		return nil, err

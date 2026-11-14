@@ -258,11 +258,12 @@ Without `observability.WithCollectorEndpoint`, the SDK's tracer, meter and
 propagator are the host's global ones, and a host with no providers gets
 noop. One warning goes to the provider's logger.
 
-**Spans.** Facade calls to Midaz (`client.V1.*`, `client.V2.*`) are not
-instrumented today: they create no SDK span and send no `traceparent`. SDK
-spans and trace headers come from `observability.NewHTTPMiddleware` when the
-host wraps a transport with it; without an endpoint those spans become
-children of the host's spans and the host exports them.
+**Spans.** Facade calls to Midaz (`client.V1.*`, `client.V2.*`, `client.Rules`
+and the other Tracer services) create no SDK span but send the caller's trace
+context (`traceparent`, `tracestate`, `baggage`) from `ctx` through the global
+propagator; with none installed they add nothing. Client spans come from
+`observability.NewHTTPMiddleware` or the host's own `httpobs`/`otelhttp`
+transport; without an endpoint they become children of the host's spans.
 
 ---
 

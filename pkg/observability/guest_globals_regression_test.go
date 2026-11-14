@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
-	otellogglobal "go.opentelemetry.io/otel/log/global"
 	lognoop "go.opentelemetry.io/otel/log/noop"
 	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -66,17 +65,17 @@ func TestGuestWithoutCollectorKeepsHostGlobalsAndMiddlewareUsesThem(t *testing.T
 			hostLoggers := &hostLoggerProvider{owner: "host"}
 
 			previousTracers, previousMeters := otel.GetTracerProvider(), otel.GetMeterProvider()
-			previousProp, previousLoggers := otel.GetTextMapPropagator(), otellogglobal.GetLoggerProvider()
+			previousProp, previousLoggers := otel.GetTextMapPropagator(), otel.GetLoggerProvider()
 			t.Cleanup(func() {
 				otel.SetTracerProvider(previousTracers)
 				otel.SetMeterProvider(previousMeters)
 				otel.SetTextMapPropagator(previousProp)
-				otellogglobal.SetLoggerProvider(previousLoggers)
+				otel.SetLoggerProvider(previousLoggers)
 			})
 			otel.SetTracerProvider(hostTracers)
 			otel.SetMeterProvider(hostMeters)
 			otel.SetTextMapPropagator(hostProp)
-			otellogglobal.SetLoggerProvider(hostLoggers)
+			otel.SetLoggerProvider(hostLoggers)
 
 			var logs bytes.Buffer
 			client, err := midaz.New(
@@ -92,7 +91,7 @@ func TestGuestWithoutCollectorKeepsHostGlobalsAndMiddlewareUsesThem(t *testing.T
 			assert.Same(t, hostTracers, otel.GetTracerProvider(), "SDK replaced the host TracerProvider")
 			assert.Same(t, hostMeters, otel.GetMeterProvider(), "SDK replaced the host MeterProvider")
 			assert.Same(t, hostProp, otel.GetTextMapPropagator(), "SDK replaced the host TextMapPropagator")
-			assert.Same(t, hostLoggers, otellogglobal.GetLoggerProvider(), "SDK replaced the host LoggerProvider")
+			assert.Same(t, hostLoggers, otel.GetLoggerProvider(), "SDK replaced the host LoggerProvider")
 
 			var outbound http.Header
 			server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
