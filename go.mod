@@ -7,7 +7,7 @@ require (
 	github.com/brianvoe/gofakeit/v7 v7.16.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
-	github.com/oapi-codegen/runtime v1.7.0
+	github.com/oapi-codegen/runtime v1.9.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.0
