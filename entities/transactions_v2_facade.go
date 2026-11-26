@@ -270,7 +270,6 @@ func writeCrossLedgerGroupV2(ctx context.Context, operation string, input *model
 	var status int
 
 	group, err := writeJSON[models.CrossLedgerTransactionGroupV2](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		//nolint:bodyclose // send is a readRawResponse closure, which closes resp.Body via defer before returning.
 		resp, raw, err := send(body)
 		status = statusOf(resp)
 
