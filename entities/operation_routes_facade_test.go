@@ -121,6 +121,36 @@ func TestOperationRoutesFacade_CRUD(t *testing.T) {
 		}
 	})
 
+	t.Run("get accounting actions", func(t *testing.T) {
+		reads := []struct {
+			name   string
+			body   string
+			wantID string
+			want   map[string]*operationRouteRubrics
+		}{
+			{name: "eight actions", body: operationRouteEightActionsJSON, wantID: operationRouteEightActionsID, want: wantEightActions},
+			{name: "bridge route", body: operationRouteBridgeJSON, wantID: operationRouteBridgeID, want: wantBridgeActions},
+		}
+
+		for _, read := range reads {
+			t.Run(read.name, func(t *testing.T) {
+				var m, p string
+
+				srv := readCapturingServer(t, &m, &p, read.body)
+
+				route, err := newTestOperationRoutesFacade(t, srv).Get(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, read.wantID)
+				if err != nil {
+					t.Fatalf("Get: %v", err)
+				}
+				if m != http.MethodGet || p != operationRoutesBase()+"/"+read.wantID {
+					t.Fatalf("get req = %s %s", m, p)
+				}
+
+				assertOperationRouteActions(t, route, read.wantID, read.want)
+			})
+		}
+	})
+
 	t.Run("update", func(t *testing.T) {
 		var m, p, body string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
