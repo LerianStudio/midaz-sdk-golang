@@ -68,7 +68,8 @@ var (
 	}
 
 	stampPreparers = map[string]bool{
-		"prepareCreate": true,
+		"prepareCreate":            true,
+		"prepareCrossLedgerCreate": true,
 	}
 )
 
@@ -168,7 +169,7 @@ func TestEveryWriteStampsIdempotency(t *testing.T) {
 		scan.stamped, len(writeOps))
 
 	// A floor, so a scan that stops matching cannot read as success. It counts
-	// CALL SITES rather than functions, which is the same 109 while every facade
+	// CALL SITES rather than functions, which is the same 112 while every facade
 	// names one write, and the honest number the moment one names two.
 	//
 	// The floor is the LIVE count, not a round number below it. A floor of 70
@@ -176,8 +177,8 @@ func TestEveryWriteStampsIdempotency(t *testing.T) {
 	// failing anything — which is the regression a floor exists to catch, not to
 	// tolerate. Adding a stamped write raises this number; removing one should
 	// fail here and be argued for, not absorbed.
-	require.GreaterOrEqual(t, scan.stamped, 109,
-		"expected the idempotency wiring on at least 109 write call sites; found %d", scan.stamped)
+	require.GreaterOrEqual(t, scan.stamped, 112,
+		"expected the idempotency wiring on at least 112 write call sites; found %d", scan.stamped)
 }
 
 // idempotencyStampScan carries the derived write universe and the credit the
