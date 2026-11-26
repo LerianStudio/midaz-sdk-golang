@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -749,5 +750,219 @@ func TestTransactionsV2Facade_CreateBatch_RefusesABadItemLocallyNamingIt(t *test
 				t.Fatal("a locally refused batch must not reach the wire")
 			}
 		})
+	}
+}
+
+// Cross-ledger 201 bodies, captured verbatim from a Midaz ledger on 2026-11-26
+// for a direct and a hold create whose debit leg named one ledger and whose
+// credit leg named another ledger of the same organization. The direct group
+// carries one CREATED transaction per ledger; the hold group carries only the
+// PENDING part the hold reserved.
+const (
+	crossLedgerDirectGroupJSON = `{"groupId":"01a2193f-9540-799f-8c22-3a988eef1aff","transactions":[{"id":"01a2193f-9542-7ebb-94b2-4193580ca9c3","groupId":"01a2193f-9540-799f-8c22-3a988eef1aff","description":"probe 9271","status":{"code":"CREATED","description":"CREATED"},"amount":"10","assetCode":"BRL","debit":["@alice"],"credit":["@external/BRL"],"ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","feesSkipped":false,"tracerSkipped":false,"createdAt":"2026-11-26T19:05:27.107013548Z","updatedAt":"2026-11-26T19:05:27.107013686Z","deletedAt":null,"operations":[{"id":"01a2193f-9566-7c10-b8d5-3db52aeecc29","transactionId":"01a2193f-9542-7ebb-94b2-4193580ca9c3","description":"probe 9271","type":"DEBIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"100","onHold":"0","version":1,"overdraftUsed":"0"},"balanceAfter":{"available":"90","onHold":"0","version":2,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e84-70ee-92e6-fe2ec819a38b","accountAlias":"@alice","balanceKey":"default","balanceId":"01a2193f-6e93-79a1-a512-80e5f0d1d841","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","balanceAffected":true,"direction":"debit","createdAt":"2026-11-26T19:05:27.107013548Z","updatedAt":"2026-11-26T19:05:27.107013839Z","deletedAt":null,"metadata":null},{"id":"01a2193f-9566-7c13-aa31-dcd5afed82a8","transactionId":"01a2193f-9542-7ebb-94b2-4193580ca9c3","description":"probe 9271","type":"CREDIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"100","onHold":"0","version":1,"overdraftUsed":"0"},"balanceAfter":{"available":"90","onHold":"0","version":2,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e34-7a8c-9235-fc2988f68047","accountAlias":"@external/BRL","balanceKey":"default","balanceId":"01a2193f-6e4a-73e4-b01b-768e60623f63","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","balanceAffected":true,"direction":"credit","createdAt":"2026-11-26T19:05:27.107013548Z","updatedAt":"2026-11-26T19:05:27.107013839Z","deletedAt":null,"metadata":null}],"order":1,"fees":{"transactionId":"01a2193f-9542-7ebb-94b2-4193580ca9c3","recorded":false,"available":true,"items":[]}},{"id":"01a2193f-9543-703d-8df0-70a1341b5fab","groupId":"01a2193f-9540-799f-8c22-3a988eef1aff","description":"probe 9271","status":{"code":"CREATED","description":"CREATED"},"amount":"10","assetCode":"BRL","debit":["@external/BRL"],"credit":["@bob"],"ledgerId":"01a2193f-4d26-721b-b604-464fa60c7e43","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","feesSkipped":false,"tracerSkipped":false,"createdAt":"2026-11-26T19:05:27.107066874Z","updatedAt":"2026-11-26T19:05:27.107066968Z","deletedAt":null,"operations":[{"id":"01a2193f-9566-7c2a-8a84-caba3300971f","transactionId":"01a2193f-9543-703d-8df0-70a1341b5fab","description":"probe 9271","type":"DEBIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"10","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e67-7d00-896e-5f34df0b065b","accountAlias":"@external/BRL","balanceKey":"default","balanceId":"01a2193f-6e6b-7e0e-9a77-f732a31ae9bb","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d26-721b-b604-464fa60c7e43","balanceAffected":true,"direction":"debit","createdAt":"2026-11-26T19:05:27.107066874Z","updatedAt":"2026-11-26T19:05:27.107067063Z","deletedAt":null,"metadata":null},{"id":"01a2193f-9566-7c2e-a923-01a83bd89040","transactionId":"01a2193f-9543-703d-8df0-70a1341b5fab","description":"probe 9271","type":"CREDIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"10","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6eab-7b0e-9920-f573ee27b927","accountAlias":"@bob","balanceKey":"default","balanceId":"01a2193f-6eb6-7226-8565-513257b19816","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d26-721b-b604-464fa60c7e43","balanceAffected":true,"direction":"credit","createdAt":"2026-11-26T19:05:27.107066874Z","updatedAt":"2026-11-26T19:05:27.107067063Z","deletedAt":null,"metadata":null}],"order":2,"fees":{"transactionId":"01a2193f-9543-703d-8df0-70a1341b5fab","recorded":false,"available":true,"items":[]}}]}`
+
+	crossLedgerHoldGroupJSON = `{"groupId":"01a2193f-95db-7225-ae05-ec34be8f8cec","transactions":[{"id":"01a2193f-95e3-7bd4-8e69-bfd96d929c35","groupId":"01a2193f-95db-7225-ae05-ec34be8f8cec","description":"probe 9271","status":{"code":"PENDING","description":"PENDING"},"amount":"7","assetCode":"BRL","debit":["@alice"],"credit":["@external/BRL"],"ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","feesSkipped":false,"tracerSkipped":false,"createdAt":"2026-11-26T19:05:27.267881135Z","updatedAt":"2026-11-26T19:05:27.267881568Z","deletedAt":null,"operations":[{"id":"01a2193f-95ec-781c-aed3-4763b49c91c5","transactionId":"01a2193f-95e3-7bd4-8e69-bfd96d929c35","description":"probe 9271","type":"ON_HOLD","assetCode":"BRL","amount":{"value":"7"},"balance":{"available":"90","onHold":"0","version":2,"overdraftUsed":"0"},"balanceAfter":{"available":"83","onHold":"7","version":3,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e84-70ee-92e6-fe2ec819a38b","accountAlias":"@alice","balanceKey":"default","balanceId":"01a2193f-6e93-79a1-a512-80e5f0d1d841","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","balanceAffected":true,"direction":"debit","createdAt":"2026-11-26T19:05:27.267881135Z","updatedAt":"2026-11-26T19:05:27.267881928Z","deletedAt":null,"metadata":null}],"order":1,"fees":{"transactionId":"01a2193f-95e3-7bd4-8e69-bfd96d929c35","recorded":false,"available":true,"items":[]}}]}`
+)
+
+// The organization and the two ledgers the captured groups were created in.
+const (
+	crossLedgerOrgID   = "01a2193f-4ce6-753d-8673-2712abdbfe5b"
+	crossLedgerLedgerA = "01a2193f-4d0c-7ba5-bb53-42d79cf1701d"
+	crossLedgerLedgerB = "01a2193f-4d26-721b-b604-464fa60c7e43"
+)
+
+// sampleCrossLedgerV2Input builds the request the captured groups answered: a
+// debit of @alice in ledger A and a credit of @bob in ledger B, each leg naming
+// its own pair. Every call returns a fresh input, so a test can build a second
+// one to compare against after the call.
+func sampleCrossLedgerV2Input() *models.CreateTransactionV2Input {
+	return &models.CreateTransactionV2Input{
+		Asset:       "BRL",
+		Amount:      "10",
+		Description: "cross-ledger transfer",
+		Debits: []models.TransactionV2Leg{
+			{Alias: "@alice", OrganizationID: crossLedgerOrgID, LedgerID: crossLedgerLedgerA, Amount: "10"},
+		},
+		Credits: []models.TransactionV2Leg{
+			{Alias: "@bob", OrganizationID: crossLedgerOrgID, LedgerID: crossLedgerLedgerB, Amount: "10"},
+		},
+	}
+}
+
+// crossLedgerCreates lists the two cross-ledger creates with the endpoint each
+// posts to and the single-ledger method its single-pair refusal points at, so
+// every behaviour the two share is pinned on both.
+var crossLedgerCreates = []struct {
+	name   string
+	path   string
+	single string
+	create func(*transactionsV2Facade, context.Context, *models.CreateTransactionV2Input) (*models.CrossLedgerTransactionGroupV2, error)
+}{
+	{
+		name:   "CreateDirectCrossLedger",
+		path:   "/v2/transactions/direct",
+		single: "CreateDirect",
+		create: (*transactionsV2Facade).CreateDirectCrossLedger,
+	},
+	{
+		name:   "CreateHoldCrossLedger",
+		path:   "/v2/transactions/hold",
+		single: "CreateHold",
+		create: (*transactionsV2Facade).CreateHoldCrossLedger,
+	},
+}
+
+// crossLedgerRequest is what a cross-ledger create sent.
+type crossLedgerRequest struct {
+	requests     int
+	method, path string
+	body         []byte
+}
+
+// crossLedgerServer answers every request with status and response, recording
+// the request it got.
+func crossLedgerServer(t *testing.T, status int, contentType, response string) (*httptest.Server, *crossLedgerRequest) {
+	t.Helper()
+
+	got := &crossLedgerRequest{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got.requests++
+		got.method, got.path = r.Method, r.URL.Path
+		got.body, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", contentType)
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(response))
+	}))
+
+	t.Cleanup(srv.Close)
+
+	return srv, got
+}
+
+// TestTransactionsV2Facade_CreateCrossLedgerReturnsTheServedGroup covers the
+// scenarios criacao-direct-cross-ledger and criacao-hold-cross-ledger: one POST
+// to the action's endpoint, and the group exactly as served. The hold answer has
+// ONE transaction for two ledgers, and the SDK must not invent the second.
+func TestTransactionsV2Facade_CreateCrossLedgerReturnsTheServedGroup(t *testing.T) {
+	type wantTransaction struct {
+		id, ledgerID, status string
+	}
+
+	tests := []struct {
+		scenario string
+		create   int
+		response string
+		groupID  string
+		want     []wantTransaction
+	}{
+		{
+			scenario: "criacao-direct-cross-ledger",
+			create:   0,
+			response: crossLedgerDirectGroupJSON,
+			groupID:  "01a2193f-9540-799f-8c22-3a988eef1aff",
+			want: []wantTransaction{
+				{id: "01a2193f-9542-7ebb-94b2-4193580ca9c3", ledgerID: crossLedgerLedgerA, status: "CREATED"},
+				{id: "01a2193f-9543-703d-8df0-70a1341b5fab", ledgerID: crossLedgerLedgerB, status: "CREATED"},
+			},
+		},
+		{
+			scenario: "criacao-hold-cross-ledger",
+			create:   1,
+			response: crossLedgerHoldGroupJSON,
+			groupID:  "01a2193f-95db-7225-ae05-ec34be8f8cec",
+			want: []wantTransaction{
+				{id: "01a2193f-95e3-7bd4-8e69-bfd96d929c35", ledgerID: crossLedgerLedgerA, status: "PENDING"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.scenario, func(t *testing.T) {
+			c := crossLedgerCreates[tt.create]
+			srv, got := crossLedgerServer(t, http.StatusCreated, "application/json", tt.response)
+
+			group, err := c.create(newTestTransactionsV2Facade(t, srv), context.Background(), sampleCrossLedgerV2Input())
+			if err != nil {
+				t.Fatalf("%s: %v", c.name, err)
+			}
+
+			if got.requests != 1 || got.method != http.MethodPost || got.path != c.path {
+				t.Fatalf("requests=%d %s %s, want one POST %s", got.requests, got.method, got.path, c.path)
+			}
+
+			if group.GroupID != tt.groupID {
+				t.Fatalf("GroupID = %q, want the served %q", group.GroupID, tt.groupID)
+			}
+
+			if len(group.Transactions) != len(tt.want) {
+				t.Fatalf("transactions = %d, want the %d served", len(group.Transactions), len(tt.want))
+			}
+
+			for i, want := range tt.want {
+				tx := group.Transactions[i]
+				if tx.ID != want.id || tx.LedgerID != want.ledgerID || tx.Status.Code != want.status {
+					t.Fatalf("transactions[%d] = {%s %s %s}, want {%s %s %s} in served order",
+						i, tx.ID, tx.LedgerID, tx.Status.Code, want.id, want.ledgerID, want.status)
+				}
+			}
+		})
+	}
+}
+
+// TestTransactionsV2Facade_CrossLedgerSendsTheCallersLegs covers the scenarios
+// corpo-cross-ledger-enviado and espacos-nos-identificadores-da-perna on both
+// creates: the body is the /v2 create body with each leg's own pair, trimmed and
+// never filled, and the caller's input is left as it was.
+func TestTransactionsV2Facade_CrossLedgerSendsTheCallersLegs(t *testing.T) {
+	// Written by hand from the input below, not produced by the SDK.
+	const wantBody = `{"asset":"BRL","amount":"10",` +
+		`"debits":[{"alias":"@alice","organizationId":"` + crossLedgerOrgID + `","ledgerId":"` + crossLedgerLedgerA + `","amount":"10"}],` +
+		`"credits":[{"alias":"@bob","organizationId":"` + crossLedgerOrgID + `","ledgerId":"` + crossLedgerLedgerB + `","amount":"10"}],` +
+		`"description":"cross-ledger transfer"}`
+
+	tests := []struct {
+		scenario string
+		mut      func(*models.CreateTransactionV2Input)
+	}{
+		{
+			scenario: "corpo-cross-ledger-enviado",
+			mut:      func(*models.CreateTransactionV2Input) {},
+		},
+		{
+			scenario: "espacos-nos-identificadores-da-perna",
+			mut: func(in *models.CreateTransactionV2Input) {
+				in.Debits[0].OrganizationID = " " + crossLedgerOrgID + " "
+				in.Debits[0].LedgerID = "\t" + crossLedgerLedgerA
+				in.Credits[0].LedgerID = crossLedgerLedgerB + "  "
+			},
+		},
+	}
+
+	for _, c := range crossLedgerCreates {
+		for _, tt := range tests {
+			t.Run(c.name+"/"+tt.scenario, func(t *testing.T) {
+				srv, got := crossLedgerServer(t, http.StatusCreated, "application/json", crossLedgerDirectGroupJSON)
+
+				input := sampleCrossLedgerV2Input()
+				tt.mut(input)
+
+				if _, err := c.create(newTestTransactionsV2Facade(t, srv), context.Background(), input); err != nil {
+					t.Fatalf("%s: %v", c.name, err)
+				}
+
+				if string(got.body) != wantBody {
+					t.Fatalf("body = %s\nwant   %s", got.body, wantBody)
+				}
+
+				want := sampleCrossLedgerV2Input()
+				tt.mut(want)
+
+				if !reflect.DeepEqual(input, want) {
+					t.Fatalf("the caller's input changed: %+v, want %+v", input, want)
+				}
+			})
+		}
 	}
 }
