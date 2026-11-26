@@ -966,3 +966,153 @@ func TestTransactionsV2Facade_CrossLedgerSendsTheCallersLegs(t *testing.T) {
 		}
 	}
 }
+
+// TestTransactionsV2Facade_CrossLedgerRefusesLocally covers, on both creates, the
+// scenarios pernas-em-mesmo-ledger-recusadas, mesmo-ledger-em-caixas-diferentes,
+// perna-sem-escopo-recusada and input-nulo-ou-invalido-recusado: each is a
+// validation error naming the operation, and nothing reaches the wire.
+//
+// A single-pair refusal also names the single-ledger method to use, because the
+// fix is a different call, not a different body.
+func TestTransactionsV2Facade_CrossLedgerRefusesLocally(t *testing.T) {
+	sameLedger := func(mut func(*models.TransactionV2Leg)) func() *models.CreateTransactionV2Input {
+		return func() *models.CreateTransactionV2Input {
+			in := sampleCrossLedgerV2Input()
+			in.Credits[0].LedgerID = crossLedgerLedgerA
+			mut(&in.Credits[0])
+
+			return in
+		}
+	}
+
+	mutated := func(mut func(*models.CreateTransactionV2Input)) func() *models.CreateTransactionV2Input {
+		return func() *models.CreateTransactionV2Input {
+			in := sampleCrossLedgerV2Input()
+			mut(in)
+
+			return in
+		}
+	}
+
+	tests := []struct {
+		scenario   string
+		input      func() *models.CreateTransactionV2Input
+		want       string // "" when the refusal only has to name the operation
+		singlePair bool   // the refusal must point at the single-ledger method
+	}{
+		{
+			scenario:   "pernas-em-mesmo-ledger-recusadas",
+			input:      sameLedger(func(*models.TransactionV2Leg) {}),
+			singlePair: true,
+		},
+		{
+			scenario: "pernas-em-mesmo-ledger-recusadas/spelled with surrounding spaces",
+			input: sameLedger(func(leg *models.TransactionV2Leg) {
+				leg.OrganizationID, leg.LedgerID = " "+leg.OrganizationID, leg.LedgerID+" "
+			}),
+			singlePair: true,
+		},
+		{
+			scenario: "mesmo-ledger-em-caixas-diferentes",
+			input: sameLedger(func(leg *models.TransactionV2Leg) {
+				leg.OrganizationID, leg.LedgerID = strings.ToUpper(leg.OrganizationID), strings.ToUpper(leg.LedgerID)
+			}),
+			singlePair: true,
+		},
+		{
+			scenario: "perna-sem-escopo-recusada/debit leg without organization",
+			input:    mutated(func(in *models.CreateTransactionV2Input) { in.Debits[0].OrganizationID = "" }),
+			want:     "debits[0]",
+		},
+		{
+			scenario: "perna-sem-escopo-recusada/credit leg without ledger",
+			input:    mutated(func(in *models.CreateTransactionV2Input) { in.Credits[0].LedgerID = "" }),
+			want:     "credits[0]",
+		},
+		{
+			scenario: "perna-sem-escopo-recusada/credit leg with a blank ledger",
+			input:    mutated(func(in *models.CreateTransactionV2Input) { in.Credits[0].LedgerID = "   " }),
+			want:     "credits[0]",
+		},
+		{
+			scenario: "input-nulo-ou-invalido-recusado/nil input",
+			input:    func() *models.CreateTransactionV2Input { return nil },
+			want:     "input cannot be nil",
+		},
+		{
+			scenario: "input-nulo-ou-invalido-recusado/no asset",
+			input:    mutated(func(in *models.CreateTransactionV2Input) { in.Asset = "" }),
+			want:     "asset",
+		},
+		{
+			scenario: "input-nulo-ou-invalido-recusado/zero amount",
+			input:    mutated(func(in *models.CreateTransactionV2Input) { in.Amount = "0" }),
+			want:     "amount",
+		},
+		{
+			scenario: "input-nulo-ou-invalido-recusado/negative amount",
+			input:    mutated(func(in *models.CreateTransactionV2Input) { in.Amount = "-10" }),
+			want:     "amount",
+		},
+		{
+			scenario: "input-nulo-ou-invalido-recusado/no credit side",
+			input:    mutated(func(in *models.CreateTransactionV2Input) { in.Credits = nil }),
+			want:     "credits",
+		},
+	}
+
+	for _, c := range crossLedgerCreates {
+		for _, tt := range tests {
+			t.Run(c.name+"/"+tt.scenario, func(t *testing.T) {
+				srv, got := crossLedgerServer(t, http.StatusCreated, "application/json", crossLedgerDirectGroupJSON)
+
+				group, err := c.create(newTestTransactionsV2Facade(t, srv), context.Background(), tt.input())
+
+				if !sdkerrors.IsValidationError(err) || group != nil {
+					t.Fatalf("got (%+v, %v), want a validation error and no group", group, err)
+				}
+
+				if operation := "V2.Transactions." + c.name; !strings.Contains(err.Error(), operation) {
+					t.Fatalf("err = %v, want it to name %s", err, operation)
+				}
+
+				if tt.want != "" && !strings.Contains(err.Error(), tt.want) {
+					t.Fatalf("err = %v, want it to name %q", err, tt.want)
+				}
+
+				if pointer := "use " + c.single + " for"; tt.singlePair && !strings.Contains(err.Error(), pointer) {
+					t.Fatalf("err = %v, want it to point at %s", err, c.single)
+				}
+
+				if got.requests != 0 {
+					t.Fatalf("requests = %d, want none: a locally refused create must not reach the wire", got.requests)
+				}
+			})
+		}
+	}
+}
+
+// TestTransactionsV2Facade_CrossLedgerCountsDifferentOrganizationsAsDistinctPairs
+// covers the scenario organizacoes-diferentes-contam-como-pares-distintos: legs
+// in the same ledger id under two organizations are two pairs, so the request
+// leaves and the server decides.
+func TestTransactionsV2Facade_CrossLedgerCountsDifferentOrganizationsAsDistinctPairs(t *testing.T) {
+	const otherOrgID = "5f607182-5555-4555-8555-5f6071829304"
+
+	for _, c := range crossLedgerCreates {
+		t.Run(c.name, func(t *testing.T) {
+			srv, got := crossLedgerServer(t, http.StatusCreated, "application/json", crossLedgerDirectGroupJSON)
+
+			input := sampleCrossLedgerV2Input()
+			input.Credits[0].OrganizationID, input.Credits[0].LedgerID = otherOrgID, crossLedgerLedgerA
+
+			if _, err := c.create(newTestTransactionsV2Facade(t, srv), context.Background(), input); err != nil {
+				t.Fatalf("%s: %v", c.name, err)
+			}
+
+			if got.requests != 1 {
+				t.Fatalf("requests = %d, want exactly one", got.requests)
+			}
+		})
+	}
+}
