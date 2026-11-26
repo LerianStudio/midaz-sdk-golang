@@ -267,3 +267,89 @@ func TestUpdateTransactionV2Input_Validate(t *testing.T) {
 		t.Fatal("nested metadata must be refused")
 	}
 }
+
+// crossLedgerDirectGroupJSON is the 201 the Midaz ledger served to a direct create
+// whose debit and credit legs named two ledgers of one organization. It is kept
+// byte for byte, extra fields included (order, fees, per-transaction groupId),
+// so the decode is pinned against what the server really sends.
+const crossLedgerDirectGroupJSON = `{"groupId":"01a2193f-9540-799f-8c22-3a988eef1aff","transactions":[{"id":"01a2193f-9542-7ebb-94b2-4193580ca9c3","groupId":"01a2193f-9540-799f-8c22-3a988eef1aff","description":"probe 9271","status":{"code":"CREATED","description":"CREATED"},"amount":"10","assetCode":"BRL","debit":["@alice"],"credit":["@external/BRL"],"ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","feesSkipped":false,"tracerSkipped":false,"createdAt":"2026-11-26T19:05:27.107013548Z","updatedAt":"2026-11-26T19:05:27.107013686Z","deletedAt":null,"operations":[{"id":"01a2193f-9566-7c10-b8d5-3db52aeecc29","transactionId":"01a2193f-9542-7ebb-94b2-4193580ca9c3","description":"probe 9271","type":"DEBIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"100","onHold":"0","version":1,"overdraftUsed":"0"},"balanceAfter":{"available":"90","onHold":"0","version":2,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e84-70ee-92e6-fe2ec819a38b","accountAlias":"@alice","balanceKey":"default","balanceId":"01a2193f-6e93-79a1-a512-80e5f0d1d841","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","balanceAffected":true,"direction":"debit","createdAt":"2026-11-26T19:05:27.107013548Z","updatedAt":"2026-11-26T19:05:27.107013839Z","deletedAt":null,"metadata":null},{"id":"01a2193f-9566-7c13-aa31-dcd5afed82a8","transactionId":"01a2193f-9542-7ebb-94b2-4193580ca9c3","description":"probe 9271","type":"CREDIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"100","onHold":"0","version":1,"overdraftUsed":"0"},"balanceAfter":{"available":"90","onHold":"0","version":2,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e34-7a8c-9235-fc2988f68047","accountAlias":"@external/BRL","balanceKey":"default","balanceId":"01a2193f-6e4a-73e4-b01b-768e60623f63","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","balanceAffected":true,"direction":"credit","createdAt":"2026-11-26T19:05:27.107013548Z","updatedAt":"2026-11-26T19:05:27.107013839Z","deletedAt":null,"metadata":null}],"order":1,"fees":{"transactionId":"01a2193f-9542-7ebb-94b2-4193580ca9c3","recorded":false,"available":true,"items":[]}},{"id":"01a2193f-9543-703d-8df0-70a1341b5fab","groupId":"01a2193f-9540-799f-8c22-3a988eef1aff","description":"probe 9271","status":{"code":"CREATED","description":"CREATED"},"amount":"10","assetCode":"BRL","debit":["@external/BRL"],"credit":["@bob"],"ledgerId":"01a2193f-4d26-721b-b604-464fa60c7e43","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","feesSkipped":false,"tracerSkipped":false,"createdAt":"2026-11-26T19:05:27.107066874Z","updatedAt":"2026-11-26T19:05:27.107066968Z","deletedAt":null,"operations":[{"id":"01a2193f-9566-7c2a-8a84-caba3300971f","transactionId":"01a2193f-9543-703d-8df0-70a1341b5fab","description":"probe 9271","type":"DEBIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"10","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e67-7d00-896e-5f34df0b065b","accountAlias":"@external/BRL","balanceKey":"default","balanceId":"01a2193f-6e6b-7e0e-9a77-f732a31ae9bb","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d26-721b-b604-464fa60c7e43","balanceAffected":true,"direction":"debit","createdAt":"2026-11-26T19:05:27.107066874Z","updatedAt":"2026-11-26T19:05:27.107067063Z","deletedAt":null,"metadata":null},{"id":"01a2193f-9566-7c2e-a923-01a83bd89040","transactionId":"01a2193f-9543-703d-8df0-70a1341b5fab","description":"probe 9271","type":"CREDIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"10","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6eab-7b0e-9920-f573ee27b927","accountAlias":"@bob","balanceKey":"default","balanceId":"01a2193f-6eb6-7226-8565-513257b19816","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d26-721b-b604-464fa60c7e43","balanceAffected":true,"direction":"credit","createdAt":"2026-11-26T19:05:27.107066874Z","updatedAt":"2026-11-26T19:05:27.107067063Z","deletedAt":null,"metadata":null}],"order":2,"fees":{"transactionId":"01a2193f-9543-703d-8df0-70a1341b5fab","recorded":false,"available":true,"items":[]}}]}`
+
+// crossLedgerHoldGroupJSON is the 201 the same server served to a hold create
+// with the same two ledgers: one PENDING transaction, the part the hold reserved.
+const crossLedgerHoldGroupJSON = `{"groupId":"01a2193f-95db-7225-ae05-ec34be8f8cec","transactions":[{"id":"01a2193f-95e3-7bd4-8e69-bfd96d929c35","groupId":"01a2193f-95db-7225-ae05-ec34be8f8cec","description":"probe 9271","status":{"code":"PENDING","description":"PENDING"},"amount":"7","assetCode":"BRL","debit":["@alice"],"credit":["@external/BRL"],"ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","feesSkipped":false,"tracerSkipped":false,"createdAt":"2026-11-26T19:05:27.267881135Z","updatedAt":"2026-11-26T19:05:27.267881568Z","deletedAt":null,"operations":[{"id":"01a2193f-95ec-781c-aed3-4763b49c91c5","transactionId":"01a2193f-95e3-7bd4-8e69-bfd96d929c35","description":"probe 9271","type":"ON_HOLD","assetCode":"BRL","amount":{"value":"7"},"balance":{"available":"90","onHold":"0","version":2,"overdraftUsed":"0"},"balanceAfter":{"available":"83","onHold":"7","version":3,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e84-70ee-92e6-fe2ec819a38b","accountAlias":"@alice","balanceKey":"default","balanceId":"01a2193f-6e93-79a1-a512-80e5f0d1d841","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","balanceAffected":true,"direction":"debit","createdAt":"2026-11-26T19:05:27.267881135Z","updatedAt":"2026-11-26T19:05:27.267881928Z","deletedAt":null,"metadata":null}],"order":1,"fees":{"transactionId":"01a2193f-95e3-7bd4-8e69-bfd96d929c35","recorded":false,"available":true,"items":[]}}]}`
+
+// TestCrossLedgerTransactionGroupV2_DecodesServedGroups pins the decode of the
+// two cross-ledger group shapes the server serves: a direct group with one
+// CREATED transaction per ledger, and a hold group with only the PENDING part.
+// Every expectation is read off the served JSON, so a field that stops decoding
+// fails here instead of surfacing as an empty value in a caller.
+func TestCrossLedgerTransactionGroupV2_DecodesServedGroups(t *testing.T) {
+	type wantTransaction struct {
+		id       string
+		ledgerID string
+		status   string
+	}
+
+	const (
+		ledgerA = "01a2193f-4d0c-7ba5-bb53-42d79cf1701d"
+		ledgerB = "01a2193f-4d26-721b-b604-464fa60c7e43"
+	)
+
+	tests := []struct {
+		name    string
+		body    string
+		groupID string
+		want    []wantTransaction
+	}{
+		{
+			name:    "direct group",
+			body:    crossLedgerDirectGroupJSON,
+			groupID: "01a2193f-9540-799f-8c22-3a988eef1aff",
+			want: []wantTransaction{
+				{id: "01a2193f-9542-7ebb-94b2-4193580ca9c3", ledgerID: ledgerA, status: "CREATED"},
+				{id: "01a2193f-9543-703d-8df0-70a1341b5fab", ledgerID: ledgerB, status: "CREATED"},
+			},
+		},
+		{
+			name:    "hold group",
+			body:    crossLedgerHoldGroupJSON,
+			groupID: "01a2193f-95db-7225-ae05-ec34be8f8cec",
+			want: []wantTransaction{
+				{id: "01a2193f-95e3-7bd4-8e69-bfd96d929c35", ledgerID: ledgerA, status: "PENDING"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var group CrossLedgerTransactionGroupV2
+			if err := json.Unmarshal([]byte(tt.body), &group); err != nil {
+				t.Fatalf("Unmarshal: %v", err)
+			}
+
+			if group.GroupID != tt.groupID {
+				t.Fatalf("GroupID = %q, want %q", group.GroupID, tt.groupID)
+			}
+
+			if len(group.Transactions) != len(tt.want) {
+				t.Fatalf("len(Transactions) = %d, want %d", len(group.Transactions), len(tt.want))
+			}
+
+			for i, want := range tt.want {
+				got := group.Transactions[i]
+
+				if got.ID != want.id {
+					t.Errorf("Transactions[%d].ID = %q, want %q (served order)", i, got.ID, want.id)
+				}
+
+				if got.LedgerID != want.ledgerID {
+					t.Errorf("Transactions[%d].LedgerID = %q, want %q", i, got.LedgerID, want.ledgerID)
+				}
+
+				if got.Status.Code != want.status {
+					t.Errorf("Transactions[%d].Status.Code = %q, want %q", i, got.Status.Code, want.status)
+				}
+			}
+		})
+	}
+}
