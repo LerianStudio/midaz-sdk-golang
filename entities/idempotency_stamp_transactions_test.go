@@ -107,3 +107,42 @@ func TestTransactionsCommitUnaffectedByGate(t *testing.T) {
 		t.Fatalf("commit + ctx key: got %q, want k (actions still honor an explicit key)", got)
 	}
 }
+
+// TestTransactionsV2CrossLedgerCreateIdempotency proves the cross-ledger creates
+// stamp X-Idempotency by the rules of every /v2 create, covering the scenarios
+// chave-explicita-enviada (input and ctx key, gate off), sem-chave-sem-cabecalho
+// (gate off, no key) and chave-automatica-com-a-opcao-ligada (gate on, no key).
+func TestTransactionsV2CrossLedgerCreateIdempotency(t *testing.T) {
+	for _, c := range crossLedgerCreates {
+		t.Run(c.name, func(t *testing.T) {
+			create := func(ctx context.Context, gate bool, in *models.CreateTransactionV2Input) string {
+				srv, key := idempotencyCaptureServer()
+				defer srv.Close()
+
+				_, _ = c.create(newTransactionsV2Facade(newTestLedgerClient(t, srv), gate), ctx, in)
+
+				return key()
+			}
+
+			in := sampleCrossLedgerV2Input()
+			in.IdempotencyKey = "explicit-key"
+
+			if got := create(context.Background(), false, in); got != "explicit-key" {
+				t.Fatalf("chave-explicita-enviada, input key: got %q, want explicit-key", got)
+			}
+
+			ctx := sdkctx.WithIdempotencyKey(context.Background(), "k")
+			if got := create(ctx, false, sampleCrossLedgerV2Input()); got != "k" {
+				t.Fatalf("chave-explicita-enviada, ctx key: got %q, want k", got)
+			}
+
+			if got := create(context.Background(), false, sampleCrossLedgerV2Input()); got != "" {
+				t.Fatalf("sem-chave-sem-cabecalho: want no X-Idempotency, got %q", got)
+			}
+
+			if got := create(context.Background(), true, sampleCrossLedgerV2Input()); got == "" {
+				t.Fatal("chave-automatica-com-a-opcao-ligada: want an auto-generated X-Idempotency")
+			}
+		})
+	}
+}
