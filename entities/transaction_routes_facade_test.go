@@ -184,6 +184,36 @@ func TestTransactionRoutesFacade_CRUD(t *testing.T) {
 	})
 }
 
+// TestTransactionRoutesFacade_GetDeliversEmbeddedOperationRouteActions asserts
+// that the operation routes embedded in a transaction route reach the caller
+// with the accounting actions the server sent, block included.
+func TestTransactionRoutesFacade_GetDeliversEmbeddedOperationRouteActions(t *testing.T) {
+	const id = "55555555-5555-5555-5555-555555555555"
+	const secondRouteID = "66666666-6666-6666-6666-666666666666"
+
+	secondRoute := `{"id":"` + secondRouteID + `","title":"probe E","operationType":"destination",` +
+		`"accountingEntries":{` + operationRouteEntryDirect + `,` + operationRouteEntryBlock + `},` + operationRouteEnvelopeTail
+	body := `{"id":"` + id + `","title":"Settlement","operationRoutes":[` + operationRouteBlockWithoutUnblockJSON + `,` + secondRoute + `]}`
+
+	var m, p string
+
+	srv := readCapturingServer(t, &m, &p, body)
+
+	route, err := newTestTransactionRoutesFacade(t, srv).Get(context.Background(), transactionRoutesOrgID, transactionRoutesLedgerID, id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if m != http.MethodGet || p != transactionRoutesBase()+"/"+id {
+		t.Fatalf("get req = %s %s", m, p)
+	}
+	if route == nil || len(route.OperationRoutes) != 2 {
+		t.Fatalf("Get returned %+v, want the two embedded operation routes the server sent", route)
+	}
+
+	assertOperationRouteActions(t, &route.OperationRoutes[0], v2UUIDA, wantBlockWithoutUnblockActions)
+	assertOperationRouteActions(t, &route.OperationRoutes[1], secondRouteID, wantBlockWithoutUnblockActions)
+}
+
 // TestTransactionRoutesFacade_Filters is the per-resource differentiator. The
 // cursor/sort/date fields map to generated param slots; name, status, and
 // operation_route_id have no slot and must be injected via request editors,
