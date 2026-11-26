@@ -158,7 +158,7 @@ The grouping is a fact about the server, not a style choice. Midaz carries the v
 
 Two V2 members differ in **shape** from their V1 namesake rather than only in path:
 
-- `V2.Transactions` creates at the top level (`/v2/transactions/direct`) with the organization and ledger travelling per leg in the body, and answers with `models.TransactionV2`. The four V1 creation styles (json, inflow, outflow, annotation) have no V2 twin.
+- `V2.Transactions` creates at the top level (`/v2/transactions/direct`) with the organization and ledger travelling per leg in the body, and answers with `models.TransactionV2` (a cross-ledger `direct` or `hold` answers with a group instead; see Transactions below). The four V1 creation styles (json, inflow, outflow, annotation) have no V2 twin.
 - `V2.Accounts` does not re-expose the account-scoped balance and operation reads. V1 spells each on two facades; V2 spells each once, on `V2.Balances` and `V2.Operations`.
 
 The billing family (`BillingPackages`, `FeePackages`, `FeeEstimates`, `BillingCalculations`) also **moved scope** between versions, from organization to ledger, so every method takes a ledger ID.
@@ -344,7 +344,7 @@ The one family whose two surfaces differ in **shape**, not only in path.
 - `UpdateOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
 - `Commit` / `Revert` / `Cancel(ctx, orgID, ledgerID, transactionID)`
 
-`V2.Transactions`, returning `models.TransactionV2`:
+`V2.Transactions`, returning `models.TransactionV2` (the two `...CrossLedger` creates return the group instead):
 
 - `CreateDirect(ctx, orgID, ledgerID, input)` - settles immediately
 - `CreateHold(ctx, orgID, ledgerID, input)` - reserves value for a later `Commit`
