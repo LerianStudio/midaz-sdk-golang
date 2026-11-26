@@ -178,7 +178,10 @@ creates at the **top level** (`POST /v2/transactions/direct`) with a flat body â
 an asset, a total, and two leg arrays â€” and the organization and ledger
 travelling per leg rather than in the URL. `c.V2.Transactions` answers with
 `models.TransactionV2`, which drops four `/v1` fields and carries two `/v1`
-dropped. `c.V2.Accounts` also does not re-expose the account-scoped balance and
+dropped. A `direct` or `hold` whose legs span more than one ledger (Midaz
+v4.1.0+, `crossLedger.enabled` on every ledger) goes through
+`CreateDirectCrossLedger` / `CreateHoldCrossLedger`, which answer with the
+atomic group, `models.CrossLedgerTransactionGroupV2`. `c.V2.Accounts` also does not re-expose the account-scoped balance and
 operation reads: `/v1` spells each on two accessors, `/v2` spells each once, on
 `c.V2.Balances` and `c.V2.Operations`.
 
