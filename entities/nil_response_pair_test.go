@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	stderrors "errors"
 	"go/ast"
 	"go/token"
 	"go/types"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/gentracer"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -166,6 +168,26 @@ func responseHelperProbes(spanCtx context.Context) []nilPairProbe {
 			_, err := writeJSON[models.Account](ctx, "op", map[string]string{}, nilSend)
 			require.Error(t, err)
 		}},
+		{"writeCrossLedgerGroupV2", func(t require.TestingT) {
+			// A nil response WITH an error: the transport failure is wrapped as an
+			// internal error and no group comes back.
+			transport := stderrors.New("transport failed")
+
+			group, err := writeCrossLedgerGroupV2(ctx, "op", sampleCrossLedgerV2Input(),
+				func(io.Reader) (*http.Response, []byte, error) { return nil, nil, transport })
+			require.Nil(t, group)
+			require.ErrorIs(t, err, transport)
+			requireCategory(t, err, sdkerrors.CategoryInternal)
+
+			// A nil response with NO error: refused by writeJSON before the group
+			// guard runs, so it never reads as a group nor as a decode error with
+			// status 0.
+			group, err = writeCrossLedgerGroupV2(ctx, "op", sampleCrossLedgerV2Input(), nilSend)
+			require.Nil(t, group)
+			require.Error(t, err)
+			require.False(t, sdkerrors.IsResponseDecodeError(err), "a nil response is not a response the SDK received: %v", err)
+			requireCategory(t, err, sdkerrors.CategoryInternal)
+		}},
 		{"ruleTransition", func(t require.TestingT) {
 			_, err := ruleTransition(ctx, "op", nilTracerCall, "id")
 			require.ErrorIs(t, err, errNoResponse)
@@ -182,6 +204,19 @@ func responseHelperProbes(spanCtx context.Context) []nilPairProbe {
 			enrichHTTPSpan(spanCtx, http.MethodGet, "https://example.test/v1/x", nil, nil)
 		}},
 	}
+}
+
+// requireCategory asserts err is an SDK error of the given category, so a nil
+// pair is refused with a classified error rather than an opaque one.
+func requireCategory(t require.TestingT, err error, category sdkerrors.ErrorCategory) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+
+	var sdkErr *sdkerrors.Error
+
+	require.ErrorAs(t, err, &sdkErr, "error %T is not an *errors.Error: %v", err, err)
+	require.Equal(t, category, sdkErr.Category, "error %v", err)
 }
 
 // nilSend is writeJSON's send parameter, returning the pair with nothing in it.

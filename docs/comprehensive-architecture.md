@@ -281,7 +281,10 @@ the four /v1 creation styles (json, inflow, outflow, annotation) nest a `send`
 envelope and have no /v2 twin, while /v2 creates at the top level
 (`POST /v2/transactions/direct`) with a flat body whose scope travels per leg.
 `V2.Transactions` answers with `models.TransactionV2`, which drops four /v1
-fields and carries two /v1 dropped.
+fields and carries two /v1 dropped. A `direct` or `hold` whose legs span more
+than one ledger goes through `CreateDirectCrossLedger` /
+`CreateHoldCrossLedger`, which answer with
+`models.CrossLedgerTransactionGroupV2`.
 
 **Every** service field is a concrete unexported `*xFacade` struct over a
 generated plane client. There are no interface-backed services left:

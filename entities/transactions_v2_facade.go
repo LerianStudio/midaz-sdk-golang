@@ -52,6 +52,15 @@ import (
 // It drops four /v1 fields the surface does not serve and keeps two /v1 dropped.
 // See models.TransactionV2. The list, the reads, the patch and the three
 // lifecycle transitions all answer with it.
+//
+// # Cross-ledger creates are separate methods
+//
+// CreateDirectCrossLedger and CreateHoldCrossLedger post to the same direct and
+// hold endpoints a body whose legs name MORE than one organization and ledger
+// pair, and return the CrossLedgerTransactionGroupV2 the server creates. They
+// take no orgID or ledgerID and stamp nothing: each leg's pair is the caller's
+// data. The creates above keep their addressed pair, their stamping and their
+// refusal of a leg in another ledger unchanged.
 type transactionsV2Facade struct {
 	ledger *genledger.ClientWithResponses
 	// enableIdempotency gates auto-generated X-Idempotency keys on creates; an
@@ -183,6 +192,99 @@ func (f *transactionsV2Facade) CreateBatch(ctx context.Context, orgID, ledgerID 
 	}
 
 	return out.Transactions, nil
+}
+
+// CreateDirectCrossLedger posts a transaction whose legs name more than one
+// organization and ledger pair, via POST /v2/transactions/direct, and returns
+// the atomic group the server creates: one transaction per ledger, bound by
+// GroupID, in the order the server served them.
+//
+// Unlike CreateDirect it takes no orgID or ledgerID. A cross-ledger request has
+// no single addressed pair, so every leg names its own organization and ledger;
+// the facade trims surrounding whitespace from them and fills nothing. Legs that
+// all name one pair (compared ignoring letter case) are refused before the
+// request leaves: use CreateDirect for them.
+//
+// It requires Midaz v4.1.0 or later and crossLedger.enabled on every ledger the
+// legs name. The SDK checks neither; the server's refusal (0249 when the setting
+// is off, 0499 from a server that takes legs in one pair only) comes back as the
+// API error with its status and code.
+//
+// Idempotency follows CreateDirect: an input or sdkctx key travels as
+// X-Idempotency, and a keyless call carries one only when automatic idempotency
+// is on. The server documents keeping a key after a failed or timed-out create
+// for single-ledger creates, not for cross-ledger ones, so retrying with the
+// same key is not assured to replay the first outcome.
+func (f *transactionsV2Facade) CreateDirectCrossLedger(ctx context.Context, input *models.CreateTransactionV2Input) (*models.CrossLedgerTransactionGroupV2, error) {
+	const operation = "V2.Transactions.CreateDirectCrossLedger"
+
+	prepared, params, err := prepareCrossLedgerCreate(ctx, operation, "CreateDirect", f.enableIdempotency, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return writeCrossLedgerGroupV2(ctx, operation, prepared, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateTransactionDirectV2WithBody(ctx,
+			&genledger.CreateTransactionDirectV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
+			jsonContentType, body, params.mark...))
+	})
+}
+
+// CreateHoldCrossLedger opens a transaction PENDING whose legs name more than
+// one organization and ledger pair, via POST /v2/transactions/hold, and returns
+// the group the server creates.
+//
+// The group carries ONLY the parts the hold reserved, as PENDING transactions;
+// the remaining parts are created when the hold is committed. Do not expect one
+// transaction per ledger the legs name. Commit or Cancel a returned transaction
+// by its ID, as with CreateHold: the whole group moves, and the call returns the
+// addressed member.
+//
+// Scope, refusals, server requirements and idempotency are those of
+// CreateDirectCrossLedger, with CreateHold as the single-ledger alternative.
+func (f *transactionsV2Facade) CreateHoldCrossLedger(ctx context.Context, input *models.CreateTransactionV2Input) (*models.CrossLedgerTransactionGroupV2, error) {
+	const operation = "V2.Transactions.CreateHoldCrossLedger"
+
+	prepared, params, err := prepareCrossLedgerCreate(ctx, operation, "CreateHold", f.enableIdempotency, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return writeCrossLedgerGroupV2(ctx, operation, prepared, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateTransactionHoldV2WithBody(ctx,
+			&genledger.CreateTransactionHoldV2Params{XIdempotency: params.XIdempotency, XTTL: params.XTTL},
+			jsonContentType, body, params.mark...))
+	})
+}
+
+// writeCrossLedgerGroupV2 posts a cross-ledger create through writeJSON and
+// refuses a 2xx that is not a group.
+//
+// writeJSON already refuses an empty body, null, {} and unreadable JSON. What it
+// cannot see is a body that decodes cleanly into the group type while carrying
+// no group: a single-transaction 201 sets neither groupId nor transactions, and
+// handing back that zero-valued group with a nil error would read as success.
+// Like decodeLifecycleV2's group without the expected member, it is a decode
+// error, because the request may already have taken effect.
+func writeCrossLedgerGroupV2(ctx context.Context, operation string, input *models.CreateTransactionV2Input, send func(body io.Reader) (*http.Response, []byte, error)) (*models.CrossLedgerTransactionGroupV2, error) {
+	var status int
+
+	group, err := writeJSON[models.CrossLedgerTransactionGroupV2](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		resp, raw, err := send(body)
+		status = statusOf(resp)
+
+		return resp, raw, err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if group.GroupID == "" || len(group.Transactions) == 0 {
+		return nil, errors.NewResponseDecodeError(operation, status,
+			fmt.Errorf("2xx response is not a cross-ledger group: groupId %q, %d transactions", group.GroupID, len(group.Transactions)))
+	}
+
+	return group, nil
 }
 
 // createParams carries the resolved idempotency headers between prepareCreate
@@ -324,6 +426,97 @@ func scopeLegField(operation, side string, index int, field, addressed string, l
 	*leg = trimmed
 
 	return nil
+}
+
+// prepareCrossLedgerCreate runs everything the two cross-ledger creates share:
+// refuse a nil input, copy the legs with their scope trimmed, refuse a bad
+// payload, refuse legs that never leave one organization and ledger pair, and
+// resolve the idempotency key. Nothing reaches the wire before it returns.
+//
+// It fills NO scope, which is the whole difference from prepareCreate. A
+// cross-ledger request has no addressed pair: the pair each leg names is the
+// data, so a leg without one is refused by Validate rather than completed.
+//
+// The single-pair refusal compares organization and ledger ignoring letter case,
+// the rule the server applies when it counts the pairs of a body. Without it a
+// request spelling one ledger in two cases would leave as cross-ledger and come
+// back as a single-ledger refusal. single names the method the caller should
+// use instead.
+func prepareCrossLedgerCreate(ctx context.Context, operation, single string, gate bool, input *models.CreateTransactionV2Input) (*models.CreateTransactionV2Input, createParams, error) {
+	if input == nil {
+		return nil, createParams{}, errors.NewValidationError(operation, "input cannot be nil", nil)
+	}
+
+	trimmed := *input
+	trimmed.Debits = trimV2LegScopes(input.Debits)
+	trimmed.Credits = trimV2LegScopes(input.Credits)
+
+	if err := validationErr(operation, trimmed.Validate()); err != nil {
+		return nil, createParams{}, err
+	}
+
+	if !legsSpanTwoScopes(trimmed.Debits, trimmed.Credits) {
+		return nil, createParams{}, errors.NewValidationError(operation, fmt.Sprintf(
+			"every leg names the same organization and ledger; a cross-ledger create needs legs in at least two organization and ledger pairs, use %s for a single-ledger transaction",
+			single), nil)
+	}
+
+	key, ttl, mark := resolveIdempotency(ctx, trimmed.IdempotencyKey, gate)
+	params := createParams{mark: mark}
+	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
+
+	return &trimmed, params, nil
+}
+
+// trimV2LegScopes copies one side's legs with the surrounding whitespace removed
+// from each leg's organization and ledger, filling nothing.
+//
+// It COPIES for the same reason scopeTransactionV2 does: writing through the
+// caller's slice would change their input. Only the two identifiers are
+// rewritten; a leg's Share pointer is shared with the caller's leg and only read.
+// Trimming is what scopeLegField does to a leg that keeps its own pair, and
+// here it also keeps " uuid " and "uuid" from counting as two pairs and reaching
+// a server that does not trim.
+func trimV2LegScopes(legs []models.TransactionV2Leg) []models.TransactionV2Leg {
+	if legs == nil {
+		return nil
+	}
+
+	out := make([]models.TransactionV2Leg, len(legs))
+	copy(out, legs)
+
+	for i := range out {
+		out[i].OrganizationID = strings.TrimSpace(out[i].OrganizationID)
+		out[i].LedgerID = strings.TrimSpace(out[i].LedgerID)
+	}
+
+	return out
+}
+
+// legsSpanTwoScopes reports whether the legs name at least two distinct
+// organization and ledger pairs, comparing both identifiers ignoring letter
+// case. Two pairs exist exactly when some leg differs from the first one, so
+// the scan stops at the first leg that does.
+func legsSpanTwoScopes(sides ...[]models.TransactionV2Leg) bool {
+	var first *models.TransactionV2Leg
+
+	for _, legs := range sides {
+		for i := range legs {
+			leg := &legs[i]
+
+			if first == nil {
+				first = leg
+
+				continue
+			}
+
+			if !strings.EqualFold(leg.OrganizationID, first.OrganizationID) || !strings.EqualFold(leg.LedgerID, first.LedgerID) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // Get retrieves one transaction by ID.

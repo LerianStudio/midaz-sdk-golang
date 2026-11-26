@@ -112,6 +112,24 @@ func TestEmptySuccessBodyIsRefused(t *testing.T) {
 			},
 		},
 		{
+			name:   "V2.Transactions.CreateDirectCrossLedger",
+			status: http.StatusCreated,
+			call: func(_ *transactionsFacade, v2 *transactionsV2Facade) error {
+				_, err := v2.CreateDirectCrossLedger(ctx, sampleCrossLedgerV2Input())
+
+				return err
+			},
+		},
+		{
+			name:   "V2.Transactions.CreateHoldCrossLedger",
+			status: http.StatusCreated,
+			call: func(_ *transactionsFacade, v2 *transactionsV2Facade) error {
+				_, err := v2.CreateHoldCrossLedger(ctx, sampleCrossLedgerV2Input())
+
+				return err
+			},
+		},
+		{
 			name:   "V2.Transactions.Revert",
 			status: http.StatusCreated,
 			call: func(_ *transactionsFacade, v2 *transactionsV2Facade) error {
