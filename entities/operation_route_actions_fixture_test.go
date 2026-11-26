@@ -4,12 +4,9 @@
 package entities
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sort"
-	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
@@ -190,17 +187,16 @@ func accountingEntryFrom(rubrics *operationRouteRubrics) *models.AccountingEntry
 }
 
 // operationRouteWriteScenario is one create or update the /v1 and /v2 write
-// tests both run (exactly one of create and update is set): the exact body the facade must send, the accountingEntries
-// keys that body must hold, and the route the server answers with.
+// tests both run (exactly one of create and update is set): the exact body the
+// facade must send and the route the server answers with.
 type operationRouteWriteScenario struct {
-	name          string
-	create        *models.CreateOperationRouteInput
-	update        *models.UpdateOperationRouteInput
-	wantBody      string
-	wantEntryKeys []string
-	response      string
-	wantID        string
-	want          map[string]*operationRouteRubrics
+	name     string
+	create   *models.CreateOperationRouteInput
+	update   *models.UpdateOperationRouteInput
+	wantBody string
+	response string
+	wantID   string
+	want     map[string]*operationRouteRubrics
 }
 
 // operationRouteWriteScenarios returns fresh inputs on every call, so no test
@@ -220,10 +216,9 @@ func operationRouteWriteScenarios() []operationRouteWriteScenario {
 			},
 			wantBody: `{"title":"probe C","operationType":"source","accountingEntries":{` +
 				operationRouteEntryDirect + `,` + operationRouteEntryBlock + `,` + operationRouteEntryUnblock + `},"metadata":null}`,
-			wantEntryKeys: []string{"block", "direct", "unblock"},
-			response:      operationRouteDirectBlockUnblockJSON,
-			wantID:        operationRouteCreatedID,
-			want:          wantDirectBlockUnblockActions,
+			response: operationRouteDirectBlockUnblockJSON,
+			wantID:   operationRouteCreatedID,
+			want:     wantDirectBlockUnblockActions,
 		},
 		{
 			name: "create bridge route",
@@ -235,10 +230,9 @@ func operationRouteWriteScenarios() []operationRouteWriteScenario {
 			},
 			wantBody: `{"title":"probe B v2","code":"PRB-B-v2","operationType":"bidirectional","accountingEntries":{` +
 				`"crossLedger":{"debit":{"code":"9001","description":"in"},"credit":{"code":"9002","description":"out"}}},"metadata":null}`,
-			wantEntryKeys: []string{"crossLedger"},
-			response:      operationRouteBridgeJSON,
-			wantID:        operationRouteBridgeID,
-			want:          wantBridgeActions,
+			response: operationRouteBridgeJSON,
+			wantID:   operationRouteBridgeID,
+			want:     wantBridgeActions,
 		},
 		{
 			// The server merges a PATCH, so the route it answers with still
@@ -250,43 +244,18 @@ func operationRouteWriteScenarios() []operationRouteWriteScenario {
 					Unblock: accountingEntryFrom(wantUnblockRubrics),
 				},
 			},
-			wantBody:      `{"accountingEntries":{` + operationRouteEntryBlock + `,` + operationRouteEntryUnblock + `}}`,
-			wantEntryKeys: []string{"block", "unblock"},
-			response:      operationRouteDirectBlockUnblockJSON,
-			wantID:        operationRouteCreatedID,
-			want:          wantDirectBlockUnblockActions,
+			wantBody: `{"accountingEntries":{` + operationRouteEntryBlock + `,` + operationRouteEntryUnblock + `}}`,
+			response: operationRouteDirectBlockUnblockJSON,
+			wantID:   operationRouteCreatedID,
+			want:     wantDirectBlockUnblockActions,
 		},
 	}
 }
 
-// assertSentAccountingEntryKeys checks that the accountingEntries object of the
-// sent body holds exactly the wanted action keys, sorted.
-func assertSentAccountingEntryKeys(t *testing.T, body string, want []string) {
-	t.Helper()
-
-	var sent struct {
-		AccountingEntries map[string]json.RawMessage `json:"accountingEntries"`
-	}
-
-	if err := json.Unmarshal([]byte(body), &sent); err != nil {
-		t.Fatalf("sent body not decodable: %v (body=%q)", err, body)
-	}
-
-	got := make([]string, 0, len(sent.AccountingEntries))
-	for key := range sent.AccountingEntries {
-		got = append(got, key)
-	}
-
-	sort.Strings(got)
-
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("sent accountingEntries keys = %v, want exactly %v", got, want)
-	}
-}
-
 // routeWriteServer records the method, path and body of every request and
-// answers each one with status and response, as the /v1 CRUD tests do inline.
-func routeWriteServer(t *testing.T, method, path, body *string, status int, response string) *httptest.Server {
+// answers each one with contentType, status and response, as the /v1 CRUD tests
+// do inline.
+func routeWriteServer(t *testing.T, method, path, body *string, contentType string, status int, response string) *httptest.Server {
 	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -295,7 +264,7 @@ func routeWriteServer(t *testing.T, method, path, body *string, status int, resp
 		raw, _ := io.ReadAll(r.Body)
 		*body = string(raw)
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", contentType)
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(response))
 	}))

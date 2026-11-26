@@ -807,7 +807,7 @@ func TestV2OperationRouteWritesAccountingActions(t *testing.T) {
 				wantMethod, wantPath, status = http.MethodPatch, base+"/"+sc.wantID, http.StatusOK
 			}
 
-			srv := routeWriteServer(t, &method, &path, &body, status, sc.response)
+			srv := routeWriteServer(t, &method, &path, &body, "application/json", status, sc.response)
 			facade := newOperationRoutesV2Facade(newTestLedgerClient(t, srv), true)
 
 			var (
@@ -833,7 +833,6 @@ func TestV2OperationRouteWritesAccountingActions(t *testing.T) {
 				t.Fatalf("body = %q, want exactly %q", body, sc.wantBody)
 			}
 
-			assertSentAccountingEntryKeys(t, body, sc.wantEntryKeys)
 			assertOperationRouteActions(t, route, sc.wantID, sc.want)
 		})
 	}
