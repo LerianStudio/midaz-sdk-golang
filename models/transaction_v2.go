@@ -199,6 +199,27 @@ type OperationV2 struct {
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 }
 
+// CrossLedgerTransactionGroupV2 is the atomic group a /v2 direct or hold create
+// returns when its legs name more than one organization and ledger pair. The
+// server creates one transaction per ledger and binds them under GroupID.
+//
+// Transactions keeps the order the server served, the same rule CreateBatch
+// follows; the SDK does not sort or regroup them.
+//
+// A hold does NOT return one transaction per ledger: the group carries only the
+// parts the hold reserved, as PENDING transactions, and the remaining parts are
+// created when the hold is committed. Read len(Transactions) instead of
+// assuming one entry per ledger the legs named.
+type CrossLedgerTransactionGroupV2 struct {
+	// GroupID is the server-generated identifier binding the transactions of
+	// the group.
+	GroupID string `json:"groupId"`
+
+	// Transactions are the transactions the server created, in the order it
+	// served them.
+	Transactions []TransactionV2 `json:"transactions"`
+}
+
 // CreateTransactionV2Input is the request body every /v2 create action takes —
 // direct, hold, block and unblock share it exactly. Which action runs is decided
 // by the endpoint, never by this payload.
