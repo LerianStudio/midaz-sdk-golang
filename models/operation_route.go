@@ -31,7 +31,9 @@ type AccountingEntry struct {
 	Credit *AccountingRubric `json:"credit,omitempty" validate:"omitempty"`
 }
 
-// AccountingEntries groups accounting entries by transaction action type.
+// AccountingEntries groups accounting entries by transaction action type:
+// direct, hold, commit, cancel, revert, overdraft, block, unblock and
+// crossLedger.
 type AccountingEntries struct {
 	Direct    *AccountingEntry `json:"direct,omitempty"`
 	Hold      *AccountingEntry `json:"hold,omitempty"`
@@ -39,6 +41,15 @@ type AccountingEntries struct {
 	Cancel    *AccountingEntry `json:"cancel,omitempty"`
 	Revert    *AccountingEntry `json:"revert,omitempty"`
 	Overdraft *AccountingEntry `json:"overdraft,omitempty"`
+	// Block is the accounting entry for the block action. Requires Midaz v3.8.0 or later.
+	Block *AccountingEntry `json:"block,omitempty"`
+	// Unblock is the accounting entry for the unblock action. Requires Midaz v3.8.0 or later.
+	Unblock *AccountingEntry `json:"unblock,omitempty"`
+	// CrossLedger is the accounting entry for the cross-ledger bridge action.
+	// Requires Midaz v4.1.0 or later. The server only accepts it on a
+	// bidirectional route, with both debit and credit set, and with no other
+	// action on the same route.
+	CrossLedger *AccountingEntry `json:"crossLedger,omitempty"`
 }
 
 // OperationRoute is the SDK-native operation route response type (Track 7E — audit 7.1).
