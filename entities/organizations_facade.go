@@ -276,6 +276,51 @@ func validationErr(operation string, err error) error {
 	return errors.NewValidationError(operation, "invalid input", err)
 }
 
+// transportErr normalizes the error a facade call got back from the transport
+// (the raw pair of a generated client call) into the SDK's typed error. Every
+// facade routes that failure through here, so the classification is decided in
+// one place rather than at each call site.
+//
+// Callers branch on [errors.IsNetworkError] and [errors.IsTimeoutError] to tell
+// "the ledger could not be reached" from "the SDK broke". A refused connection,
+// a reset, a DNS or TLS failure and a timeout therefore come back exactly as
+// [errors.ClassifyTransportError] builds them: network (503) or timeout (504),
+// Source transport, HTTPRequestSent true, and the original cause reachable
+// through errors.Is.
+//
+// Everything else keeps the internal error the facade has always returned
+// ([errors.NewInternalError]: internal, 500, Source sdk, HTTPRequestSent
+// false), and that is deliberate:
+//
+//   - Cancellation by the caller stays internal. The classifier would turn it
+//     into a cancellation error with a different category, status and Retryable
+//     result, which is a separate decision from this one.
+//   - An error that already carries an *errors.Error in its chain stays
+//     internal. The classifier would hand it back untouched, so it would
+//     suddenly surface with its own category instead of the one callers see
+//     today.
+//   - Any cause the classifier does not recognize as network or timeout
+//     (errNoResponse, an oversized body, an unknown failure) stays internal.
+//     The classifier would mark it Source transport and HTTPRequestSent true,
+//     which is not what the facade reports for it today.
+func transportErr(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var sdkErr *errors.Error
+	if stderrors.As(err, &sdkErr) {
+		return errors.NewInternalError(operation, err)
+	}
+
+	classified := errors.ClassifyTransportError(operation, err)
+	if errors.IsNetworkError(classified) || errors.IsTimeoutError(classified) {
+		return classified
+	}
+
+	return errors.NewInternalError(operation, err)
+}
+
 // writeJSON is the shared write path for the facade layer (the money-path
 // exemplar). It marshals a SDK-native input, hands it to send as a *bytes.Reader
 // (rewindable so the auth round tripper can replay after a 401), and decodes the
