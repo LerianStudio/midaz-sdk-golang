@@ -143,6 +143,90 @@ func TestTransactionRouteModelsOperationRouteInputs_BodyWithoutNewActionsUnchang
 	}
 }
 
+func TestTransactionRouteModelsOperationRouteInputs_SerializeNewActions(t *testing.T) {
+	blockEntry := testAccountingEntry("1003", "block debit", "2003", "block credit")
+	unblockEntry := testAccountingEntry("1004", "unblock debit", "2004", "unblock credit")
+	crossLedgerEntry := testAccountingEntry("9001", "in", "9002", "out")
+
+	tests := []struct {
+		name     string
+		input    any
+		expected string
+	}{
+		{
+			name: "create with direct, block and unblock",
+			input: &CreateOperationRouteInput{
+				Title:         "probe A",
+				OperationType: "bidirectional",
+				AccountingEntries: &AccountingEntries{
+					Direct:  testAccountingEntry("1001", "direct debit", "2001", "direct credit"),
+					Block:   blockEntry,
+					Unblock: unblockEntry,
+				},
+			},
+			expected: `{"title":"probe A","operationType":"bidirectional","accountingEntries":{` +
+				`"direct":{"debit":{"code":"1001","description":"direct debit"},"credit":{"code":"2001","description":"direct credit"}},` +
+				`"block":{"debit":{"code":"1003","description":"block debit"},"credit":{"code":"2003","description":"block credit"}},` +
+				`"unblock":{"debit":{"code":"1004","description":"unblock debit"},"credit":{"code":"2004","description":"unblock credit"}}},` +
+				`"metadata":null}`,
+		},
+		{
+			name: "create bridge route with crossLedger only",
+			input: &CreateOperationRouteInput{
+				Title:             "probe B",
+				OperationType:     "bidirectional",
+				AccountingEntries: &AccountingEntries{CrossLedger: crossLedgerEntry},
+			},
+			expected: `{"title":"probe B","operationType":"bidirectional","accountingEntries":{` +
+				`"crossLedger":{"debit":{"code":"9001","description":"in"},"credit":{"code":"9002","description":"out"}}},` +
+				`"metadata":null}`,
+		},
+		{
+			name: "update with block and unblock",
+			input: &UpdateOperationRouteInput{
+				AccountingEntries: &AccountingEntries{Block: blockEntry, Unblock: unblockEntry},
+			},
+			expected: `{"accountingEntries":{` +
+				`"block":{"debit":{"code":"1003","description":"block debit"},"credit":{"code":"2003","description":"block credit"}},` +
+				`"unblock":{"debit":{"code":"1004","description":"unblock debit"},"credit":{"code":"2004","description":"unblock credit"}}}}`,
+		},
+		{
+			name: "update with crossLedger",
+			input: &UpdateOperationRouteInput{
+				AccountingEntries: &AccountingEntries{CrossLedger: crossLedgerEntry},
+			},
+			expected: `{"accountingEntries":{` +
+				`"crossLedger":{"debit":{"code":"9001","description":"in"},"credit":{"code":"9002","description":"out"}}}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.input)
+			require.NoError(t, err)
+
+			assert.JSONEq(t, tt.expected, string(data))
+		})
+	}
+}
+
+func TestTransactionRouteModelsUpdateOperationRouteInput_AccountingEntriesRawKeepsPrecedence(t *testing.T) {
+	const raw = `{"direct":{"debit":{"code":"1001","description":"direct debit"},"credit":{"code":"2001","description":"direct credit"}}}`
+
+	input := &UpdateOperationRouteInput{
+		AccountingEntries: &AccountingEntries{
+			Block: testAccountingEntry("1003", "block debit", "2003", "block credit"),
+		},
+		AccountingEntriesRaw: json.RawMessage(raw),
+	}
+
+	data, err := json.Marshal(input)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{"accountingEntries":`+raw+`}`, string(data))
+	assert.NotContains(t, string(data), `"block"`)
+}
+
 func TestTransactionRouteModelsAssetRateValidation(t *testing.T) {
 	input := NewCreateAssetRateInput("USD", "BRL", 525).WithExternalID("not-a-uuid")
 	require.ErrorContains(t, input.Validate(), "externalID")
