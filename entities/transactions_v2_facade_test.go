@@ -6,6 +6,7 @@ package entities
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1157,6 +1158,57 @@ func TestTransactionsV2Facade_CrossLedgerRefusesAResponseThatIsNotAGroup(t *test
 
 				if got.requests != 1 {
 					t.Fatalf("requests = %d, want exactly one", got.requests)
+				}
+			})
+		}
+	}
+}
+
+// Cross-ledger refusals, captured verbatim from the same ledger on 2026-11-26:
+// 0249 answered a direct create across two ledgers with crossLedger.enabled off,
+// and 0499 answered a block create across two ledgers, the refusal a server
+// that takes legs in one pair only gives every action.
+const (
+	crossLedgerNotEnabledJSON = `{"type":"https://errors.lerian.studio/v1/0249","title":"Cross-Ledger Not Enabled Error","status":422,"detail":"Ledger 01a2193f-4d0c-7ba5-bb53-42d79cf1701d is not enabled for cross-ledger transactions. Enable crossLedger.enabled on every ledger involved.","code":"0249","entityType":"Ledger"}`
+
+	crossLedgerScopeMismatchJSON = `{"type":"https://errors.lerian.studio/v1/0499","title":"Transaction Scope Mismatch","status":422,"detail":"Every leg of the transaction must name the same organization and ledger. Please review your input so that all legs share one scope and try again.","code":"0499","entityType":"Transaction"}`
+)
+
+// TestTransactionsV2Facade_CrossLedgerSurfacesServerRefusals covers the scenarios
+// servidor-recusa-cross-ledger-desligado and servidor-recusa-escopos-diferentes
+// on both creates: the server's refusal comes back as the facade's API error
+// with its status and code, and no group.
+func TestTransactionsV2Facade_CrossLedgerSurfacesServerRefusals(t *testing.T) {
+	tests := []struct {
+		scenario string
+		body     string
+		code     string
+	}{
+		{scenario: "servidor-recusa-cross-ledger-desligado", body: crossLedgerNotEnabledJSON, code: "0249"},
+		{scenario: "servidor-recusa-escopos-diferentes", body: crossLedgerScopeMismatchJSON, code: "0499"},
+	}
+
+	for _, c := range crossLedgerCreates {
+		for _, tt := range tests {
+			t.Run(c.name+"/"+tt.scenario, func(t *testing.T) {
+				srv, got := crossLedgerServer(t, http.StatusUnprocessableEntity, "application/problem+json", tt.body)
+
+				group, err := c.create(newTestTransactionsV2Facade(t, srv), context.Background(), sampleCrossLedgerV2Input())
+				if group != nil {
+					t.Fatalf("group = %+v, want none on a refusal", group)
+				}
+
+				var sdkErr *sdkerrors.Error
+				if !errors.As(err, &sdkErr) {
+					t.Fatalf("error type = %T (%v), want *errors.Error", err, err)
+				}
+
+				if sdkErr.StatusCode != http.StatusUnprocessableEntity || sdkErr.APICode != tt.code {
+					t.Fatalf("decoded error = %+v, want status 422 and code %s", sdkErr, tt.code)
+				}
+
+				if got.requests != 1 {
+					t.Fatalf("requests = %d, want exactly one: a 422 is not retried", got.requests)
 				}
 			})
 		}
