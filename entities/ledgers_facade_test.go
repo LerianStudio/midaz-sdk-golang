@@ -68,7 +68,7 @@ func TestLedgersFacade_ListAndPaginate(t *testing.T) {
 // client, asserting method, org-scoped path, and body, and normalizing into the
 // public model without leaking generated types.
 //
-//nolint:revive // cognitive-complexity: four CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
+//nolint:revive // cognitive-complexity: five CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestLedgersFacade_CRUD(t *testing.T) {
 	const id = "33333333-3333-3333-3333-333333333333"
 	base := "/v1/organizations/" + ledgersOrgID + "/ledgers"
@@ -118,6 +118,34 @@ func TestLedgersFacade_CRUD(t *testing.T) {
 		}
 		if l.ID != id {
 			t.Fatalf("Get returned %+v", l)
+		}
+	})
+
+	t.Run("get with embedded settings", func(t *testing.T) {
+		// Ledger body captured from a Midaz server that reports crossLedger,
+		// with the ids and name swapped for this test's values.
+		body := `{"id":"` + id + `","name":"Treasury","organizationId":"` + ledgersOrgID + `",` +
+			`"status":{"code":"ACTIVE","description":null},` +
+			`"createdAt":"2026-11-26T14:50:38.883178Z","updatedAt":"2026-11-26T14:50:38.943803Z","deletedAt":null,` +
+			`"settings":{"accounting":{"validateAccountType":false,"validateRoutes":false,"requireHolder":false},` +
+			`"tracer":{"mode":"off","failPosture":"closed","timeoutMs":250,"flow":"reserve"},` +
+			`"overrides":{"allowFeeSkip":false,"allowTracerSkip":false,"allowHolderSkip":false},` +
+			`"crossLedger":{"enabled":true},"balances":{"deletedRetentionDays":0}}}`
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(body))
+		}))
+		defer srv.Close()
+
+		l, err := newTestLedgersFacade(t, srv).Get(context.Background(), ledgersOrgID, id)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if l.Settings == nil {
+			t.Fatalf("Get returned %+v, want embedded settings", l)
+		}
+		if l.Settings.CrossLedger == nil || !l.Settings.CrossLedger.Enabled {
+			t.Fatalf("embedded crossLedger block = %+v, want enabled", l.Settings.CrossLedger)
 		}
 	})
 
