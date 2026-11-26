@@ -849,23 +849,19 @@ func crossLedgerServer(t *testing.T, status int, contentType, response string) (
 // to the action's endpoint, and the group exactly as served. The hold answer has
 // ONE transaction for two ledgers, and the SDK must not invent the second.
 func TestTransactionsV2Facade_CreateCrossLedgerReturnsTheServedGroup(t *testing.T) {
-	type wantTransaction struct {
-		id, ledgerID, status string
-	}
-
 	tests := []struct {
 		scenario string
 		create   int
 		response string
 		groupID  string
-		want     []wantTransaction
+		want     []crossLedgerTransactionWant
 	}{
 		{
 			scenario: "criacao-direct-cross-ledger",
 			create:   0,
 			response: crossLedgerDirectGroupJSON,
 			groupID:  "01a2193f-9540-799f-8c22-3a988eef1aff",
-			want: []wantTransaction{
+			want: []crossLedgerTransactionWant{
 				{id: "01a2193f-9542-7ebb-94b2-4193580ca9c3", ledgerID: crossLedgerLedgerA, status: "CREATED"},
 				{id: "01a2193f-9543-703d-8df0-70a1341b5fab", ledgerID: crossLedgerLedgerB, status: "CREATED"},
 			},
@@ -875,7 +871,7 @@ func TestTransactionsV2Facade_CreateCrossLedgerReturnsTheServedGroup(t *testing.
 			create:   1,
 			response: crossLedgerHoldGroupJSON,
 			groupID:  "01a2193f-95db-7225-ae05-ec34be8f8cec",
-			want: []wantTransaction{
+			want: []crossLedgerTransactionWant{
 				{id: "01a2193f-95e3-7bd4-8e69-bfd96d929c35", ledgerID: crossLedgerLedgerA, status: "PENDING"},
 			},
 		},
@@ -895,22 +891,36 @@ func TestTransactionsV2Facade_CreateCrossLedgerReturnsTheServedGroup(t *testing.
 				t.Fatalf("requests=%d %s %s, want one POST %s", got.requests, got.method, got.path, c.path)
 			}
 
-			if group.GroupID != tt.groupID {
-				t.Fatalf("GroupID = %q, want the served %q", group.GroupID, tt.groupID)
-			}
-
-			if len(group.Transactions) != len(tt.want) {
-				t.Fatalf("transactions = %d, want the %d served", len(group.Transactions), len(tt.want))
-			}
-
-			for i, want := range tt.want {
-				tx := group.Transactions[i]
-				if tx.ID != want.id || tx.LedgerID != want.ledgerID || tx.Status.Code != want.status {
-					t.Fatalf("transactions[%d] = {%s %s %s}, want {%s %s %s} in served order",
-						i, tx.ID, tx.LedgerID, tx.Status.Code, want.id, want.ledgerID, want.status)
-				}
-			}
+			assertCrossLedgerGroup(t, group, tt.groupID, tt.want)
 		})
+	}
+}
+
+// crossLedgerTransactionWant is what one served transaction of a group must
+// decode to.
+type crossLedgerTransactionWant struct {
+	id, ledgerID, status string
+}
+
+// assertCrossLedgerGroup checks that group carries groupID and exactly the
+// wanted transactions, in the served order.
+func assertCrossLedgerGroup(t *testing.T, group *models.CrossLedgerTransactionGroupV2, groupID string, want []crossLedgerTransactionWant) {
+	t.Helper()
+
+	if group.GroupID != groupID {
+		t.Fatalf("GroupID = %q, want the served %q", group.GroupID, groupID)
+	}
+
+	if len(group.Transactions) != len(want) {
+		t.Fatalf("transactions = %d, want the %d served", len(group.Transactions), len(want))
+	}
+
+	for i, w := range want {
+		tx := group.Transactions[i]
+		if tx.ID != w.id || tx.LedgerID != w.ledgerID || tx.Status.Code != w.status {
+			t.Fatalf("transactions[%d] = {%s %s %s}, want {%s %s %s} in served order",
+				i, tx.ID, tx.LedgerID, tx.Status.Code, w.id, w.ledgerID, w.status)
+		}
 	}
 }
 
@@ -1071,27 +1081,41 @@ func TestTransactionsV2Facade_CrossLedgerRefusesLocally(t *testing.T) {
 
 				group, err := c.create(newTestTransactionsV2Facade(t, srv), context.Background(), tt.input())
 
-				if !sdkerrors.IsValidationError(err) || group != nil {
-					t.Fatalf("got (%+v, %v), want a validation error and no group", group, err)
+				pointer := ""
+				if tt.singlePair {
+					pointer = "use " + c.single + " for"
 				}
 
-				if operation := "V2.Transactions." + c.name; !strings.Contains(err.Error(), operation) {
-					t.Fatalf("err = %v, want it to name %s", err, operation)
-				}
-
-				if tt.want != "" && !strings.Contains(err.Error(), tt.want) {
-					t.Fatalf("err = %v, want it to name %q", err, tt.want)
-				}
-
-				if pointer := "use " + c.single + " for"; tt.singlePair && !strings.Contains(err.Error(), pointer) {
-					t.Fatalf("err = %v, want it to point at %s", err, c.single)
-				}
+				assertCrossLedgerLocalRefusal(t, group, err, "V2.Transactions."+c.name, tt.want, pointer)
 
 				if got.requests != 0 {
 					t.Fatalf("requests = %d, want none: a locally refused create must not reach the wire", got.requests)
 				}
 			})
 		}
+	}
+}
+
+// assertCrossLedgerLocalRefusal checks a local refusal: a validation error and
+// no group, an error naming operation, and naming want and pointer when they are
+// not empty.
+func assertCrossLedgerLocalRefusal(t *testing.T, group *models.CrossLedgerTransactionGroupV2, err error, operation, want, pointer string) {
+	t.Helper()
+
+	if !sdkerrors.IsValidationError(err) || group != nil {
+		t.Fatalf("got (%+v, %v), want a validation error and no group", group, err)
+	}
+
+	if !strings.Contains(err.Error(), operation) {
+		t.Fatalf("err = %v, want it to name %s", err, operation)
+	}
+
+	if want != "" && !strings.Contains(err.Error(), want) {
+		t.Fatalf("err = %v, want it to name %q", err, want)
+	}
+
+	if pointer != "" && !strings.Contains(err.Error(), pointer) {
+		t.Fatalf("err = %v, want it to point at the single-ledger method (%q)", err, pointer)
 	}
 }
 
@@ -1196,23 +1220,32 @@ func TestTransactionsV2Facade_CrossLedgerSurfacesServerRefusals(t *testing.T) {
 				srv, got := crossLedgerServer(t, http.StatusUnprocessableEntity, "application/problem+json", tt.body)
 
 				group, err := c.create(newTestTransactionsV2Facade(t, srv), context.Background(), sampleCrossLedgerV2Input())
-				if group != nil {
-					t.Fatalf("group = %+v, want none on a refusal", group)
-				}
 
-				var sdkErr *sdkerrors.Error
-				if !errors.As(err, &sdkErr) {
-					t.Fatalf("error type = %T (%v), want *errors.Error", err, err)
-				}
-
-				if sdkErr.StatusCode != http.StatusUnprocessableEntity || sdkErr.APICode != tt.code {
-					t.Fatalf("decoded error = %+v, want status 422 and code %s", sdkErr, tt.code)
-				}
+				assertCrossLedgerAPIRefusal(t, group, err, http.StatusUnprocessableEntity, tt.code)
 
 				if got.requests != 1 {
 					t.Fatalf("requests = %d, want exactly one: a 422 is not retried", got.requests)
 				}
 			})
 		}
+	}
+}
+
+// assertCrossLedgerAPIRefusal checks a server refusal: no group, and the API
+// error with the served status and code.
+func assertCrossLedgerAPIRefusal(t *testing.T, group *models.CrossLedgerTransactionGroupV2, err error, status int, code string) {
+	t.Helper()
+
+	if group != nil {
+		t.Fatalf("group = %+v, want none on a refusal", group)
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T (%v), want *errors.Error", err, err)
+	}
+
+	if sdkErr.StatusCode != status || sdkErr.APICode != code {
+		t.Fatalf("decoded error = %+v, want status %d and code %s", sdkErr, status, code)
 	}
 }
