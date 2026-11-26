@@ -207,6 +207,48 @@ func TestV2LedgerSettingsDecodeRealMidazResponse(t *testing.T) {
 	}
 }
 
+// TestV2OperationRouteGetDeliversEveryAccountingAction guards the action set of
+// an operation route read.
+//
+// An action the model does not declare is dropped on decode with a nil error,
+// and the caller then posts against a route that looks as if the server never
+// configured it. Each row asserts every action: the ones the server sent with
+// their rubrics, and the ones it did not as nil.
+func TestV2OperationRouteGetDeliversEveryAccountingAction(t *testing.T) {
+	reads := []struct {
+		name   string
+		body   string
+		wantID string
+		want   map[string]*operationRouteRubrics
+	}{
+		{name: "eight actions", body: operationRouteEightActionsJSON, wantID: operationRouteEightActionsID, want: wantEightActions},
+		{name: "bridge route", body: operationRouteBridgeJSON, wantID: operationRouteBridgeID, want: wantBridgeActions},
+		{name: "block without unblock", body: operationRouteBlockWithoutUnblockJSON, wantID: v2UUIDA, want: wantBlockWithoutUnblockActions},
+		{name: "server without the new actions", body: operationRouteSixActionsJSON, wantID: v2UUIDB, want: wantSixActions},
+	}
+
+	for _, read := range reads {
+		t.Run(read.name, func(t *testing.T) {
+			var method, path string
+
+			srv := readCapturingServer(t, &method, &path, read.body)
+
+			route, err := newOperationRoutesV2Facade(newTestLedgerClient(t, srv), true).
+				Get(context.Background(), v2Org, v2Ledger, read.wantID)
+			if err != nil {
+				t.Fatalf("Get: %v", err)
+			}
+
+			wantPath := "/v2/organizations/" + v2Org + "/ledgers/" + v2Ledger + "/operation-routes/" + read.wantID
+			if method != http.MethodGet || path != wantPath {
+				t.Fatalf("get req = %s %s, want GET %s", method, path, wantPath)
+			}
+
+			assertOperationRouteActions(t, route, read.wantID, read.want)
+		})
+	}
+}
+
 // TestV2BalanceHistoryKeepsMoneyExact is the money-path decode guard for the
 // point-in-time reads.
 //
