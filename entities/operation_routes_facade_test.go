@@ -6,6 +6,7 @@ package entities
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -62,6 +63,29 @@ func TestOperationRoutesFacade_ListAndPaginate(t *testing.T) {
 	if len(seenCursors) != 2 || seenCursors[0] != "" || seenCursors[1] != "c2" {
 		t.Fatalf("cursor chain = %v, want ['' 'c2'] and exactly 2 requests", seenCursors)
 	}
+}
+
+// TestOperationRoutesFacade_ListDeliversAccountingActions asserts that every
+// list item carries the accounting actions the server sent, block, unblock and
+// crossLedger included.
+func TestOperationRoutesFacade_ListDeliversAccountingActions(t *testing.T) {
+	var m, p string
+
+	srv := readCapturingServer(t, &m, &p, `{"items":[`+operationRouteEightActionsJSON+`,`+operationRouteBridgeJSON+`],"limit":2}`)
+
+	page, err := newTestOperationRoutesFacade(t, srv).List(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, models.OperationRoutesListOpts{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if m != http.MethodGet || p != operationRoutesBase() {
+		t.Fatalf("list req = %s %s, want GET %s", m, p, operationRoutesBase())
+	}
+	if page == nil || len(page.Items) != 2 {
+		t.Fatalf("List = %+v, want the two routes the server sent", page)
+	}
+
+	assertOperationRouteActions(t, &page.Items[0], operationRouteEightActionsID, wantEightActions)
+	assertOperationRouteActions(t, &page.Items[1], operationRouteBridgeID, wantBridgeActions)
 }
 
 // TestOperationRoutesFacade_CRUD round-trips Create/Get/Update/Delete over the
@@ -121,6 +145,36 @@ func TestOperationRoutesFacade_CRUD(t *testing.T) {
 		}
 	})
 
+	t.Run("get accounting actions", func(t *testing.T) {
+		reads := []struct {
+			name   string
+			body   string
+			wantID string
+			want   map[string]*operationRouteRubrics
+		}{
+			{name: "eight actions", body: operationRouteEightActionsJSON, wantID: operationRouteEightActionsID, want: wantEightActions},
+			{name: "bridge route", body: operationRouteBridgeJSON, wantID: operationRouteBridgeID, want: wantBridgeActions},
+		}
+
+		for _, read := range reads {
+			t.Run(read.name, func(t *testing.T) {
+				var m, p string
+
+				srv := readCapturingServer(t, &m, &p, read.body)
+
+				route, err := newTestOperationRoutesFacade(t, srv).Get(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, read.wantID)
+				if err != nil {
+					t.Fatalf("Get: %v", err)
+				}
+				if m != http.MethodGet || p != operationRoutesBase()+"/"+read.wantID {
+					t.Fatalf("get req = %s %s", m, p)
+				}
+
+				assertOperationRouteActions(t, route, read.wantID, read.want)
+			})
+		}
+	})
+
 	t.Run("update", func(t *testing.T) {
 		var m, p, body string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +217,46 @@ func TestOperationRoutesFacade_CRUD(t *testing.T) {
 			t.Fatalf("delete req = %s %s", m, p)
 		}
 	})
+}
+
+// TestOperationRoutesFacade_WritesAccountingActions asserts that a create or
+// update carrying block, unblock or crossLedger sends exactly those actions and
+// hands back the actions the server answered with.
+func TestOperationRoutesFacade_WritesAccountingActions(t *testing.T) {
+	for _, sc := range operationRouteWriteScenarios() {
+		t.Run(sc.name, func(t *testing.T) {
+			var m, p, body string
+
+			wantMethod, wantPath, status := http.MethodPost, operationRoutesBase(), http.StatusCreated
+			if sc.update != nil {
+				wantMethod, wantPath, status = http.MethodPatch, operationRoutesBase()+"/"+sc.wantID, http.StatusOK
+			}
+
+			srv := routeWriteServer(t, &m, &p, &body, "application/json", status, sc.response)
+			facade := newTestOperationRoutesFacade(t, srv)
+
+			var (
+				route *models.OperationRoute
+				err   error
+			)
+			if sc.update != nil {
+				route, err = facade.Update(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, sc.wantID, sc.update)
+			} else {
+				route, err = facade.Create(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, sc.create)
+			}
+			if err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			if m != wantMethod || p != wantPath {
+				t.Fatalf("write req = %s %s, want %s %s", m, p, wantMethod, wantPath)
+			}
+			if body != sc.wantBody {
+				t.Fatalf("body = %q, want exactly %q", body, sc.wantBody)
+			}
+
+			assertOperationRouteActions(t, route, sc.wantID, sc.want)
+		})
+	}
 }
 
 // TestOperationRoutesFacade_Filters is the per-resource differentiator. The
@@ -220,6 +314,170 @@ func TestOperationRoutesFacade_ErrorDecodes(t *testing.T) {
 	}
 	if sdkErr.APICode != "LEDGER-0009" || sdkErr.RequestID != "req-or-422" {
 		t.Fatalf("decoded error = %+v", sdkErr)
+	}
+}
+
+// Refusal bodies for the accounting-action refusals, as Midaz sends them on /v1
+// (plain JSON) and /v2 (problem+json).
+const (
+	// The 0256 bodies were captured verbatim from a Midaz server on 2026-11-26,
+	// for a create carrying crossLedger and direct.
+	crossLedgerRefusalV1 = `{"code":"0256","message":"The cross-ledger bridge route must resolve to exactly one operation route. An operation route with a crossLedger entry cannot carry other accounting entries.","title":"Invalid Cross-Ledger Route Error"}`
+	crossLedgerRefusalV2 = `{"type":"https://errors.lerian.studio/v1/0256","title":"Invalid Cross-Ledger Route Error","status":422,"detail":"The cross-ledger bridge route must resolve to exactly one operation route. An operation route with a crossLedger entry cannot carry other accounting entries.","code":"0256","entityType":"OperationRoute"}`
+
+	// The 0053 envelopes were captured from a Midaz server on 2026-11-26 for an
+	// unknown accountingEntries key, "bogus". The key is adapted to "block" and
+	// the echoed value to the block rubrics this test sends: the refusal of
+	// block by a server older than v3.8.0 is inferred, not executed.
+	unknownActionRefusalV1 = `{"title":"Unexpected Fields in the Request","message":"The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object.","code":"0053","fields":{"accountingEntries":{"block":{"credit":{"code":"2003","description":"block credit"},"debit":{"code":"1003","description":"block debit"}}}}}`
+	unknownActionRefusalV2 = `{"type":"https://errors.lerian.studio/v1/0053","title":"Unexpected Fields in the Request","status":400,"detail":"The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object.","errors":[{"message":"unexpected field","location":"accountingEntries","value":{"block":{"credit":{"code":"2003","description":"block credit"},"debit":{"code":"1003","description":"block debit"}}}}],"code":"0053"}`
+)
+
+const (
+	unknownActionRefusalMessage = "The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object."
+	crossLedgerRefusalMessage   = "The cross-ledger bridge route must resolve to exactly one operation route. An operation route with a crossLedger entry cannot carry other accounting entries."
+)
+
+// operationRouteRefusal is one server refusal of a create, on one facade: the
+// request that must reach the server and the error the caller must get back.
+type operationRouteRefusal struct {
+	name        string
+	path        string
+	create      func(t *testing.T, srv *httptest.Server, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)
+	input       *models.CreateOperationRouteInput
+	wantSent    []string
+	contentType string
+	status      int
+	response    string
+	code        string
+	title       string
+	message     string
+	fields      []string
+	detailsKey  string
+	category    sdkerrors.ErrorCategory
+	isCategory  func(error) bool
+}
+
+func createOperationRouteV1(t *testing.T, srv *httptest.Server, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+	t.Helper()
+	return newTestOperationRoutesFacade(t, srv).Create(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, input)
+}
+
+func createOperationRouteV2(t *testing.T, srv *httptest.Server, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+	t.Helper()
+	return newOperationRoutesV2Facade(newTestLedgerClient(t, srv), true).Create(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, input)
+}
+
+func blockOnlyRouteInput() *models.CreateOperationRouteInput {
+	return &models.CreateOperationRouteInput{
+		Title:             "probe C",
+		OperationType:     "source",
+		AccountingEntries: &models.AccountingEntries{Block: accountingEntryFrom(wantBlockRubrics)},
+	}
+}
+
+func crossLedgerWithDirectRouteInput() *models.CreateOperationRouteInput {
+	return &models.CreateOperationRouteInput{
+		Title:         "probe B v2",
+		OperationType: "bidirectional",
+		AccountingEntries: &models.AccountingEntries{
+			Direct:      accountingEntryFrom(wantDirectRubrics),
+			CrossLedger: accountingEntryFrom(wantBridgeActions["crossLedger"]),
+		},
+	}
+}
+
+// TestOperationRoutesFacade_ServerRefusesAccountingActions covers the two ways
+// the server refuses the accounting actions a create carries, on /v1's plain
+// JSON envelope and /v2's problem+json. The SDK does not validate action
+// combinations or the server version, so each row asserts that the create
+// reached the server carrying the actions, that no route came back, and that
+// the *errors.Error carries the server's status, code, title and message, the
+// unexpected field (0053 only), and the category its status maps to.
+func TestOperationRoutesFacade_ServerRefusesAccountingActions(t *testing.T) {
+	v2Path := "/v2/organizations/" + operationRoutesOrgID + "/ledgers/" + operationRoutesLedgerID + "/operation-routes"
+	crossLedgerSent := `"crossLedger":{"debit":{"code":"9001","description":"in"},"credit":{"code":"9002","description":"out"}}`
+
+	refusals := []operationRouteRefusal{
+		{
+			name: "v1 unknown action on an older server", path: operationRoutesBase(), create: createOperationRouteV1,
+			input: blockOnlyRouteInput(), wantSent: []string{operationRouteEntryBlock},
+			contentType: "application/json", status: http.StatusBadRequest, response: unknownActionRefusalV1,
+			code: "0053", title: "Unexpected Fields in the Request", message: unknownActionRefusalMessage,
+			fields: []string{"accountingEntries"}, detailsKey: "fields",
+			category: sdkerrors.CategoryValidation, isCategory: sdkerrors.IsValidationError,
+		},
+		{
+			name: "v2 unknown action on an older server", path: v2Path, create: createOperationRouteV2,
+			input: blockOnlyRouteInput(), wantSent: []string{operationRouteEntryBlock},
+			contentType: "application/problem+json", status: http.StatusBadRequest, response: unknownActionRefusalV2,
+			code: "0053", title: "Unexpected Fields in the Request", message: unknownActionRefusalMessage,
+			fields: []string{"accountingEntries"}, detailsKey: "errors",
+			category: sdkerrors.CategoryValidation, isCategory: sdkerrors.IsValidationError,
+		},
+		{
+			name: "v1 crossLedger next to another action", path: operationRoutesBase(), create: createOperationRouteV1,
+			input: crossLedgerWithDirectRouteInput(), wantSent: []string{operationRouteEntryDirect, crossLedgerSent},
+			contentType: "application/json", status: http.StatusUnprocessableEntity, response: crossLedgerRefusalV1,
+			code: "0256", title: "Invalid Cross-Ledger Route Error", message: crossLedgerRefusalMessage,
+			category: sdkerrors.CategoryUnprocessable, isCategory: sdkerrors.IsUnprocessableError,
+		},
+		{
+			name: "v2 crossLedger next to another action", path: v2Path, create: createOperationRouteV2,
+			input: crossLedgerWithDirectRouteInput(), wantSent: []string{operationRouteEntryDirect, crossLedgerSent},
+			contentType: "application/problem+json", status: http.StatusUnprocessableEntity, response: crossLedgerRefusalV2,
+			code: "0256", title: "Invalid Cross-Ledger Route Error", message: crossLedgerRefusalMessage,
+			category: sdkerrors.CategoryUnprocessable, isCategory: sdkerrors.IsUnprocessableError,
+		},
+	}
+
+	for _, refusal := range refusals {
+		t.Run(refusal.name, func(t *testing.T) {
+			assertOperationRouteRefusal(t, refusal)
+		})
+	}
+}
+
+// assertOperationRouteRefusal sends one refused create and checks the request
+// that reached the server and the error that came back.
+func assertOperationRouteRefusal(t *testing.T, refusal operationRouteRefusal) {
+	t.Helper()
+
+	var m, p, body string
+
+	srv := routeWriteServer(t, &m, &p, &body, refusal.contentType, refusal.status, refusal.response)
+
+	route, err := refusal.create(t, srv, refusal.input)
+	if route != nil {
+		t.Fatalf("Create returned %+v, want nil on a refusal", route)
+	}
+	if m != http.MethodPost || p != refusal.path {
+		t.Fatalf("create req = %q %q, want POST %s — the request must reach the server", m, p, refusal.path)
+	}
+	for _, fragment := range refusal.wantSent {
+		if !strings.Contains(body, fragment) {
+			t.Fatalf("body = %q, want it to carry %s", body, fragment)
+		}
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.APICode != refusal.code || sdkErr.StatusCode != refusal.status {
+		t.Fatalf("decoded error = %+v, want status %d and code %s", sdkErr, refusal.status, refusal.code)
+	}
+	if sdkErr.Title != refusal.title || sdkErr.Message != refusal.message {
+		t.Fatalf("title, message = %q, %q, want %q, %q", sdkErr.Title, sdkErr.Message, refusal.title, refusal.message)
+	}
+	if strings.Join(sdkErr.Fields, ",") != strings.Join(refusal.fields, ",") {
+		t.Fatalf("fields = %v, want %v", sdkErr.Fields, refusal.fields)
+	}
+	if refusal.detailsKey != "" && !strings.Contains(fmt.Sprint(sdkErr.Details[refusal.detailsKey]), "accountingEntries") {
+		t.Fatalf("details[%q] = %v, want it to name accountingEntries", refusal.detailsKey, sdkErr.Details[refusal.detailsKey])
+	}
+	if sdkErr.Category != refusal.category || !refusal.isCategory(err) {
+		t.Fatalf("category = %q, want %q", sdkErr.Category, refusal.category)
 	}
 }
 

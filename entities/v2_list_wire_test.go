@@ -426,6 +426,33 @@ func TestV2ListDecodesThePageItReceives(t *testing.T) {
 	}
 }
 
+// TestV2OperationRoutesListDeliversAccountingActions asserts that the decoded
+// page reaches the caller with every accounting action of each item, block,
+// unblock and crossLedger included — not only its id.
+func TestV2OperationRoutesListDeliversAccountingActions(t *testing.T) {
+	var method, path string
+
+	srv := readCapturingServer(t, &method, &path, `{"items":[`+operationRouteEightActionsJSON+`,`+operationRouteBridgeJSON+`],"limit":2}`)
+
+	page, err := newOperationRoutesV2Facade(newTestLedgerClient(t, srv), true).
+		List(context.Background(), v2Org, v2Ledger, models.OperationRoutesListOpts{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+
+	wantPath := "/v2/organizations/" + v2Org + "/ledgers/" + v2Ledger + "/operation-routes"
+	if method != http.MethodGet || path != wantPath {
+		t.Fatalf("list req = %s %s, want GET %s", method, path, wantPath)
+	}
+
+	if page == nil || len(page.Items) != 2 {
+		t.Fatalf("List = %+v, want the two routes the server sent", page)
+	}
+
+	assertOperationRouteActions(t, &page.Items[0], operationRouteEightActionsID, wantEightActions)
+	assertOperationRouteActions(t, &page.Items[1], operationRouteBridgeID, wantBridgeActions)
+}
+
 // TestV2ListSendsNoNarrowingWhenTheCallerSetNone is the negative half of the
 // bridge guard: a mapper that emitted a zero value instead of omitting the
 // field narrows a result set the caller asked to see whole. "limit=0" is the

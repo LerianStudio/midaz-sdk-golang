@@ -792,6 +792,52 @@ func TestV2WriteDecodesTheResourceTheServerReturned(t *testing.T) {
 	}
 }
 
+// TestV2OperationRouteWritesAccountingActions pins both ends of a V2 operation
+// route write that carries block, unblock or crossLedger: the exact body that
+// left, and every action of the route that came back.
+func TestV2OperationRouteWritesAccountingActions(t *testing.T) {
+	base := "/v2/organizations/" + v2Org + "/ledgers/" + v2Ledger + "/operation-routes"
+
+	for _, sc := range operationRouteWriteScenarios() {
+		t.Run(sc.name, func(t *testing.T) {
+			var method, path, body string
+
+			wantMethod, wantPath, status := http.MethodPost, base, http.StatusCreated
+			if sc.update != nil {
+				wantMethod, wantPath, status = http.MethodPatch, base+"/"+sc.wantID, http.StatusOK
+			}
+
+			srv := routeWriteServer(t, &method, &path, &body, "application/json", status, sc.response)
+			facade := newOperationRoutesV2Facade(newTestLedgerClient(t, srv), true)
+
+			var (
+				route *models.OperationRoute
+				err   error
+			)
+
+			if sc.update != nil {
+				route, err = facade.Update(context.Background(), v2Org, v2Ledger, sc.wantID, sc.update)
+			} else {
+				route, err = facade.Create(context.Background(), v2Org, v2Ledger, sc.create)
+			}
+
+			if err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			if method != wantMethod || path != wantPath {
+				t.Fatalf("write req = %s %s, want %s %s", method, path, wantMethod, wantPath)
+			}
+
+			if body != sc.wantBody {
+				t.Fatalf("body = %q, want exactly %q", body, sc.wantBody)
+			}
+
+			assertOperationRouteActions(t, route, sc.wantID, sc.want)
+		})
+	}
+}
+
 // TestV2WriteStampsIdempotencyOnTheWire is the replay guard, asserted where it
 // is actually observable: the header on the request.
 //
