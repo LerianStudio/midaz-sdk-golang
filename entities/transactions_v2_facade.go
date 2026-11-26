@@ -326,6 +326,97 @@ func scopeLegField(operation, side string, index int, field, addressed string, l
 	return nil
 }
 
+// prepareCrossLedgerCreate runs everything the two cross-ledger creates share:
+// refuse a nil input, copy the legs with their scope trimmed, refuse a bad
+// payload, refuse legs that never leave one organization and ledger pair, and
+// resolve the idempotency key. Nothing reaches the wire before it returns.
+//
+// It fills NO scope, which is the whole difference from prepareCreate. A
+// cross-ledger request has no addressed pair: the pair each leg names is the
+// data, so a leg without one is refused by Validate rather than completed.
+//
+// The single-pair refusal compares organization and ledger ignoring letter case,
+// the rule the server applies when it counts the pairs of a body. Without it a
+// request spelling one ledger in two cases would leave as cross-ledger and come
+// back as a single-ledger refusal. single names the method the caller should
+// use instead.
+func prepareCrossLedgerCreate(ctx context.Context, operation, single string, gate bool, input *models.CreateTransactionV2Input) (*models.CreateTransactionV2Input, createParams, error) {
+	if input == nil {
+		return nil, createParams{}, errors.NewValidationError(operation, "input cannot be nil", nil)
+	}
+
+	trimmed := *input
+	trimmed.Debits = trimV2LegScopes(input.Debits)
+	trimmed.Credits = trimV2LegScopes(input.Credits)
+
+	if err := validationErr(operation, trimmed.Validate()); err != nil {
+		return nil, createParams{}, err
+	}
+
+	if !legsSpanTwoScopes(trimmed.Debits, trimmed.Credits) {
+		return nil, createParams{}, errors.NewValidationError(operation, fmt.Sprintf(
+			"every leg names the same organization and ledger; a cross-ledger create needs legs in at least two organization and ledger pairs, use %s for a single-ledger transaction",
+			single), nil)
+	}
+
+	key, ttl, mark := resolveIdempotency(ctx, trimmed.IdempotencyKey, gate)
+	params := createParams{mark: mark}
+	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
+
+	return &trimmed, params, nil
+}
+
+// trimV2LegScopes copies one side's legs with the surrounding whitespace removed
+// from each leg's organization and ledger, filling nothing.
+//
+// It COPIES for the same reason scopeTransactionV2 does: writing through the
+// caller's slice would change their input. Only the two identifiers are
+// rewritten; a leg's Share pointer is shared with the caller's leg and only read.
+// Trimming is what scopeLegField does to a leg that keeps its own pair, and
+// here it also keeps " uuid " and "uuid" from counting as two pairs and reaching
+// a server that does not trim.
+func trimV2LegScopes(legs []models.TransactionV2Leg) []models.TransactionV2Leg {
+	if legs == nil {
+		return nil
+	}
+
+	out := make([]models.TransactionV2Leg, len(legs))
+	copy(out, legs)
+
+	for i := range out {
+		out[i].OrganizationID = strings.TrimSpace(out[i].OrganizationID)
+		out[i].LedgerID = strings.TrimSpace(out[i].LedgerID)
+	}
+
+	return out
+}
+
+// legsSpanTwoScopes reports whether the legs name at least two distinct
+// organization and ledger pairs, comparing both identifiers ignoring letter
+// case. Two pairs exist exactly when some leg differs from the first one, so
+// the scan stops at the first leg that does.
+func legsSpanTwoScopes(sides ...[]models.TransactionV2Leg) bool {
+	var first *models.TransactionV2Leg
+
+	for _, legs := range sides {
+		for i := range legs {
+			leg := &legs[i]
+
+			if first == nil {
+				first = leg
+
+				continue
+			}
+
+			if !strings.EqualFold(leg.OrganizationID, first.OrganizationID) || !strings.EqualFold(leg.LedgerID, first.LedgerID) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // Get retrieves one transaction by ID.
 func (f *transactionsV2Facade) Get(ctx context.Context, orgID, ledgerID, transactionID string) (*models.TransactionV2, error) {
 	const operation = "V2.Transactions.Get"
