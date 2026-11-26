@@ -191,7 +191,7 @@ Tracer-plane accessors are **not** version-grouped: the Tracer serves one surfac
 - `Create(ctx, organizationID, input)`
 - `Update(ctx, organizationID, id, input)`
 - `GetSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`. `LedgerSettings.CrossLedger` (`*models.CrossLedgerSettings{Enabled}`) is nil when the server does not report the block (Midaz before v4.1.0).
-- `UpdateSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; the patch carries only the blocks a setter touched, out of `accounting`, `overrides`, `tracer`, and `crossLedger` (Midaz v4.1.0+).
+- `UpdateSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; the patch carries only the blocks a setter touched (`accounting`, `overrides`, `tracer`, `crossLedger`); `crossLedger` requires Midaz v4.1.0+.
 - `Delete(ctx, organizationID, id)`
 - `Count(ctx, organizationID)`
 
