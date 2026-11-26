@@ -350,6 +350,8 @@ The one family whose two surfaces differ in **shape**, not only in path.
 - `CreateHold(ctx, orgID, ledgerID, input)` - reserves value for a later `Commit`
 - `CreateBlock` / `CreateUnblock(ctx, orgID, ledgerID, input)`
 - `CreateBatch(ctx, orgID, ledgerID, items)` - posts `direct` and `hold` items (`models.TransactionBatchItemV2`) to `POST /v2/transactions/batch` as one atomic batch, all or none, under one idempotency key from `sdkctx` (else auto; an item carrying its own `IdempotencyKey` is refused); returns the transactions in `Order`
+- `CreateDirectCrossLedger(ctx, input)` - posts a `direct` whose legs name more than one organization and ledger pair to `POST /v2/transactions/direct`; returns `models.CrossLedgerTransactionGroupV2`
+- `CreateHoldCrossLedger(ctx, input)` - the same for `hold` via `POST /v2/transactions/hold`; the group carries only the parts the hold reserved
 - `Get` / `List` / `All` / `Pages` / `Count(ctx, orgID, ledgerID, ...)`
 - `Update(ctx, orgID, ledgerID, transactionID, input)`
 - `Commit` / `Revert` / `Cancel(ctx, orgID, ledgerID, transactionID)`
@@ -357,6 +359,15 @@ The one family whose two surfaces differ in **shape**, not only in path.
 The four V1 creation styles nest a `send` envelope (`send.source.from`, `send.distribute.to`) behind four endpoints. All four V2 creates share **one** request type, `models.CreateTransactionV2Input`, which is flat: an asset, a total, and two leg arrays (`Debits`, `Credits`). Nothing in the payload says which action runs — the endpoint does.
 
 The V2 creates are posted at the **top level** (`POST /v2/transactions/direct`); the URL carries no organization or ledger at all. Instead **every leg** names the pair its account belongs to, and the server refuses a body whose legs disagree. The facade still takes `(orgID, ledgerID)` and stamps them onto any leg that left them empty, into a deep copy — so a caller reusing one input across two ledgers cannot carry the first call's scope into the second. A leg that names a *different* pair is refused rather than posted into the wrong ledger.
+
+Since Midaz v4.1.0 a `direct` or `hold` whose legs name **two or more** pairs is accepted as a cross-ledger transaction when every ledger involved has `crossLedger.enabled`, and the server answers with an atomic group instead of one transaction. `CreateDirectCrossLedger` and `CreateHoldCrossLedger` are the separate methods for it; the single-ledger creates above keep their scope stamping and their refusal of a leg in another pair unchanged.
+
+- They take **no** `(orgID, ledgerID)`: a cross-ledger request has no single addressed pair, so each leg's `OrganizationID` and `LedgerID` are the caller's data. The facade trims surrounding whitespace from them, fills nothing, and leaves the caller's input untouched; a leg without either is refused by validation.
+- Legs that all name **one** pair, compared ignoring letter case as the server does, are refused locally with a validation error that points at `CreateDirect` / `CreateHold`, before anything is sent.
+- `models.CrossLedgerTransactionGroupV2` carries `GroupID` and `Transactions []models.TransactionV2` in the order the server served them. A `direct` group holds one transaction per ledger. A `hold` group holds **only the parts the hold reserved** (PENDING); the rest are created on `Commit`, which, like `Cancel`, takes a member's ID and moves the whole group.
+- A 2xx that is not a group (no `groupId`, or no transactions, as a single-transaction body would be) is a response-decode error (`errors.IsResponseDecodeError`), never a zero-valued group with a nil error.
+- The SDK checks neither the server version nor the setting. The refusal comes back as the API error with its status and code: `0249` when `crossLedger.enabled` is off, `0499` from a server that takes legs in one pair only.
+- Idempotency follows the other V2 creates (input or `sdkctx` key, auto key only with `midaz.WithIdempotency(true)` / `MIDAZ_IDEMPOTENCY=true`). The server documents keeping a key after a failed or timed-out create for single-ledger creates, not for cross-ledger ones.
 
 A V2 leg carries **exactly one** value expression: an explicit `Amount`, or a `Share` of the transaction total. Both, or neither, is refused before the request leaves.
 
