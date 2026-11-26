@@ -730,3 +730,74 @@ func TestUpdateLedgerInputDefaults(t *testing.T) {
 		assert.Nil(t, input.Metadata)
 	})
 }
+
+// TestUpdateLedgerSettingsInput_CrossLedger pins the crossLedger patch block:
+// a patch that sets only the flag is a change and goes out as exactly that
+// block, an explicit false survives omitempty, and patches that do not touch
+// the flag keep the body they had before the block existed.
+func TestUpdateLedgerSettingsInput_CrossLedger(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *UpdateLedgerSettingsInput
+		wantErr  string
+		wantJSON string
+	}{
+		{
+			name:     "only crossLedger enabled",
+			input:    NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true),
+			wantJSON: `{"crossLedger":{"enabled":true}}`,
+		},
+		{
+			name:     "explicit false crossLedger",
+			input:    NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(false),
+			wantJSON: `{"crossLedger":{"enabled":false}}`,
+		},
+		{
+			name:     "crossLedger with an accounting flag",
+			input:    NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true).WithRequireHolder(true),
+			wantJSON: `{"accounting":{"requireHolder":true},"crossLedger":{"enabled":true}}`,
+		},
+		{
+			name: "existing blocks without crossLedger",
+			input: NewUpdateLedgerSettingsInput().
+				WithRequireHolder(true).
+				WithAllowFeeSkip(false).
+				WithTracerMode("sync"),
+			wantJSON: `{"accounting":{"requireHolder":true},"overrides":{"allowFeeSkip":false},"tracer":{"mode":"sync"}}`,
+		},
+		{
+			name:    "empty patch is rejected",
+			input:   NewUpdateLedgerSettingsInput(),
+			wantErr: "empty update payload not allowed",
+		},
+		{
+			name:    "crossLedger block without enabled is rejected as empty",
+			input:   &UpdateLedgerSettingsInput{CrossLedger: &UpdateLedgerSettingsCrossLedgerInput{}},
+			wantErr: "empty update payload not allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.input.Validate()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			data, err := json.Marshal(tt.input)
+			require.NoError(t, err)
+
+			assert.JSONEq(t, tt.wantJSON, string(data))
+		})
+	}
+}
+
+func TestUpdateLedgerSettingsInput_WithCrossLedgerEnabledNilReceiver(t *testing.T) {
+	var input *UpdateLedgerSettingsInput
+
+	assert.Nil(t, input.WithCrossLedgerEnabled(true))
+}
