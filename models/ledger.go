@@ -27,12 +27,27 @@ type Ledger struct {
 }
 
 // LedgerSettings is the SDK-native ledger settings response type. It mirrors the
-// generated tri-block wire shape: accounting validation, transaction-level
-// override policy, and tracer behavior. All blocks are required (non-pointer).
+// generated wire shape: accounting validation, transaction-level override
+// policy, and tracer behavior are required blocks (non-pointer); the
+// cross-ledger block is optional (pointer) and omitted from the wire body when
+// nil, so a creation payload that does not set it is unchanged.
 type LedgerSettings struct {
 	Accounting AccountingValidation `json:"accounting"`
 	Overrides  OverridePolicy       `json:"overrides"`
 	Tracer     TracerSettings       `json:"tracer"`
+	// CrossLedger reports whether the ledger may take part in cross-ledger
+	// transactions. It is nil when the server does not report the block, which
+	// is distinct from a block with Enabled false. Requires Midaz v4.1.0 or
+	// later.
+	CrossLedger *CrossLedgerSettings `json:"crossLedger,omitempty"`
+}
+
+// CrossLedgerSettings is the cross-ledger settings block of a ledger. Requires
+// Midaz v4.1.0 or later.
+type CrossLedgerSettings struct {
+	// Enabled reports whether the ledger may take part in cross-ledger
+	// transactions.
+	Enabled bool `json:"enabled"`
 }
 
 // AccountingValidation is the accounting-related validation settings struct.
