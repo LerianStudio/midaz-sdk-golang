@@ -296,30 +296,7 @@ func TestLedgersFacade_Settings(t *testing.T) {
 		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500},` +
 		`"crossLedger":{"enabled":true}}`
 
-	facades := []struct {
-		name   string
-		path   string
-		update func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error)
-	}{
-		{
-			name: "v1",
-			path: path,
-			update: func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
-				t.Helper()
-
-				return newTestLedgersFacade(t, srv).UpdateSettings(context.Background(), ledgersOrgID, id, input)
-			},
-		},
-		{
-			name: "v2",
-			path: "/v2/organizations/" + ledgersOrgID + "/ledgers/" + id + "/settings",
-			update: func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
-				t.Helper()
-
-				return newLedgersV2Facade(newTestLedgerClient(t, srv), true).UpdateSettings(context.Background(), ledgersOrgID, id, input)
-			},
-		},
-	}
+	facades := ledgerSettingsFacades(id)
 
 	t.Run("get", func(t *testing.T) {
 		var m, p string
@@ -451,29 +428,7 @@ func TestLedgersFacade_UpdateSettingsServerRefusesCrossLedger(t *testing.T) {
 		`"detail":"The settings contain an unknown field: 'crossLedger'. Only known settings fields are allowed.",` +
 		`"code":"0147","entityType":"LedgerSettings"}`
 
-	facades := []struct {
-		name   string
-		update func(t *testing.T, srv *httptest.Server) (*models.LedgerSettings, error)
-	}{
-		{
-			name: "v1",
-			update: func(t *testing.T, srv *httptest.Server) (*models.LedgerSettings, error) {
-				t.Helper()
-
-				return newTestLedgersFacade(t, srv).UpdateSettings(context.Background(), ledgersOrgID, id,
-					models.NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true))
-			},
-		},
-		{
-			name: "v2",
-			update: func(t *testing.T, srv *httptest.Server) (*models.LedgerSettings, error) {
-				t.Helper()
-
-				return newLedgersV2Facade(newTestLedgerClient(t, srv), true).UpdateSettings(context.Background(), ledgersOrgID, id,
-					models.NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true))
-			},
-		},
-	}
+	facades := ledgerSettingsFacades(id)
 
 	for _, f := range facades {
 		t.Run(f.name, func(t *testing.T) {
@@ -484,7 +439,7 @@ func TestLedgersFacade_UpdateSettingsServerRefusesCrossLedger(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			s, err := f.update(t, srv)
+			s, err := f.update(t, srv, models.NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true))
 			if s != nil {
 				t.Fatalf("UpdateSettings returned %+v, want nil on a refusal", s)
 			}
@@ -499,6 +454,39 @@ func TestLedgersFacade_UpdateSettingsServerRefusesCrossLedger(t *testing.T) {
 				t.Fatalf("IsValidationError = false, category = %q, want a validation error", sdkErr.Category)
 			}
 		})
+	}
+}
+
+// ledgerSettingsFacade is one ledger settings update surface (/v1 or /v2): the
+// settings path it must hit and a call that sends the given patch through it.
+type ledgerSettingsFacade struct {
+	name   string
+	path   string
+	update func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error)
+}
+
+// ledgerSettingsFacades returns the /v1 and /v2 settings update surfaces for
+// ledger id, so a settings test can assert the same contract on both.
+func ledgerSettingsFacades(id string) []ledgerSettingsFacade {
+	return []ledgerSettingsFacade{
+		{
+			name: "v1",
+			path: "/v1/organizations/" + ledgersOrgID + "/ledgers/" + id + "/settings",
+			update: func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+				t.Helper()
+
+				return newTestLedgersFacade(t, srv).UpdateSettings(context.Background(), ledgersOrgID, id, input)
+			},
+		},
+		{
+			name: "v2",
+			path: "/v2/organizations/" + ledgersOrgID + "/ledgers/" + id + "/settings",
+			update: func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+				t.Helper()
+
+				return newLedgersV2Facade(newTestLedgerClient(t, srv), true).UpdateSettings(context.Background(), ledgersOrgID, id, input)
+			},
+		},
 	}
 }
 
