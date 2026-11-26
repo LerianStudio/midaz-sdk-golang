@@ -495,6 +495,9 @@ func TestLedgersFacade_UpdateSettingsServerRefusesCrossLedger(t *testing.T) {
 			if sdkErr.APICode != "0147" || sdkErr.StatusCode != http.StatusBadRequest {
 				t.Fatalf("decoded error = %+v, want status 400 and code 0147", sdkErr)
 			}
+			if !sdkerrors.IsValidationError(err) {
+				t.Fatalf("IsValidationError = false, category = %q, want a validation error", sdkErr.Category)
+			}
 		})
 	}
 }
