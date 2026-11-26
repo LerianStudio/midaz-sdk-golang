@@ -772,10 +772,12 @@ const (
 	crossLedgerLedgerB = "01a2193f-4d26-721b-b604-464fa60c7e43"
 )
 
-// sampleCrossLedgerV2Input builds the request the captured groups answered: a
-// debit of @alice in ledger A and a credit of @bob in ledger B, each leg naming
-// its own pair. Every call returns a fresh input, so a test can build a second
-// one to compare against after the call.
+// sampleCrossLedgerV2Input builds the test's own input: a debit of @alice in
+// ledger A and a credit of @bob in ledger B, each leg naming its own pair. It is
+// not the request the captured groups answered, which came from a different
+// probe request; the tests check the SDK against the served bytes. Every call
+// returns a fresh input, so a test can build a second one to compare against
+// after the call.
 func sampleCrossLedgerV2Input() *models.CreateTransactionV2Input {
 	return &models.CreateTransactionV2Input{
 		Asset:       "BRL",
