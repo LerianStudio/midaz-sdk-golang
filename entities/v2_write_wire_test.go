@@ -802,16 +802,31 @@ func TestV2OperationRouteWritesAccountingActions(t *testing.T) {
 		t.Run(sc.name, func(t *testing.T) {
 			var method, path, body string
 
-			srv := routeWriteServer(t, &method, &path, &body, http.StatusCreated, sc.response)
-
-			route, err := newOperationRoutesV2Facade(newTestLedgerClient(t, srv), true).
-				Create(context.Background(), v2Org, v2Ledger, sc.create)
-			if err != nil {
-				t.Fatalf("Create: %v", err)
+			wantMethod, wantPath, status := http.MethodPost, base, http.StatusCreated
+			if sc.update != nil {
+				wantMethod, wantPath, status = http.MethodPatch, base+"/"+sc.wantID, http.StatusOK
 			}
 
-			if method != http.MethodPost || path != base {
-				t.Fatalf("create req = %s %s, want POST %s", method, path, base)
+			srv := routeWriteServer(t, &method, &path, &body, status, sc.response)
+			facade := newOperationRoutesV2Facade(newTestLedgerClient(t, srv), true)
+
+			var (
+				route *models.OperationRoute
+				err   error
+			)
+
+			if sc.update != nil {
+				route, err = facade.Update(context.Background(), v2Org, v2Ledger, sc.wantID, sc.update)
+			} else {
+				route, err = facade.Create(context.Background(), v2Org, v2Ledger, sc.create)
+			}
+
+			if err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			if method != wantMethod || path != wantPath {
+				t.Fatalf("write req = %s %s, want %s %s", method, path, wantMethod, wantPath)
 			}
 
 			if body != sc.wantBody {

@@ -190,11 +190,12 @@ func accountingEntryFrom(rubrics *operationRouteRubrics) *models.AccountingEntry
 }
 
 // operationRouteWriteScenario is one create or update the /v1 and /v2 write
-// tests both run: the exact body the facade must send, the accountingEntries
+// tests both run (exactly one of create and update is set): the exact body the facade must send, the accountingEntries
 // keys that body must hold, and the route the server answers with.
 type operationRouteWriteScenario struct {
 	name          string
 	create        *models.CreateOperationRouteInput
+	update        *models.UpdateOperationRouteInput
 	wantBody      string
 	wantEntryKeys []string
 	response      string
@@ -238,6 +239,22 @@ func operationRouteWriteScenarios() []operationRouteWriteScenario {
 			response:      operationRouteBridgeJSON,
 			wantID:        operationRouteBridgeID,
 			want:          wantBridgeActions,
+		},
+		{
+			// The server merges a PATCH, so the route it answers with still
+			// carries the direct action the update did not resend.
+			name: "update with block and unblock",
+			update: &models.UpdateOperationRouteInput{
+				AccountingEntries: &models.AccountingEntries{
+					Block:   accountingEntryFrom(wantBlockRubrics),
+					Unblock: accountingEntryFrom(wantUnblockRubrics),
+				},
+			},
+			wantBody:      `{"accountingEntries":{` + operationRouteEntryBlock + `,` + operationRouteEntryUnblock + `}}`,
+			wantEntryKeys: []string{"block", "unblock"},
+			response:      operationRouteDirectBlockUnblockJSON,
+			wantID:        operationRouteCreatedID,
+			want:          wantDirectBlockUnblockActions,
 		},
 	}
 }
