@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -693,6 +694,31 @@ func TestCreateLedgerInputDefaults(t *testing.T) {
 		assert.True(t, IsStatusEmpty(input.Status))
 		assert.Nil(t, input.Metadata)
 	})
+}
+
+// TestCreateLedgerInput_SettingsWithoutCrossLedger pins the creation body for a
+// caller that fills only the accounting, overrides and tracer blocks: it must
+// not carry a crossLedger key, so the body matches the one sent before the
+// block existed and a server that does not know the block accepts it.
+func TestCreateLedgerInput_SettingsWithoutCrossLedger(t *testing.T) {
+	input := NewCreateLedgerInput("Treasury")
+	input.Settings = &LedgerSettings{
+		Accounting: AccountingValidation{RequireHolder: true, ValidateAccountType: true, ValidateRoutes: false},
+		Overrides:  OverridePolicy{AllowFeeSkip: true, AllowHolderSkip: false, AllowTracerSkip: true},
+		Tracer:     TracerSettings{FailPosture: "strict", Mode: "sync", TimeoutMs: 1500},
+	}
+
+	data, err := json.Marshal(input)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{
+		"name":"Treasury",
+		"settings":{
+			"accounting":{"requireHolder":true,"validateAccountType":true,"validateRoutes":false},
+			"overrides":{"allowFeeSkip":true,"allowHolderSkip":false,"allowTracerSkip":true},
+			"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500}
+		}
+	}`, string(data))
 }
 
 func TestUpdateLedgerInputDefaults(t *testing.T) {
