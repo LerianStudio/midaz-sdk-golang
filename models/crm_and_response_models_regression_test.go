@@ -74,6 +74,13 @@ func TestCRMAndResponseModelsLedgerSettingsExplicitFalseSerializes(t *testing.T)
 	assert.JSONEq(t, `{"accounting":{"validateRoutes":false}}`, string(data))
 }
 
+func TestCRMAndResponseModelsLedgerSettingsExplicitFalseCrossLedgerSerializes(t *testing.T) {
+	data, err := json.Marshal(NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(false))
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{"crossLedger":{"enabled":false}}`, string(data))
+}
+
 // TestErrorResponseJSONContract historically pinned down the
 // JSON shape of the legacy models.ErrorResponse public type. v3
 // Batch 8E removed that type — the canonical SDK error shape is
