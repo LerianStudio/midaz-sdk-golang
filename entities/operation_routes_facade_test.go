@@ -218,6 +218,33 @@ func TestOperationRoutesFacade_CRUD(t *testing.T) {
 	})
 }
 
+// TestOperationRoutesFacade_WritesAccountingActions asserts that a create or
+// update carrying block, unblock or crossLedger sends exactly those actions and
+// hands back the actions the server answered with.
+func TestOperationRoutesFacade_WritesAccountingActions(t *testing.T) {
+	for _, sc := range operationRouteWriteScenarios() {
+		t.Run(sc.name, func(t *testing.T) {
+			var m, p, body string
+
+			srv := routeWriteServer(t, &m, &p, &body, http.StatusCreated, sc.response)
+
+			route, err := newTestOperationRoutesFacade(t, srv).Create(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, sc.create)
+			if err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+			if m != http.MethodPost || p != operationRoutesBase() {
+				t.Fatalf("create req = %s %s, want POST %s", m, p, operationRoutesBase())
+			}
+			if body != sc.wantBody {
+				t.Fatalf("body = %q, want exactly %q", body, sc.wantBody)
+			}
+
+			assertSentAccountingEntryKeys(t, body, sc.wantEntryKeys)
+			assertOperationRouteActions(t, route, sc.wantID, sc.want)
+		})
+	}
+}
+
 // TestOperationRoutesFacade_Filters is the per-resource differentiator. The
 // cursor/sort/date fields map to generated param slots; name, status, and
 // operation_type have no slot and must be injected via request editors. A

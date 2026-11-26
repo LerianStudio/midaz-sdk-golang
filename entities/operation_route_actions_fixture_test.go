@@ -4,8 +4,12 @@
 package entities
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
@@ -159,6 +163,129 @@ func assertOperationRouteActions(t *testing.T, route *models.OperationRoute, wan
 			t.Fatalf("route %s: %s = %+v, want %+v", wantID, action, gotRubrics, *rubrics)
 		}
 	}
+}
+
+const (
+	operationRouteCreatedID = "77777777-7777-7777-7777-777777777777"
+
+	// operationRouteDirectBlockUnblockJSON answers the create and update
+	// scenarios below. The body is derived from the captured entries above, not
+	// captured from a server.
+	operationRouteDirectBlockUnblockJSON = `{"id":"` + operationRouteCreatedID + `","title":"probe C","operationType":"source",` +
+		`"accountingEntries":{` + operationRouteEntryDirect + `,` + operationRouteEntryBlock + `,` + operationRouteEntryUnblock + `},` +
+		operationRouteEnvelopeTail
+)
+
+var wantDirectBlockUnblockActions = map[string]*operationRouteRubrics{
+	"direct": wantDirectRubrics, "hold": nil, "commit": nil, "cancel": nil, "revert": nil, "overdraft": nil,
+	"block": wantBlockRubrics, "unblock": wantUnblockRubrics, "crossLedger": nil,
+}
+
+// accountingEntryFrom builds the input entry that carries rubrics.
+func accountingEntryFrom(rubrics *operationRouteRubrics) *models.AccountingEntry {
+	return &models.AccountingEntry{
+		Debit:  &models.AccountingRubric{Code: rubrics.debitCode, Description: rubrics.debitDescription},
+		Credit: &models.AccountingRubric{Code: rubrics.creditCode, Description: rubrics.creditDescription},
+	}
+}
+
+// operationRouteWriteScenario is one create or update the /v1 and /v2 write
+// tests both run: the exact body the facade must send, the accountingEntries
+// keys that body must hold, and the route the server answers with.
+type operationRouteWriteScenario struct {
+	name          string
+	create        *models.CreateOperationRouteInput
+	wantBody      string
+	wantEntryKeys []string
+	response      string
+	wantID        string
+	want          map[string]*operationRouteRubrics
+}
+
+// operationRouteWriteScenarios returns fresh inputs on every call, so no test
+// can leak a mutation into another.
+func operationRouteWriteScenarios() []operationRouteWriteScenario {
+	return []operationRouteWriteScenario{
+		{
+			name: "create with direct, block and unblock",
+			create: &models.CreateOperationRouteInput{
+				Title:         "probe C",
+				OperationType: "source",
+				AccountingEntries: &models.AccountingEntries{
+					Direct:  accountingEntryFrom(wantDirectRubrics),
+					Block:   accountingEntryFrom(wantBlockRubrics),
+					Unblock: accountingEntryFrom(wantUnblockRubrics),
+				},
+			},
+			wantBody: `{"title":"probe C","operationType":"source","accountingEntries":{` +
+				operationRouteEntryDirect + `,` + operationRouteEntryBlock + `,` + operationRouteEntryUnblock + `},"metadata":null}`,
+			wantEntryKeys: []string{"block", "direct", "unblock"},
+			response:      operationRouteDirectBlockUnblockJSON,
+			wantID:        operationRouteCreatedID,
+			want:          wantDirectBlockUnblockActions,
+		},
+		{
+			name: "create bridge route",
+			create: &models.CreateOperationRouteInput{
+				Title:             "probe B v2",
+				Code:              "PRB-B-v2",
+				OperationType:     "bidirectional",
+				AccountingEntries: &models.AccountingEntries{CrossLedger: accountingEntryFrom(wantBridgeActions["crossLedger"])},
+			},
+			wantBody: `{"title":"probe B v2","code":"PRB-B-v2","operationType":"bidirectional","accountingEntries":{` +
+				`"crossLedger":{"debit":{"code":"9001","description":"in"},"credit":{"code":"9002","description":"out"}}},"metadata":null}`,
+			wantEntryKeys: []string{"crossLedger"},
+			response:      operationRouteBridgeJSON,
+			wantID:        operationRouteBridgeID,
+			want:          wantBridgeActions,
+		},
+	}
+}
+
+// assertSentAccountingEntryKeys checks that the accountingEntries object of the
+// sent body holds exactly the wanted action keys, sorted.
+func assertSentAccountingEntryKeys(t *testing.T, body string, want []string) {
+	t.Helper()
+
+	var sent struct {
+		AccountingEntries map[string]json.RawMessage `json:"accountingEntries"`
+	}
+
+	if err := json.Unmarshal([]byte(body), &sent); err != nil {
+		t.Fatalf("sent body not decodable: %v (body=%q)", err, body)
+	}
+
+	got := make([]string, 0, len(sent.AccountingEntries))
+	for key := range sent.AccountingEntries {
+		got = append(got, key)
+	}
+
+	sort.Strings(got)
+
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("sent accountingEntries keys = %v, want exactly %v", got, want)
+	}
+}
+
+// routeWriteServer records the method, path and body of every request and
+// answers each one with status and response, as the /v1 CRUD tests do inline.
+func routeWriteServer(t *testing.T, method, path, body *string, status int, response string) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*method, *path = r.Method, r.URL.Path
+
+		raw, _ := io.ReadAll(r.Body)
+		*body = string(raw)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(response))
+	}))
+
+	t.Cleanup(srv.Close)
+
+	return srv
 }
 
 // readCapturingServer records the method and path of every request and answers
