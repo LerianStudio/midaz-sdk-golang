@@ -133,27 +133,24 @@ func TestV2LedgerSettingsDecodeCrossLedger(t *testing.T) {
 		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500}`
 
 	cases := []struct {
-		name        string
-		body        string
-		wantPresent bool
-		wantEnabled bool
+		name string
+		body string
+		want *models.CrossLedgerSettings
 	}{
 		{
-			name:        "enabled",
-			body:        `{` + blocks + `,"crossLedger":{"enabled":true}}`,
-			wantPresent: true,
-			wantEnabled: true,
+			name: "enabled",
+			body: `{` + blocks + `,"crossLedger":{"enabled":true}}`,
+			want: &models.CrossLedgerSettings{Enabled: true},
 		},
 		{
-			name:        "disabled",
-			body:        `{` + blocks + `,"crossLedger":{"enabled":false}}`,
-			wantPresent: true,
-			wantEnabled: false,
+			name: "disabled",
+			body: `{` + blocks + `,"crossLedger":{"enabled":false}}`,
+			want: &models.CrossLedgerSettings{Enabled: false},
 		},
 		{
-			name:        "absent on a server without the block",
-			body:        `{` + blocks + `}`,
-			wantPresent: false,
+			name: "absent on a server without the block",
+			body: `{` + blocks + `}`,
+			want: nil,
 		},
 	}
 
@@ -165,18 +162,12 @@ func TestV2LedgerSettingsDecodeCrossLedger(t *testing.T) {
 				t.Fatalf("GetSettings: %v", err)
 			}
 
-			if !tc.wantPresent {
-				if settings.CrossLedger != nil {
-					t.Fatalf("crossLedger = %+v, want nil — the server did not report the block", settings.CrossLedger)
-				}
-			} else {
-				if settings.CrossLedger == nil {
-					t.Fatalf("crossLedger = nil, want a block with enabled=%t", tc.wantEnabled)
-				}
+			if (settings.CrossLedger != nil) != (tc.want != nil) {
+				t.Fatalf("crossLedger = %+v, want %+v — nil only when the server did not report the block", settings.CrossLedger, tc.want)
+			}
 
-				if settings.CrossLedger.Enabled != tc.wantEnabled {
-					t.Fatalf("crossLedger.enabled = %t, want %t", settings.CrossLedger.Enabled, tc.wantEnabled)
-				}
+			if tc.want != nil && settings.CrossLedger.Enabled != tc.want.Enabled {
+				t.Fatalf("crossLedger.enabled = %t, want %t", settings.CrossLedger.Enabled, tc.want.Enabled)
 			}
 
 			want := models.LedgerSettings{
