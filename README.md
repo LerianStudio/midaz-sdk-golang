@@ -181,9 +181,10 @@ travelling per leg rather than in the URL. `c.V2.Transactions` answers with
 dropped. A `direct` or `hold` whose legs span more than one ledger (Midaz
 v4.1.0+, `crossLedger.enabled` on every ledger) goes through
 `CreateDirectCrossLedger` / `CreateHoldCrossLedger`, which answer with the
-atomic group, `models.CrossLedgerTransactionGroupV2`. `c.V2.Accounts` also does not re-expose the account-scoped balance and
-operation reads: `/v1` spells each on two accessors, `/v2` spells each once, on
-`c.V2.Balances` and `c.V2.Operations`.
+atomic group, `models.CrossLedgerTransactionGroupV2`. `c.V2.Accounts` also
+does not re-expose the account-scoped balance and operation reads: `/v1` spells
+each on two accessors, `/v2` spells each once, on `c.V2.Balances` and
+`c.V2.Operations`.
 
 The version lives in the request **path**, never in the base URL. The Ledger
 base URL is bare, and a `/v1` or `/v2` suffix on it is rejected at construction.
