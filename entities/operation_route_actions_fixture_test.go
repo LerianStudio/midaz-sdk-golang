@@ -42,13 +42,15 @@ const (
 	operationRouteBridgeJSON = `{"id":"` + operationRouteBridgeID + `","organizationId":"01a2187d-174a-79e1-9a6f-e7ff20a4a7c4","ledgerId":"01a2187d-1768-7280-8222-3adfe0d315fb","title":"probe B v2","code":"PRB-B-v2","operationType":"bidirectional",` +
 		`"accountingEntries":{"crossLedger":{"debit":{"code":"9001","description":"in"},"credit":{"code":"9002","description":"out"}}},` + operationRouteEnvelopeTail
 
-	// operationRouteBlockWithoutUnblockJSON is a route the server accepts with
-	// direct and block only: block does not require unblock.
+	// operationRouteBlockWithoutUnblockJSON is a route with direct and block
+	// only (block does not require unblock). The body is derived from the
+	// captured entries above, not captured from a server.
 	operationRouteBlockWithoutUnblockJSON = `{"id":"` + v2UUIDA + `","title":"probe C","operationType":"source",` +
 		`"accountingEntries":{` + operationRouteEntryDirect + `,` + operationRouteEntryBlock + `},` + operationRouteEnvelopeTail
 
-	// operationRouteSixActionsJSON is what a server without block, unblock and
-	// crossLedger returns: the six actions that predate them.
+	// operationRouteSixActionsJSON stands for what a server without block,
+	// unblock and crossLedger returns: the six actions that predate them. The
+	// body is derived from the captured entries above, not captured from a server.
 	operationRouteSixActionsJSON = `{"id":"` + v2UUIDB + `","title":"probe D","operationType":"bidirectional",` +
 		`"accountingEntries":{` + operationRouteEntryDirect + `,` + operationRouteEntryHold + `,` + operationRouteEntryCommit + `,` +
 		operationRouteEntryCancel + `,` + operationRouteEntryRevert + `,` + operationRouteEntryOverdraft + `},` + operationRouteEnvelopeTail
@@ -131,7 +133,7 @@ func assertOperationRouteActions(t *testing.T, route *models.OperationRoute, wan
 
 	got := operationRouteActions(route.AccountingEntries)
 	if len(got) != len(want) {
-		t.Fatalf("route %s: expectation names %d actions, the model has %d", wantID, len(want), len(got))
+		t.Fatalf("route %s: expectation names %d actions, operationRouteActions lists %d", wantID, len(want), len(got))
 	}
 
 	for action, rubrics := range want {

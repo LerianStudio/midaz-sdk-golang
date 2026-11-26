@@ -191,8 +191,24 @@ func TestTransactionRoutesFacade_GetDeliversEmbeddedOperationRouteActions(t *tes
 	const id = "55555555-5555-5555-5555-555555555555"
 	const secondRouteID = "66666666-6666-6666-6666-666666666666"
 
+	// The second embedded route is derived, not captured from a server: it
+	// carries rubric codes of its own, distinct per action and side from the
+	// first route's, so an entry that crossed between the two items fails.
 	secondRoute := `{"id":"` + secondRouteID + `","title":"probe E","operationType":"destination",` +
-		`"accountingEntries":{` + operationRouteEntryDirect + `,` + operationRouteEntryBlock + `},` + operationRouteEnvelopeTail
+		`"accountingEntries":{"direct":{"debit":{"code":"1101","description":"second direct debit"},"credit":{"code":"2101","description":"second direct credit"}},` +
+		`"block":{"debit":{"code":"1103","description":"second block debit"},"credit":{"code":"2103","description":"second block credit"}}},` +
+		operationRouteEnvelopeTail
+	wantSecondRoute := map[string]*operationRouteRubrics{
+		"direct":      {"1101", "second direct debit", "2101", "second direct credit"},
+		"hold":        nil,
+		"commit":      nil,
+		"cancel":      nil,
+		"revert":      nil,
+		"overdraft":   nil,
+		"block":       {"1103", "second block debit", "2103", "second block credit"},
+		"unblock":     nil,
+		"crossLedger": nil,
+	}
 	body := `{"id":"` + id + `","title":"Settlement","operationRoutes":[` + operationRouteBlockWithoutUnblockJSON + `,` + secondRoute + `]}`
 
 	var m, p string
@@ -211,7 +227,7 @@ func TestTransactionRoutesFacade_GetDeliversEmbeddedOperationRouteActions(t *tes
 	}
 
 	assertOperationRouteActions(t, &route.OperationRoutes[0], v2UUIDA, wantBlockWithoutUnblockActions)
-	assertOperationRouteActions(t, &route.OperationRoutes[1], secondRouteID, wantBlockWithoutUnblockActions)
+	assertOperationRouteActions(t, &route.OperationRoutes[1], secondRouteID, wantSecondRoute)
 }
 
 // TestTransactionRoutesFacade_Filters is the per-resource differentiator. The
