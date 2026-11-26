@@ -64,6 +64,29 @@ func TestOperationRoutesFacade_ListAndPaginate(t *testing.T) {
 	}
 }
 
+// TestOperationRoutesFacade_ListDeliversAccountingActions asserts that every
+// list item carries the accounting actions the server sent, block, unblock and
+// crossLedger included.
+func TestOperationRoutesFacade_ListDeliversAccountingActions(t *testing.T) {
+	var m, p string
+
+	srv := readCapturingServer(t, &m, &p, `{"items":[`+operationRouteEightActionsJSON+`,`+operationRouteBridgeJSON+`],"limit":2}`)
+
+	page, err := newTestOperationRoutesFacade(t, srv).List(context.Background(), operationRoutesOrgID, operationRoutesLedgerID, models.OperationRoutesListOpts{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if m != http.MethodGet || p != operationRoutesBase() {
+		t.Fatalf("list req = %s %s, want GET %s", m, p, operationRoutesBase())
+	}
+	if page == nil || len(page.Items) != 2 {
+		t.Fatalf("List = %+v, want the two routes the server sent", page)
+	}
+
+	assertOperationRouteActions(t, &page.Items[0], operationRouteEightActionsID, wantEightActions)
+	assertOperationRouteActions(t, &page.Items[1], operationRouteBridgeID, wantBridgeActions)
+}
+
 // TestOperationRoutesFacade_CRUD round-trips Create/Get/Update/Delete over the
 // generated client on the org+ledger-scoped path, asserting verb+path+body match
 // the legacy operationRoutesEntity wire.
