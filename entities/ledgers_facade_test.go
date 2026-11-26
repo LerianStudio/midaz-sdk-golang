@@ -279,10 +279,12 @@ func TestLedgersFacade_WriteReplaySafe(t *testing.T) {
 	}
 }
 
-// TestLedgersFacade_Settings exercises the tri-block ledger settings surface
-// end-to-end. GetSettings must expose all three blocks (accounting including
-// requireHolder, overrides, tracer); UpdateSettings must send all three blocks
-// on the PATCH body and normalize the response into the public model.
+// TestLedgersFacade_Settings exercises the ledger settings surface end-to-end.
+// GetSettings must expose every block the server reports (accounting including
+// requireHolder, overrides, tracer, crossLedger); UpdateSettings must send the
+// blocks the caller set on the PATCH body and normalize the response into the
+// public model. A crossLedger-only patch must go out as exactly that block on
+// both /v1 and /v2, and an empty patch must not reach the server.
 //
 //nolint:revive // cognitive-complexity: multiple settings subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestLedgersFacade_Settings(t *testing.T) {
@@ -293,6 +295,31 @@ func TestLedgersFacade_Settings(t *testing.T) {
 		`"overrides":{"allowFeeSkip":true,"allowHolderSkip":false,"allowTracerSkip":true},` +
 		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500},` +
 		`"crossLedger":{"enabled":true}}`
+
+	facades := []struct {
+		name   string
+		path   string
+		update func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error)
+	}{
+		{
+			name: "v1",
+			path: path,
+			update: func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+				t.Helper()
+
+				return newTestLedgersFacade(t, srv).UpdateSettings(context.Background(), ledgersOrgID, id, input)
+			},
+		},
+		{
+			name: "v2",
+			path: "/v2/organizations/" + ledgersOrgID + "/ledgers/" + id + "/settings",
+			update: func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+				t.Helper()
+
+				return newLedgersV2Facade(newTestLedgerClient(t, srv), true).UpdateSettings(context.Background(), ledgersOrgID, id, input)
+			},
+		},
+	}
 
 	t.Run("get", func(t *testing.T) {
 		var m, p string
@@ -364,6 +391,50 @@ func TestLedgersFacade_Settings(t *testing.T) {
 			t.Fatalf("UpdateSettings returned %+v", s)
 		}
 	})
+
+	for _, f := range facades {
+		t.Run("update crossLedger only "+f.name, func(t *testing.T) {
+			var m, p, ct, body string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				m, p, ct = r.Method, r.URL.Path, r.Header.Get("Content-Type")
+				b, _ := io.ReadAll(r.Body)
+				body = string(b)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(full))
+			}))
+			defer srv.Close()
+
+			s, err := f.update(t, srv, models.NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true))
+			if err != nil {
+				t.Fatalf("UpdateSettings: %v", err)
+			}
+			if m != http.MethodPatch || p != f.path || ct != "application/json" {
+				t.Fatalf("update req = %s %s (%s), want PATCH %s json", m, p, ct, f.path)
+			}
+			if body != `{"crossLedger":{"enabled":true}}` {
+				t.Fatalf("body = %q, want exactly the crossLedger block", body)
+			}
+			if s.CrossLedger == nil || !s.CrossLedger.Enabled {
+				t.Fatalf("UpdateSettings crossLedger = %+v, want enabled", s.CrossLedger)
+			}
+		})
+
+		t.Run("empty patch never reaches the server "+f.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				t.Error("server must not be hit on empty update payload")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			s, err := f.update(t, srv, models.NewUpdateLedgerSettingsInput())
+			if err == nil || !strings.Contains(err.Error(), "empty update payload not allowed") {
+				t.Fatalf("UpdateSettings error = %v, want the empty update payload refusal", err)
+			}
+			if s != nil {
+				t.Fatalf("UpdateSettings returned %+v, want nil", s)
+			}
+		})
+	}
 }
 
 // TestLedgersFacade_Count HEADs the org-scoped metrics/count endpoint and reads
