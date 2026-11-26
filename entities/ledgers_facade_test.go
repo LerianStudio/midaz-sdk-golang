@@ -437,6 +437,68 @@ func TestLedgersFacade_Settings(t *testing.T) {
 	}
 }
 
+// TestLedgersFacade_UpdateSettingsServerRefusesCrossLedger covers a server that
+// does not know the crossLedger block (older than v4.1.0). The SDK sends the
+// field without checking the server version, so the refusal must reach the
+// caller as an error carrying the server's status and code, with no settings.
+func TestLedgersFacade_UpdateSettingsServerRefusesCrossLedger(t *testing.T) {
+	const id = "33333333-3333-3333-3333-333333333333"
+
+	// Refusal shape captured from a Midaz server for an unknown settings field;
+	// the field name is adapted to crossLedger, since no pre-v4.1.0 server was
+	// run to capture it verbatim.
+	const refusal = `{"type":"https://errors.lerian.studio/v1/0147","title":"Unknown Settings Field","status":400,` +
+		`"detail":"The settings contain an unknown field: 'crossLedger'. Only known settings fields are allowed.",` +
+		`"code":"0147","entityType":"LedgerSettings"}`
+
+	facades := []struct {
+		name   string
+		update func(t *testing.T, srv *httptest.Server) (*models.LedgerSettings, error)
+	}{
+		{
+			name: "v1",
+			update: func(t *testing.T, srv *httptest.Server) (*models.LedgerSettings, error) {
+				t.Helper()
+
+				return newTestLedgersFacade(t, srv).UpdateSettings(context.Background(), ledgersOrgID, id,
+					models.NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true))
+			},
+		},
+		{
+			name: "v2",
+			update: func(t *testing.T, srv *httptest.Server) (*models.LedgerSettings, error) {
+				t.Helper()
+
+				return newLedgersV2Facade(newTestLedgerClient(t, srv), true).UpdateSettings(context.Background(), ledgersOrgID, id,
+					models.NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true))
+			},
+		},
+	}
+
+	for _, f := range facades {
+		t.Run(f.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/problem+json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(refusal))
+			}))
+			defer srv.Close()
+
+			s, err := f.update(t, srv)
+			if s != nil {
+				t.Fatalf("UpdateSettings returned %+v, want nil on a refusal", s)
+			}
+			var sdkErr *sdkerrors.Error
+			if !errors.As(err, &sdkErr) {
+				t.Fatalf("error type = %T, want *errors.Error", err)
+			}
+			if sdkErr.APICode != "0147" || sdkErr.StatusCode != http.StatusBadRequest {
+				t.Fatalf("decoded error = %+v, want status 400 and code 0147", sdkErr)
+			}
+		})
+	}
+}
+
 // TestLedgersFacade_Count HEADs the org-scoped metrics/count endpoint and reads
 // the total from X-Total-Count.
 func TestLedgersFacade_Count(t *testing.T) {
