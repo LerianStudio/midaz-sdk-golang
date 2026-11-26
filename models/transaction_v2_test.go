@@ -284,12 +284,6 @@ const crossLedgerHoldGroupJSON = `{"groupId":"01a2193f-95db-7225-ae05-ec34be8f8c
 // Every expectation is read off the served JSON, so a field that stops decoding
 // fails here instead of surfacing as an empty value in a caller.
 func TestCrossLedgerTransactionGroupV2_DecodesServedGroups(t *testing.T) {
-	type wantTransaction struct {
-		id       string
-		ledgerID string
-		status   string
-	}
-
 	const (
 		ledgerA = "01a2193f-4d0c-7ba5-bb53-42d79cf1701d"
 		ledgerB = "01a2193f-4d26-721b-b604-464fa60c7e43"
@@ -299,13 +293,13 @@ func TestCrossLedgerTransactionGroupV2_DecodesServedGroups(t *testing.T) {
 		name    string
 		body    string
 		groupID string
-		want    []wantTransaction
+		want    []servedTransaction
 	}{
 		{
 			name:    "direct group",
 			body:    crossLedgerDirectGroupJSON,
 			groupID: "01a2193f-9540-799f-8c22-3a988eef1aff",
-			want: []wantTransaction{
+			want: []servedTransaction{
 				{id: "01a2193f-9542-7ebb-94b2-4193580ca9c3", ledgerID: ledgerA, status: "CREATED"},
 				{id: "01a2193f-9543-703d-8df0-70a1341b5fab", ledgerID: ledgerB, status: "CREATED"},
 			},
@@ -314,7 +308,7 @@ func TestCrossLedgerTransactionGroupV2_DecodesServedGroups(t *testing.T) {
 			name:    "hold group",
 			body:    crossLedgerHoldGroupJSON,
 			groupID: "01a2193f-95db-7225-ae05-ec34be8f8cec",
-			want: []wantTransaction{
+			want: []servedTransaction{
 				{id: "01a2193f-95e3-7bd4-8e69-bfd96d929c35", ledgerID: ledgerA, status: "PENDING"},
 			},
 		},
@@ -336,20 +330,33 @@ func TestCrossLedgerTransactionGroupV2_DecodesServedGroups(t *testing.T) {
 			}
 
 			for i, want := range tt.want {
-				got := group.Transactions[i]
-
-				if got.ID != want.id {
-					t.Errorf("Transactions[%d].ID = %q, want %q (served order)", i, got.ID, want.id)
-				}
-
-				if got.LedgerID != want.ledgerID {
-					t.Errorf("Transactions[%d].LedgerID = %q, want %q", i, got.LedgerID, want.ledgerID)
-				}
-
-				if got.Status.Code != want.status {
-					t.Errorf("Transactions[%d].Status.Code = %q, want %q", i, got.Status.Code, want.status)
-				}
+				checkServedTransaction(t, i, group.Transactions[i], want)
 			}
 		})
+	}
+}
+
+// servedTransaction is what one transaction of a served group must decode to.
+type servedTransaction struct {
+	id       string
+	ledgerID string
+	status   string
+}
+
+// checkServedTransaction reports every field of the transaction at index i
+// that differs from the served one.
+func checkServedTransaction(t *testing.T, i int, got TransactionV2, want servedTransaction) {
+	t.Helper()
+
+	if got.ID != want.id {
+		t.Errorf("Transactions[%d].ID = %q, want %q (served order)", i, got.ID, want.id)
+	}
+
+	if got.LedgerID != want.ledgerID {
+		t.Errorf("Transactions[%d].LedgerID = %q, want %q", i, got.LedgerID, want.ledgerID)
+	}
+
+	if got.Status.Code != want.status {
+		t.Errorf("Transactions[%d].Status.Code = %q, want %q", i, got.Status.Code, want.status)
 	}
 }
