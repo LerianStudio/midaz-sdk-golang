@@ -215,7 +215,7 @@ func requireCategory(t require.TestingT, err error, category sdkerrors.ErrorCate
 
 	var sdkErr *sdkerrors.Error
 
-	require.True(t, stderrors.As(err, &sdkErr), "error %T is not an *errors.Error: %v", err, err)
+	require.ErrorAs(t, err, &sdkErr, "error %T is not an *errors.Error: %v", err, err)
 	require.Equal(t, category, sdkErr.Category, "error %v", err)
 }
 
