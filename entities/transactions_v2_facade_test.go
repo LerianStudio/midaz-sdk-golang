@@ -1116,3 +1116,49 @@ func TestTransactionsV2Facade_CrossLedgerCountsDifferentOrganizationsAsDistinctP
 		})
 	}
 }
+
+// crossLedgerSingleTransactionJSON is the 201 the same ledger served, on
+// 2026-11-26, to a direct create whose legs named ONE ledger: a transaction, not
+// a group. Kept verbatim, because its shape is what the group guard must refuse.
+const crossLedgerSingleTransactionJSON = `{"id":"01a2193f-6ecc-7ae1-b06b-86721b2bf2e7","description":"","status":{"code":"CREATED","description":"CREATED"},"amount":"100","assetCode":"BRL","debit":["@external/BRL"],"credit":["@alice"],"ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","feesSkipped":false,"tracerSkipped":false,"createdAt":"2026-11-26T19:05:17.260713844Z","updatedAt":"2026-11-26T19:05:17.306428447Z","deletedAt":null,"operations":[{"id":"01a2193f-6f1d-7835-9890-78cd543e89c5","transactionId":"01a2193f-6ecc-7ae1-b06b-86721b2bf2e7","description":"","type":"DEBIT","assetCode":"BRL","amount":{"value":"100"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"100","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e34-7a8c-9235-fc2988f68047","accountAlias":"@external/BRL","balanceKey":"default","balanceId":"01a2193f-6e4a-73e4-b01b-768e60623f63","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","balanceAffected":true,"direction":"debit","createdAt":"2026-11-26T19:05:17.260713844Z","updatedAt":"2026-11-26T19:05:17.306428581Z","deletedAt":null,"metadata":null},{"id":"01a2193f-6f1d-7839-8a21-46965de97904","transactionId":"01a2193f-6ecc-7ae1-b06b-86721b2bf2e7","description":"","type":"CREDIT","assetCode":"BRL","amount":{"value":"100"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"100","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a2193f-6e84-70ee-92e6-fe2ec819a38b","accountAlias":"@alice","balanceKey":"default","balanceId":"01a2193f-6e93-79a1-a512-80e5f0d1d841","organizationId":"01a2193f-4ce6-753d-8673-2712abdbfe5b","ledgerId":"01a2193f-4d0c-7ba5-bb53-42d79cf1701d","balanceAffected":true,"direction":"credit","createdAt":"2026-11-26T19:05:17.260713844Z","updatedAt":"2026-11-26T19:05:17.306428581Z","deletedAt":null,"metadata":null}],"fees":{"transactionId":"01a2193f-6ecc-7ae1-b06b-86721b2bf2e7","recorded":false,"available":true,"items":[]}}`
+
+// TestTransactionsV2Facade_CrossLedgerRefusesAResponseThatIsNotAGroup covers the
+// scenarios resposta-de-transacao-unica-recusada and grupo-sem-transacoes-recusado
+// on both creates. Each body decodes cleanly into the group type, so only the
+// group guard stands between it and a zero-valued group returned as success; the
+// refusal is a decode error because the create may have taken effect.
+func TestTransactionsV2Facade_CrossLedgerRefusesAResponseThatIsNotAGroup(t *testing.T) {
+	const groupID = "01a2193f-9540-799f-8c22-3a988eef1aff"
+
+	tests := []struct {
+		scenario string
+		body     string
+	}{
+		{scenario: "resposta-de-transacao-unica-recusada", body: crossLedgerSingleTransactionJSON},
+		{scenario: "grupo-sem-transacoes-recusado/empty transactions", body: `{"groupId":"` + groupID + `","transactions":[]}`},
+		{scenario: "grupo-sem-transacoes-recusado/absent transactions", body: `{"groupId":"` + groupID + `"}`},
+		{scenario: "transactions without a groupId", body: `{"transactions":[{"id":"` + txID + `","status":{"code":"CREATED"}}]}`},
+	}
+
+	for _, c := range crossLedgerCreates {
+		for _, tt := range tests {
+			t.Run(c.name+"/"+tt.scenario, func(t *testing.T) {
+				srv, got := crossLedgerServer(t, http.StatusCreated, "application/json", tt.body)
+
+				group, err := c.create(newTestTransactionsV2Facade(t, srv), context.Background(), sampleCrossLedgerV2Input())
+
+				if !sdkerrors.IsResponseDecodeError(err) || group != nil {
+					t.Fatalf("got (%+v, %v), want a response-decode error and no group", group, err)
+				}
+
+				if !strings.Contains(err.Error(), "HTTP 201") {
+					t.Fatalf("err = %v, want it to carry the status the server answered", err)
+				}
+
+				if got.requests != 1 {
+					t.Fatalf("requests = %d, want exactly one", got.requests)
+				}
+			})
+		}
+	}
+}
