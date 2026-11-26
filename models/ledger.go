@@ -293,11 +293,7 @@ func (input *UpdateLedgerSettingsInput) hasChanges() bool {
 		return true
 	}
 
-	if input.CrossLedger != nil && input.CrossLedger.Enabled != nil {
-		return true
-	}
-
-	return false
+	return input.CrossLedger != nil && input.CrossLedger.Enabled != nil
 }
 
 // Validate validates the UpdateLedgerSettingsInput fields.
