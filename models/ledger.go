@@ -27,12 +27,27 @@ type Ledger struct {
 }
 
 // LedgerSettings is the SDK-native ledger settings response type. It mirrors the
-// generated tri-block wire shape: accounting validation, transaction-level
-// override policy, and tracer behavior. All blocks are required (non-pointer).
+// generated wire shape: accounting validation, transaction-level override
+// policy, and tracer behavior are required blocks (non-pointer); the
+// cross-ledger block is optional (pointer) and omitted from the wire body when
+// nil, so a creation payload that does not set it is unchanged.
 type LedgerSettings struct {
 	Accounting AccountingValidation `json:"accounting"`
 	Overrides  OverridePolicy       `json:"overrides"`
 	Tracer     TracerSettings       `json:"tracer"`
+	// CrossLedger reports whether the ledger may take part in cross-ledger
+	// transactions. It is nil when the server does not report the block, which
+	// is distinct from a block with Enabled false. Requires Midaz v4.1.0 or
+	// later.
+	CrossLedger *CrossLedgerSettings `json:"crossLedger,omitempty"`
+}
+
+// CrossLedgerSettings is the cross-ledger settings block of a ledger. Requires
+// Midaz v4.1.0 or later.
+type CrossLedgerSettings struct {
+	// Enabled reports whether the ledger may take part in cross-ledger
+	// transactions.
+	Enabled bool `json:"enabled"`
 }
 
 // AccountingValidation is the accounting-related validation settings struct.
@@ -78,13 +93,24 @@ type UpdateLedgerSettingsTracerInput struct {
 	TimeoutMs   *int64  `json:"timeoutMs,omitempty"`
 }
 
+// UpdateLedgerSettingsCrossLedgerInput is the partial cross-ledger settings
+// payload. Requires Midaz v4.1.0 or later.
+type UpdateLedgerSettingsCrossLedgerInput struct {
+	// Enabled sets whether the ledger may take part in cross-ledger
+	// transactions.
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
 // UpdateLedgerSettingsInput is the partial ledger settings patch payload. It
-// carries the three settings blocks; each is omitted from the wire body until a
-// setter touches it.
+// carries the accounting, overrides, tracer and crossLedger settings blocks;
+// each is omitted from the wire body until a setter touches it.
 type UpdateLedgerSettingsInput struct {
 	Accounting *UpdateLedgerSettingsAccountingInput `json:"accounting,omitempty"`
 	Overrides  *UpdateLedgerSettingsOverridesInput  `json:"overrides,omitempty"`
 	Tracer     *UpdateLedgerSettingsTracerInput     `json:"tracer,omitempty"`
+	// CrossLedger is the cross-ledger block. Requires Midaz v4.1.0 or later;
+	// an older server rejects a patch that carries it.
+	CrossLedger *UpdateLedgerSettingsCrossLedgerInput `json:"crossLedger,omitempty"`
 }
 
 // NewUpdateLedgerSettingsInput creates a new empty ledger settings patch.
@@ -227,6 +253,22 @@ func (input *UpdateLedgerSettingsInput) WithTracerTimeoutMs(ms int64) *UpdateLed
 	return input
 }
 
+// WithCrossLedgerEnabled sets the crossLedger enabled flag. Requires Midaz
+// v4.1.0 or later; an older server rejects the field with a validation error.
+func (input *UpdateLedgerSettingsInput) WithCrossLedgerEnabled(enabled bool) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.CrossLedger == nil {
+		input.CrossLedger = &UpdateLedgerSettingsCrossLedgerInput{}
+	}
+
+	input.CrossLedger.Enabled = &enabled
+
+	return input
+}
+
 // hasChanges reports whether any field on the patch has been set.
 func (input *UpdateLedgerSettingsInput) hasChanges() bool {
 	if input == nil {
@@ -251,7 +293,7 @@ func (input *UpdateLedgerSettingsInput) hasChanges() bool {
 		return true
 	}
 
-	return false
+	return input.CrossLedger != nil && input.CrossLedger.Enabled != nil
 }
 
 // Validate validates the UpdateLedgerSettingsInput fields.

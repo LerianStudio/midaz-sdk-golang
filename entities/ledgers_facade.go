@@ -161,8 +161,9 @@ func (f *ledgersFacade) Delete(ctx context.Context, orgID, id string) error {
 	return deleteResource(operation, resp, err)
 }
 
-// GetSettings retrieves the tri-block settings for a ledger (accounting,
-// overrides, tracer), normalized into the public model.
+// GetSettings retrieves the settings for a ledger (accounting, overrides,
+// tracer, and crossLedger when the server reports it), normalized into the
+// public model.
 func (f *ledgersFacade) GetSettings(ctx context.Context, orgID, id string) (*models.LedgerSettings, error) {
 	const operation = "Ledgers.GetSettings"
 
@@ -176,7 +177,7 @@ func (f *ledgersFacade) GetSettings(ctx context.Context, orgID, id string) (*mod
 	return readOne[models.LedgerSettings](operation, resp, err)
 }
 
-// UpdateSettings patches the tri-block settings for a ledger. Same write-facade
+// UpdateSettings patches the settings for a ledger. Same write-facade
 // pattern as Update: the partial patch marshals only the blocks a setter
 // touched, sent via a rewindable body so the auth round tripper can replay
 // after a 401.

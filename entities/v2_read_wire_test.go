@@ -121,6 +121,92 @@ func TestV2LedgerSettingsDecodeEveryGate(t *testing.T) {
 	}
 }
 
+// TestV2LedgerSettingsDecodeCrossLedger guards the optional crossLedger block.
+//
+// The block is a pointer so that "the server did not report it" (nil, a server
+// older than v4.1.0) stays distinct from "the ledger has it off" (Enabled
+// false). A decode that fabricated a false block for an older server would read
+// as a deliberate setting the server never sent.
+func TestV2LedgerSettingsDecodeCrossLedger(t *testing.T) {
+	const blocks = `"accounting":{"requireHolder":true,"validateAccountType":true,"validateRoutes":true},` +
+		`"overrides":{"allowFeeSkip":true,"allowHolderSkip":true,"allowTracerSkip":true},` +
+		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500}`
+
+	cases := []struct {
+		name string
+		body string
+		want *models.CrossLedgerSettings
+	}{
+		{
+			name: "enabled",
+			body: `{` + blocks + `,"crossLedger":{"enabled":true}}`,
+			want: &models.CrossLedgerSettings{Enabled: true},
+		},
+		{
+			name: "disabled",
+			body: `{` + blocks + `,"crossLedger":{"enabled":false}}`,
+			want: &models.CrossLedgerSettings{Enabled: false},
+		},
+		{
+			name: "absent on a server without the block",
+			body: `{` + blocks + `}`,
+			want: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings, err := newLedgersV2Facade(newTestLedgerClient(t, emptyBodyServer(t, http.StatusOK, tc.body)), true).
+				GetSettings(context.Background(), v2Org, v2UUIDA)
+			if err != nil {
+				t.Fatalf("GetSettings: %v", err)
+			}
+
+			if (settings.CrossLedger != nil) != (tc.want != nil) {
+				t.Fatalf("crossLedger = %+v, want %+v — nil only when the server did not report the block", settings.CrossLedger, tc.want)
+			}
+
+			if tc.want != nil && settings.CrossLedger.Enabled != tc.want.Enabled {
+				t.Fatalf("crossLedger.enabled = %t, want %t", settings.CrossLedger.Enabled, tc.want.Enabled)
+			}
+
+			want := models.LedgerSettings{
+				Accounting: models.AccountingValidation{RequireHolder: true, ValidateAccountType: true, ValidateRoutes: true},
+				Overrides:  models.OverridePolicy{AllowFeeSkip: true, AllowHolderSkip: true, AllowTracerSkip: true},
+				Tracer:     models.TracerSettings{FailPosture: "strict", Mode: "sync", TimeoutMs: 1500},
+			}
+
+			if settings.Accounting != want.Accounting || settings.Overrides != want.Overrides || settings.Tracer != want.Tracer {
+				t.Fatalf("settings = %+v, want the three blocks the server sent: %+v", settings, want)
+			}
+		})
+	}
+}
+
+// TestV2LedgerSettingsDecodeRealMidazResponse decodes a settings body captured
+// verbatim from a Midaz server that reports crossLedger.
+//
+// The body also carries fields the SDK does not model (tracer.flow and the
+// balances block); the decode must ignore them rather than fail, and still hand
+// back crossLedger with the value the server sent.
+func TestV2LedgerSettingsDecodeRealMidazResponse(t *testing.T) {
+	const body = `{"accounting":{"validateAccountType":false,"validateRoutes":false,"requireHolder":false},"tracer":{"mode":"off","failPosture":"closed","timeoutMs":250,"flow":"reserve"},"overrides":{"allowFeeSkip":false,"allowTracerSkip":false,"allowHolderSkip":false},"crossLedger":{"enabled":true},"balances":{"deletedRetentionDays":0}}`
+
+	settings, err := newLedgersV2Facade(newTestLedgerClient(t, emptyBodyServer(t, http.StatusOK, body)), true).
+		GetSettings(context.Background(), v2Org, v2UUIDA)
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+
+	if settings.CrossLedger == nil || !settings.CrossLedger.Enabled {
+		t.Fatalf("crossLedger = %+v, want a block with enabled=true", settings.CrossLedger)
+	}
+
+	if settings.Tracer.Mode != "off" || settings.Tracer.FailPosture != "closed" || settings.Tracer.TimeoutMs != 250 {
+		t.Fatalf("tracer = %+v, want off/closed/250", settings.Tracer)
+	}
+}
+
 // TestV2BalanceHistoryKeepsMoneyExact is the money-path decode guard for the
 // point-in-time reads.
 //

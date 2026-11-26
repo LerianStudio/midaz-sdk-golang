@@ -68,7 +68,7 @@ func TestLedgersFacade_ListAndPaginate(t *testing.T) {
 // client, asserting method, org-scoped path, and body, and normalizing into the
 // public model without leaking generated types.
 //
-//nolint:revive // cognitive-complexity: four CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
+//nolint:revive // cognitive-complexity: five CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestLedgersFacade_CRUD(t *testing.T) {
 	const id = "33333333-3333-3333-3333-333333333333"
 	base := "/v1/organizations/" + ledgersOrgID + "/ledgers"
@@ -118,6 +118,34 @@ func TestLedgersFacade_CRUD(t *testing.T) {
 		}
 		if l.ID != id {
 			t.Fatalf("Get returned %+v", l)
+		}
+	})
+
+	t.Run("get with embedded settings", func(t *testing.T) {
+		// Ledger body captured from a Midaz server that reports crossLedger,
+		// with the ids and name swapped for this test's values.
+		body := `{"id":"` + id + `","name":"Treasury","organizationId":"` + ledgersOrgID + `",` +
+			`"status":{"code":"ACTIVE","description":null},` +
+			`"createdAt":"2026-11-26T14:50:38.883178Z","updatedAt":"2026-11-26T14:50:38.943803Z","deletedAt":null,` +
+			`"settings":{"accounting":{"validateAccountType":false,"validateRoutes":false,"requireHolder":false},` +
+			`"tracer":{"mode":"off","failPosture":"closed","timeoutMs":250,"flow":"reserve"},` +
+			`"overrides":{"allowFeeSkip":false,"allowTracerSkip":false,"allowHolderSkip":false},` +
+			`"crossLedger":{"enabled":true},"balances":{"deletedRetentionDays":0}}}`
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(body))
+		}))
+		defer srv.Close()
+
+		l, err := newTestLedgersFacade(t, srv).Get(context.Background(), ledgersOrgID, id)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if l.Settings == nil {
+			t.Fatalf("Get returned %+v, want embedded settings", l)
+		}
+		if l.Settings.CrossLedger == nil || !l.Settings.CrossLedger.Enabled {
+			t.Fatalf("embedded crossLedger block = %+v, want enabled", l.Settings.CrossLedger)
 		}
 	})
 
@@ -251,10 +279,12 @@ func TestLedgersFacade_WriteReplaySafe(t *testing.T) {
 	}
 }
 
-// TestLedgersFacade_Settings exercises the tri-block ledger settings surface
-// end-to-end. GetSettings must expose all three blocks (accounting including
-// requireHolder, overrides, tracer); UpdateSettings must send all three blocks
-// on the PATCH body and normalize the response into the public model.
+// TestLedgersFacade_Settings exercises the ledger settings surface end-to-end.
+// GetSettings must expose every block the server reports (accounting including
+// requireHolder, overrides, tracer, crossLedger); UpdateSettings must send the
+// blocks the caller set on the PATCH body and normalize the response into the
+// public model. A crossLedger-only patch must go out as exactly that block on
+// both /v1 and /v2, and an empty patch must not reach the server.
 //
 //nolint:revive // cognitive-complexity: multiple settings subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestLedgersFacade_Settings(t *testing.T) {
@@ -263,7 +293,10 @@ func TestLedgersFacade_Settings(t *testing.T) {
 
 	full := `{"accounting":{"requireHolder":true,"validateAccountType":true,"validateRoutes":false},` +
 		`"overrides":{"allowFeeSkip":true,"allowHolderSkip":false,"allowTracerSkip":true},` +
-		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500}}`
+		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500},` +
+		`"crossLedger":{"enabled":true}}`
+
+	facades := ledgerSettingsFacades(id)
 
 	t.Run("get", func(t *testing.T) {
 		var m, p string
@@ -289,6 +322,9 @@ func TestLedgersFacade_Settings(t *testing.T) {
 		}
 		if s.Tracer.FailPosture != "strict" || s.Tracer.Mode != "sync" || s.Tracer.TimeoutMs != 1500 {
 			t.Fatalf("tracer block = %+v, want strict/sync/1500", s.Tracer)
+		}
+		if s.CrossLedger == nil || !s.CrossLedger.Enabled {
+			t.Fatalf("crossLedger block = %+v, want enabled", s.CrossLedger)
 		}
 	})
 
@@ -332,6 +368,126 @@ func TestLedgersFacade_Settings(t *testing.T) {
 			t.Fatalf("UpdateSettings returned %+v", s)
 		}
 	})
+
+	for _, f := range facades {
+		t.Run("update crossLedger only "+f.name, func(t *testing.T) {
+			var m, p, ct, body string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				m, p, ct = r.Method, r.URL.Path, r.Header.Get("Content-Type")
+				b, _ := io.ReadAll(r.Body)
+				body = string(b)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(full))
+			}))
+			defer srv.Close()
+
+			s, err := f.update(t, srv, models.NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true))
+			if err != nil {
+				t.Fatalf("UpdateSettings: %v", err)
+			}
+			if m != http.MethodPatch || p != f.path || ct != "application/json" {
+				t.Fatalf("update req = %s %s (%s), want PATCH %s json", m, p, ct, f.path)
+			}
+			if body != `{"crossLedger":{"enabled":true}}` {
+				t.Fatalf("body = %q, want exactly the crossLedger block", body)
+			}
+			if s.CrossLedger == nil || !s.CrossLedger.Enabled {
+				t.Fatalf("UpdateSettings crossLedger = %+v, want enabled", s.CrossLedger)
+			}
+		})
+
+		t.Run("empty patch never reaches the server "+f.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				t.Error("server must not be hit on empty update payload")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			s, err := f.update(t, srv, models.NewUpdateLedgerSettingsInput())
+			if err == nil || !strings.Contains(err.Error(), "empty update payload not allowed") {
+				t.Fatalf("UpdateSettings error = %v, want the empty update payload refusal", err)
+			}
+			if s != nil {
+				t.Fatalf("UpdateSettings returned %+v, want nil", s)
+			}
+		})
+	}
+}
+
+// TestLedgersFacade_UpdateSettingsServerRefusesCrossLedger covers a server that
+// does not know the crossLedger block (older than v4.1.0). The SDK sends the
+// field without checking the server version, so the refusal must reach the
+// caller as an error carrying the server's status and code, with no settings.
+func TestLedgersFacade_UpdateSettingsServerRefusesCrossLedger(t *testing.T) {
+	const id = "33333333-3333-3333-3333-333333333333"
+
+	// Refusal shape captured from a Midaz server for an unknown settings field;
+	// the field name is adapted to crossLedger, since no pre-v4.1.0 server was
+	// run to capture it verbatim.
+	const refusal = `{"type":"https://errors.lerian.studio/v1/0147","title":"Unknown Settings Field","status":400,` +
+		`"detail":"The settings contain an unknown field: 'crossLedger'. Only known settings fields are allowed.",` +
+		`"code":"0147","entityType":"LedgerSettings"}`
+
+	facades := ledgerSettingsFacades(id)
+
+	for _, f := range facades {
+		t.Run(f.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/problem+json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(refusal))
+			}))
+			defer srv.Close()
+
+			s, err := f.update(t, srv, models.NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true))
+			if s != nil {
+				t.Fatalf("UpdateSettings returned %+v, want nil on a refusal", s)
+			}
+			var sdkErr *sdkerrors.Error
+			if !errors.As(err, &sdkErr) {
+				t.Fatalf("error type = %T, want *errors.Error", err)
+			}
+			if sdkErr.APICode != "0147" || sdkErr.StatusCode != http.StatusBadRequest {
+				t.Fatalf("decoded error = %+v, want status 400 and code 0147", sdkErr)
+			}
+			if !sdkerrors.IsValidationError(err) {
+				t.Fatalf("IsValidationError = false, category = %q, want a validation error", sdkErr.Category)
+			}
+		})
+	}
+}
+
+// ledgerSettingsFacade is one ledger settings update surface (/v1 or /v2): the
+// settings path it must hit and a call that sends the given patch through it.
+type ledgerSettingsFacade struct {
+	name   string
+	path   string
+	update func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error)
+}
+
+// ledgerSettingsFacades returns the /v1 and /v2 settings update surfaces for
+// ledger id, so a settings test can assert the same contract on both.
+func ledgerSettingsFacades(id string) []ledgerSettingsFacade {
+	return []ledgerSettingsFacade{
+		{
+			name: "v1",
+			path: "/v1/organizations/" + ledgersOrgID + "/ledgers/" + id + "/settings",
+			update: func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+				t.Helper()
+
+				return newTestLedgersFacade(t, srv).UpdateSettings(context.Background(), ledgersOrgID, id, input)
+			},
+		},
+		{
+			name: "v2",
+			path: "/v2/organizations/" + ledgersOrgID + "/ledgers/" + id + "/settings",
+			update: func(t *testing.T, srv *httptest.Server, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+				t.Helper()
+
+				return newLedgersV2Facade(newTestLedgerClient(t, srv), true).UpdateSettings(context.Background(), ledgersOrgID, id, input)
+			},
+		},
+	}
 }
 
 // TestLedgersFacade_Count HEADs the org-scoped metrics/count endpoint and reads

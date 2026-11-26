@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -695,6 +696,31 @@ func TestCreateLedgerInputDefaults(t *testing.T) {
 	})
 }
 
+// TestCreateLedgerInput_SettingsWithoutCrossLedger pins the creation body for a
+// caller that fills only the accounting, overrides and tracer blocks: it must
+// not carry a crossLedger key, so the body matches the one sent before the
+// block existed and a server that does not know the block accepts it.
+func TestCreateLedgerInput_SettingsWithoutCrossLedger(t *testing.T) {
+	input := NewCreateLedgerInput("Treasury")
+	input.Settings = &LedgerSettings{
+		Accounting: AccountingValidation{RequireHolder: true, ValidateAccountType: true, ValidateRoutes: false},
+		Overrides:  OverridePolicy{AllowFeeSkip: true, AllowHolderSkip: false, AllowTracerSkip: true},
+		Tracer:     TracerSettings{FailPosture: "strict", Mode: "sync", TimeoutMs: 1500},
+	}
+
+	data, err := json.Marshal(input)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{
+		"name":"Treasury",
+		"settings":{
+			"accounting":{"requireHolder":true,"validateAccountType":true,"validateRoutes":false},
+			"overrides":{"allowFeeSkip":true,"allowHolderSkip":false,"allowTracerSkip":true},
+			"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500}
+		}
+	}`, string(data))
+}
+
 func TestUpdateLedgerInputDefaults(t *testing.T) {
 	t.Run("new input has expected zero values", func(t *testing.T) {
 		input := NewUpdateLedgerInput()
@@ -703,4 +729,75 @@ func TestUpdateLedgerInputDefaults(t *testing.T) {
 		assert.True(t, IsStatusEmpty(input.Status))
 		assert.Nil(t, input.Metadata)
 	})
+}
+
+// TestUpdateLedgerSettingsInput_CrossLedger pins the crossLedger patch block:
+// a patch that sets only the flag is a change and goes out as exactly that
+// block, an explicit false survives omitempty, and patches that do not touch
+// the flag keep the body they had before the block existed.
+func TestUpdateLedgerSettingsInput_CrossLedger(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *UpdateLedgerSettingsInput
+		wantErr  string
+		wantJSON string
+	}{
+		{
+			name:     "only crossLedger enabled",
+			input:    NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true),
+			wantJSON: `{"crossLedger":{"enabled":true}}`,
+		},
+		{
+			name:     "explicit false crossLedger",
+			input:    NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(false),
+			wantJSON: `{"crossLedger":{"enabled":false}}`,
+		},
+		{
+			name:     "crossLedger with an accounting flag",
+			input:    NewUpdateLedgerSettingsInput().WithCrossLedgerEnabled(true).WithRequireHolder(true),
+			wantJSON: `{"accounting":{"requireHolder":true},"crossLedger":{"enabled":true}}`,
+		},
+		{
+			name: "existing blocks without crossLedger",
+			input: NewUpdateLedgerSettingsInput().
+				WithRequireHolder(true).
+				WithAllowFeeSkip(false).
+				WithTracerMode("sync"),
+			wantJSON: `{"accounting":{"requireHolder":true},"overrides":{"allowFeeSkip":false},"tracer":{"mode":"sync"}}`,
+		},
+		{
+			name:    "empty patch is rejected",
+			input:   NewUpdateLedgerSettingsInput(),
+			wantErr: "empty update payload not allowed",
+		},
+		{
+			name:    "crossLedger block without enabled is rejected as empty",
+			input:   &UpdateLedgerSettingsInput{CrossLedger: &UpdateLedgerSettingsCrossLedgerInput{}},
+			wantErr: "empty update payload not allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.input.Validate()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			data, err := json.Marshal(tt.input)
+			require.NoError(t, err)
+
+			assert.JSONEq(t, tt.wantJSON, string(data))
+		})
+	}
+}
+
+func TestUpdateLedgerSettingsInput_WithCrossLedgerEnabledNilReceiver(t *testing.T) {
+	var input *UpdateLedgerSettingsInput
+
+	assert.Nil(t, input.WithCrossLedgerEnabled(true))
 }

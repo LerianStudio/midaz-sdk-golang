@@ -13,8 +13,9 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 )
 
-// ledgersV2Facade serves the /v2 ledger surface, including the tri-block ledger
-// settings (accounting, overrides, tracer). Ledgers are organization-scoped.
+// ledgersV2Facade serves the /v2 ledger surface, including the ledger settings
+// (accounting, overrides, tracer, and crossLedger when the server reports it).
+// Ledgers are organization-scoped.
 type ledgersV2Facade struct {
 	ledger *genledger.ClientWithResponses
 	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
@@ -123,7 +124,7 @@ func (f *ledgersV2Facade) Delete(ctx context.Context, orgID, id string) error {
 	return deleteResource(operation, resp, err)
 }
 
-// GetSettings retrieves the tri-block settings for a ledger.
+// GetSettings retrieves the settings for a ledger.
 func (f *ledgersV2Facade) GetSettings(ctx context.Context, orgID, id string) (*models.LedgerSettings, error) {
 	const operation = "V2.Ledgers.GetSettings"
 
@@ -137,7 +138,7 @@ func (f *ledgersV2Facade) GetSettings(ctx context.Context, orgID, id string) (*m
 	return readOne[models.LedgerSettings](operation, resp, err)
 }
 
-// UpdateSettings patches the tri-block settings for a ledger. The partial patch
+// UpdateSettings patches the settings for a ledger. The partial patch
 // marshals only the blocks a setter touched.
 func (f *ledgersV2Facade) UpdateSettings(ctx context.Context, orgID, id string, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
 	const operation = "V2.Ledgers.UpdateSettings"

@@ -144,7 +144,7 @@ Important path groups:
 
 - Organizations: `/organizations`, `/organizations/{id}`
 - Ledgers: `/organizations/{organizationID}/ledgers`, `/organizations/{organizationID}/ledgers/{ledgerID}`
-- Ledger settings: `/organizations/{organizationID}/ledgers/{ledgerID}/settings` with `GET` and `PATCH` for `accounting.validateAccountType` and `accounting.validateRoutes`.
+- Ledger settings: `/organizations/{organizationID}/ledgers/{ledgerID}/settings` with `GET` and `PATCH` for the `accounting`, `overrides`, `tracer`, and `crossLedger` (Midaz v4.1.0+) blocks.
 - Accounts: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}`
 - Balances: `/organizations/{organizationID}/ledgers/{ledgerID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/balances/{balanceID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/balances/{balanceID}/history?date={date}`
 - Account balances: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances/history?date={date}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}/balances`
@@ -184,7 +184,7 @@ Common builders:
 - `models.NewUpdateOrganizationInput()`
 - `models.NewCreateLedgerInput(name)`
 - `models.NewUpdateLedgerInput()`
-- `models.NewUpdateLedgerSettingsInput()`
+- `models.NewUpdateLedgerSettingsInput()` with `WithRequireHolder`, `WithValidateAccountType`, `WithValidateRoutes`, `WithAllowFeeSkip`, `WithAllowHolderSkip`, `WithAllowTracerSkip`, `WithTracerFailPosture`, `WithTracerMode`, `WithTracerTimeoutMs`, and `WithCrossLedgerEnabled` (Midaz v4.1.0+; an older server refuses the field).
 - `models.NewCreateAccountInput(name, assetCode, accountType)`
 - `models.NewUpdateAccountInput()`
 - `models.NewCreateAccountTypeInput(name, keyValue)` with `WithDescription`, `WithDefaultDirection` ("credit" or "debit", Midaz v4.0.0+), and `WithMetadata`.
