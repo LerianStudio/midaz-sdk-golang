@@ -190,8 +190,8 @@ Tracer-plane accessors are **not** version-grouped: the Tracer serves one surfac
 - `Get(ctx, organizationID, id)`
 - `Create(ctx, organizationID, input)`
 - `Update(ctx, organizationID, id, input)`
-- `GetSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`.
-- `UpdateSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; allowed fields are `accounting.validateAccountType` and `accounting.validateRoutes`.
+- `GetSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`. `LedgerSettings.CrossLedger` (`*models.CrossLedgerSettings{Enabled}`) is nil when the server does not report the block (Midaz before v4.1.0).
+- `UpdateSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; the patch carries only the blocks a setter touched, out of `accounting`, `overrides`, `tracer`, and `crossLedger` (Midaz v4.1.0+).
 - `Delete(ctx, organizationID, id)`
 - `Count(ctx, organizationID)`
 
@@ -627,7 +627,7 @@ Each per-entity opts struct exposes:
 - `models.NewUpdateOrganizationInput()`
 - `models.NewCreateLedgerInput(name)`
 - `models.NewUpdateLedgerInput()`
-- `models.NewUpdateLedgerSettingsInput()`
+- `models.NewUpdateLedgerSettingsInput()` with `WithRequireHolder`, `WithValidateAccountType`, `WithValidateRoutes`, `WithAllowFeeSkip`, `WithAllowHolderSkip`, `WithAllowTracerSkip`, `WithTracerFailPosture`, `WithTracerMode`, `WithTracerTimeoutMs`, and `WithCrossLedgerEnabled` (Midaz v4.1.0+; an older server refuses the field).
 - `models.NewCreateAccountInput(name, assetCode, accountType)`
 - `models.NewUpdateAccountInput()`
 - `models.NewCreateAccountTypeInput(name, keyValue)` with `WithDescription`, `WithDefaultDirection` ("credit" or "debit", Midaz v4.0.0+), and `WithMetadata`.
