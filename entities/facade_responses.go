@@ -73,8 +73,9 @@ func deleteResource(operation string, resp *http.Response, err error) error {
 // response this SDK reads is legitimately empty: every resource carries at least
 // an id, and the one id-less single-object read — a ledger's settings — declares
 // accounting, tracer and overrides all REQUIRED in the ledger contract
-// (components/ledger/api/openapi.huma.yaml, schema LedgerSettings), so "{}" is
-// not a valid body there either.
+// (components/ledger/api/openapi.huma.yaml, schema LedgerSettings; servers
+// older than v4.1.0 omit the crossLedger block), so "{}" is not a valid body
+// there either.
 func isEmptyBody(body []byte) bool {
 	trimmed := bytes.TrimSpace(body)
 
