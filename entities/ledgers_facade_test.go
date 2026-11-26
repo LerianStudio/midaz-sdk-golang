@@ -263,7 +263,8 @@ func TestLedgersFacade_Settings(t *testing.T) {
 
 	full := `{"accounting":{"requireHolder":true,"validateAccountType":true,"validateRoutes":false},` +
 		`"overrides":{"allowFeeSkip":true,"allowHolderSkip":false,"allowTracerSkip":true},` +
-		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500}}`
+		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500},` +
+		`"crossLedger":{"enabled":true}}`
 
 	t.Run("get", func(t *testing.T) {
 		var m, p string
@@ -289,6 +290,9 @@ func TestLedgersFacade_Settings(t *testing.T) {
 		}
 		if s.Tracer.FailPosture != "strict" || s.Tracer.Mode != "sync" || s.Tracer.TimeoutMs != 1500 {
 			t.Fatalf("tracer block = %+v, want strict/sync/1500", s.Tracer)
+		}
+		if s.CrossLedger == nil || !s.CrossLedger.Enabled {
+			t.Fatalf("crossLedger block = %+v, want enabled", s.CrossLedger)
 		}
 	})
 
