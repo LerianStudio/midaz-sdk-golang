@@ -533,54 +533,41 @@ func TestFacadeTransport_KnownLimitTimeoutNotRecognized(t *testing.T) {
 	})
 }
 
-// tokenFailureAccessManager is an Access Manager simulator for a token fetch
-// that fails after the client was built. midaz.New fetches a token eagerly, so
-// the first request is answered with a token that carries no expiry: the SDK
-// does not cache it, and every facade call fetches again. Connection: close
-// keeps a later fetch off a reused connection. Once fail is set, every request
-// is held until the client gives up or the test ends.
-type tokenFailureAccessManager struct {
-	srv     *httptest.Server
-	fail    atomic.Bool
-	release chan struct{}
-	once    sync.Once
-}
-
-func newTokenFailureAccessManager(t *testing.T) *tokenFailureAccessManager {
+// accessManagerSimulator stands in for the Access Manager in the token-path
+// scenarios. answer decides every token request; a held request is released
+// when the client gives up or, at cleanup, before the server closes.
+func accessManagerSimulator(t *testing.T, answer func(w http.ResponseWriter, r *http.Request, release <-chan struct{})) string {
 	t.Helper()
 
-	am := &tokenFailureAccessManager{release: make(chan struct{})}
-	am.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if am.fail.Load() {
-			select {
-			case <-r.Context().Done():
-			case <-am.release:
-			}
-
-			return
-		}
-
-		w.Header().Set("Connection", "close")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"accessToken":"facade-transport-token"}`))
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		answer(w, r, release)
 	}))
 
 	// Registered in this order so the release runs first (LIFO) and a held
 	// handler returns before Close waits on it.
-	t.Cleanup(am.close)
-	t.Cleanup(func() { close(am.release) })
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
 
-	return am
+	return srv.URL
 }
 
-// close shuts the simulator once; the refused case calls it mid-test, so the
-// port refuses the next token fetch.
-func (am *tokenFailureAccessManager) close() { am.once.Do(am.srv.Close) }
+// silentAccessManager holds every token request.
+func silentAccessManager(_ http.ResponseWriter, r *http.Request, release <-chan struct{}) {
+	select {
+	case <-r.Context().Done():
+	case <-release:
+	}
+}
 
 // newAccessManagerFacadeClient builds a client through the public path:
-// midaz.New with WithAccessManager and a short WithTimeout. It returns the
-// client and the number of requests the ledger server received.
-func newAccessManagerFacadeClient(t *testing.T, am *tokenFailureAccessManager) (*Client, *atomic.Int32) {
+// midaz.New with WithAccessManager. The credential comes from a
+// CredentialSource, so midaz.New does not fetch a token while it builds the
+// client (it only does that for a static ClientID/ClientSecret); construction
+// therefore cannot be starved by the short timeouts below, and every facade
+// call fetches a token. It returns the client and the number of requests the
+// ledger server received.
+func newAccessManagerFacadeClient(t *testing.T, accessManagerURL string, opts ...Option) (*Client, *atomic.Int32) {
 	t.Helper()
 
 	var ledgerHits atomic.Int32
@@ -591,19 +578,21 @@ func newAccessManagerFacadeClient(t *testing.T, am *tokenFailureAccessManager) (
 	}))
 	t.Cleanup(ledger.Close)
 
-	c, err := New(
+	all := append([]Option{
 		WithLedgerURL(ledger.URL),
-		WithTracerURL(ledger.URL+"/v1"),
+		WithTracerURL(ledger.URL + "/v1"),
 		WithRetryOptions(retry.WithMaxRetries(0)),
-		WithTimeout(300*time.Millisecond),
 		WithAccessManager(AccessManager{
-			Enabled:           true,
-			Address:           am.srv.URL,
-			ClientID:          "facade-transport-client",
-			ClientSecret:      "facade-transport-secret",
+			Enabled: true,
+			Address: accessManagerURL,
+			CredentialSource: CredentialSourceFunc(func(context.Context) (string, string, error) {
+				return "facade-transport-client", "facade-transport-secret", nil
+			}),
 			AllowInsecureHTTP: true,
 		}),
-	)
+	}, opts...)
+
+	c, err := New(all...)
 	require.NoError(t, err)
 
 	return c, &ledgerHits
@@ -625,61 +614,95 @@ var accessManagerFacadeCalls = []struct {
 	}},
 }
 
-// TestFacadeTransport_AccessManagerTokenFailure drives a token fetch that fails
-// after construction through the public path (midaz.New with WithAccessManager
-// and WithTimeout).
+// TestFacadeTransport_AccessManagerTokenFailure drives a failing Access Manager
+// token fetch through the public path (midaz.New with WithAccessManager).
 //
-// falha-do-access-manager-inalterada: the Access Manager closes, the token
-// fetch is refused, and the *auth.AccessManagerTokenRequestError reaches the
-// facade with its type intact, so the facade keeps the internal error.
+// falha-do-access-manager-inalterada: the token request is refused, or the
+// Access Manager answers 500 or with an unreadable token. The typed
+// *auth.AccessManagerTokenRequestError reaches the facade, which keeps the
+// internal error: the ledger request never left.
 //
 // prazo-estourado-durante-o-token: the Access Manager holds the token request
-// until WithTimeout fires. The token fetch uses the same configured client as
-// the planes, so the plane client's Client.Timeout fires during the fetch, and
-// net/http replaces the error the round trippers returned with a text-only
-// timeout error ("... (Client.Timeout exceeded while awaiting headers)"). That
-// error keeps the token error's text but not its type, and it matches
-// context.DeadlineExceeded, so the facade reports a timeout although the
-// ledger request was never sent.
+// until the client timeout (WithTimeout) or the caller's context deadline
+// expires. An expired deadline is a timeout wherever the time was spent, so the
+// facade reports a timeout although the ledger request was never sent. Which
+// error carries the deadline depends on a timer race (the token request's own
+// deadline wrapped in the typed token error, net/http's text-only
+// Client.Timeout error, or a bare context error); every form matches
+// context.DeadlineExceeded, so the outcome does not depend on the race.
 func TestFacadeTransport_AccessManagerTokenFailure(t *testing.T) {
-	for _, call := range accessManagerFacadeCalls {
-		t.Run("falha-do-access-manager-inalterada/"+call.name, func(t *testing.T) {
-			am := newTokenFailureAccessManager(t)
-			c, ledgerHits := newAccessManagerFacadeClient(t, am)
-			am.close()
+	internalCases := []struct {
+		name   string
+		answer func(t *testing.T) string
+	}{
+		{"refused", func(t *testing.T) string { return closedPortURL(t) }},
+		{"bad-answer-500", func(t *testing.T) string {
+			return accessManagerSimulator(t, func(w http.ResponseWriter, _ *http.Request, _ <-chan struct{}) {
+				w.WriteHeader(http.StatusInternalServerError)
+			})
+		}},
+		{"bad-answer-unreadable-token", func(t *testing.T) string {
+			return accessManagerSimulator(t, func(w http.ResponseWriter, _ *http.Request, _ <-chan struct{}) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte("not a token"))
+			})
+		}},
+	}
 
-			err := call.call(context.Background(), c)
+	for _, tc := range internalCases {
+		for _, call := range accessManagerFacadeCalls {
+			t.Run("falha-do-access-manager-inalterada/"+tc.name+"/"+call.name, func(t *testing.T) {
+				c, ledgerHits := newAccessManagerFacadeClient(t, tc.answer(t))
 
-			require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
-			assert.False(t, sdkerrors.IsNetworkError(err))
-			assert.False(t, sdkerrors.IsTimeoutError(err))
+				err := call.call(context.Background(), c)
 
-			var sdkErr *sdkerrors.Error
-			require.ErrorAs(t, err, &sdkErr)
-			assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode)
-			assert.Equal(t, sdkerrors.ErrorSourceSDK, sdkErr.Source)
-			assert.False(t, sdkErr.HTTPRequestSent)
-			assert.Zero(t, ledgerHits.Load())
-		})
+				require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
+				assert.False(t, sdkerrors.IsNetworkError(err))
+				assert.False(t, sdkerrors.IsTimeoutError(err))
 
-		t.Run("prazo-estourado-durante-o-token/"+call.name, func(t *testing.T) {
-			am := newTokenFailureAccessManager(t)
-			c, ledgerHits := newAccessManagerFacadeClient(t, am)
-			am.fail.Store(true)
+				var sdkErr *sdkerrors.Error
+				require.ErrorAs(t, err, &sdkErr)
+				assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode)
+				assert.Equal(t, sdkerrors.ErrorSourceSDK, sdkErr.Source)
+				assert.False(t, sdkErr.HTTPRequestSent)
+				assert.Zero(t, ledgerHits.Load())
+			})
+		}
+	}
 
-			err := call.call(context.Background(), c)
+	deadlineCases := []struct {
+		name    string
+		options []Option
+		ctx     func(t *testing.T) context.Context
+	}{
+		{"client-timeout", []Option{WithTimeout(300 * time.Millisecond)}, func(*testing.T) context.Context { return context.Background() }},
+		{"context-deadline", []Option{WithTimeout(30 * time.Second)}, func(t *testing.T) context.Context {
+			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+			t.Cleanup(cancel)
 
-			require.True(t, sdkerrors.IsTimeoutError(err), "got %v", err)
-			assert.False(t, sdkerrors.IsInternalError(err))
-			assert.False(t, sdkerrors.IsNetworkError(err))
+			return ctx
+		}},
+	}
 
-			var sdkErr *sdkerrors.Error
-			require.ErrorAs(t, err, &sdkErr)
-			assert.Equal(t, http.StatusGatewayTimeout, sdkErr.StatusCode)
-			assert.Equal(t, sdkerrors.ErrorSourceTransport, sdkErr.Source)
-			assert.True(t, sdkErr.HTTPRequestSent)
-			assert.Equal(t, call.operation, sdkErr.Operation)
-			assert.Zero(t, ledgerHits.Load())
-		})
+	for _, tc := range deadlineCases {
+		for _, call := range accessManagerFacadeCalls {
+			t.Run("prazo-estourado-durante-o-token/"+tc.name+"/"+call.name, func(t *testing.T) {
+				c, ledgerHits := newAccessManagerFacadeClient(t, accessManagerSimulator(t, silentAccessManager), tc.options...)
+
+				err := call.call(tc.ctx(t), c)
+
+				require.True(t, sdkerrors.IsTimeoutError(err), "got %v", err)
+				assert.False(t, sdkerrors.IsInternalError(err))
+				assert.False(t, sdkerrors.IsNetworkError(err))
+
+				var sdkErr *sdkerrors.Error
+				require.ErrorAs(t, err, &sdkErr)
+				assert.Equal(t, http.StatusGatewayTimeout, sdkErr.StatusCode)
+				assert.Equal(t, sdkerrors.ErrorSourceTransport, sdkErr.Source)
+				assert.True(t, sdkErr.HTTPRequestSent)
+				assert.Equal(t, call.operation, sdkErr.Operation)
+				assert.Zero(t, ledgerHits.Load())
+			})
+		}
 	}
 }
