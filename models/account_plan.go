@@ -4,6 +4,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"maps"
 	"regexp"
@@ -559,4 +560,281 @@ func validateFeeRounding(errs *validation.FieldErrors, rounding FeeRounding) {
 	default:
 		errs.Append("rounding.mode", "must be one of: floor, halfUp")
 	}
+}
+
+// UpdateAccountPlanInput is the PATCH payload for an account plan. MarshalJSON
+// emits only the fields that were set, so an unchanged field is never sent.
+//
+// Setting fees or rounding creates a new plan version with the full resulting
+// fee map; the other fields change the plan registry without a new version.
+//
+// The server accepts an empty PATCH as a no-op; Validate refuses it locally
+// instead, to avoid the round trip.
+type UpdateAccountPlanInput struct {
+	// Label replaces the plan name.
+	Label *string `json:"-"`
+
+	// Description replaces the plan description.
+	Description *string `json:"-"`
+
+	// Enable replaces whether new accounts can be assigned to the plan.
+	Enable *bool `json:"-"`
+
+	// Timezone replaces the IANA timezone of the free quota.
+	Timezone *string `json:"-"`
+
+	// Rounding replaces the stored rounding whole and creates a new version.
+	// An update cannot remove a stored rounding.
+	Rounding *FeeRounding `json:"-"`
+
+	// EffectiveFrom is when the new version applies from. The server accepts it
+	// only together with fees or rounding, defaults it to the request instant,
+	// and refuses one that precedes the latest version.
+	EffectiveFrom *time.Time `json:"-"`
+
+	// Fees holds the fee changes keyed by fee key. A non-nil patch on a stored
+	// key replaces the fields it sets; a non-nil patch on any other key adds a
+	// fee and must carry every required field; a nil entry removes the fee.
+	// Use WithFeePatch and WithoutFee to fill it.
+	Fees map[string]*AccountPlanFeePatch `json:"-"`
+}
+
+// AccountPlanFeePatch is a partial change to one account plan fee. Every field
+// is optional and sent only when non-nil; pkg/conversion.ToPtr builds the
+// pointers inline. A patch that sets no field would remove the fee, so Validate
+// refuses it: use WithoutFee to remove a fee.
+type AccountPlanFeePatch struct {
+	// FeeLabel replaces the fee name.
+	FeeLabel *string `json:"feeLabel,omitempty"`
+
+	// Trigger replaces the fee trigger.
+	Trigger *AccountPlanTriggerInput `json:"trigger,omitempty"`
+
+	// CalculationModel replaces how the fee is computed.
+	CalculationModel *FeeCalculationModel `json:"calculationModel,omitempty"`
+
+	// ReferenceAmount replaces the amount the fee is calculated on.
+	ReferenceAmount *string `json:"referenceAmount,omitempty"`
+
+	// CreditAccount replaces the alias of the account that receives the fee.
+	CreditAccount *string `json:"creditAccount,omitempty"`
+
+	// FreeQuota replaces the number of units per period charged nothing.
+	FreeQuota *int `json:"freeQuota,omitempty"`
+
+	// Period replaces the window the free quota resets on.
+	Period *string `json:"period,omitempty"`
+
+	// Deferrable replaces whether an unfunded share becomes a fee debt.
+	Deferrable *bool `json:"deferrable,omitempty"`
+
+	// Accounting replaces the fee routes.
+	Accounting *AccountPlanAccountingInput `json:"accounting,omitempty"`
+}
+
+// NewUpdateAccountPlanInput builds an empty account plan update payload.
+func NewUpdateAccountPlanInput() *UpdateAccountPlanInput {
+	return &UpdateAccountPlanInput{}
+}
+
+// WithLabel sets the plan name for update.
+func (input *UpdateAccountPlanInput) WithLabel(label string) *UpdateAccountPlanInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Label = &label
+
+	return input
+}
+
+// WithDescription sets the plan description for update.
+func (input *UpdateAccountPlanInput) WithDescription(description string) *UpdateAccountPlanInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Description = &description
+
+	return input
+}
+
+// WithEnable sets whether new accounts can be assigned to the plan.
+func (input *UpdateAccountPlanInput) WithEnable(enable bool) *UpdateAccountPlanInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Enable = &enable
+
+	return input
+}
+
+// WithTimezone sets the IANA timezone of the free quota for update.
+func (input *UpdateAccountPlanInput) WithTimezone(timezone string) *UpdateAccountPlanInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Timezone = &timezone
+
+	return input
+}
+
+// WithRounding replaces the stored rounding whole, creating a new version.
+// Requires Midaz 4.6.0 or later.
+func (input *UpdateAccountPlanInput) WithRounding(rounding FeeRounding) *UpdateAccountPlanInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Rounding = &rounding
+
+	return input
+}
+
+// WithEffectiveFrom sets when the new version applies from. Use it only with
+// fee changes or rounding.
+func (input *UpdateAccountPlanInput) WithEffectiveFrom(effectiveFrom time.Time) *UpdateAccountPlanInput {
+	if input == nil {
+		return nil
+	}
+
+	input.EffectiveFrom = &effectiveFrom
+
+	return input
+}
+
+// WithFeePatch sets the change to the fee under key. A later WithFeePatch or
+// WithoutFee on the same key replaces it.
+func (input *UpdateAccountPlanInput) WithFeePatch(key string, patch AccountPlanFeePatch) *UpdateAccountPlanInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Fees == nil {
+		input.Fees = make(map[string]*AccountPlanFeePatch)
+	}
+
+	input.Fees[key] = &patch
+
+	return input
+}
+
+// WithoutFee removes the fee under key; it is sent as null. A later
+// WithFeePatch or WithoutFee on the same key replaces it.
+func (input *UpdateAccountPlanInput) WithoutFee(key string) *UpdateAccountPlanInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Fees == nil {
+		input.Fees = make(map[string]*AccountPlanFeePatch)
+	}
+
+	input.Fees[key] = nil
+
+	return input
+}
+
+func (input *UpdateAccountPlanInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Label != nil ||
+		input.Description != nil ||
+		input.Enable != nil ||
+		input.Timezone != nil ||
+		input.Rounding != nil ||
+		input.EffectiveFrom != nil ||
+		len(input.Fees) > 0
+}
+
+// Validate refuses a nil or empty update, and checks what the contract
+// declares for the fields that were set: the rounding scale and mode, each fee
+// key format, the accepted trigger type and direction, and a non-negative free
+// quota. It also refuses a fee patch that sets no field, which the server would
+// treat as a removal.
+func (input *UpdateAccountPlanInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	var errs validation.FieldErrors
+
+	if input.Rounding != nil {
+		validateFeeRounding(&errs, *input.Rounding)
+	}
+
+	for _, key := range slices.Sorted(maps.Keys(input.Fees)) {
+		prefix := accountPlanFeePrefix(key)
+		validateAccountPlanFeeKey(&errs, prefix, key)
+
+		if patch := input.Fees[key]; patch != nil {
+			validateAccountPlanFeePatch(&errs, prefix, *patch)
+		}
+	}
+
+	return errs.OrNil()
+}
+
+func validateAccountPlanFeePatch(errs *validation.FieldErrors, prefix string, patch AccountPlanFeePatch) {
+	if patch == (AccountPlanFeePatch{}) {
+		errs.Append(prefix, "patch sets no field; use WithoutFee to remove the fee")
+
+		return
+	}
+
+	if patch.FreeQuota != nil && *patch.FreeQuota < 0 {
+		errs.Append(prefix+".freeQuota", "must be greater than or equal to 0")
+	}
+
+	if patch.Trigger != nil {
+		validateAccountPlanTrigger(errs, prefix+".trigger", *patch.Trigger)
+	}
+}
+
+// MarshalJSON emits only the fields that were set, under their server wire
+// names, with keys in a stable order. A removed fee is emitted as null.
+func (input *UpdateAccountPlanInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	payload := map[string]any{}
+
+	if input.Label != nil {
+		payload["label"] = input.Label
+	}
+
+	if input.Description != nil {
+		payload["description"] = input.Description
+	}
+
+	if input.Enable != nil {
+		payload["enable"] = input.Enable
+	}
+
+	if input.Timezone != nil {
+		payload["timezone"] = input.Timezone
+	}
+
+	if input.Rounding != nil {
+		payload["rounding"] = input.Rounding
+	}
+
+	if input.EffectiveFrom != nil {
+		payload["effectiveFrom"] = input.EffectiveFrom
+	}
+
+	if len(input.Fees) > 0 {
+		payload["fees"] = input.Fees
+	}
+
+	return json.Marshal(payload)
 }
