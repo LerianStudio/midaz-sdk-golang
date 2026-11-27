@@ -454,6 +454,28 @@ components:
         unblock:
           $ref: "#/components/schemas/AccountingEntry"
       type: object
+    AccountingEntriesRequest:
+      additionalProperties: false
+      properties:
+        block:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+        cancel:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+        commit:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+        crossLedger:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+        direct:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+        hold:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+        overdraft:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+        revert:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+        unblock:
+          $ref: "#/components/schemas/AccountingEntryRequest"
+      type: object
     AccountingEntry:
       additionalProperties: false
       properties:
@@ -464,6 +486,14 @@ components:
       required:
         - debit
         - credit
+      type: object
+    AccountingEntryRequest:
+      additionalProperties: false
+      properties:
+        credit:
+          $ref: "#/components/schemas/AccountingRubric"
+        debit:
+          $ref: "#/components/schemas/AccountingRubric"
       type: object
     AccountingRubric:
       additionalProperties: false
@@ -565,6 +595,48 @@ components:
         - state
         - country
       type: object
+    AddressRequest:
+      additionalProperties: false
+      properties:
+        city:
+          examples:
+            - New York
+          maxLength: 100
+          type: string
+        country:
+          examples:
+            - US
+          maxLength: 2
+          minLength: 2
+          type: string
+        description:
+          examples:
+            - Home
+          maxLength: 100
+          type: string
+        line1:
+          examples:
+            - 123 Financial Avenue
+          maxLength: 256
+          type: string
+        line2:
+          examples:
+            - Suite 1500
+          maxLength: 256
+          type:
+            - string
+            - "null"
+        state:
+          examples:
+            - NY
+          maxLength: 100
+          type: string
+        zipCode:
+          examples:
+            - "10001"
+          maxLength: 20
+          type: string
+      type: object
     Addresses:
       additionalProperties: false
       properties:
@@ -574,6 +646,16 @@ components:
           $ref: "#/components/schemas/Address"
         primary:
           $ref: "#/components/schemas/Address"
+      type: object
+    AddressesRequest:
+      additionalProperties: false
+      properties:
+        additional1:
+          $ref: "#/components/schemas/AddressRequest"
+        additional2:
+          $ref: "#/components/schemas/AddressRequest"
+        primary:
+          $ref: "#/components/schemas/AddressRequest"
       type: object
     Amount:
       additionalProperties: false
@@ -586,6 +668,9 @@ components:
           examples:
             - "1000"
           type: string
+      required:
+        - asset
+        - value
       type: object
     Asset:
       additionalProperties: false
@@ -740,11 +825,18 @@ components:
         - ttl
         - createdAt
         - updatedAt
-        - metadata
       type: object
     AtomicTransactionBatchV2Transaction:
       additionalProperties: false
       properties:
+        accountPlanFees:
+          deprecated: true
+          description: "Account plan outcome of each source account of the transaction with an active account plan assignment, followed by each destination account whose plan has a received fee matching the transaction: the matched fee, whether the unit was free (quota), charged or matched no fee (no_match, source accounts only), its ordinal in the period and the fee charged. A received fee is deducted from what the destination account receives. Absent when no account was decided, and on every response other than a create. Deprecated: the fees list answers the same per fee; this field is still returned as described here."
+          items:
+            $ref: "#/components/schemas/FeeAccountPlanFeeOutcome"
+          type:
+            - array
+            - "null"
         amount:
           examples:
             - "1500"
@@ -762,6 +854,11 @@ components:
           examples:
             - "2021-01-01T00:00:00Z"
           format: date-time
+          type: string
+        createdBy:
+          description: "The authenticated caller that created the transaction: a person's user id, or an application's client id; absent when the ledger does not record creators."
+          examples:
+            - 7f2c1e4a-0b1d-4c8e-9a53-2d6e5f1a9b30
           type: string
         credit:
           examples:
@@ -791,6 +888,9 @@ components:
             - Transaction description
           maxLength: 256
           type: string
+        fees:
+          $ref: "#/components/schemas/TransactionFeesV2"
+          description: "Fees the create evaluated for this transaction, one item per fee in the order they were evaluated: only its own, never those of the other transactions of the batch or group. Present on every atomic batch and cross-ledger create; absent on the commit, cancel and revert responses."
         feesSkipped:
           examples:
             - false
@@ -812,7 +912,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
-          description: "Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          description: "Additional custom attributes. The ledger writes seven fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption (including a package that priced the transaction at zero), and absent when no package applied, which includes a route whose packages all exclude the amount by their bounds, or when the applied package's fees only rounded down to zero; feeDeductedAmount is the decimal total the fees deducted from the transferred amount, written only when a deductible fee took part of it, so a caller reading a hold learns the destination receives less than requested without reading the fee package; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; feeExemption is also present, with reason zero_fee_amount, when the package priced the transaction at zero, for instance a band configured with no fee, so no fee leg was posted and feeApplied is absent; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted; billingChargeId, on the fee transaction of a billing maintenance charge, is the id of the durable charge record that posted it; feeChargeId, on the fee transaction of a service fee charge, is the id of the charge that posted it; feeDebtOriginId, on the transaction that gives back to its debtor what a later credit paid of the fee debts of a charge recorded without a transaction, written when that charge is canceled, is the id of the execution that opened those debts, which no transaction carries, and such a transaction cannot be reverted. feeApplied, packageAppliedID and feeExemption are deprecated: the fees list answers the same per fee, with what each fee amounted to and why an exempt one charged nothing; they are still written and returned as described here. A request body carrying feeApplied, packageAppliedID, feeDeductedAmount, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection, billingChargeId, feeChargeId, feeDebtOriginId or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
           type: object
         operations:
           items:
@@ -840,8 +940,20 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          description: Payment scheme the transaction declared, normalized to upper case; absent when none.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         status:
           $ref: "#/components/schemas/TransactionStatus"
+        subType:
+          description: SubType the transaction declared, normalized to lower case; absent when none.
+          examples:
+            - instant
+          maxLength: 50
+          type: string
         tracerSkipped:
           examples:
             - false
@@ -1137,6 +1249,26 @@ components:
         - createdAt
         - updatedAt
       type: object
+    BalanceRetentionSettings:
+      additionalProperties: false
+      properties:
+        deletedRetentionDays:
+          examples:
+            - 0
+          format: int64
+          type: integer
+      required:
+        - deletedRetentionDays
+      type: object
+    BalanceRetentionSettingsInput:
+      additionalProperties: false
+      properties:
+        deletedRetentionDays:
+          examples:
+            - 0
+          format: int64
+          type: integer
+      type: object
     BalanceSettings:
       additionalProperties: false
       properties:
@@ -1159,6 +1291,58 @@ components:
       required:
         - allowOverdraft
         - overdraftLimitEnabled
+      type: object
+    BalanceSettingsRequest:
+      additionalProperties: false
+      properties:
+        allowOverdraft:
+          examples:
+            - false
+          type: boolean
+        balanceScope:
+          examples:
+            - transactional
+          type: string
+        overdraftLimit:
+          examples:
+            - "1000.00"
+          type: string
+        overdraftLimitEnabled:
+          examples:
+            - false
+          type: boolean
+      type: object
+    BalanceTotals:
+      additionalProperties: false
+      properties:
+        assetCode:
+          examples:
+            - BRL
+          type: string
+        available:
+          examples:
+            - "1234567.89"
+          type: string
+        balanceKey:
+          examples:
+            - poupanca
+          type: string
+        count:
+          description: Number of balances summed
+          examples:
+            - 98765
+          format: int64
+          type: integer
+        onHold:
+          examples:
+            - "0"
+          type: string
+      required:
+        - balanceKey
+        - assetCode
+        - available
+        - onHold
+        - count
       type: object
     BankingDetails:
       additionalProperties: false
@@ -1203,6 +1387,32 @@ components:
             - CACC
           maxLength: 10
           type: string
+      type: object
+    BillingChargeListBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/FeeBillingCharge"
+          type:
+            - array
+            - "null"
+        limit:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        next_cursor:
+          examples:
+            - eyJpZCI6IjAxOTI...
+          type: string
+        prev_cursor:
+          examples:
+            - eyJpZCI6IjAxOTE...
+          type: string
+      required:
+        - items
+        - limit
       type: object
     Contact:
       additionalProperties: false
@@ -1323,24 +1533,14 @@ components:
         skip:
           $ref: "#/components/schemas/AccountSkip"
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: "#/components/schemas/StatusRequest"
         type:
           examples:
             - deposit
           type: string
       required:
-        - name
-        - parentAccountId
-        - entityId
-        - holderId
         - assetCode
-        - portfolioId
-        - segmentId
-        - status
-        - alias
         - type
-        - blocked
-        - metadata
       type: object
     CreateAccountTypeInput:
       additionalProperties: false
@@ -1367,7 +1567,6 @@ components:
       required:
         - name
         - keyValue
-        - metadata
       type: object
     CreateAdditionalBalance:
       additionalProperties: false
@@ -1393,11 +1592,9 @@ components:
             - asset-freeze
           type: string
         settings:
-          $ref: "#/components/schemas/BalanceSettings"
+          $ref: "#/components/schemas/BalanceSettingsRequest"
       required:
         - key
-        - allowSending
-        - allowReceiving
       type: object
     CreateAssetInput:
       additionalProperties: false
@@ -1414,7 +1611,7 @@ components:
             - US Dollar
           type: string
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: "#/components/schemas/StatusRequest"
         type:
           examples:
             - currency
@@ -1423,8 +1620,6 @@ components:
         - name
         - type
         - code
-        - status
-        - metadata
       type: object
     CreateAssetRateInput:
       additionalProperties: false
@@ -1475,7 +1670,6 @@ components:
         - from
         - to
         - rate
-        - metadata
       type: object
     CreateAtomicTransactionBatchV2ItemRequest:
       additionalProperties: false
@@ -1515,6 +1709,14 @@ components:
         metadata:
           additionalProperties: {}
           type: object
+        operationRouteAlias:
+          description: Optional alias of the operation route link in the transaction route, the alternative to operationRouteId, under the same format as routeAlias. It is resolved inside the transaction route named by routeId or routeAlias, which is then required, and legs without their own operation route inherit it. Send operationRouteId or operationRouteAlias, not both.
+          examples:
+            - src
+          maxLength: 100
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]{1,100}$
+          type: string
         operationRouteId:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -1525,13 +1727,33 @@ components:
           format: int64
           minimum: 1
           type: integer
+        routeAlias:
+          description: "Optional alias of the transaction route, the alternative to routeId: 1 to 100 letters, digits, '_' or '-', compared exactly and never shaped as a UUID. It is resolved to the route's UUID before the transaction is processed, so the transaction stores and answers routeId. Send routeId or routeAlias, not both."
+          examples:
+            - pix-in
+          maxLength: 100
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]{1,100}$
+          type: string
         routeId:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          description: Optional payment scheme of the transaction, for example PIX, WIRE, CARD or CRYPTO. Any value of up to 50 letters, digits, underscores or hyphens is accepted; it is trimmed and upper-cased. CARD covers any card payment and is never the card brand.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         skip:
           $ref: "#/components/schemas/TransactionSkip"
+        subType:
+          description: Optional subType of the transaction, for example instant or refund. Any value of up to 50 bytes is accepted; it is trimmed and lower-cased. Limits and rules scoped by a subType apply to the transaction.
+          examples:
+            - instant
+          maxLength: 50
+          type: string
       required:
         - action
         - order
@@ -1626,29 +1848,20 @@ components:
         skip:
           $ref: "#/components/schemas/AccountSkip"
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: "#/components/schemas/StatusRequest"
         type:
           examples:
             - deposit
           type: string
       required:
-        - name
-        - parentAccountId
-        - entityId
         - assetCode
-        - portfolioId
-        - segmentId
-        - status
-        - alias
         - type
-        - blocked
-        - metadata
       type: object
     CreateHolderInput:
       additionalProperties: false
       properties:
         addresses:
-          $ref: "#/components/schemas/Addresses"
+          $ref: "#/components/schemas/AddressesRequest"
         contact:
           $ref: "#/components/schemas/Contact"
         document:
@@ -1683,15 +1896,9 @@ components:
             - string
             - "null"
       required:
-        - externalId
         - type
         - name
         - document
-        - addresses
-        - contact
-        - naturalPerson
-        - legalPerson
-        - metadata
       type: object
     CreateInstrumentInput:
       additionalProperties: false
@@ -1722,8 +1929,6 @@ components:
       required:
         - ledgerId
         - accountId
-        - metadata
-        - bankingDetails
       type: object
     CreateLedgerInput:
       additionalProperties: false
@@ -1737,11 +1942,9 @@ components:
         settings:
           $ref: "#/components/schemas/LedgerSettingsInput"
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: "#/components/schemas/StatusRequest"
       required:
         - name
-        - status
-        - metadata
       type: object
     CreateMetadataIndexInput:
       additionalProperties: false
@@ -1762,8 +1965,6 @@ components:
           type: boolean
       required:
         - metadataKey
-        - unique
-        - sparse
       type: object
     CreateOperationRouteInput:
       additionalProperties: false
@@ -1771,7 +1972,7 @@ components:
         account:
           $ref: "#/components/schemas/AccountRule"
         accountingEntries:
-          $ref: "#/components/schemas/AccountingEntries"
+          $ref: "#/components/schemas/AccountingEntriesRequest"
         code:
           examples:
             - EXT-001
@@ -1796,13 +1997,14 @@ components:
             - Cashin from service charge
           type: string
       required:
-        - metadata
+        - title
+        - operationType
       type: object
     CreateOrganizationInput:
       additionalProperties: false
       properties:
         address:
-          $ref: "#/components/schemas/Address"
+          $ref: "#/components/schemas/AddressRequest"
         doingBusinessAs:
           examples:
             - Lerian FS
@@ -1829,15 +2031,10 @@ components:
             - string
             - "null"
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: "#/components/schemas/StatusRequest"
       required:
         - legalName
-        - parentOrganizationId
-        - doingBusinessAs
         - legalDocument
-        - address
-        - status
-        - metadata
       type: object
     CreatePortfolioInput:
       additionalProperties: false
@@ -1854,12 +2051,9 @@ components:
             - My Portfolio
           type: string
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: "#/components/schemas/StatusRequest"
       required:
-        - entityId
         - name
-        - status
-        - metadata
       type: object
     CreateSegmentInput:
       additionalProperties: false
@@ -1872,11 +2066,9 @@ components:
             - My Segment
           type: string
         status:
-          $ref: "#/components/schemas/Status"
+          $ref: "#/components/schemas/StatusRequest"
       required:
         - name
-        - status
-        - metadata
       type: object
     CreateTransactionInflowInput:
       additionalProperties: false
@@ -1916,7 +2108,6 @@ components:
           format: date-time
           type: string
       required:
-        - metadata
         - send
       type: object
     CreateTransactionInput:
@@ -1962,8 +2153,6 @@ components:
           format: date-time
           type: string
       required:
-        - pending
-        - metadata
         - send
       type: object
     CreateTransactionOutflowInput:
@@ -2009,8 +2198,6 @@ components:
           format: date-time
           type: string
       required:
-        - pending
-        - metadata
         - send
       type: object
     CreateTransactionRouteInput:
@@ -2035,11 +2222,55 @@ components:
             - Charge Settlement
           type: string
       required:
-        - metadata
+        - title
+        - operationRoutes
+      type: object
+    CreateTransactionRouteInputV2:
+      additionalProperties: false
+      properties:
+        alias:
+          description: "Human-readable name of the transaction route: 1 to 100 letters, digits, '_' or '-', compared exactly and never shaped as a UUID. Unique among the active transaction routes of the organization."
+          examples:
+            - pix-in
+          maxLength: 100
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]{1,100}$
+          type: string
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            description: An Operation Route ID, or an object that links the operation route with an alias and its optionality.
+            oneOf:
+              - format: uuid
+                type: string
+              - $ref: "#/components/schemas/TransactionRouteLinkObjectV2"
+          type:
+            - array
+            - "null"
+        optionalOperationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+      required:
+        - title
+        - operationRoutes
       type: object
     CreateTransactionV2Input:
       additionalProperties: false
-      description: Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to. The direct and hold actions accept multiple enabled ledgers and return an atomic group; block and unblock still require every leg to name the same pair. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
+      description: Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to. The direct and hold actions accept multiple enabled ledgers and return an atomic group; block and unblock still require every leg to name the same pair. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs. `routeAlias` and `operationRouteAlias` name the routes by alias instead of `routeId` and `operationRouteId`; each level takes the ID or the alias, not both.
       properties:
         accountBlockExceptionId:
           description: Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.
@@ -2070,7 +2301,152 @@ components:
         metadata:
           additionalProperties: {}
           type: object
+        operationRouteAlias:
+          description: Optional alias of the operation route link in the transaction route, the alternative to operationRouteId, under the same format as routeAlias. It is resolved inside the transaction route named by routeId or routeAlias, which is then required, and legs without their own operation route inherit it. Send operationRouteId or operationRouteAlias, not both.
+          examples:
+            - src
+          maxLength: 100
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]{1,100}$
+          type: string
         operationRouteId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        routeAlias:
+          description: "Optional alias of the transaction route, the alternative to routeId: 1 to 100 letters, digits, '_' or '-', compared exactly and never shaped as a UUID. It is resolved to the route's UUID before the transaction is processed, so the transaction stores and answers routeId. Send routeId or routeAlias, not both."
+          examples:
+            - pix-in
+          maxLength: 100
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]{1,100}$
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        scheme:
+          description: Optional payment scheme of the transaction, for example PIX, WIRE, CARD or CRYPTO. Any value of up to 50 letters, digits, underscores or hyphens is accepted; it is trimmed and upper-cased. CARD covers any card payment and is never the card brand.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
+        skip:
+          $ref: "#/components/schemas/TransactionSkip"
+        subType:
+          description: Optional subType of the transaction, for example instant or refund. Any value of up to 50 bytes is accepted; it is trimmed and lower-cased. Limits and rules scoped by a subType apply to the transaction.
+          examples:
+            - instant
+          maxLength: 50
+          type: string
+      required:
+        - asset
+        - amount
+        - debits
+        - credits
+      type: object
+    CreatedTransactionV2:
+      additionalProperties: false
+      properties:
+        accountPlanFees:
+          deprecated: true
+          description: "Account plan outcome of each source account of the transaction with an active account plan assignment, followed by each destination account whose plan has a received fee matching the transaction: the matched fee, whether the unit was free (quota), charged or matched no fee (no_match, source accounts only), its ordinal in the period and the fee charged. A received fee is deducted from what the destination account receives. Absent when no account was decided. Deprecated: the fees list answers the same per fee; this field is still returned as described here."
+          items:
+            $ref: "#/components/schemas/FeeAccountPlanFeeOutcome"
+          type:
+            - array
+            - "null"
+        amount:
+          examples:
+            - "1500"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        assetCode:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        createdBy:
+          description: "The authenticated caller that created the transaction: a person's user id, or an application's client id; absent when the ledger does not record creators."
+          examples:
+            - 7f2c1e4a-0b1d-4c8e-9a53-2d6e5f1a9b30
+          type: string
+        credit:
+          examples:
+            - - "@person2"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        debit:
+          examples:
+            - - "@person1"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Transaction description
+          maxLength: 256
+          type: string
+        fees:
+          $ref: "#/components/schemas/TransactionFeesV2"
+          description: "Fees the create evaluated for the transaction, one item per fee in the order they were evaluated. Always available on a create: recorded is false, with no items, when the transaction has no list, including one created while the ledger did not record lists."
+        feesSkipped:
+          examples:
+            - false
+          type: boolean
+        groupId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          description: "Additional custom attributes. The ledger writes seven fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption (including a package that priced the transaction at zero), and absent when no package applied, which includes a route whose packages all exclude the amount by their bounds, or when the applied package's fees only rounded down to zero; feeDeductedAmount is the decimal total the fees deducted from the transferred amount, written only when a deductible fee took part of it, so a caller reading a hold learns the destination receives less than requested without reading the fee package; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; feeExemption is also present, with reason zero_fee_amount, when the package priced the transaction at zero, for instance a band configured with no fee, so no fee leg was posted and feeApplied is absent; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted; billingChargeId, on the fee transaction of a billing maintenance charge, is the id of the durable charge record that posted it; feeChargeId, on the fee transaction of a service fee charge, is the id of the charge that posted it; feeDebtOriginId, on the transaction that gives back to its debtor what a later credit paid of the fee debts of a charge recorded without a transaction, written when that charge is canceled, is the id of the execution that opened those debts, which no transaction carries, and such a transaction cannot be reverted. feeApplied, packageAppliedID and feeExemption are deprecated: the fees list answers the same per fee, with what each fee amounted to and why an exempt one charged nothing; they are still written and returned as described here. A request body carrying feeApplied, packageAppliedID, feeDeductedAmount, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection, billingChargeId, feeChargeId, feeDebtOriginId or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          type: object
+        operations:
+          items:
+            $ref: "#/components/schemas/OperationV2"
+          type:
+            - array
+            - "null"
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        parentTransactionId:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
@@ -2080,13 +2456,46 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
-        skip:
-          $ref: "#/components/schemas/TransactionSkip"
+        scheme:
+          description: Payment scheme the transaction declared, normalized to upper case; absent when none.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
+        status:
+          $ref: "#/components/schemas/TransactionStatus"
+        subType:
+          description: SubType the transaction declared, normalized to lower case; absent when none.
+          examples:
+            - instant
+          maxLength: 50
+          type: string
+        tracerSkipped:
+          examples:
+            - false
+          type: boolean
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
       required:
-        - asset
+        - fees
+        - id
+        - description
+        - status
         - amount
-        - debits
-        - credits
+        - assetCode
+        - debit
+        - credit
+        - ledgerId
+        - organizationId
+        - feesSkipped
+        - tracerSkipped
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - operations
       type: object
     CrossLedgerSettings:
       additionalProperties: false
@@ -2136,6 +2545,8 @@ components:
           type:
             - array
             - "null"
+      required:
+        - to
       type: object
     Error:
       additionalProperties: true
@@ -2204,6 +2615,11 @@ components:
           examples:
             - conta_receita_taxas_adm
           type: string
+        deferrable:
+          description: Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. It applies only to /v2 direct transactions; /v1 and /v2 hold/commit still refuse. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false.
+          examples:
+            - false
+          type: boolean
         feeLabel:
           examples:
             - Taxa Administrativa
@@ -2342,6 +2758,25 @@ components:
           type: string
         transactionRoute:
           description: Transaction route a transaction must carry for the fee to match, when the ledger validates routes.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+      type: object
+    FeeAccountPlanAccountingRequest:
+      additionalProperties: false
+      properties:
+        operationRouteFrom:
+          description: Operation route of the fee debit leg. A received fee posts no debit leg of its own, since it is deducted from the receiving leg, so the route is stored but not used.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        operationRouteTo:
+          description: Operation route of the fee credit leg.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        transactionRoute:
+          description: Transaction route identifier the transaction routeId must equal for the fee to match.
           examples:
             - 00000000-0000-0000-0000-000000000000
           type: string
@@ -2518,6 +2953,67 @@ components:
         - trigger
         - calculationModel
         - creditAccount
+      type: object
+    FeeAccountPlanFeeOutcome:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          examples:
+            - "@cliente_x"
+          type: string
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        accountPlanId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        accountPlanVersion:
+          examples:
+            - 1
+          format: int64
+          type: integer
+        amount:
+          description: Fee charged; 0 unless outcome is charged.
+          examples:
+            - "7.9"
+          type: string
+        feeKey:
+          description: Key of the matched fee; empty when outcome is no_match.
+          examples:
+            - tedEnviada
+          type: string
+        freeQuota:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        outcome:
+          enum:
+            - quota
+            - charged
+            - no_match
+            - not_covered
+          examples:
+            - charged
+          type: string
+        unit:
+          description: Ordinal of the consumed unit in the period; 0 when outcome is no_match.
+          examples:
+            - 11
+          format: int64
+          type: integer
+      required:
+        - accountId
+        - accountAlias
+        - accountPlanId
+        - accountPlanVersion
+        - feeKey
+        - outcome
+        - unit
+        - freeQuota
+        - amount
       type: object
     FeeAccountPlanFeePatch:
       additionalProperties: false
@@ -2968,6 +3464,11 @@ components:
           examples:
             - 2026-01
           type: string
+        timezone:
+          description: "IANA timezone of the billing package: the period starts and ends at midnight there."
+          examples:
+            - America/Sao_Paulo
+          type: string
         totalAccounts:
           examples:
             - 500
@@ -2993,17 +3494,190 @@ components:
         - billingPackageLabel
         - billingType
         - period
+        - timezone
         - totalAccounts
         - totalCharged
         - totalSkipped
         - totalNetAmount
         - transactionPayload
       type: object
+    FeeBillingCharge:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          examples:
+            - "@cliente_x"
+          type: string
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        amount:
+          description: "Maintenance fee charged to the account: the package feeAmount."
+          examples:
+            - "50"
+          type: string
+        assetCode:
+          examples:
+            - BRL
+          type: string
+        billingPackageId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        canceledAt:
+          description: When the charge was canceled; absent while it is not.
+          examples:
+            - "2026-12-01T12:00:00Z"
+          format: date-time
+          type: string
+        code:
+          description: Error code the fee transaction was refused with; absent unless refused.
+          examples:
+            - "0018"
+          type: string
+        createdAt:
+          examples:
+            - "2026-11-30T12:00:00Z"
+          format: date-time
+          type: string
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        period:
+          description: Charged period, YYYY-MM.
+          examples:
+            - 2026-11
+          type: string
+        status:
+          description: "posted: the maintenance fee was charged, by a fee transaction or, when the account could not fund it and the package is deferrable, as a fee debt only. refused: the fee transaction was refused with code. canceled: a posted charge was canceled."
+          enum:
+            - posted
+            - refused
+            - canceled
+          examples:
+            - posted
+          type: string
+        transactionId:
+          description: Fee transaction of the charge; absent when refused, and when the charge only opened a fee debt without moving any balance.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        updatedAt:
+          examples:
+            - "2026-11-30T12:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - organizationId
+        - ledgerId
+        - billingPackageId
+        - accountId
+        - accountAlias
+        - period
+        - status
+        - amount
+        - assetCode
+        - createdAt
+        - updatedAt
+      type: object
+    FeeBillingChargeItem:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          examples:
+            - "@cliente_x"
+          type: string
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        amount:
+          examples:
+            - "50"
+          type: string
+        assetCode:
+          examples:
+            - BRL
+          type: string
+        billingPackageId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        code:
+          description: Error code of a refused charge.
+          examples:
+            - "0018"
+          type: string
+        status:
+          description: "posted: this call posted the fee transaction. replayed: an earlier call posted it, nothing new is posted. refused: the fee transaction was refused with code; a later call tries it again. in_flight: another call holds the account."
+          enum:
+            - posted
+            - replayed
+            - refused
+            - in_flight
+          examples:
+            - posted
+          type: string
+        transactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+      required:
+        - billingPackageId
+        - accountId
+        - accountAlias
+        - status
+        - amount
+        - assetCode
+      type: object
+    FeeBillingChargeResult:
+      additionalProperties: false
+      properties:
+        hasMore:
+          description: Whether target accounts remain after the last one this call visited.
+          examples:
+            - false
+          type: boolean
+        items:
+          description: One item per active target account the call visited, by package and account id.
+          items:
+            $ref: "#/components/schemas/FeeBillingChargeItem"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          description: Cursor to send in the next call to resume after the last account visited; present only when hasMore is true.
+          examples:
+            - eyJpZCI6ImNoYXJnZTouLi4ifQ==
+          type: string
+        period:
+          examples:
+            - 2026-11
+          type: string
+      required:
+        - period
+        - items
+        - hasMore
+      type: object
     FeeBillingPackage:
       additionalProperties: false
       properties:
         accountTarget:
           $ref: "#/components/schemas/FeeAccountTarget"
+        accounting:
+          $ref: "#/components/schemas/FeeAccountPlanAccounting"
+          description: "Maintenance packages only. Accounting routes of the maintenance charge transaction. Required to charge the package when the ledger validates routes, and then checked against the ledger at creation: the transaction route exists and links both operation routes. Absent on a package created before the field existed. Refused on a volume package."
         assetCode:
           examples:
             - BRL
@@ -3024,6 +3698,11 @@ components:
           examples:
             - account_fees_debit
           type: string
+        deferrable:
+          description: Maintenance packages only. Whether the share of the maintenance fee an account cannot fund becomes a fee debt, settled by the account's next credits, instead of refusing the charge of that account. A maintenance package created before the field existed reads false. Refused on a volume package.
+          examples:
+            - false
+          type: boolean
         deletedAt:
           examples:
             - "2026-06-01T00:00:00Z"
@@ -3085,6 +3764,11 @@ components:
           type:
             - array
             - "null"
+        timezone:
+          description: "IANA timezone the billing period is cut in: each day, ISO week and month starts at midnight there. Volume packages only: a maintenance package stores it but no amount or period depends on it. Every volume package of a transaction route shares one zone. Fixed at creation."
+          examples:
+            - America/Sao_Paulo
+          type: string
         type:
           examples:
             - volume
@@ -3100,6 +3784,7 @@ components:
         - label
         - type
         - enable
+        - timezone
         - createdAt
         - updatedAt
       type: object
@@ -3151,6 +3836,240 @@ components:
         - applicationRule
         - calculations
       type: object
+    FeeCalculationModelPatch:
+      additionalProperties: false
+      properties:
+        applicationRule:
+          examples:
+            - maxBetweenTypes
+          type: string
+        calculations:
+          items:
+            $ref: "#/components/schemas/FeeCalculationPatch"
+          type:
+            - array
+            - "null"
+      type: object
+    FeeCalculationPatch:
+      additionalProperties: false
+      properties:
+        type:
+          examples:
+            - percentage
+          type: string
+        value:
+          examples:
+            - "100.00"
+          type: string
+      type: object
+    FeeCharge:
+      additionalProperties: false
+      properties:
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        accountPlanId:
+          description: Account plan active for the account when the charge was taken; null when the account had none.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        accountPlanVersion:
+          description: Version of the account plan in effect when the charge was taken; 0 when the account had no plan.
+          examples:
+            - 1
+          format: int64
+          type: integer
+        assetCode:
+          description: Asset of the account the charge was taken in.
+          examples:
+            - BRL
+          type: string
+        canceledAt:
+          description: When the charge was canceled; absent while it is not.
+          examples:
+            - "2026-10-23T12:00:00Z"
+          format: date-time
+          type: string
+        createdAt:
+          examples:
+            - "2026-10-22T12:00:00Z"
+          format: date-time
+          type: string
+        description:
+          examples:
+            - Tarifas de serviço de outubro
+          type: string
+        feeTransactionIds:
+          description: Fee transactions that charged the charged items; empty when nothing was charged, and when the charge only opened fee debts without moving any balance.
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        items:
+          description: One item per service code of the request, in request order.
+          items:
+            $ref: "#/components/schemas/FeeChargeItem"
+          type:
+            - array
+            - "null"
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        period:
+          description: Monthly quota period (YYYY-MM) the units were counted in, in the plan timezone.
+          examples:
+            - 2026-10
+          type: string
+        status:
+          description: DEFERRED when at least one item is DEFERRED, APPROVED otherwise.
+          enum:
+            - APPROVED
+            - DEFERRED
+          examples:
+            - DEFERRED
+          type: string
+        totalAmount:
+          description: Sum of the amounts of the charged items.
+          examples:
+            - "15"
+          type: string
+      required:
+        - id
+        - organizationId
+        - ledgerId
+        - accountId
+        - accountPlanId
+        - accountPlanVersion
+        - items
+        - totalAmount
+        - assetCode
+        - feeTransactionIds
+        - status
+        - period
+        - createdAt
+      type: object
+    FeeChargeBillingInput:
+      additionalProperties: false
+      properties:
+        billingPackageId:
+          description: Maintenance package to charge; a disabled one is skipped and answers no account. Absent charges every enabled maintenance package of the ledger.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        cursor:
+          description: "nextCursor of the previous call: the call resumes after the last account that call visited. Absent starts from the first account. The walk takes the packages by id and, within each, the accounts by id."
+          examples:
+            - eyJpZCI6ImNoYXJnZTouLi4ifQ==
+          type: string
+        limit:
+          description: Most accounts this call visits, 1 to 500; defaults to 100. Every visited account counts, replayed ones included.
+          examples:
+            - 100
+          format: int64
+          type: integer
+        period:
+          description: Period to charge, YYYY-MM, not later than the current month (UTC).
+          examples:
+            - 2026-11
+          type: string
+      type: object
+    FeeChargeItem:
+      additionalProperties: false
+      properties:
+        amount:
+          description: Fee charged for the unit; 0 unless outcome is charged.
+          examples:
+            - "3"
+          type: string
+        feeKey:
+          description: Key of the account plan fee the code matched; empty when outcome is not_covered.
+          examples:
+            - extratoImpresso
+          type: string
+        freeQuota:
+          description: Free units per period of the matched fee; 0 when outcome is not_covered.
+          examples:
+            - 2
+          format: int64
+          type: integer
+        outcome:
+          enum:
+            - quota
+            - charged
+            - not_covered
+          examples:
+            - charged
+          type: string
+        serviceCode:
+          description: Service code of the unit, normalized to trimmed upper case.
+          examples:
+            - PAPER_STATEMENT
+          type: string
+        status:
+          description: DEFERRED when the matched fee is deferrable, APPROVED otherwise, not_covered included. It describes the fee, not whether the unit was paid.
+          enum:
+            - APPROVED
+            - DEFERRED
+          examples:
+            - DEFERRED
+          type: string
+        unit:
+          description: Ordinal of the consumed unit in the period; 0 when outcome is not_covered.
+          examples:
+            - 3
+          format: int64
+          type: integer
+      required:
+        - serviceCode
+        - feeKey
+        - outcome
+        - unit
+        - freeQuota
+        - amount
+        - status
+      type: object
+    FeeChargeServiceFeesInput:
+      additionalProperties: false
+      properties:
+        description:
+          description: Description of the charge, also used as the description of the fee transaction.
+          examples:
+            - Tarifas de serviço de outubro
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties: {}
+          description: Flat metadata of the charge, also written to the fee transaction.
+          type: object
+        serviceCodes:
+          description: Service codes to charge, 1 to 100. Each occurrence is one unit; codes are normalized to trimmed upper case.
+          examples:
+            - - PAPER_STATEMENT
+              - CARD_REISSUE
+          items:
+            type: string
+          maxItems: 100
+          minItems: 1
+          type:
+            - array
+            - "null"
+      required:
+        - serviceCodes
+      type: object
     FeeCreateAccountPlanInput:
       additionalProperties: false
       properties:
@@ -3197,6 +4116,9 @@ components:
       properties:
         accountTarget:
           $ref: "#/components/schemas/FeeAccountTarget"
+        accounting:
+          $ref: "#/components/schemas/FeeAccountPlanAccountingRequest"
+          description: "Maintenance packages only. Accounting routes of the maintenance charge transaction, all three as UUIDs. Required to charge the package when the ledger validates routes, and then checked against the ledger here: the transaction route exists and links both operation routes. Refused on a volume package."
         assetCode:
           examples:
             - BRL
@@ -3217,6 +4139,11 @@ components:
           examples:
             - account_fees_debit
           type: string
+        deferrable:
+          description: Maintenance packages only. Whether the share of the maintenance fee an account cannot fund becomes a fee debt, settled by the account's next credits, instead of refusing the charge of that account. Defaults to false. Refused on a volume package.
+          examples:
+            - false
+          type: boolean
         deletedAt:
           examples:
             - "2026-06-01T00:00:00Z"
@@ -3227,7 +4154,7 @@ components:
           type: string
         discountTiers:
           items:
-            $ref: "#/components/schemas/FeeDiscountTier"
+            $ref: "#/components/schemas/FeeDiscountTierRequest"
           type:
             - array
             - "null"
@@ -3270,10 +4197,15 @@ components:
           type: string
         tiers:
           items:
-            $ref: "#/components/schemas/FeePricingTier"
+            $ref: "#/components/schemas/FeePricingTierRequest"
           type:
             - array
             - "null"
+        timezone:
+          description: "IANA timezone the billing period is cut in: each day, ISO week and month starts at midnight there. Volume packages only: a maintenance package stores it but no amount or period depends on it. Fixed at creation. Every volume package of a transaction route shares one zone, set by the route's first volume package and kept after it is deleted: absent or empty takes the route's zone, or UTC on its first package; a different zone is refused."
+          examples:
+            - America/Sao_Paulo
+          type: string
         type:
           examples:
             - volume
@@ -3285,7 +4217,6 @@ components:
       required:
         - label
         - type
-        - enable
       type: object
     FeeCreatePackageInput:
       additionalProperties: false
@@ -3305,17 +4236,28 @@ components:
         fees:
           additionalProperties:
             $ref: "#/components/schemas/Fee"
+          description: Fees keyed by fee key. A key must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits) and is stored and returned verbatim; any other key is refused with 400.
           type: object
         maximumAmount:
           examples:
             - "1000.20"
           minimum: 0
           type: string
+        metadataSelector:
+          additionalProperties:
+            type: string
+          description: Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Omit it to apply the package whatever the metadata.
+          examples:
+            - feeContext: ted_salario
+          type: object
         minimumAmount:
           examples:
             - "100.00"
           minimum: 0
           type: string
+        rounding:
+          $ref: "#/components/schemas/FeeRounding"
+          description: Rounds every fee this package charges to one scale, whatever the asset. Omit it to charge unrounded amounts.
         segmentId:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -3336,11 +4278,225 @@ components:
           type: array
       required:
         - feeGroupLabel
-        - segmentId
         - minimumAmount
         - maximumAmount
         - fees
         - enable
+      type: object
+    FeeDebtCollectInput:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          description: Alias of the debtor account.
+          examples:
+            - "@customer"
+          maxLength: 100
+          type: string
+        balanceKey:
+          description: Key of the debtor balance; absent means the default balance.
+          examples:
+            - default
+          maxLength: 100
+          type: string
+        maxAmount:
+          description: Most the collection may settle, greater than zero; absent means everything the balance owes.
+          examples:
+            - "150.00"
+          type: string
+      required:
+        - accountAlias
+      type: object
+    FeeDebtCollectOutput:
+      additionalProperties: false
+      properties:
+        collected:
+          description: Amount settled, oldest debt first; 0 when the balance had no open debt, no available funds, or cannot pay a debt's fee account.
+          examples:
+            - "150.00"
+          type: string
+        transactionId:
+          description: Transaction recording the settlement, absent when nothing was collected.
+          format: uuid
+          type: string
+      required:
+        - collected
+      type: object
+    FeeDebtEntryView:
+      additionalProperties: false
+      properties:
+        amount:
+          examples:
+            - "30"
+          type: string
+        appliedAt:
+          format: date-time
+          type: string
+        kind:
+          enum:
+            - opened
+            - settled
+            - canceled
+            - reopened
+            - refunded
+          examples:
+            - settled
+          type: string
+        postingRef:
+          examples:
+            - to:0:credit:collect
+          type: string
+        transactionId:
+          examples:
+            - 01920000-0000-7000-8000-000000000002
+          type: string
+      required:
+        - kind
+        - transactionId
+        - amount
+        - appliedAt
+      type: object
+    FeeDebtListBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/FeeDebtView"
+          type:
+            - array
+            - "null"
+        limit:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        next_cursor:
+          examples:
+            - eyJpZCI6IjAxOTI...
+          type: string
+        openTotal:
+          description: What this debtor balance (account_alias and balance_key) owes over all its open debts, not only this page, each counting at most its opened amount; present only with account_alias
+          examples:
+            - "25"
+          type: string
+        prev_cursor:
+          examples:
+            - eyJpZCI6IjAxOTE...
+          type: string
+      required:
+        - items
+        - limit
+      type: object
+    FeeDebtOriginView:
+      additionalProperties: false
+      properties:
+        id:
+          description: Identifier of the fee package, account plan, fee charge, billing charge or billing package that type names
+          examples:
+            - 01920000-0000-7000-8000-0000000000cc
+          type: string
+        type:
+          description: "fee_package: a fee of a fee package charged on a transaction; account_plan: a fee of the debtor's account plan; fee_charge: a service fee charged through fee-charges; billing_charge: a maintenance fee charged through billing/charge, one charge per package, account and period; billing_package: a maintenance fee of a billing package, as billing/charge named the debts it opened before it named the charge"
+          enum:
+            - fee_package
+            - account_plan
+            - fee_charge
+            - billing_package
+            - billing_charge
+          examples:
+            - fee_package
+          type: string
+      required:
+        - type
+        - id
+      type: object
+    FeeDebtView:
+      additionalProperties: false
+      properties:
+        assetCode:
+          examples:
+            - BRL
+          type: string
+        createdAt:
+          description: When the earliest recorded change was applied
+          format: date-time
+          type: string
+        creditBalance:
+          description: Fee account balance the debt pays, as alias#key
+          examples:
+            - "@fees#default"
+          type: string
+        debtorBalance:
+          description: Debtor balance as alias#key
+          examples:
+            - "@payer#default"
+          type: string
+        entries:
+          description: Recorded changes, oldest first
+          items:
+            $ref: "#/components/schemas/FeeDebtEntryView"
+          type:
+            - array
+            - "null"
+        feePackageId:
+          description: Fee package that charged the fee, present only on a debt a fee package opened
+          examples:
+            - 01920000-0000-7000-8000-0000000000cc
+          type: string
+        id:
+          description: Origin transaction id and the fee debit posting the debt opened in
+          examples:
+            - 01920000-0000-7000-8000-000000000001:from:1:debit
+          type: string
+        ledgerId:
+          examples:
+            - 01920000-0000-7000-8000-00000000000b
+          type: string
+        openedAmount:
+          examples:
+            - "70"
+          type: string
+        openedAt:
+          format: date-time
+          type: string
+        organizationId:
+          examples:
+            - 01920000-0000-7000-8000-00000000000a
+          type: string
+        origin:
+          $ref: "#/components/schemas/FeeDebtOriginView"
+          description: Mechanism whose fee opened the debt. Absent on a debt recorded before the ledger kept the origin that carries no feePackageId; such a debt with a feePackageId reads as of origin fee_package
+        originTransactionId:
+          examples:
+            - 01920000-0000-7000-8000-000000000001
+          type: string
+        remaining:
+          examples:
+            - "40"
+          type: string
+        seq:
+          description: Settlement order among the debtor's debts, oldest first
+          examples:
+            - 3
+          format: int64
+          type: integer
+        updatedAt:
+          description: When the latest recorded change was applied
+          format: date-time
+          type: string
+      required:
+        - id
+        - organizationId
+        - ledgerId
+        - debtorBalance
+        - creditBalance
+        - originTransactionId
+        - assetCode
+        - seq
+        - openedAmount
+        - remaining
+        - entries
+        - createdAt
+        - updatedAt
       type: object
     FeeDiscountTier:
       additionalProperties: false
@@ -3357,6 +4513,19 @@ components:
       required:
         - minQuantity
         - discountPercentage
+      type: object
+    FeeDiscountTierRequest:
+      additionalProperties: false
+      properties:
+        discountPercentage:
+          examples:
+            - "10.00"
+          type: string
+        minQuantity:
+          examples:
+            - 1000
+          format: int64
+          type: integer
       type: object
     FeeEstimate:
       additionalProperties: false
@@ -3385,6 +4554,129 @@ components:
       required:
         - transactionRoute
         - status
+      type: object
+    FeeItem:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          description: Alias of that account. Present only when source is account_plan.
+          examples:
+            - "@cliente_x"
+          type: string
+        accountId:
+          description: Source account the fee was evaluated for. Present only when source is account_plan.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        accountPlanId:
+          description: Account plan the fee belongs to. Present only when source is account_plan.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        accountPlanVersion:
+          description: Version of the account plan the fee was read from. Present only when source is account_plan.
+          examples:
+            - 3
+          format: int64
+          type: integer
+        amount:
+          description: Amount of the fee; 0 when outcome is exempt or quota.
+          examples:
+            - "7.9"
+          type: string
+        assetCode:
+          description: Asset of amount, which may differ from the asset of the transaction.
+          examples:
+            - BRL
+          type: string
+        collected:
+          description: Share of amount the payers funded. Present only for a deferrable fee of a direct transaction.
+          examples:
+            - "4"
+          type: string
+        deductible:
+          description: Whether the fee is taken from the amount the destination receives instead of being paid on top by the source.
+          examples:
+            - false
+          type: boolean
+        deferred:
+          description: Share of amount that became fee debt; 0 when the payers funded the whole fee. Present only for a deferrable fee of a direct transaction.
+          examples:
+            - "6"
+          type: string
+        feeDebtIds:
+          description: Fee debts the fee opened, one per payer left owing; empty when the payers funded the whole fee. Present only for a deferrable fee of a direct transaction.
+          items:
+            type: string
+          type: array
+        feeKey:
+          description: Key of the fee in the package or account plan version it was evaluated from.
+          examples:
+            - tedEnviada
+          type: string
+        freeQuota:
+          description: Units per period the fee charges nothing for. Present only when source is account_plan.
+          examples:
+            - 10
+          format: int64
+          type: integer
+        label:
+          description: Label of the fee when it was evaluated; renaming the fee later does not change it.
+          examples:
+            - TED enviada
+          type: string
+        outcome:
+          description: What happened to the fee.
+          enum:
+            - charged
+            - exempt
+            - quota
+            - released
+            - reversed
+          examples:
+            - charged
+          type: string
+        packageId:
+          description: Fee package the fee belongs to. Present only when source is package.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        reason:
+          description: Why the fee charged nothing. Present only when outcome is exempt.
+          enum:
+            - all_source_accounts_exempt
+            - all_destination_accounts_exempt
+            - all_accounts_exempt
+            - cross_ledger_bridge
+            - zero_fee_amount
+          examples:
+            - zero_fee_amount
+          type: string
+        source:
+          description: Fee configuration the fee was evaluated from.
+          enum:
+            - package
+            - account_plan
+          examples:
+            - package
+          type: string
+        unit:
+          description: Ordinal of the unit the transaction consumed in the period. Present only when source is account_plan.
+          examples:
+            - 11
+          format: int64
+          type: integer
+      required:
+        - feeKey
+        - label
+        - source
+        - assetCode
+        - amount
+        - deductible
+        - outcome
       type: object
     FeePackage:
       additionalProperties: false
@@ -3432,11 +4724,20 @@ components:
             - "2"
           minimum: 0
           type: string
+        metadataSelector:
+          additionalProperties:
+            type: string
+          description: Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Absent or empty applies the package whatever the metadata.
+          examples:
+            - feeContext: ted_salario
+          type: object
         minimumAmount:
           examples:
             - "100"
           minimum: 0
           type: string
+        rounding:
+          $ref: "#/components/schemas/FeeRounding"
         segmentId:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -3502,6 +4803,48 @@ components:
         - limit
         - total
       type: object
+    FeePatch:
+      additionalProperties: false
+      properties:
+        calculationModel:
+          $ref: "#/components/schemas/FeeCalculationModelPatch"
+        creditAccount:
+          examples:
+            - conta_receita_taxas_adm
+          type: string
+        deferrable:
+          description: Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. It applies only to /v2 direct transactions; /v1 and /v2 hold/commit still refuse. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false.
+          examples:
+            - false
+          type: boolean
+        feeLabel:
+          examples:
+            - Taxa Administrativa
+          type: string
+        isDeductibleFrom:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        priority:
+          examples:
+            - 1
+          format: int64
+          type: integer
+        referenceAmount:
+          examples:
+            - originalAmount
+          type: string
+        routeFrom:
+          examples:
+            - taxa_débito
+          type: string
+        routeTo:
+          examples:
+            - taxa_crédito
+          type: string
+      type: object
     FeePatchAccountPlanInput:
       additionalProperties: false
       properties:
@@ -3564,6 +4907,26 @@ components:
           type: string
       required:
         - minQuantity
+        - unitPrice
+      type: object
+    FeePricingTierRequest:
+      additionalProperties: false
+      properties:
+        maxQuantity:
+          examples:
+            - 999
+          format: int64
+          type: integer
+        minQuantity:
+          examples:
+            - 0
+          format: int64
+          type: integer
+        unitPrice:
+          examples:
+            - "1.50"
+          type: string
+      required:
         - unitPrice
       type: object
     FeeQuotaUsagePeriod:
@@ -3631,7 +4994,8 @@ components:
           type: string
         fees:
           additionalProperties:
-            $ref: "#/components/schemas/Fee"
+            $ref: "#/components/schemas/FeePatch"
+          description: Fee patches keyed by fee key. An entry naming a stored key verbatim edits that fee, or removes it when the entry sets no field. Any other key adds a fee and must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits), or the update is refused with 400; a key equal to a stored key except for letter case is also refused with 400, and the stored key must be used, unless the same patch removes that stored key, which renames the fee (the new key must still match the grammar).
           type: object
         maximumAmount:
           examples:
@@ -3647,6 +5011,9 @@ components:
           type:
             - string
             - "null"
+        rounding:
+          $ref: "#/components/schemas/FeeRounding"
+          description: Replaces the stored rounding whole. An update cannot remove a stored rounding.
         waivedAccounts:
           examples:
             - - acc001
@@ -3656,13 +5023,6 @@ components:
           type:
             - array
             - "null"
-      required:
-        - feeGroupLabel
-        - description
-        - minimumAmount
-        - maximumAmount
-        - waivedAccounts
-        - fees
       type: object
     FromTo:
       additionalProperties: false
@@ -3709,9 +5069,6 @@ components:
           type: string
         share:
           $ref: "#/components/schemas/Share"
-      required:
-        - chartOfAccounts
-        - metadata
       type: object
     Holder:
       additionalProperties: false
@@ -4103,6 +5460,8 @@ components:
       properties:
         accounting:
           $ref: "#/components/schemas/AccountingValidation"
+        balances:
+          $ref: "#/components/schemas/BalanceRetentionSettings"
         crossLedger:
           $ref: "#/components/schemas/CrossLedgerSettings"
         overrides:
@@ -4114,12 +5473,15 @@ components:
         - tracer
         - overrides
         - crossLedger
+        - balances
       type: object
     LedgerSettingsInput:
       additionalProperties: false
       properties:
         accounting:
           $ref: "#/components/schemas/AccountingValidationInput"
+        balances:
+          $ref: "#/components/schemas/BalanceRetentionSettingsInput"
         crossLedger:
           $ref: "#/components/schemas/CrossLedgerSettingsInput"
         overrides:
@@ -4598,9 +5960,6 @@ components:
         metadata:
           additionalProperties: {}
           type: object
-      required:
-        - description
-        - metadata
       type: object
     OperationV2:
       additionalProperties: false
@@ -4676,7 +6035,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
-          description: "Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries the key is refused rather than silently stripped. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys on an operation are returned as sent on a transaction no fee package was applied to; once a package is applied the engine rebuilds every movement of both sides, including when it prices the transaction at zero because every account is exempt, and the rebuilt movements carry only the ledger keys, so do not rely on a per-movement caller reference surviving a payment a fee package was applied to."
+          description: "Additional custom attributes. The ledger reserves the feeLeg and feeDeferPair keys on this field and writes them itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries either key is refused rather than silently stripped; feeDeferPair carries the same token on the payer and fee operations of one deferrable fee. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Keys the caller sent on a debit or credit leg are returned as sent on that leg's operation, also when a fee package was applied, including a package that prices the transaction at zero or defers its fee; the fee engine marks only the movements it creates. The release and credit-back rows of a cancel, and the reversal rows of an estorno, keep feeLeg: read the operation type and the transaction status to tell a charge from its undo."
           type: object
         organizationId:
           examples:
@@ -5015,7 +6374,6 @@ components:
       required:
         - from
         - to
-        - value
         - externalId
       type: object
     RegulatoryFields:
@@ -5103,6 +6461,147 @@ components:
           maxLength: 100
           type: string
       type: object
+    RetrievedTransactionV2:
+      additionalProperties: false
+      properties:
+        amount:
+          examples:
+            - "1500"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        assetCode:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        createdBy:
+          description: "The authenticated caller that created the transaction: a person's user id, or an application's client id; absent when the ledger does not record creators."
+          examples:
+            - 7f2c1e4a-0b1d-4c8e-9a53-2d6e5f1a9b30
+          type: string
+        credit:
+          examples:
+            - - "@person2"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        debit:
+          examples:
+            - - "@person1"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Transaction description
+          maxLength: 256
+          type: string
+        fees:
+          $ref: "#/components/schemas/TransactionFeesV2"
+          description: Fees evaluated for the transaction, one item per fee in the order they were evaluated. Absent when the request sets include_fees=false.
+        feesSkipped:
+          examples:
+            - false
+          type: boolean
+        groupId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          description: "Additional custom attributes. The ledger writes seven fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption (including a package that priced the transaction at zero), and absent when no package applied, which includes a route whose packages all exclude the amount by their bounds, or when the applied package's fees only rounded down to zero; feeDeductedAmount is the decimal total the fees deducted from the transferred amount, written only when a deductible fee took part of it, so a caller reading a hold learns the destination receives less than requested without reading the fee package; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; feeExemption is also present, with reason zero_fee_amount, when the package priced the transaction at zero, for instance a band configured with no fee, so no fee leg was posted and feeApplied is absent; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted; billingChargeId, on the fee transaction of a billing maintenance charge, is the id of the durable charge record that posted it; feeChargeId, on the fee transaction of a service fee charge, is the id of the charge that posted it; feeDebtOriginId, on the transaction that gives back to its debtor what a later credit paid of the fee debts of a charge recorded without a transaction, written when that charge is canceled, is the id of the execution that opened those debts, which no transaction carries, and such a transaction cannot be reverted. feeApplied, packageAppliedID and feeExemption are deprecated: the fees list answers the same per fee, with what each fee amounted to and why an exempt one charged nothing; they are still written and returned as described here. A request body carrying feeApplied, packageAppliedID, feeDeductedAmount, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection, billingChargeId, feeChargeId, feeDebtOriginId or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          type: object
+        operations:
+          items:
+            $ref: "#/components/schemas/OperationV2"
+          type:
+            - array
+            - "null"
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        parentTransactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        scheme:
+          description: Payment scheme the transaction declared, normalized to upper case; absent when none.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
+        status:
+          $ref: "#/components/schemas/TransactionStatus"
+        subType:
+          description: SubType the transaction declared, normalized to lower case; absent when none.
+          examples:
+            - instant
+          maxLength: 50
+          type: string
+        tracerSkipped:
+          examples:
+            - false
+          type: boolean
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - description
+        - status
+        - amount
+        - assetCode
+        - debit
+        - credit
+        - ledgerId
+        - organizationId
+        - feesSkipped
+        - tracerSkipped
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - operations
+      type: object
     Segment:
       additionalProperties: false
       properties:
@@ -5173,6 +6672,11 @@ components:
           examples:
             - "1000"
           type: string
+      required:
+        - asset
+        - value
+        - source
+        - distribute
       type: object
     SendInflow:
       additionalProperties: false
@@ -5187,6 +6691,10 @@ components:
           examples:
             - "1000"
           type: string
+      required:
+        - asset
+        - value
+        - distribute
       type: object
     SendOutflow:
       additionalProperties: false
@@ -5201,6 +6709,10 @@ components:
           examples:
             - "1000"
           type: string
+      required:
+        - asset
+        - value
+        - source
       type: object
     Share:
       additionalProperties: false
@@ -5211,6 +6723,8 @@ components:
         percentageOfPercentage:
           format: int64
           type: integer
+      required:
+        - percentage
       type: object
     Source:
       additionalProperties: false
@@ -5225,6 +6739,8 @@ components:
           examples:
             - remaining
           type: string
+      required:
+        - from
       type: object
     Status:
       additionalProperties: false
@@ -5251,12 +6767,34 @@ components:
         - code
         - description
       type: object
+    StatusRequest:
+      additionalProperties: false
+      properties:
+        code:
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - PENDING
+            - SUSPENDED
+            - DELETED
+          examples:
+            - ACTIVE
+          maxLength: 100
+          type: string
+        description:
+          examples:
+            - Active status
+          maxLength: 256
+          type:
+            - string
+            - "null"
+      type: object
     TracerSettings:
       additionalProperties: false
       properties:
         failPosture:
           examples:
-            - open
+            - closed
           type: string
         mode:
           examples:
@@ -5277,7 +6815,7 @@ components:
       properties:
         failPosture:
           examples:
-            - open
+            - closed
           type: string
         mode:
           examples:
@@ -5411,6 +6949,36 @@ components:
         - deletedAt
         - operations
       type: object
+    TransactionFeesV2:
+      additionalProperties: false
+      properties:
+        available:
+          description: "Whether the ledger could read the list. False only when it could not, so recorded false and an empty list then do not mean the transaction has no fees: retry the read."
+          examples:
+            - true
+          type: boolean
+        items:
+          description: The fees evaluated for the transaction, in the order they were evaluated. Empty when recorded or available is false.
+          items:
+            $ref: "#/components/schemas/FeeItem"
+          type: array
+        recorded:
+          description: Whether the transaction has a list. False for a transaction without fees evaluated, including one created before the ledger recorded lists, one with its fees skipped, and an annotation.
+          examples:
+            - true
+          type: boolean
+        transactionId:
+          description: Transaction the list belongs to.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+      required:
+        - transactionId
+        - recorded
+        - available
+        - items
+      type: object
     TransactionInput:
       additionalProperties: false
       properties:
@@ -5506,6 +7074,158 @@ components:
         - updatedAt
         - deletedAt
       type: object
+    TransactionRouteLinkObjectV2:
+      additionalProperties: false
+      properties:
+        alias:
+          description: "Name of the link's role inside this transaction route, such as src, dst or fees: 1 to 100 letters, digits, '_' or '-', compared exactly and never shaped as a UUID. Unique among the links of the transaction route; once set it cannot change."
+          examples:
+            - src
+          maxLength: 100
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]{1,100}$
+          type: string
+        id:
+          description: Operation Route ID to link.
+          format: uuid
+          type: string
+        optional:
+          description: True links the operation route as optional, the same as listing it in optionalOperationRoutes.
+          type: boolean
+      required:
+        - id
+      type: object
+    TransactionRouteLinkV2:
+      additionalProperties: false
+      properties:
+        account:
+          $ref: "#/components/schemas/AccountRule"
+        accountingEntries:
+          $ref: "#/components/schemas/AccountingEntries"
+        alias:
+          description: Name of the operation route's role inside this transaction route, such as src, dst or fees. Absent when the link has none.
+          examples:
+            - src
+          type: string
+        code:
+          examples:
+            - EXT-001
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - This operation route handles cash-in transactions from service charge collections
+          type: string
+        id:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        ledgerId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationType:
+          examples:
+            - source
+          type: string
+        organizationId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        title:
+          examples:
+            - Cashin from service charge
+          type: string
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - createdAt
+        - updatedAt
+        - deletedAt
+      type: object
+    TransactionRouteV2:
+      additionalProperties: false
+      properties:
+        alias:
+          description: Human-readable name of the transaction route. Absent when it has none.
+          examples:
+            - pix-in
+          type: string
+        createdAt:
+          examples:
+            - "2025-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2025-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        id:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        ledgerId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            $ref: "#/components/schemas/TransactionRouteLinkV2"
+          type:
+            - array
+            - "null"
+        optionalOperationRoutes:
+          items:
+            $ref: "#/components/schemas/TransactionRouteLinkV2"
+          type:
+            - array
+            - "null"
+        organizationId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+        updatedAt:
+          examples:
+            - "2025-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - optionalOperationRoutes
+        - createdAt
+        - updatedAt
+        - deletedAt
+      type: object
     TransactionSkip:
       additionalProperties: false
       properties:
@@ -5548,9 +7268,6 @@ components:
         metadata:
           additionalProperties: {}
           type: object
-      required:
-        - description
-        - metadata
       type: object
     TransactionV2:
       additionalProperties: false
@@ -5572,6 +7289,11 @@ components:
           examples:
             - "2021-01-01T00:00:00Z"
           format: date-time
+          type: string
+        createdBy:
+          description: "The authenticated caller that created the transaction: a person's user id, or an application's client id; absent when the ledger does not record creators."
+          examples:
+            - 7f2c1e4a-0b1d-4c8e-9a53-2d6e5f1a9b30
           type: string
         credit:
           examples:
@@ -5622,7 +7344,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
-          description: "Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          description: "Additional custom attributes. The ledger writes seven fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption (including a package that priced the transaction at zero), and absent when no package applied, which includes a route whose packages all exclude the amount by their bounds, or when the applied package's fees only rounded down to zero; feeDeductedAmount is the decimal total the fees deducted from the transferred amount, written only when a deductible fee took part of it, so a caller reading a hold learns the destination receives less than requested without reading the fee package; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; feeExemption is also present, with reason zero_fee_amount, when the package priced the transaction at zero, for instance a band configured with no fee, so no fee leg was posted and feeApplied is absent; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted; billingChargeId, on the fee transaction of a billing maintenance charge, is the id of the durable charge record that posted it; feeChargeId, on the fee transaction of a service fee charge, is the id of the charge that posted it; feeDebtOriginId, on the transaction that gives back to its debtor what a later credit paid of the fee debts of a charge recorded without a transaction, written when that charge is canceled, is the id of the execution that opened those debts, which no transaction carries, and such a transaction cannot be reverted. feeApplied, packageAppliedID and feeExemption are deprecated: the fees list answers the same per fee, with what each fee amounted to and why an exempt one charged nothing; they are still written and returned as described here. A request body carrying feeApplied, packageAppliedID, feeDeductedAmount, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection, billingChargeId, feeChargeId, feeDebtOriginId or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
           type: object
         operations:
           items:
@@ -5645,8 +7367,20 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          description: Payment scheme the transaction declared, normalized to upper case; absent when none.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         status:
           $ref: "#/components/schemas/TransactionStatus"
+        subType:
+          description: SubType the transaction declared, normalized to lower case; absent when none.
+          examples:
+            - instant
+          maxLength: 50
+          type: string
         tracerSkipped:
           examples:
             - false
@@ -5737,15 +7471,7 @@ components:
             - string
             - "null"
         status:
-          $ref: "#/components/schemas/Status"
-      required:
-        - name
-        - segmentId
-        - portfolioId
-        - entityId
-        - status
-        - blocked
-        - metadata
+          $ref: "#/components/schemas/StatusRequest"
       type: object
     UpdateAccountTypeInput:
       additionalProperties: false
@@ -5765,8 +7491,6 @@ components:
           examples:
             - Current Assets
           type: string
-      required:
-        - metadata
       type: object
     UpdateAssetInput:
       additionalProperties: false
@@ -5779,11 +7503,7 @@ components:
             - Bitcoin
           type: string
         status:
-          $ref: "#/components/schemas/Status"
-      required:
-        - name
-        - status
-        - metadata
+          $ref: "#/components/schemas/StatusRequest"
       type: object
     UpdateBalance:
       additionalProperties: false
@@ -5801,16 +7521,13 @@ components:
             - boolean
             - "null"
         settings:
-          $ref: "#/components/schemas/BalanceSettings"
-      required:
-        - allowSending
-        - allowReceiving
+          $ref: "#/components/schemas/BalanceSettingsRequest"
       type: object
     UpdateHolderInput:
       additionalProperties: false
       properties:
         addresses:
-          $ref: "#/components/schemas/Addresses"
+          $ref: "#/components/schemas/AddressesRequest"
         contact:
           $ref: "#/components/schemas/Contact"
         externalId:
@@ -5834,14 +7551,6 @@ components:
             - "null"
         naturalPerson:
           $ref: "#/components/schemas/NaturalPerson"
-      required:
-        - externalId
-        - name
-        - addresses
-        - contact
-        - naturalPerson
-        - legalPerson
-        - metadata
       type: object
     UpdateInstrumentInput:
       additionalProperties: false
@@ -5859,9 +7568,6 @@ components:
           type:
             - array
             - "null"
-      required:
-        - metadata
-        - bankingDetails
       type: object
     UpdateLedgerInput:
       additionalProperties: false
@@ -5875,11 +7581,7 @@ components:
           maxLength: 256
           type: string
         status:
-          $ref: "#/components/schemas/Status"
-      required:
-        - name
-        - status
-        - metadata
+          $ref: "#/components/schemas/StatusRequest"
       type: object
     UpdateOperationRouteInput:
       additionalProperties: false
@@ -5887,7 +7589,7 @@ components:
         account:
           $ref: "#/components/schemas/AccountRule"
         accountingEntries:
-          $ref: "#/components/schemas/AccountingEntries"
+          $ref: "#/components/schemas/AccountingEntriesRequest"
         code:
           examples:
             - EXT-001
@@ -5903,14 +7605,12 @@ components:
           examples:
             - Cashin from service charge
           type: string
-      required:
-        - metadata
       type: object
     UpdateOrganizationInput:
       additionalProperties: false
       properties:
         address:
-          $ref: "#/components/schemas/Address"
+          $ref: "#/components/schemas/AddressRequest"
         doingBusinessAs:
           examples:
             - Lerian Group
@@ -5932,14 +7632,7 @@ components:
             - string
             - "null"
         status:
-          $ref: "#/components/schemas/Status"
-      required:
-        - legalName
-        - parentOrganizationId
-        - doingBusinessAs
-        - address
-        - status
-        - metadata
+          $ref: "#/components/schemas/StatusRequest"
       type: object
     UpdatePortfolioInput:
       additionalProperties: false
@@ -5956,12 +7649,7 @@ components:
             - My Portfolio Updated
           type: string
         status:
-          $ref: "#/components/schemas/Status"
-      required:
-        - entityId
-        - name
-        - status
-        - metadata
+          $ref: "#/components/schemas/StatusRequest"
       type: object
     UpdateSegmentInput:
       additionalProperties: false
@@ -5974,11 +7662,7 @@ components:
             - My Segment Updated
           type: string
         status:
-          $ref: "#/components/schemas/Status"
-      required:
-        - name
-        - status
-        - metadata
+          $ref: "#/components/schemas/StatusRequest"
       type: object
     UpdateTransactionRouteInput:
       additionalProperties: false
@@ -5999,8 +7683,48 @@ components:
           examples:
             - Charge Settlement
           type: string
-      required:
-        - metadata
+      type: object
+    UpdateTransactionRouteInputV2:
+      additionalProperties: false
+      properties:
+        alias:
+          description: "Names a transaction route that has none, under the same rules as on create. Omit it to keep the alias as it is. Once set, an alias cannot change or be removed: a different value or null is refused."
+          examples:
+            - pix-in
+          maxLength: 100
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]{1,100}$
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            description: An Operation Route ID, or an object that links the operation route with an alias and its optionality.
+            oneOf:
+              - format: uuid
+                type: string
+              - $ref: "#/components/schemas/TransactionRouteLinkObjectV2"
+          type:
+            - array
+            - "null"
+        optionalOperationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        title:
+          examples:
+            - Charge Settlement
+          type: string
       type: object
     Upstream:
       additionalProperties: false
@@ -6040,6 +7764,18 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          description: Optional flat key-value attributes stored on the operation this leg produces. Keys up to 100 bytes, values up to 2000 bytes, no nested objects or arrays. The fee keys the ledger reserves, such as feeLeg and feeDeferPair, are refused with 400 (code 0512).
+          type: object
+        operationRouteAlias:
+          description: Optional alias of this leg's operation route link in the transaction route, the alternative to the leg's operationRouteId. It overrides the request-level operation route for this leg and is resolved inside the transaction route named by routeId or routeAlias, which is then required. Send operationRouteId or operationRouteAlias, not both.
+          examples:
+            - dst
+          maxLength: 100
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]{1,100}$
           type: string
         operationRouteId:
           examples:
@@ -6085,6 +7821,12 @@ components:
       scheme: bearer
       type: http
 info:
+  contact:
+    email: contact@lerian.studio
+    name: Lerian Studio
+    url: https://lerian.studio
+  license:
+    name: Lerian Studio General License
   title: Midaz Ledger API
   version: 4.0.0
 openapi: 3.1.0
@@ -20019,6 +21761,8 @@ servers:
   - url: /
 tags:
   - name: Account Block Exceptions (v2)
+  - name: Account Plan Assignments (v2)
+  - name: Account Plans (v2)
   - name: Account Types (v1)
   - name: Account Types (v2)
   - name: Accounts (v1)
@@ -20029,11 +21773,14 @@ tags:
   - name: Balances (v1)
   - name: Balances (v2)
   - name: Billing Calculate (v2)
+  - name: Billing Charge (v2)
   - name: Billing Packages (v2)
   - name: Composition (v2)
   - name: Dashboard (v1)
   - name: Dashboard (v2)
   - name: Encryption (v2)
+  - name: Fee Charges (v2)
+  - name: Fee Debts (v2)
   - name: Fees (v2)
   - name: Holders (v2)
   - name: Instruments (v2)
@@ -20078,15 +21825,20 @@ x-tagGroups:
   - name: V2
     tags:
       - Account Block Exceptions (v2)
+      - Account Plan Assignments (v2)
+      - Account Plans (v2)
       - Account Types (v2)
       - Accounts (v2)
       - Assets (v2)
       - Balances (v2)
       - Billing Calculate (v2)
+      - Billing Charge (v2)
       - Billing Packages (v2)
       - Composition (v2)
       - Dashboard (v2)
       - Encryption (v2)
+      - Fee Charges (v2)
+      - Fee Debts (v2)
       - Fees (v2)
       - Holders (v2)
       - Instruments (v2)

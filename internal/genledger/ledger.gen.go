@@ -109,6 +109,30 @@ func (e FeeAccountPlanFeeReferenceAmount) Valid() bool {
 	}
 }
 
+// Defines values for FeeAccountPlanFeeOutcomeOutcome.
+const (
+	FeeAccountPlanFeeOutcomeOutcomeCharged    FeeAccountPlanFeeOutcomeOutcome = "charged"
+	FeeAccountPlanFeeOutcomeOutcomeNoMatch    FeeAccountPlanFeeOutcomeOutcome = "no_match"
+	FeeAccountPlanFeeOutcomeOutcomeNotCovered FeeAccountPlanFeeOutcomeOutcome = "not_covered"
+	FeeAccountPlanFeeOutcomeOutcomeQuota      FeeAccountPlanFeeOutcomeOutcome = "quota"
+)
+
+// Valid indicates whether the value is a known member of the FeeAccountPlanFeeOutcomeOutcome enum.
+func (e FeeAccountPlanFeeOutcomeOutcome) Valid() bool {
+	switch e {
+	case FeeAccountPlanFeeOutcomeOutcomeCharged:
+		return true
+	case FeeAccountPlanFeeOutcomeOutcomeNoMatch:
+		return true
+	case FeeAccountPlanFeeOutcomeOutcomeNotCovered:
+		return true
+	case FeeAccountPlanFeeOutcomeOutcomeQuota:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeeAccountPlanTriggerDirection.
 const (
 	FeeAccountPlanTriggerDirectionReceived FeeAccountPlanTriggerDirection = "received"
@@ -181,6 +205,78 @@ func (e FeeAccountPlanTriggerInputType) Valid() bool {
 	}
 }
 
+// Defines values for FeeItemOutcome.
+const (
+	FeeItemOutcomeCharged  FeeItemOutcome = "charged"
+	FeeItemOutcomeExempt   FeeItemOutcome = "exempt"
+	FeeItemOutcomeQuota    FeeItemOutcome = "quota"
+	FeeItemOutcomeReleased FeeItemOutcome = "released"
+	FeeItemOutcomeReversed FeeItemOutcome = "reversed"
+)
+
+// Valid indicates whether the value is a known member of the FeeItemOutcome enum.
+func (e FeeItemOutcome) Valid() bool {
+	switch e {
+	case FeeItemOutcomeCharged:
+		return true
+	case FeeItemOutcomeExempt:
+		return true
+	case FeeItemOutcomeQuota:
+		return true
+	case FeeItemOutcomeReleased:
+		return true
+	case FeeItemOutcomeReversed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeeItemReason.
+const (
+	AllAccountsExempt            FeeItemReason = "all_accounts_exempt"
+	AllDestinationAccountsExempt FeeItemReason = "all_destination_accounts_exempt"
+	AllSourceAccountsExempt      FeeItemReason = "all_source_accounts_exempt"
+	CrossLedgerBridge            FeeItemReason = "cross_ledger_bridge"
+	ZeroFeeAmount                FeeItemReason = "zero_fee_amount"
+)
+
+// Valid indicates whether the value is a known member of the FeeItemReason enum.
+func (e FeeItemReason) Valid() bool {
+	switch e {
+	case AllAccountsExempt:
+		return true
+	case AllDestinationAccountsExempt:
+		return true
+	case AllSourceAccountsExempt:
+		return true
+	case CrossLedgerBridge:
+		return true
+	case ZeroFeeAmount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeeItemSource.
+const (
+	AccountPlan FeeItemSource = "account_plan"
+	Package     FeeItemSource = "package"
+)
+
+// Valid indicates whether the value is a known member of the FeeItemSource enum.
+func (e FeeItemSource) Valid() bool {
+	switch e {
+	case AccountPlan:
+		return true
+	case Package:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeeRoundingMode.
 const (
 	Floor  FeeRoundingMode = "floor"
@@ -231,25 +327,52 @@ func (e RegulatoryFieldsAccountType) Valid() bool {
 
 // Defines values for StatusCode.
 const (
-	ACTIVE    StatusCode = "ACTIVE"
-	DELETED   StatusCode = "DELETED"
-	INACTIVE  StatusCode = "INACTIVE"
-	PENDING   StatusCode = "PENDING"
-	SUSPENDED StatusCode = "SUSPENDED"
+	StatusCodeACTIVE    StatusCode = "ACTIVE"
+	StatusCodeDELETED   StatusCode = "DELETED"
+	StatusCodeINACTIVE  StatusCode = "INACTIVE"
+	StatusCodePENDING   StatusCode = "PENDING"
+	StatusCodeSUSPENDED StatusCode = "SUSPENDED"
 )
 
 // Valid indicates whether the value is a known member of the StatusCode enum.
 func (e StatusCode) Valid() bool {
 	switch e {
-	case ACTIVE:
+	case StatusCodeACTIVE:
 		return true
-	case DELETED:
+	case StatusCodeDELETED:
 		return true
-	case INACTIVE:
+	case StatusCodeINACTIVE:
 		return true
-	case PENDING:
+	case StatusCodePENDING:
 		return true
-	case SUSPENDED:
+	case StatusCodeSUSPENDED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StatusRequestCode.
+const (
+	StatusRequestCodeACTIVE    StatusRequestCode = "ACTIVE"
+	StatusRequestCodeDELETED   StatusRequestCode = "DELETED"
+	StatusRequestCodeINACTIVE  StatusRequestCode = "INACTIVE"
+	StatusRequestCodePENDING   StatusRequestCode = "PENDING"
+	StatusRequestCodeSUSPENDED StatusRequestCode = "SUSPENDED"
+)
+
+// Valid indicates whether the value is a known member of the StatusRequestCode enum.
+func (e StatusRequestCode) Valid() bool {
+	switch e {
+	case StatusRequestCodeACTIVE:
+		return true
+	case StatusRequestCodeDELETED:
+		return true
+	case StatusRequestCodeINACTIVE:
+		return true
+	case StatusRequestCodePENDING:
+		return true
+	case StatusRequestCodeSUSPENDED:
 		return true
 	default:
 		return false
@@ -389,10 +512,29 @@ type AccountingEntries struct {
 	Unblock     *AccountingEntry `json:"unblock,omitempty"`
 }
 
+// AccountingEntriesRequest defines model for AccountingEntriesRequest.
+type AccountingEntriesRequest struct {
+	Block       *AccountingEntryRequest `json:"block,omitempty"`
+	Cancel      *AccountingEntryRequest `json:"cancel,omitempty"`
+	Commit      *AccountingEntryRequest `json:"commit,omitempty"`
+	CrossLedger *AccountingEntryRequest `json:"crossLedger,omitempty"`
+	Direct      *AccountingEntryRequest `json:"direct,omitempty"`
+	Hold        *AccountingEntryRequest `json:"hold,omitempty"`
+	Overdraft   *AccountingEntryRequest `json:"overdraft,omitempty"`
+	Revert      *AccountingEntryRequest `json:"revert,omitempty"`
+	Unblock     *AccountingEntryRequest `json:"unblock,omitempty"`
+}
+
 // AccountingEntry defines model for AccountingEntry.
 type AccountingEntry struct {
 	Credit AccountingRubric `json:"credit"`
 	Debit  AccountingRubric `json:"debit"`
+}
+
+// AccountingEntryRequest defines model for AccountingEntryRequest.
+type AccountingEntryRequest struct {
+	Credit *AccountingRubric `json:"credit,omitempty"`
+	Debit  *AccountingRubric `json:"debit,omitempty"`
 }
 
 // AccountingRubric defines model for AccountingRubric.
@@ -426,6 +568,17 @@ type Address struct {
 	ZipCode     string  `json:"zipCode"`
 }
 
+// AddressRequest defines model for AddressRequest.
+type AddressRequest struct {
+	City        *string `json:"city,omitempty"`
+	Country     *string `json:"country,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Line1       *string `json:"line1,omitempty"`
+	Line2       *string `json:"line2,omitempty"`
+	State       *string `json:"state,omitempty"`
+	ZipCode     *string `json:"zipCode,omitempty"`
+}
+
 // Addresses defines model for Addresses.
 type Addresses struct {
 	Additional1 *Address `json:"additional1,omitempty"`
@@ -433,10 +586,17 @@ type Addresses struct {
 	Primary     *Address `json:"primary,omitempty"`
 }
 
+// AddressesRequest defines model for AddressesRequest.
+type AddressesRequest struct {
+	Additional1 *AddressRequest `json:"additional1,omitempty"`
+	Additional2 *AddressRequest `json:"additional2,omitempty"`
+	Primary     *AddressRequest `json:"primary,omitempty"`
+}
+
 // Amount defines model for Amount.
 type Amount struct {
-	Asset *string `json:"asset,omitempty"`
-	Value *string `json:"value,omitempty"`
+	Asset string `json:"asset"`
+	Value string `json:"value"`
 }
 
 // Asset defines model for Asset.
@@ -456,36 +616,43 @@ type Asset struct {
 
 // AssetRate defines model for AssetRate.
 type AssetRate struct {
-	CreatedAt      time.Time              `json:"createdAt"`
-	ExternalId     openapi_types.UUID     `json:"externalId"`
-	From           string                 `json:"from"`
-	Id             openapi_types.UUID     `json:"id"`
-	LedgerId       openapi_types.UUID     `json:"ledgerId"`
-	Metadata       map[string]interface{} `json:"metadata"`
-	OrganizationId openapi_types.UUID     `json:"organizationId"`
-	Rate           float64                `json:"rate"`
-	Scale          *float64               `json:"scale"`
-	Source         *string                `json:"source"`
-	To             string                 `json:"to"`
-	Ttl            int64                  `json:"ttl"`
-	UpdatedAt      time.Time              `json:"updatedAt"`
+	CreatedAt      time.Time               `json:"createdAt"`
+	ExternalId     openapi_types.UUID      `json:"externalId"`
+	From           string                  `json:"from"`
+	Id             openapi_types.UUID      `json:"id"`
+	LedgerId       openapi_types.UUID      `json:"ledgerId"`
+	Metadata       *map[string]interface{} `json:"metadata,omitempty"`
+	OrganizationId openapi_types.UUID      `json:"organizationId"`
+	Rate           float64                 `json:"rate"`
+	Scale          *float64                `json:"scale"`
+	Source         *string                 `json:"source"`
+	To             string                  `json:"to"`
+	Ttl            int64                   `json:"ttl"`
+	UpdatedAt      time.Time               `json:"updatedAt"`
 }
 
 // AtomicTransactionBatchV2Transaction defines model for AtomicTransactionBatchV2Transaction.
 type AtomicTransactionBatchV2Transaction struct {
-	Amount      *string             `json:"amount"`
-	AssetCode   string              `json:"assetCode"`
-	CreatedAt   time.Time           `json:"createdAt"`
+	// AccountPlanFees Account plan outcome of each source account of the transaction with an active account plan assignment, followed by each destination account whose plan has a received fee matching the transaction: the matched fee, whether the unit was free (quota), charged or matched no fee (no_match, source accounts only), its ordinal in the period and the fee charged. A received fee is deducted from what the destination account receives. Absent when no account was decided, and on every response other than a create. Deprecated: the fees list answers the same per fee; this field is still returned as described here.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	AccountPlanFees *[]FeeAccountPlanFeeOutcome `json:"accountPlanFees,omitempty"`
+	Amount          *string                     `json:"amount"`
+	AssetCode       string                      `json:"assetCode"`
+	CreatedAt       time.Time                   `json:"createdAt"`
+
+	// CreatedBy The authenticated caller that created the transaction: a person's user id, or an application's client id; absent when the ledger does not record creators.
+	CreatedBy   *string             `json:"createdBy,omitempty"`
 	Credit      *[]string           `json:"credit"`
 	Debit       *[]string           `json:"debit"`
 	DeletedAt   *time.Time          `json:"deletedAt"`
 	Description string              `json:"description"`
+	Fees        *TransactionFeesV2  `json:"fees,omitempty"`
 	FeesSkipped bool                `json:"feesSkipped"`
 	GroupId     *openapi_types.UUID `json:"groupId,omitempty"`
 	Id          openapi_types.UUID  `json:"id"`
 	LedgerId    openapi_types.UUID  `json:"ledgerId"`
 
-	// Metadata Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.
+	// Metadata Additional custom attributes. The ledger writes seven fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption (including a package that priced the transaction at zero), and absent when no package applied, which includes a route whose packages all exclude the amount by their bounds, or when the applied package's fees only rounded down to zero; feeDeductedAmount is the decimal total the fees deducted from the transferred amount, written only when a deductible fee took part of it, so a caller reading a hold learns the destination receives less than requested without reading the fee package; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; feeExemption is also present, with reason zero_fee_amount, when the package priced the transaction at zero, for instance a band configured with no fee, so no fee leg was posted and feeApplied is absent; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted; billingChargeId, on the fee transaction of a billing maintenance charge, is the id of the durable charge record that posted it; feeChargeId, on the fee transaction of a service fee charge, is the id of the charge that posted it; feeDebtOriginId, on the transaction that gives back to its debtor what a later credit paid of the fee debts of a charge recorded without a transaction, written when that charge is canceled, is the id of the execution that opened those debts, which no transaction carries, and such a transaction cannot be reverted. feeApplied, packageAppliedID and feeExemption are deprecated: the fees list answers the same per fee, with what each fee amounted to and why an exempt one charged nothing; they are still written and returned as described here. A request body carrying feeApplied, packageAppliedID, feeDeductedAmount, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection, billingChargeId, feeChargeId, feeDebtOriginId or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.
 	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
 	Operations *[]OperationV2          `json:"operations"`
 
@@ -494,9 +661,15 @@ type AtomicTransactionBatchV2Transaction struct {
 	OrganizationId      openapi_types.UUID  `json:"organizationId"`
 	ParentTransactionId *openapi_types.UUID `json:"parentTransactionId,omitempty"`
 	RouteId             *openapi_types.UUID `json:"routeId,omitempty"`
-	Status              TransactionStatus   `json:"status"`
-	TracerSkipped       bool                `json:"tracerSkipped"`
-	UpdatedAt           time.Time           `json:"updatedAt"`
+
+	// Scheme Payment scheme the transaction declared, normalized to upper case; absent when none.
+	Scheme *string           `json:"scheme,omitempty"`
+	Status TransactionStatus `json:"status"`
+
+	// SubType SubType the transaction declared, normalized to lower case; absent when none.
+	SubType       *string   `json:"subType,omitempty"`
+	TracerSkipped bool      `json:"tracerSkipped"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // AuditEventResponse defines model for AuditEventResponse.
@@ -565,12 +738,30 @@ type BalanceHistory struct {
 	Version        int64              `json:"version"`
 }
 
+// BalanceRetentionSettings defines model for BalanceRetentionSettings.
+type BalanceRetentionSettings struct {
+	DeletedRetentionDays int64 `json:"deletedRetentionDays"`
+}
+
+// BalanceRetentionSettingsInput defines model for BalanceRetentionSettingsInput.
+type BalanceRetentionSettingsInput struct {
+	DeletedRetentionDays *int64 `json:"deletedRetentionDays,omitempty"`
+}
+
 // BalanceSettings defines model for BalanceSettings.
 type BalanceSettings struct {
 	AllowOverdraft        bool    `json:"allowOverdraft"`
 	BalanceScope          *string `json:"balanceScope,omitempty"`
 	OverdraftLimit        *string `json:"overdraftLimit,omitempty"`
 	OverdraftLimitEnabled bool    `json:"overdraftLimitEnabled"`
+}
+
+// BalanceSettingsRequest defines model for BalanceSettingsRequest.
+type BalanceSettingsRequest struct {
+	AllowOverdraft        *bool   `json:"allowOverdraft,omitempty"`
+	BalanceScope          *string `json:"balanceScope,omitempty"`
+	OverdraftLimit        *string `json:"overdraftLimit,omitempty"`
+	OverdraftLimitEnabled *bool   `json:"overdraftLimitEnabled,omitempty"`
 }
 
 // BankingDetails defines model for BankingDetails.
@@ -613,58 +804,58 @@ type CreateAccountBlockExceptionsInput struct {
 
 // CreateAccountInput defines model for CreateAccountInput.
 type CreateAccountInput struct {
-	Alias           *string                `json:"alias"`
-	AssetCode       string                 `json:"assetCode"`
-	Blocked         *bool                  `json:"blocked"`
-	EntityId        *string                `json:"entityId"`
-	HolderId        *openapi_types.UUID    `json:"holderId"`
-	Metadata        map[string]interface{} `json:"metadata"`
-	Name            string                 `json:"name"`
-	ParentAccountId *openapi_types.UUID    `json:"parentAccountId"`
-	PortfolioId     *openapi_types.UUID    `json:"portfolioId"`
-	SegmentId       *openapi_types.UUID    `json:"segmentId"`
-	Skip            *AccountSkip           `json:"skip,omitempty"`
-	Status          Status                 `json:"status"`
-	Type            string                 `json:"type"`
+	Alias           *string                 `json:"alias,omitempty"`
+	AssetCode       string                  `json:"assetCode"`
+	Blocked         *bool                   `json:"blocked,omitempty"`
+	EntityId        *string                 `json:"entityId,omitempty"`
+	HolderId        *openapi_types.UUID     `json:"holderId,omitempty"`
+	Metadata        *map[string]interface{} `json:"metadata,omitempty"`
+	Name            *string                 `json:"name,omitempty"`
+	ParentAccountId *openapi_types.UUID     `json:"parentAccountId,omitempty"`
+	PortfolioId     *openapi_types.UUID     `json:"portfolioId,omitempty"`
+	SegmentId       *openapi_types.UUID     `json:"segmentId,omitempty"`
+	Skip            *AccountSkip            `json:"skip,omitempty"`
+	Status          *StatusRequest          `json:"status,omitempty"`
+	Type            string                  `json:"type"`
 }
 
 // CreateAccountTypeInput defines model for CreateAccountTypeInput.
 type CreateAccountTypeInput struct {
-	DefaultDirection *string                `json:"defaultDirection,omitempty"`
-	Description      *string                `json:"description,omitempty"`
-	KeyValue         string                 `json:"keyValue"`
-	Metadata         map[string]interface{} `json:"metadata"`
-	Name             string                 `json:"name"`
+	DefaultDirection *string                 `json:"defaultDirection,omitempty"`
+	Description      *string                 `json:"description,omitempty"`
+	KeyValue         string                  `json:"keyValue"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	Name             string                  `json:"name"`
 }
 
 // CreateAdditionalBalance defines model for CreateAdditionalBalance.
 type CreateAdditionalBalance struct {
-	AllowReceiving *bool            `json:"allowReceiving"`
-	AllowSending   *bool            `json:"allowSending"`
-	Direction      *string          `json:"direction,omitempty"`
-	Key            string           `json:"key"`
-	Settings       *BalanceSettings `json:"settings,omitempty"`
+	AllowReceiving *bool                   `json:"allowReceiving,omitempty"`
+	AllowSending   *bool                   `json:"allowSending,omitempty"`
+	Direction      *string                 `json:"direction,omitempty"`
+	Key            string                  `json:"key"`
+	Settings       *BalanceSettingsRequest `json:"settings,omitempty"`
 }
 
 // CreateAssetInput defines model for CreateAssetInput.
 type CreateAssetInput struct {
-	Code     string                 `json:"code"`
-	Metadata map[string]interface{} `json:"metadata"`
-	Name     string                 `json:"name"`
-	Status   Status                 `json:"status"`
-	Type     string                 `json:"type"`
+	Code     string                  `json:"code"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Name     string                  `json:"name"`
+	Status   *StatusRequest          `json:"status,omitempty"`
+	Type     string                  `json:"type"`
 }
 
 // CreateAssetRateInput defines model for CreateAssetRateInput.
 type CreateAssetRateInput struct {
-	ExternalId *openapi_types.UUID    `json:"externalId,omitempty"`
-	From       string                 `json:"from"`
-	Metadata   map[string]interface{} `json:"metadata"`
-	Rate       int64                  `json:"rate"`
-	Scale      *int64                 `json:"scale,omitempty"`
-	Source     *string                `json:"source,omitempty"`
-	To         string                 `json:"to"`
-	Ttl        *int64                 `json:"ttl,omitempty"`
+	ExternalId *openapi_types.UUID     `json:"externalId,omitempty"`
+	From       string                  `json:"from"`
+	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
+	Rate       int64                   `json:"rate"`
+	Scale      *int64                  `json:"scale,omitempty"`
+	Source     *string                 `json:"source,omitempty"`
+	To         string                  `json:"to"`
+	Ttl        *int64                  `json:"ttl,omitempty"`
 }
 
 // CreateAtomicTransactionBatchV2ItemRequest defines model for CreateAtomicTransactionBatchV2ItemRequest.
@@ -673,20 +864,32 @@ type CreateAtomicTransactionBatchV2ItemRequest struct {
 	AccountBlockExceptionId *openapi_types.UUID `json:"accountBlockExceptionId,omitempty"`
 
 	// Action Transaction action.
-	Action           CreateAtomicTransactionBatchV2ItemRequestAction `json:"action"`
-	Amount           string                                          `json:"amount"`
-	Asset            string                                          `json:"asset"`
-	Code             *string                                         `json:"code,omitempty"`
-	Credits          []V2LegInput                                    `json:"credits"`
-	Debits           []V2LegInput                                    `json:"debits"`
-	Description      *string                                         `json:"description,omitempty"`
-	Metadata         *map[string]interface{}                         `json:"metadata,omitempty"`
-	OperationRouteId *openapi_types.UUID                             `json:"operationRouteId,omitempty"`
+	Action      CreateAtomicTransactionBatchV2ItemRequestAction `json:"action"`
+	Amount      string                                          `json:"amount"`
+	Asset       string                                          `json:"asset"`
+	Code        *string                                         `json:"code,omitempty"`
+	Credits     []V2LegInput                                    `json:"credits"`
+	Debits      []V2LegInput                                    `json:"debits"`
+	Description *string                                         `json:"description,omitempty"`
+	Metadata    *map[string]interface{}                         `json:"metadata,omitempty"`
+
+	// OperationRouteAlias Optional alias of the operation route link in the transaction route, the alternative to operationRouteId, under the same format as routeAlias. It is resolved inside the transaction route named by routeId or routeAlias, which is then required, and legs without their own operation route inherit it. Send operationRouteId or operationRouteAlias, not both.
+	OperationRouteAlias *string             `json:"operationRouteAlias,omitempty"`
+	OperationRouteId    *openapi_types.UUID `json:"operationRouteId,omitempty"`
 
 	// Order One-based logical execution order.
-	Order   int64               `json:"order"`
-	RouteId *openapi_types.UUID `json:"routeId,omitempty"`
-	Skip    *TransactionSkip    `json:"skip,omitempty"`
+	Order int64 `json:"order"`
+
+	// RouteAlias Optional alias of the transaction route, the alternative to routeId: 1 to 100 letters, digits, '_' or '-', compared exactly and never shaped as a UUID. It is resolved to the route's UUID before the transaction is processed, so the transaction stores and answers routeId. Send routeId or routeAlias, not both.
+	RouteAlias *string             `json:"routeAlias,omitempty"`
+	RouteId    *openapi_types.UUID `json:"routeId,omitempty"`
+
+	// Scheme Optional payment scheme of the transaction, for example PIX, WIRE, CARD or CRYPTO. Any value of up to 50 letters, digits, underscores or hyphens is accepted; it is trimmed and upper-cased. CARD covers any card payment and is never the card brand.
+	Scheme *string          `json:"scheme,omitempty"`
+	Skip   *TransactionSkip `json:"skip,omitempty"`
+
+	// SubType Optional subType of the transaction, for example instant or refund. Any value of up to 50 bytes is accepted; it is trimmed and lower-cased. Limits and rules scoped by a subType apply to the transaction.
+	SubType *string `json:"subType,omitempty"`
 }
 
 // CreateAtomicTransactionBatchV2ItemRequestAction Transaction action.
@@ -706,70 +909,70 @@ type CreateAtomicTransactionBatchV2Response struct {
 
 // CreateHolderAccountInput defines model for CreateHolderAccountInput.
 type CreateHolderAccountInput struct {
-	Alias            *string                `json:"alias"`
-	AssetCode        string                 `json:"assetCode"`
-	BankingDetails   *BankingDetails        `json:"bankingDetails,omitempty"`
-	Blocked          *bool                  `json:"blocked"`
-	EntityId         *string                `json:"entityId"`
-	Metadata         map[string]interface{} `json:"metadata"`
-	Name             string                 `json:"name"`
-	ParentAccountId  *openapi_types.UUID    `json:"parentAccountId"`
-	PortfolioId      *openapi_types.UUID    `json:"portfolioId"`
-	RegulatoryFields *RegulatoryFields      `json:"regulatoryFields,omitempty"`
-	RelatedParties   *[]RelatedParty        `json:"relatedParties,omitempty"`
-	SegmentId        *openapi_types.UUID    `json:"segmentId"`
-	Skip             *AccountSkip           `json:"skip,omitempty"`
-	Status           Status                 `json:"status"`
-	Type             string                 `json:"type"`
+	Alias            *string                 `json:"alias,omitempty"`
+	AssetCode        string                  `json:"assetCode"`
+	BankingDetails   *BankingDetails         `json:"bankingDetails,omitempty"`
+	Blocked          *bool                   `json:"blocked,omitempty"`
+	EntityId         *string                 `json:"entityId,omitempty"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	Name             *string                 `json:"name,omitempty"`
+	ParentAccountId  *openapi_types.UUID     `json:"parentAccountId,omitempty"`
+	PortfolioId      *openapi_types.UUID     `json:"portfolioId,omitempty"`
+	RegulatoryFields *RegulatoryFields       `json:"regulatoryFields,omitempty"`
+	RelatedParties   *[]RelatedParty         `json:"relatedParties,omitempty"`
+	SegmentId        *openapi_types.UUID     `json:"segmentId,omitempty"`
+	Skip             *AccountSkip            `json:"skip,omitempty"`
+	Status           *StatusRequest          `json:"status,omitempty"`
+	Type             string                  `json:"type"`
 }
 
 // CreateHolderInput defines model for CreateHolderInput.
 type CreateHolderInput struct {
-	Addresses     Addresses              `json:"addresses"`
-	Contact       Contact                `json:"contact"`
-	Document      string                 `json:"document"`
-	ExternalId    *string                `json:"externalId"`
-	LegalPerson   LegalPerson            `json:"legalPerson"`
-	Metadata      map[string]interface{} `json:"metadata"`
-	Name          string                 `json:"name"`
-	NaturalPerson NaturalPerson          `json:"naturalPerson"`
-	Type          *string                `json:"type"`
+	Addresses     *AddressesRequest       `json:"addresses,omitempty"`
+	Contact       *Contact                `json:"contact,omitempty"`
+	Document      string                  `json:"document"`
+	ExternalId    *string                 `json:"externalId,omitempty"`
+	LegalPerson   *LegalPerson            `json:"legalPerson,omitempty"`
+	Metadata      *map[string]interface{} `json:"metadata,omitempty"`
+	Name          string                  `json:"name"`
+	NaturalPerson *NaturalPerson          `json:"naturalPerson,omitempty"`
+	Type          *string                 `json:"type"`
 }
 
 // CreateInstrumentInput defines model for CreateInstrumentInput.
 type CreateInstrumentInput struct {
-	AccountId        openapi_types.UUID     `json:"accountId"`
-	BankingDetails   BankingDetails         `json:"bankingDetails"`
-	LedgerId         openapi_types.UUID     `json:"ledgerId"`
-	Metadata         map[string]interface{} `json:"metadata"`
-	RegulatoryFields *RegulatoryFields      `json:"regulatoryFields,omitempty"`
-	RelatedParties   *[]RelatedParty        `json:"relatedParties,omitempty"`
+	AccountId        openapi_types.UUID      `json:"accountId"`
+	BankingDetails   *BankingDetails         `json:"bankingDetails,omitempty"`
+	LedgerId         openapi_types.UUID      `json:"ledgerId"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	RegulatoryFields *RegulatoryFields       `json:"regulatoryFields,omitempty"`
+	RelatedParties   *[]RelatedParty         `json:"relatedParties,omitempty"`
 }
 
 // CreateLedgerInput defines model for CreateLedgerInput.
 type CreateLedgerInput struct {
-	Metadata map[string]interface{} `json:"metadata"`
-	Name     string                 `json:"name"`
-	Settings *LedgerSettingsInput   `json:"settings,omitempty"`
-	Status   Status                 `json:"status"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Name     string                  `json:"name"`
+	Settings *LedgerSettingsInput    `json:"settings,omitempty"`
+	Status   *StatusRequest          `json:"status,omitempty"`
 }
 
 // CreateMetadataIndexInput defines model for CreateMetadataIndexInput.
 type CreateMetadataIndexInput struct {
 	MetadataKey string `json:"metadataKey"`
-	Sparse      *bool  `json:"sparse"`
-	Unique      bool   `json:"unique"`
+	Sparse      *bool  `json:"sparse,omitempty"`
+	Unique      *bool  `json:"unique,omitempty"`
 }
 
 // CreateOperationRouteInput defines model for CreateOperationRouteInput.
 type CreateOperationRouteInput struct {
-	Account           *AccountRule                            `json:"account,omitempty"`
-	AccountingEntries *AccountingEntries                      `json:"accountingEntries,omitempty"`
-	Code              *string                                 `json:"code,omitempty"`
-	Description       *string                                 `json:"description,omitempty"`
-	Metadata          map[string]interface{}                  `json:"metadata"`
-	OperationType     *CreateOperationRouteInputOperationType `json:"operationType,omitempty"`
-	Title             *string                                 `json:"title,omitempty"`
+	Account           *AccountRule                           `json:"account,omitempty"`
+	AccountingEntries *AccountingEntriesRequest              `json:"accountingEntries,omitempty"`
+	Code              *string                                `json:"code,omitempty"`
+	Description       *string                                `json:"description,omitempty"`
+	Metadata          *map[string]interface{}                `json:"metadata,omitempty"`
+	OperationType     CreateOperationRouteInputOperationType `json:"operationType"`
+	Title             string                                 `json:"title"`
 }
 
 // CreateOperationRouteInputOperationType defines model for CreateOperationRouteInput.OperationType.
@@ -777,77 +980,77 @@ type CreateOperationRouteInputOperationType string
 
 // CreateOrganizationInput defines model for CreateOrganizationInput.
 type CreateOrganizationInput struct {
-	Address              Address                `json:"address"`
-	DoingBusinessAs      *string                `json:"doingBusinessAs"`
-	LegalDocument        string                 `json:"legalDocument"`
-	LegalName            string                 `json:"legalName"`
-	Metadata             map[string]interface{} `json:"metadata"`
-	ParentOrganizationId *openapi_types.UUID    `json:"parentOrganizationId"`
-	Status               Status                 `json:"status"`
+	Address              *AddressRequest         `json:"address,omitempty"`
+	DoingBusinessAs      *string                 `json:"doingBusinessAs,omitempty"`
+	LegalDocument        string                  `json:"legalDocument"`
+	LegalName            string                  `json:"legalName"`
+	Metadata             *map[string]interface{} `json:"metadata,omitempty"`
+	ParentOrganizationId *openapi_types.UUID     `json:"parentOrganizationId,omitempty"`
+	Status               *StatusRequest          `json:"status,omitempty"`
 }
 
 // CreatePortfolioInput defines model for CreatePortfolioInput.
 type CreatePortfolioInput struct {
-	EntityId string                 `json:"entityId"`
-	Metadata map[string]interface{} `json:"metadata"`
-	Name     string                 `json:"name"`
-	Status   Status                 `json:"status"`
+	EntityId *string                 `json:"entityId,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Name     string                  `json:"name"`
+	Status   *StatusRequest          `json:"status,omitempty"`
 }
 
 // CreateSegmentInput defines model for CreateSegmentInput.
 type CreateSegmentInput struct {
-	Metadata map[string]interface{} `json:"metadata"`
-	Name     string                 `json:"name"`
-	Status   Status                 `json:"status"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Name     string                  `json:"name"`
+	Status   *StatusRequest          `json:"status,omitempty"`
 }
 
 // CreateTransactionInflowInput defines model for CreateTransactionInflowInput.
 type CreateTransactionInflowInput struct {
-	ChartOfAccountsGroupName *string                `json:"chartOfAccountsGroupName,omitempty"`
-	Code                     *string                `json:"code,omitempty"`
-	Description              *string                `json:"description,omitempty"`
-	Metadata                 map[string]interface{} `json:"metadata"`
-	Route                    *string                `json:"route,omitempty"`
-	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
-	Send                     SendInflow             `json:"send"`
-	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
+	ChartOfAccountsGroupName *string                 `json:"chartOfAccountsGroupName,omitempty"`
+	Code                     *string                 `json:"code,omitempty"`
+	Description              *string                 `json:"description,omitempty"`
+	Metadata                 *map[string]interface{} `json:"metadata,omitempty"`
+	Route                    *string                 `json:"route,omitempty"`
+	RouteId                  *openapi_types.UUID     `json:"routeId,omitempty"`
+	Send                     SendInflow              `json:"send"`
+	TransactionDate          *time.Time              `json:"transactionDate,omitempty"`
 }
 
 // CreateTransactionInput defines model for CreateTransactionInput.
 type CreateTransactionInput struct {
-	ChartOfAccountsGroupName *string                `json:"chartOfAccountsGroupName,omitempty"`
-	Code                     *string                `json:"code,omitempty"`
-	Description              *string                `json:"description,omitempty"`
-	Metadata                 map[string]interface{} `json:"metadata"`
-	Pending                  bool                   `json:"pending"`
-	Route                    *string                `json:"route,omitempty"`
-	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
-	Send                     Send                   `json:"send"`
-	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
+	ChartOfAccountsGroupName *string                 `json:"chartOfAccountsGroupName,omitempty"`
+	Code                     *string                 `json:"code,omitempty"`
+	Description              *string                 `json:"description,omitempty"`
+	Metadata                 *map[string]interface{} `json:"metadata,omitempty"`
+	Pending                  *bool                   `json:"pending,omitempty"`
+	Route                    *string                 `json:"route,omitempty"`
+	RouteId                  *openapi_types.UUID     `json:"routeId,omitempty"`
+	Send                     Send                    `json:"send"`
+	TransactionDate          *time.Time              `json:"transactionDate,omitempty"`
 }
 
 // CreateTransactionOutflowInput defines model for CreateTransactionOutflowInput.
 type CreateTransactionOutflowInput struct {
-	ChartOfAccountsGroupName *string                `json:"chartOfAccountsGroupName,omitempty"`
-	Code                     *string                `json:"code,omitempty"`
-	Description              *string                `json:"description,omitempty"`
-	Metadata                 map[string]interface{} `json:"metadata"`
-	Pending                  bool                   `json:"pending"`
-	Route                    *string                `json:"route,omitempty"`
-	RouteId                  *openapi_types.UUID    `json:"routeId,omitempty"`
-	Send                     SendOutflow            `json:"send"`
-	TransactionDate          *time.Time             `json:"transactionDate,omitempty"`
+	ChartOfAccountsGroupName *string                 `json:"chartOfAccountsGroupName,omitempty"`
+	Code                     *string                 `json:"code,omitempty"`
+	Description              *string                 `json:"description,omitempty"`
+	Metadata                 *map[string]interface{} `json:"metadata,omitempty"`
+	Pending                  *bool                   `json:"pending,omitempty"`
+	Route                    *string                 `json:"route,omitempty"`
+	RouteId                  *openapi_types.UUID     `json:"routeId,omitempty"`
+	Send                     SendOutflow             `json:"send"`
+	TransactionDate          *time.Time              `json:"transactionDate,omitempty"`
 }
 
 // CreateTransactionRouteInput defines model for CreateTransactionRouteInput.
 type CreateTransactionRouteInput struct {
-	Description     *string                `json:"description,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata"`
-	OperationRoutes *[]openapi_types.UUID  `json:"operationRoutes,omitempty"`
-	Title           *string                `json:"title,omitempty"`
+	Description     *string                 `json:"description,omitempty"`
+	Metadata        *map[string]interface{} `json:"metadata,omitempty"`
+	OperationRoutes *[]openapi_types.UUID   `json:"operationRoutes"`
+	Title           string                  `json:"title"`
 }
 
-// CreateTransactionV2Input Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to. The direct and hold actions accept multiple enabled ledgers and return an atomic group; block and unblock still require every leg to name the same pair. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
+// CreateTransactionV2Input Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to. The direct and hold actions accept multiple enabled ledgers and return an atomic group; block and unblock still require every leg to name the same pair. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs. `routeAlias` and `operationRouteAlias` name the routes by alias instead of `routeId` and `operationRouteId`; each level takes the ID or the alias, not both.
 type CreateTransactionV2Input struct {
 	// AccountBlockExceptionId Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.
 	AccountBlockExceptionId *openapi_types.UUID     `json:"accountBlockExceptionId,omitempty"`
@@ -858,9 +1061,21 @@ type CreateTransactionV2Input struct {
 	Debits                  []V2LegInput            `json:"debits"`
 	Description             *string                 `json:"description,omitempty"`
 	Metadata                *map[string]interface{} `json:"metadata,omitempty"`
-	OperationRouteId        *openapi_types.UUID     `json:"operationRouteId,omitempty"`
-	RouteId                 *openapi_types.UUID     `json:"routeId,omitempty"`
-	Skip                    *TransactionSkip        `json:"skip,omitempty"`
+
+	// OperationRouteAlias Optional alias of the operation route link in the transaction route, the alternative to operationRouteId, under the same format as routeAlias. It is resolved inside the transaction route named by routeId or routeAlias, which is then required, and legs without their own operation route inherit it. Send operationRouteId or operationRouteAlias, not both.
+	OperationRouteAlias *string             `json:"operationRouteAlias,omitempty"`
+	OperationRouteId    *openapi_types.UUID `json:"operationRouteId,omitempty"`
+
+	// RouteAlias Optional alias of the transaction route, the alternative to routeId: 1 to 100 letters, digits, '_' or '-', compared exactly and never shaped as a UUID. It is resolved to the route's UUID before the transaction is processed, so the transaction stores and answers routeId. Send routeId or routeAlias, not both.
+	RouteAlias *string             `json:"routeAlias,omitempty"`
+	RouteId    *openapi_types.UUID `json:"routeId,omitempty"`
+
+	// Scheme Optional payment scheme of the transaction, for example PIX, WIRE, CARD or CRYPTO. Any value of up to 50 letters, digits, underscores or hyphens is accepted; it is trimmed and upper-cased. CARD covers any card payment and is never the card brand.
+	Scheme *string          `json:"scheme,omitempty"`
+	Skip   *TransactionSkip `json:"skip,omitempty"`
+
+	// SubType Optional subType of the transaction, for example instant or refund. Any value of up to 50 bytes is accepted; it is trimmed and lower-cased. Limits and rules scoped by a subType apply to the transaction.
+	SubType *string `json:"subType,omitempty"`
 }
 
 // CrossLedgerSettings defines model for CrossLedgerSettings.
@@ -887,7 +1102,7 @@ type CrossLedgerTransactionGroupV2 struct {
 // Distribute defines model for Distribute.
 type Distribute struct {
 	Remaining *string   `json:"remaining,omitempty"`
-	To        *[]FromTo `json:"to,omitempty"`
+	To        *[]FromTo `json:"to"`
 }
 
 // Error defines model for Error.
@@ -932,12 +1147,15 @@ type ErrorDetail struct {
 type Fee struct {
 	CalculationModel FeeCalculationModel `json:"calculationModel"`
 	CreditAccount    string              `json:"creditAccount"`
-	FeeLabel         string              `json:"feeLabel"`
-	IsDeductibleFrom *bool               `json:"isDeductibleFrom"`
-	Priority         *int64              `json:"priority,omitempty"`
-	ReferenceAmount  string              `json:"referenceAmount"`
-	RouteFrom        *string             `json:"routeFrom,omitempty"`
-	RouteTo          *string             `json:"routeTo,omitempty"`
+
+	// Deferrable Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. It applies only to /v2 direct transactions; /v1 and /v2 hold/commit still refuse. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false.
+	Deferrable       *bool   `json:"deferrable,omitempty"`
+	FeeLabel         string  `json:"feeLabel"`
+	IsDeductibleFrom *bool   `json:"isDeductibleFrom"`
+	Priority         *int64  `json:"priority,omitempty"`
+	ReferenceAmount  string  `json:"referenceAmount"`
+	RouteFrom        *string `json:"routeFrom,omitempty"`
+	RouteTo          *string `json:"routeTo,omitempty"`
 }
 
 // FeeAccountPlan defines model for FeeAccountPlan.
@@ -984,6 +1202,18 @@ type FeeAccountPlanAccountingInput struct {
 	OperationRouteTo *string `json:"operationRouteTo,omitempty"`
 
 	// TransactionRoute Transaction route a transaction must carry for the fee to match, when the ledger validates routes.
+	TransactionRoute *string `json:"transactionRoute,omitempty"`
+}
+
+// FeeAccountPlanAccountingRequest defines model for FeeAccountPlanAccountingRequest.
+type FeeAccountPlanAccountingRequest struct {
+	// OperationRouteFrom Operation route of the fee debit leg. A received fee posts no debit leg of its own, since it is deducted from the receiving leg, so the route is stored but not used.
+	OperationRouteFrom *string `json:"operationRouteFrom,omitempty"`
+
+	// OperationRouteTo Operation route of the fee credit leg.
+	OperationRouteTo *string `json:"operationRouteTo,omitempty"`
+
+	// TransactionRoute Transaction route identifier the transaction routeId must equal for the fee to match.
 	TransactionRoute *string `json:"transactionRoute,omitempty"`
 }
 
@@ -1060,6 +1290,28 @@ type FeeAccountPlanFeeInput struct {
 	ReferenceAmount *string                    `json:"referenceAmount,omitempty"`
 	Trigger         FeeAccountPlanTriggerInput `json:"trigger"`
 }
+
+// FeeAccountPlanFeeOutcome defines model for FeeAccountPlanFeeOutcome.
+type FeeAccountPlanFeeOutcome struct {
+	AccountAlias       string `json:"accountAlias"`
+	AccountId          string `json:"accountId"`
+	AccountPlanId      string `json:"accountPlanId"`
+	AccountPlanVersion int64  `json:"accountPlanVersion"`
+
+	// Amount Fee charged; 0 unless outcome is charged.
+	Amount string `json:"amount"`
+
+	// FeeKey Key of the matched fee; empty when outcome is no_match.
+	FeeKey    string                          `json:"feeKey"`
+	FreeQuota int64                           `json:"freeQuota"`
+	Outcome   FeeAccountPlanFeeOutcomeOutcome `json:"outcome"`
+
+	// Unit Ordinal of the consumed unit in the period; 0 when outcome is no_match.
+	Unit int64 `json:"unit"`
+}
+
+// FeeAccountPlanFeeOutcomeOutcome defines model for FeeAccountPlanFeeOutcome.Outcome.
+type FeeAccountPlanFeeOutcomeOutcome string
 
 // FeeAccountPlanFeePatch defines model for FeeAccountPlanFeePatch.
 type FeeAccountPlanFeePatch struct {
@@ -1233,25 +1485,32 @@ type FeeBillingCalculateSummary struct {
 
 // FeeBillingCalculationResult defines model for FeeBillingCalculationResult.
 type FeeBillingCalculationResult struct {
-	BillingPackageId    string      `json:"billingPackageId"`
-	BillingPackageLabel string      `json:"billingPackageLabel"`
-	BillingType         string      `json:"billingType"`
-	Period              string      `json:"period"`
-	TotalAccounts       int64       `json:"totalAccounts"`
-	TotalCharged        int64       `json:"totalCharged"`
-	TotalNetAmount      string      `json:"totalNetAmount"`
-	TotalSkipped        int64       `json:"totalSkipped"`
-	TransactionPayload  interface{} `json:"transactionPayload"`
+	BillingPackageId    string `json:"billingPackageId"`
+	BillingPackageLabel string `json:"billingPackageLabel"`
+	BillingType         string `json:"billingType"`
+	Period              string `json:"period"`
+
+	// Timezone IANA timezone of the billing package: the period starts and ends at midnight there.
+	Timezone           string      `json:"timezone"`
+	TotalAccounts      int64       `json:"totalAccounts"`
+	TotalCharged       int64       `json:"totalCharged"`
+	TotalNetAmount     string      `json:"totalNetAmount"`
+	TotalSkipped       int64       `json:"totalSkipped"`
+	TransactionPayload interface{} `json:"transactionPayload"`
 }
 
 // FeeBillingPackage defines model for FeeBillingPackage.
 type FeeBillingPackage struct {
-	AccountTarget            *FeeAccountTarget  `json:"accountTarget,omitempty"`
-	AssetCode                *string            `json:"assetCode,omitempty"`
-	CountMode                *string            `json:"countMode,omitempty"`
-	CreatedAt                string             `json:"createdAt"`
-	CreditAccountAlias       *string            `json:"creditAccountAlias,omitempty"`
-	DebitAccountAlias        *string            `json:"debitAccountAlias,omitempty"`
+	AccountTarget      *FeeAccountTarget         `json:"accountTarget,omitempty"`
+	Accounting         *FeeAccountPlanAccounting `json:"accounting,omitempty"`
+	AssetCode          *string                   `json:"assetCode,omitempty"`
+	CountMode          *string                   `json:"countMode,omitempty"`
+	CreatedAt          string                    `json:"createdAt"`
+	CreditAccountAlias *string                   `json:"creditAccountAlias,omitempty"`
+	DebitAccountAlias  *string                   `json:"debitAccountAlias,omitempty"`
+
+	// Deferrable Maintenance packages only. Whether the share of the maintenance fee an account cannot fund becomes a fee debt, settled by the account's next credits, instead of refusing the charge of that account. A maintenance package created before the field existed reads false. Refused on a volume package.
+	Deferrable               *bool              `json:"deferrable,omitempty"`
 	DeletedAt                *string            `json:"deletedAt,omitempty"`
 	Description              *string            `json:"description,omitempty"`
 	DiscountTiers            *[]FeeDiscountTier `json:"discountTiers,omitempty"`
@@ -1266,8 +1525,11 @@ type FeeBillingPackage struct {
 	OrganizationId           string             `json:"organizationId"`
 	PricingModel             *string            `json:"pricingModel,omitempty"`
 	Tiers                    *[]FeePricingTier  `json:"tiers,omitempty"`
-	Type                     string             `json:"type"`
-	UpdatedAt                string             `json:"updatedAt"`
+
+	// Timezone IANA timezone the billing period is cut in: each day, ISO week and month starts at midnight there. Volume packages only: a maintenance package stores it but no amount or period depends on it. Every volume package of a transaction route shares one zone. Fixed at creation.
+	Timezone  string `json:"timezone"`
+	Type      string `json:"type"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 // FeeBillingPackageUpdate defines model for FeeBillingPackageUpdate.
@@ -1287,6 +1549,18 @@ type FeeCalculation struct {
 type FeeCalculationModel struct {
 	ApplicationRule string            `json:"applicationRule"`
 	Calculations    *[]FeeCalculation `json:"calculations"`
+}
+
+// FeeCalculationModelPatch defines model for FeeCalculationModelPatch.
+type FeeCalculationModelPatch struct {
+	ApplicationRule *string                `json:"applicationRule,omitempty"`
+	Calculations    *[]FeeCalculationPatch `json:"calculations,omitempty"`
+}
+
+// FeeCalculationPatch defines model for FeeCalculationPatch.
+type FeeCalculationPatch struct {
+	Type  *string `json:"type,omitempty"`
+	Value *string `json:"value,omitempty"`
 }
 
 // FeeCreateAccountPlanInput defines model for FeeCreateAccountPlanInput.
@@ -1309,38 +1583,51 @@ type FeeCreateAccountPlanInput struct {
 
 // FeeCreateBillingPackageInput defines model for FeeCreateBillingPackageInput.
 type FeeCreateBillingPackageInput struct {
-	AccountTarget            *FeeAccountTarget  `json:"accountTarget,omitempty"`
-	AssetCode                *string            `json:"assetCode,omitempty"`
-	CountMode                *string            `json:"countMode,omitempty"`
-	CreatedAt                *string            `json:"createdAt,omitempty"`
-	CreditAccountAlias       *string            `json:"creditAccountAlias,omitempty"`
-	DebitAccountAlias        *string            `json:"debitAccountAlias,omitempty"`
-	DeletedAt                *string            `json:"deletedAt,omitempty"`
-	Description              *string            `json:"description,omitempty"`
-	DiscountTiers            *[]FeeDiscountTier `json:"discountTiers,omitempty"`
-	Enable                   *bool              `json:"enable"`
-	EventFilter              *FeeEventFilter    `json:"eventFilter,omitempty"`
-	FeeAmount                *string            `json:"feeAmount,omitempty"`
-	FreeQuota                *int64             `json:"freeQuota,omitempty"`
-	Id                       *string            `json:"id,omitempty"`
-	Label                    string             `json:"label"`
-	MaintenanceCreditAccount *string            `json:"maintenanceCreditAccount,omitempty"`
-	OrganizationId           *string            `json:"organizationId,omitempty"`
-	PricingModel             *string            `json:"pricingModel,omitempty"`
-	Tiers                    *[]FeePricingTier  `json:"tiers,omitempty"`
-	Type                     string             `json:"type"`
-	UpdatedAt                *string            `json:"updatedAt,omitempty"`
+	AccountTarget      *FeeAccountTarget                `json:"accountTarget,omitempty"`
+	Accounting         *FeeAccountPlanAccountingRequest `json:"accounting,omitempty"`
+	AssetCode          *string                          `json:"assetCode,omitempty"`
+	CountMode          *string                          `json:"countMode,omitempty"`
+	CreatedAt          *string                          `json:"createdAt,omitempty"`
+	CreditAccountAlias *string                          `json:"creditAccountAlias,omitempty"`
+	DebitAccountAlias  *string                          `json:"debitAccountAlias,omitempty"`
+
+	// Deferrable Maintenance packages only. Whether the share of the maintenance fee an account cannot fund becomes a fee debt, settled by the account's next credits, instead of refusing the charge of that account. Defaults to false. Refused on a volume package.
+	Deferrable               *bool                     `json:"deferrable,omitempty"`
+	DeletedAt                *string                   `json:"deletedAt,omitempty"`
+	Description              *string                   `json:"description,omitempty"`
+	DiscountTiers            *[]FeeDiscountTierRequest `json:"discountTiers,omitempty"`
+	Enable                   *bool                     `json:"enable,omitempty"`
+	EventFilter              *FeeEventFilter           `json:"eventFilter,omitempty"`
+	FeeAmount                *string                   `json:"feeAmount,omitempty"`
+	FreeQuota                *int64                    `json:"freeQuota,omitempty"`
+	Id                       *string                   `json:"id,omitempty"`
+	Label                    string                    `json:"label"`
+	MaintenanceCreditAccount *string                   `json:"maintenanceCreditAccount,omitempty"`
+	OrganizationId           *string                   `json:"organizationId,omitempty"`
+	PricingModel             *string                   `json:"pricingModel,omitempty"`
+	Tiers                    *[]FeePricingTierRequest  `json:"tiers,omitempty"`
+
+	// Timezone IANA timezone the billing period is cut in: each day, ISO week and month starts at midnight there. Volume packages only: a maintenance package stores it but no amount or period depends on it. Fixed at creation. Every volume package of a transaction route shares one zone, set by the route's first volume package and kept after it is deleted: absent or empty takes the route's zone, or UTC on its first package; a different zone is refused.
+	Timezone  *string `json:"timezone,omitempty"`
+	Type      string  `json:"type"`
+	UpdatedAt *string `json:"updatedAt,omitempty"`
 }
 
 // FeeCreatePackageInput defines model for FeeCreatePackageInput.
 type FeeCreatePackageInput struct {
-	Description   *string        `json:"description,omitempty"`
-	Enable        *bool          `json:"enable"`
-	FeeGroupLabel string         `json:"feeGroupLabel"`
+	Description   *string `json:"description,omitempty"`
+	Enable        *bool   `json:"enable"`
+	FeeGroupLabel string  `json:"feeGroupLabel"`
+
+	// Fees Fees keyed by fee key. A key must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits) and is stored and returned verbatim; any other key is refused with 400.
 	Fees          map[string]Fee `json:"fees"`
 	MaximumAmount string         `json:"maximumAmount"`
-	MinimumAmount string         `json:"minimumAmount"`
-	SegmentId     *string        `json:"segmentId"`
+
+	// MetadataSelector Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Omit it to apply the package whatever the metadata.
+	MetadataSelector *map[string]string `json:"metadataSelector,omitempty"`
+	MinimumAmount    string             `json:"minimumAmount"`
+	Rounding         *FeeRounding       `json:"rounding,omitempty"`
+	SegmentId        *string            `json:"segmentId,omitempty"`
 
 	// TransactionRoute Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. Omit it, or send it empty, to apply the package to every payment.
 	TransactionRoute *string   `json:"transactionRoute,omitempty"`
@@ -1351,6 +1638,12 @@ type FeeCreatePackageInput struct {
 type FeeDiscountTier struct {
 	DiscountPercentage string `json:"discountPercentage"`
 	MinQuantity        int64  `json:"minQuantity"`
+}
+
+// FeeDiscountTierRequest defines model for FeeDiscountTierRequest.
+type FeeDiscountTierRequest struct {
+	DiscountPercentage *string `json:"discountPercentage,omitempty"`
+	MinQuantity        *int64  `json:"minQuantity,omitempty"`
 }
 
 // FeeEstimate defines model for FeeEstimate.
@@ -1365,6 +1658,72 @@ type FeeEventFilter struct {
 	TransactionRoute string `json:"transactionRoute"`
 }
 
+// FeeItem defines model for FeeItem.
+type FeeItem struct {
+	// AccountAlias Alias of that account. Present only when source is account_plan.
+	AccountAlias *string `json:"accountAlias,omitempty"`
+
+	// AccountId Source account the fee was evaluated for. Present only when source is account_plan.
+	AccountId *openapi_types.UUID `json:"accountId,omitempty"`
+
+	// AccountPlanId Account plan the fee belongs to. Present only when source is account_plan.
+	AccountPlanId *openapi_types.UUID `json:"accountPlanId,omitempty"`
+
+	// AccountPlanVersion Version of the account plan the fee was read from. Present only when source is account_plan.
+	AccountPlanVersion *int64 `json:"accountPlanVersion,omitempty"`
+
+	// Amount Amount of the fee; 0 when outcome is exempt or quota.
+	Amount string `json:"amount"`
+
+	// AssetCode Asset of amount, which may differ from the asset of the transaction.
+	AssetCode string `json:"assetCode"`
+
+	// Collected Share of amount the payers funded. Present only for a deferrable fee of a direct transaction.
+	Collected *string `json:"collected,omitempty"`
+
+	// Deductible Whether the fee is taken from the amount the destination receives instead of being paid on top by the source.
+	Deductible bool `json:"deductible"`
+
+	// Deferred Share of amount that became fee debt; 0 when the payers funded the whole fee. Present only for a deferrable fee of a direct transaction.
+	Deferred *string `json:"deferred,omitempty"`
+
+	// FeeDebtIds Fee debts the fee opened, one per payer left owing; empty when the payers funded the whole fee. Present only for a deferrable fee of a direct transaction.
+	FeeDebtIds *[]string `json:"feeDebtIds,omitempty"`
+
+	// FeeKey Key of the fee in the package or account plan version it was evaluated from.
+	FeeKey string `json:"feeKey"`
+
+	// FreeQuota Units per period the fee charges nothing for. Present only when source is account_plan.
+	FreeQuota *int64 `json:"freeQuota,omitempty"`
+
+	// Label Label of the fee when it was evaluated; renaming the fee later does not change it.
+	Label string `json:"label"`
+
+	// Outcome What happened to the fee.
+	Outcome FeeItemOutcome `json:"outcome"`
+
+	// PackageId Fee package the fee belongs to. Present only when source is package.
+	PackageId *openapi_types.UUID `json:"packageId,omitempty"`
+
+	// Reason Why the fee charged nothing. Present only when outcome is exempt.
+	Reason *FeeItemReason `json:"reason,omitempty"`
+
+	// Source Fee configuration the fee was evaluated from.
+	Source FeeItemSource `json:"source"`
+
+	// Unit Ordinal of the unit the transaction consumed in the period. Present only when source is account_plan.
+	Unit *int64 `json:"unit,omitempty"`
+}
+
+// FeeItemOutcome What happened to the fee.
+type FeeItemOutcome string
+
+// FeeItemReason Why the fee charged nothing. Present only when outcome is exempt.
+type FeeItemReason string
+
+// FeeItemSource Fee configuration the fee was evaluated from.
+type FeeItemSource string
+
 // FeePackage defines model for FeePackage.
 type FeePackage struct {
 	CreatedAt     time.Time      `json:"createdAt"`
@@ -1376,8 +1735,12 @@ type FeePackage struct {
 	Id            string         `json:"id"`
 	LedgerId      string         `json:"ledgerId"`
 	MaximumAmount string         `json:"maximumAmount"`
-	MinimumAmount string         `json:"minimumAmount"`
-	SegmentId     string         `json:"segmentId"`
+
+	// MetadataSelector Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Absent or empty applies the package whatever the metadata.
+	MetadataSelector *map[string]string `json:"metadataSelector,omitempty"`
+	MinimumAmount    string             `json:"minimumAmount"`
+	Rounding         *FeeRounding       `json:"rounding,omitempty"`
+	SegmentId        string             `json:"segmentId"`
 
 	// TransactionRoute Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. An absent or empty value applies the package to every payment.
 	TransactionRoute *string   `json:"transactionRoute"`
@@ -1391,6 +1754,21 @@ type FeePagination struct {
 	Limit int64       `json:"limit"`
 	Page  *int64      `json:"page,omitempty"`
 	Total int64       `json:"total"`
+}
+
+// FeePatch defines model for FeePatch.
+type FeePatch struct {
+	CalculationModel *FeeCalculationModelPatch `json:"calculationModel,omitempty"`
+	CreditAccount    *string                   `json:"creditAccount,omitempty"`
+
+	// Deferrable Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. It applies only to /v2 direct transactions; /v1 and /v2 hold/commit still refuse. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false.
+	Deferrable       *bool   `json:"deferrable,omitempty"`
+	FeeLabel         *string `json:"feeLabel,omitempty"`
+	IsDeductibleFrom *bool   `json:"isDeductibleFrom,omitempty"`
+	Priority         *int64  `json:"priority,omitempty"`
+	ReferenceAmount  *string `json:"referenceAmount,omitempty"`
+	RouteFrom        *string `json:"routeFrom,omitempty"`
+	RouteTo          *string `json:"routeTo,omitempty"`
 }
 
 // FeePatchAccountPlanInput defines model for FeePatchAccountPlanInput.
@@ -1412,6 +1790,13 @@ type FeePatchAccountPlanInput struct {
 type FeePricingTier struct {
 	MaxQuantity *int64 `json:"maxQuantity,omitempty"`
 	MinQuantity int64  `json:"minQuantity"`
+	UnitPrice   string `json:"unitPrice"`
+}
+
+// FeePricingTierRequest defines model for FeePricingTierRequest.
+type FeePricingTierRequest struct {
+	MaxQuantity *int64 `json:"maxQuantity,omitempty"`
+	MinQuantity *int64 `json:"minQuantity,omitempty"`
 	UnitPrice   string `json:"unitPrice"`
 }
 
@@ -1441,29 +1826,32 @@ type FeeRoundingMode string
 
 // FeeUpdatePackageInput defines model for FeeUpdatePackageInput.
 type FeeUpdatePackageInput struct {
-	Description    string         `json:"description"`
-	Enable         *bool          `json:"enable,omitempty"`
-	FeeGroupLabel  string         `json:"feeGroupLabel"`
-	Fees           map[string]Fee `json:"fees"`
-	MaximumAmount  *string        `json:"maximumAmount"`
-	MinimumAmount  *string        `json:"minimumAmount"`
-	WaivedAccounts *[]string      `json:"waivedAccounts"`
+	Description   *string `json:"description,omitempty"`
+	Enable        *bool   `json:"enable,omitempty"`
+	FeeGroupLabel *string `json:"feeGroupLabel,omitempty"`
+
+	// Fees Fee patches keyed by fee key. An entry naming a stored key verbatim edits that fee, or removes it when the entry sets no field. Any other key adds a fee and must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits), or the update is refused with 400; a key equal to a stored key except for letter case is also refused with 400, and the stored key must be used, unless the same patch removes that stored key, which renames the fee (the new key must still match the grammar).
+	Fees           *map[string]FeePatch `json:"fees,omitempty"`
+	MaximumAmount  *string              `json:"maximumAmount,omitempty"`
+	MinimumAmount  *string              `json:"minimumAmount,omitempty"`
+	Rounding       *FeeRounding         `json:"rounding,omitempty"`
+	WaivedAccounts *[]string            `json:"waivedAccounts,omitempty"`
 }
 
 // FromTo defines model for FromTo.
 type FromTo struct {
-	AccountAlias    *string                `json:"accountAlias,omitempty"`
-	Amount          *Amount                `json:"amount,omitempty"`
-	BalanceKey      *string                `json:"balanceKey,omitempty"`
-	ChartOfAccounts string                 `json:"chartOfAccounts"`
-	Description     *string                `json:"description,omitempty"`
-	IsFrom          *bool                  `json:"isFrom,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata"`
-	Rate            *Rate                  `json:"rate,omitempty"`
-	Remaining       *string                `json:"remaining,omitempty"`
-	Route           *string                `json:"route,omitempty"`
-	RouteId         *openapi_types.UUID    `json:"routeId,omitempty"`
-	Share           *Share                 `json:"share,omitempty"`
+	AccountAlias    *string                 `json:"accountAlias,omitempty"`
+	Amount          *Amount                 `json:"amount,omitempty"`
+	BalanceKey      *string                 `json:"balanceKey,omitempty"`
+	ChartOfAccounts *string                 `json:"chartOfAccounts,omitempty"`
+	Description     *string                 `json:"description,omitempty"`
+	IsFrom          *bool                   `json:"isFrom,omitempty"`
+	Metadata        *map[string]interface{} `json:"metadata,omitempty"`
+	Rate            *Rate                   `json:"rate,omitempty"`
+	Remaining       *string                 `json:"remaining,omitempty"`
+	Route           *string                 `json:"route,omitempty"`
+	RouteId         *openapi_types.UUID     `json:"routeId,omitempty"`
+	Share           *Share                  `json:"share,omitempty"`
 }
 
 // Holder defines model for Holder.
@@ -1583,18 +1971,20 @@ type LedgerDashboardVolumePoint struct {
 
 // LedgerSettings defines model for LedgerSettings.
 type LedgerSettings struct {
-	Accounting  AccountingValidation `json:"accounting"`
-	CrossLedger CrossLedgerSettings  `json:"crossLedger"`
-	Overrides   OverridePolicy       `json:"overrides"`
-	Tracer      TracerSettings       `json:"tracer"`
+	Accounting  AccountingValidation     `json:"accounting"`
+	Balances    BalanceRetentionSettings `json:"balances"`
+	CrossLedger CrossLedgerSettings      `json:"crossLedger"`
+	Overrides   OverridePolicy           `json:"overrides"`
+	Tracer      TracerSettings           `json:"tracer"`
 }
 
 // LedgerSettingsInput defines model for LedgerSettingsInput.
 type LedgerSettingsInput struct {
-	Accounting  *AccountingValidationInput `json:"accounting,omitempty"`
-	CrossLedger *CrossLedgerSettingsInput  `json:"crossLedger,omitempty"`
-	Overrides   *OverridePolicyInput       `json:"overrides,omitempty"`
-	Tracer      *TracerSettingsInput       `json:"tracer,omitempty"`
+	Accounting  *AccountingValidationInput     `json:"accounting,omitempty"`
+	Balances    *BalanceRetentionSettingsInput `json:"balances,omitempty"`
+	CrossLedger *CrossLedgerSettingsInput      `json:"crossLedger,omitempty"`
+	Overrides   *OverridePolicyInput           `json:"overrides,omitempty"`
+	Tracer      *TracerSettingsInput           `json:"tracer,omitempty"`
 }
 
 // LegacyError defines model for LegacyError.
@@ -1733,8 +2123,8 @@ type OperationStatus struct {
 
 // OperationUpdateOperationInput defines model for OperationUpdateOperationInput.
 type OperationUpdateOperationInput struct {
-	Description string                 `json:"description"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	Description *string                 `json:"description,omitempty"`
+	Metadata    *map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // OperationV2 defines model for OperationV2.
@@ -1755,7 +2145,7 @@ type OperationV2 struct {
 	Id              openapi_types.UUID `json:"id"`
 	LedgerId        openapi_types.UUID `json:"ledgerId"`
 
-	// Metadata Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries the key is refused rather than silently stripped. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys on an operation are returned as sent on a transaction no fee package was applied to; once a package is applied the engine rebuilds every movement of both sides, including when it prices the transaction at zero because every account is exempt, and the rebuilt movements carry only the ledger keys, so do not rely on a per-movement caller reference surviving a payment a fee package was applied to.
+	// Metadata Additional custom attributes. The ledger reserves the feeLeg and feeDeferPair keys on this field and writes them itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries either key is refused rather than silently stripped; feeDeferPair carries the same token on the payer and fee operations of one deferrable fee. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Keys the caller sent on a debit or credit leg are returned as sent on that leg's operation, also when a fee package was applied, including a package that prices the transaction at zero or defers its fee; the fee engine marks only the movements it creates. The release and credit-back rows of a cancel, and the reversal rows of an estorno, keep feeLeg: read the operation type and the transaction status to tell a charge from its undo.
 	Metadata         map[string]interface{} `json:"metadata"`
 	OrganizationId   openapi_types.UUID     `json:"organizationId"`
 	RouteCode        *string                `json:"routeCode,omitempty"`
@@ -1843,10 +2233,10 @@ type ProvisioningStatusResponse struct {
 
 // Rate defines model for Rate.
 type Rate struct {
-	ExternalId string `json:"externalId"`
-	From       string `json:"from"`
-	To         string `json:"to"`
-	Value      string `json:"value"`
+	ExternalId string  `json:"externalId"`
+	From       string  `json:"from"`
+	To         string  `json:"to"`
+	Value      *string `json:"value,omitempty"`
 }
 
 // RegulatoryFields defines model for RegulatoryFields.
@@ -1892,35 +2282,35 @@ type Segment struct {
 
 // Send defines model for Send.
 type Send struct {
-	Asset      *string     `json:"asset,omitempty"`
-	Distribute *Distribute `json:"distribute,omitempty"`
-	Source     *Source     `json:"source,omitempty"`
-	Value      *string     `json:"value,omitempty"`
+	Asset      string     `json:"asset"`
+	Distribute Distribute `json:"distribute"`
+	Source     Source     `json:"source"`
+	Value      string     `json:"value"`
 }
 
 // SendInflow defines model for SendInflow.
 type SendInflow struct {
-	Asset      *string     `json:"asset,omitempty"`
-	Distribute *Distribute `json:"distribute,omitempty"`
-	Value      *string     `json:"value,omitempty"`
+	Asset      string     `json:"asset"`
+	Distribute Distribute `json:"distribute"`
+	Value      string     `json:"value"`
 }
 
 // SendOutflow defines model for SendOutflow.
 type SendOutflow struct {
-	Asset  *string `json:"asset,omitempty"`
-	Source *Source `json:"source,omitempty"`
-	Value  *string `json:"value,omitempty"`
+	Asset  string `json:"asset"`
+	Source Source `json:"source"`
+	Value  string `json:"value"`
 }
 
 // Share defines model for Share.
 type Share struct {
-	Percentage             *int64 `json:"percentage,omitempty"`
+	Percentage             int64  `json:"percentage"`
 	PercentageOfPercentage *int64 `json:"percentageOfPercentage,omitempty"`
 }
 
 // Source defines model for Source.
 type Source struct {
-	From      *[]FromTo `json:"from,omitempty"`
+	From      *[]FromTo `json:"from"`
 	Remaining *string   `json:"remaining,omitempty"`
 }
 
@@ -1932,6 +2322,15 @@ type Status struct {
 
 // StatusCode defines model for Status.Code.
 type StatusCode string
+
+// StatusRequest defines model for StatusRequest.
+type StatusRequest struct {
+	Code        *StatusRequestCode `json:"code,omitempty"`
+	Description *string            `json:"description,omitempty"`
+}
+
+// StatusRequestCode defines model for StatusRequest.Code.
+type StatusRequestCode string
 
 // TracerSettings defines model for TracerSettings.
 type TracerSettings struct {
@@ -1968,6 +2367,21 @@ type Transaction struct {
 	Source                   *[]string               `json:"source"`
 	Status                   TransactionStatus       `json:"status"`
 	UpdatedAt                time.Time               `json:"updatedAt"`
+}
+
+// TransactionFeesV2 defines model for TransactionFeesV2.
+type TransactionFeesV2 struct {
+	// Available Whether the ledger could read the list. False only when it could not, so recorded false and an empty list then do not mean the transaction has no fees: retry the read.
+	Available bool `json:"available"`
+
+	// Items The fees evaluated for the transaction, in the order they were evaluated. Empty when recorded or available is false.
+	Items []FeeItem `json:"items"`
+
+	// Recorded Whether the transaction has a list. False for a transaction without fees evaluated, including one created before the ledger recorded lists, one with its fees skipped, and an annotation.
+	Recorded bool `json:"recorded"`
+
+	// TransactionId Transaction the list belongs to.
+	TransactionId openapi_types.UUID `json:"transactionId"`
 }
 
 // TransactionInput defines model for TransactionInput.
@@ -2011,15 +2425,18 @@ type TransactionStatus struct {
 
 // TransactionUpdateTransactionInput defines model for TransactionUpdateTransactionInput.
 type TransactionUpdateTransactionInput struct {
-	Description string                 `json:"description"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	Description *string                 `json:"description,omitempty"`
+	Metadata    *map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // TransactionV2 defines model for TransactionV2.
 type TransactionV2 struct {
-	Amount      *string             `json:"amount"`
-	AssetCode   string              `json:"assetCode"`
-	CreatedAt   time.Time           `json:"createdAt"`
+	Amount    *string   `json:"amount"`
+	AssetCode string    `json:"assetCode"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// CreatedBy The authenticated caller that created the transaction: a person's user id, or an application's client id; absent when the ledger does not record creators.
+	CreatedBy   *string             `json:"createdBy,omitempty"`
 	Credit      *[]string           `json:"credit"`
 	Debit       *[]string           `json:"debit"`
 	DeletedAt   *time.Time          `json:"deletedAt"`
@@ -2029,15 +2446,21 @@ type TransactionV2 struct {
 	Id          openapi_types.UUID  `json:"id"`
 	LedgerId    openapi_types.UUID  `json:"ledgerId"`
 
-	// Metadata Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.
+	// Metadata Additional custom attributes. The ledger writes seven fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption (including a package that priced the transaction at zero), and absent when no package applied, which includes a route whose packages all exclude the amount by their bounds, or when the applied package's fees only rounded down to zero; feeDeductedAmount is the decimal total the fees deducted from the transferred amount, written only when a deductible fee took part of it, so a caller reading a hold learns the destination receives less than requested without reading the fee package; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; feeExemption is also present, with reason zero_fee_amount, when the package priced the transaction at zero, for instance a band configured with no fee, so no fee leg was posted and feeApplied is absent; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted; billingChargeId, on the fee transaction of a billing maintenance charge, is the id of the durable charge record that posted it; feeChargeId, on the fee transaction of a service fee charge, is the id of the charge that posted it; feeDebtOriginId, on the transaction that gives back to its debtor what a later credit paid of the fee debts of a charge recorded without a transaction, written when that charge is canceled, is the id of the execution that opened those debts, which no transaction carries, and such a transaction cannot be reverted. feeApplied, packageAppliedID and feeExemption are deprecated: the fees list answers the same per fee, with what each fee amounted to and why an exempt one charged nothing; they are still written and returned as described here. A request body carrying feeApplied, packageAppliedID, feeDeductedAmount, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection, billingChargeId, feeChargeId, feeDebtOriginId or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.
 	Metadata            *map[string]interface{} `json:"metadata,omitempty"`
 	Operations          *[]OperationV2          `json:"operations"`
 	OrganizationId      openapi_types.UUID      `json:"organizationId"`
 	ParentTransactionId *openapi_types.UUID     `json:"parentTransactionId,omitempty"`
 	RouteId             *openapi_types.UUID     `json:"routeId,omitempty"`
-	Status              TransactionStatus       `json:"status"`
-	TracerSkipped       bool                    `json:"tracerSkipped"`
-	UpdatedAt           time.Time               `json:"updatedAt"`
+
+	// Scheme Payment scheme the transaction declared, normalized to upper case; absent when none.
+	Scheme *string           `json:"scheme,omitempty"`
+	Status TransactionStatus `json:"status"`
+
+	// SubType SubType the transaction declared, normalized to lower case; absent when none.
+	SubType       *string   `json:"subType,omitempty"`
+	TracerSkipped bool      `json:"tracerSkipped"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // TransactionV2ListBody defines model for TransactionV2ListBody.
@@ -2051,104 +2474,104 @@ type TransactionV2ListBody struct {
 
 // UpdateAccountInput defines model for UpdateAccountInput.
 type UpdateAccountInput struct {
-	Blocked     *bool                  `json:"blocked"`
-	EntityId    *string                `json:"entityId"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	Name        string                 `json:"name"`
-	PortfolioId *openapi_types.UUID    `json:"portfolioId"`
-	SegmentId   *openapi_types.UUID    `json:"segmentId"`
-	Status      Status                 `json:"status"`
+	Blocked     *bool                   `json:"blocked,omitempty"`
+	EntityId    *string                 `json:"entityId,omitempty"`
+	Metadata    *map[string]interface{} `json:"metadata,omitempty"`
+	Name        *string                 `json:"name,omitempty"`
+	PortfolioId *openapi_types.UUID     `json:"portfolioId,omitempty"`
+	SegmentId   *openapi_types.UUID     `json:"segmentId,omitempty"`
+	Status      *StatusRequest          `json:"status,omitempty"`
 }
 
 // UpdateAccountTypeInput defines model for UpdateAccountTypeInput.
 type UpdateAccountTypeInput struct {
-	DefaultDirection *string                `json:"defaultDirection,omitempty"`
-	Description      *string                `json:"description,omitempty"`
-	Metadata         map[string]interface{} `json:"metadata"`
-	Name             *string                `json:"name,omitempty"`
+	DefaultDirection *string                 `json:"defaultDirection,omitempty"`
+	Description      *string                 `json:"description,omitempty"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	Name             *string                 `json:"name,omitempty"`
 }
 
 // UpdateAssetInput defines model for UpdateAssetInput.
 type UpdateAssetInput struct {
-	Metadata map[string]interface{} `json:"metadata"`
-	Name     string                 `json:"name"`
-	Status   Status                 `json:"status"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Name     *string                 `json:"name,omitempty"`
+	Status   *StatusRequest          `json:"status,omitempty"`
 }
 
 // UpdateBalance defines model for UpdateBalance.
 type UpdateBalance struct {
-	AllowReceiving *bool            `json:"allowReceiving"`
-	AllowSending   *bool            `json:"allowSending"`
-	Settings       *BalanceSettings `json:"settings,omitempty"`
+	AllowReceiving *bool                   `json:"allowReceiving,omitempty"`
+	AllowSending   *bool                   `json:"allowSending,omitempty"`
+	Settings       *BalanceSettingsRequest `json:"settings,omitempty"`
 }
 
 // UpdateHolderInput defines model for UpdateHolderInput.
 type UpdateHolderInput struct {
-	Addresses     Addresses              `json:"addresses"`
-	Contact       Contact                `json:"contact"`
-	ExternalId    *string                `json:"externalId"`
-	LegalPerson   LegalPerson            `json:"legalPerson"`
-	Metadata      map[string]interface{} `json:"metadata"`
-	Name          *string                `json:"name"`
-	NaturalPerson NaturalPerson          `json:"naturalPerson"`
+	Addresses     *AddressesRequest       `json:"addresses,omitempty"`
+	Contact       *Contact                `json:"contact,omitempty"`
+	ExternalId    *string                 `json:"externalId,omitempty"`
+	LegalPerson   *LegalPerson            `json:"legalPerson,omitempty"`
+	Metadata      *map[string]interface{} `json:"metadata,omitempty"`
+	Name          *string                 `json:"name,omitempty"`
+	NaturalPerson *NaturalPerson          `json:"naturalPerson,omitempty"`
 }
 
 // UpdateInstrumentInput defines model for UpdateInstrumentInput.
 type UpdateInstrumentInput struct {
-	BankingDetails   BankingDetails         `json:"bankingDetails"`
-	Metadata         map[string]interface{} `json:"metadata"`
-	RegulatoryFields *RegulatoryFields      `json:"regulatoryFields,omitempty"`
-	RelatedParties   *[]RelatedParty        `json:"relatedParties,omitempty"`
+	BankingDetails   *BankingDetails         `json:"bankingDetails,omitempty"`
+	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
+	RegulatoryFields *RegulatoryFields       `json:"regulatoryFields,omitempty"`
+	RelatedParties   *[]RelatedParty         `json:"relatedParties,omitempty"`
 }
 
 // UpdateLedgerInput defines model for UpdateLedgerInput.
 type UpdateLedgerInput struct {
-	Metadata map[string]interface{} `json:"metadata"`
-	Name     string                 `json:"name"`
-	Status   Status                 `json:"status"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Name     *string                 `json:"name,omitempty"`
+	Status   *StatusRequest          `json:"status,omitempty"`
 }
 
 // UpdateOperationRouteInput defines model for UpdateOperationRouteInput.
 type UpdateOperationRouteInput struct {
-	Account           *AccountRule           `json:"account,omitempty"`
-	AccountingEntries *AccountingEntries     `json:"accountingEntries,omitempty"`
-	Code              *string                `json:"code,omitempty"`
-	Description       *string                `json:"description,omitempty"`
-	Metadata          map[string]interface{} `json:"metadata"`
-	Title             *string                `json:"title,omitempty"`
+	Account           *AccountRule              `json:"account,omitempty"`
+	AccountingEntries *AccountingEntriesRequest `json:"accountingEntries,omitempty"`
+	Code              *string                   `json:"code,omitempty"`
+	Description       *string                   `json:"description,omitempty"`
+	Metadata          *map[string]interface{}   `json:"metadata,omitempty"`
+	Title             *string                   `json:"title,omitempty"`
 }
 
 // UpdateOrganizationInput defines model for UpdateOrganizationInput.
 type UpdateOrganizationInput struct {
-	Address              Address                `json:"address"`
-	DoingBusinessAs      *string                `json:"doingBusinessAs"`
-	LegalName            string                 `json:"legalName"`
-	Metadata             map[string]interface{} `json:"metadata"`
-	ParentOrganizationId *openapi_types.UUID    `json:"parentOrganizationId"`
-	Status               Status                 `json:"status"`
+	Address              *AddressRequest         `json:"address,omitempty"`
+	DoingBusinessAs      *string                 `json:"doingBusinessAs,omitempty"`
+	LegalName            *string                 `json:"legalName,omitempty"`
+	Metadata             *map[string]interface{} `json:"metadata,omitempty"`
+	ParentOrganizationId *openapi_types.UUID     `json:"parentOrganizationId,omitempty"`
+	Status               *StatusRequest          `json:"status,omitempty"`
 }
 
 // UpdatePortfolioInput defines model for UpdatePortfolioInput.
 type UpdatePortfolioInput struct {
-	EntityId string                 `json:"entityId"`
-	Metadata map[string]interface{} `json:"metadata"`
-	Name     string                 `json:"name"`
-	Status   Status                 `json:"status"`
+	EntityId *string                 `json:"entityId,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Name     *string                 `json:"name,omitempty"`
+	Status   *StatusRequest          `json:"status,omitempty"`
 }
 
 // UpdateSegmentInput defines model for UpdateSegmentInput.
 type UpdateSegmentInput struct {
-	Metadata map[string]interface{} `json:"metadata"`
-	Name     string                 `json:"name"`
-	Status   Status                 `json:"status"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Name     *string                 `json:"name,omitempty"`
+	Status   *StatusRequest          `json:"status,omitempty"`
 }
 
 // UpdateTransactionRouteInput defines model for UpdateTransactionRouteInput.
 type UpdateTransactionRouteInput struct {
-	Description     *string                `json:"description,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata"`
-	OperationRoutes *[]openapi_types.UUID  `json:"operationRoutes,omitempty"`
-	Title           *string                `json:"title,omitempty"`
+	Description     *string                 `json:"description,omitempty"`
+	Metadata        *map[string]interface{} `json:"metadata,omitempty"`
+	OperationRoutes *[]openapi_types.UUID   `json:"operationRoutes,omitempty"`
+	Title           *string                 `json:"title,omitempty"`
 }
 
 // Upstream defines model for Upstream.
@@ -2167,12 +2590,18 @@ type V2LegInput struct {
 	Amount *string `json:"amount,omitempty"`
 
 	// BalanceKey Optional balance key for this leg. When omitted, the transaction uses the account's default balance.
-	BalanceKey       *string             `json:"balanceKey,omitempty"`
-	Description      *string             `json:"description,omitempty"`
-	LedgerId         openapi_types.UUID  `json:"ledgerId"`
-	OperationRouteId *openapi_types.UUID `json:"operationRouteId,omitempty"`
-	OrganizationId   openapi_types.UUID  `json:"organizationId"`
-	Share            *V2ShareInput       `json:"share,omitempty"`
+	BalanceKey  *string            `json:"balanceKey,omitempty"`
+	Description *string            `json:"description,omitempty"`
+	LedgerId    openapi_types.UUID `json:"ledgerId"`
+
+	// Metadata Optional flat key-value attributes stored on the operation this leg produces. Keys up to 100 bytes, values up to 2000 bytes, no nested objects or arrays. The fee keys the ledger reserves, such as feeLeg and feeDeferPair, are refused with 400 (code 0512).
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+	// OperationRouteAlias Optional alias of this leg's operation route link in the transaction route, the alternative to the leg's operationRouteId. It overrides the request-level operation route for this leg and is resolved inside the transaction route named by routeId or routeAlias, which is then required. Send operationRouteId or operationRouteAlias, not both.
+	OperationRouteAlias *string             `json:"operationRouteAlias,omitempty"`
+	OperationRouteId    *openapi_types.UUID `json:"operationRouteId,omitempty"`
+	OrganizationId      openapi_types.UUID  `json:"organizationId"`
+	Share               *V2ShareInput       `json:"share,omitempty"`
 }
 
 // V2ShareInput defines model for V2ShareInput.
