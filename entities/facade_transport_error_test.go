@@ -370,10 +370,19 @@ func TestFacadeTransportError_ResponseShapes(t *testing.T) {
 	}
 }
 
-// TestFacadeTransportError_AccessManagerTokenFailure is
-// falha-do-access-manager-inalterada: when the real Access Manager token fetch
-// is refused or times out, the facade request never leaves, and the facade
-// returns the same internal error it returned before transport classification.
+// TestFacadeTransportError_AccessManagerTokenFailure pins the typed-intact
+// token path: when the real Access Manager token fetch fails and its
+// *auth.AccessManagerTokenRequestError reaches the facade, the facade request
+// never left, and the facade returns the same internal error it returned before
+// transport classification.
+//
+// The refused rows match the public behavior (falha-do-access-manager-inalterada).
+// The timeout rows do NOT: they give the token client its own timeout and leave
+// the plane client without one, which midaz.New cannot configure (both use the
+// same client and WithTimeout). Through midaz.New the plane client's timeout
+// fires during the fetch and the facade reports a timeout; see
+// TestFacadeTransport_AccessManagerTokenFailure in the root package
+// (prazo-estourado-durante-o-token).
 func TestFacadeTransportError_AccessManagerTokenFailure(t *testing.T) {
 	const (
 		orgID    = "11111111-1111-1111-1111-111111111111"
