@@ -53,7 +53,7 @@ func (f *auditEventsFacade) List(ctx context.Context, opts models.AuditEventReco
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(f.tracer.ListAuditEvents(ctx, listAuditEventRecordsParams(opts)))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {

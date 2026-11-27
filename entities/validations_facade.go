@@ -101,7 +101,7 @@ func (f *validationsFacade) List(ctx context.Context, opts models.ValidationsLis
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(f.tracer.ListValidations(ctx, listValidationsParams(opts)))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
