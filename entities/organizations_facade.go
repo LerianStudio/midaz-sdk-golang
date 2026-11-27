@@ -284,12 +284,16 @@ func validationErr(operation string, err error) error {
 //
 // Callers branch on [errors.IsNetworkError] and [errors.IsTimeoutError] to tell
 // "the ledger could not be reached" from "the SDK broke". A refused connection,
-// a reset, a DNS or TLS failure and a timeout therefore come back exactly as
+// a reset, a DNS failure and a timeout whose chain matches
+// context.DeadlineExceeded (the client timeout, a context deadline, the
+// transport's response-header timeout) therefore come back exactly as
 // [errors.ClassifyTransportError] builds them: network (503) or timeout (504),
 // Source transport, HTTPRequestSent true, and the original cause reachable
 // through errors.Is. A string-only cause whose message carries one of the
 // classifier's network fragments ("connection refused", "i/o timeout", ...)
-// also comes back as network.
+// also comes back as network. A timeout reported only through Timeout() is not
+// recognized as one: a dial timeout comes back as network, and the TLS
+// handshake timeout stays internal.
 //
 // The classifier strips the userinfo from a *url.Error in the chain in place,
 // before it classifies, so the cause of the last internal fallback below
