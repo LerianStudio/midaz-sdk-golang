@@ -801,11 +801,10 @@ func validateAccountPlanFeePatch(errs *validation.FieldErrors, prefix string, pa
 
 // MarshalJSON emits only the fields that were set, under their server wire
 // names, with keys in a stable order. A removed fee is emitted as null.
-func (input *UpdateAccountPlanInput) MarshalJSON() ([]byte, error) {
-	if input == nil {
-		return []byte("null"), nil
-	}
-
+//
+// It has a value receiver so a pointer and a value marshal to the same body;
+// encoding/json emits null for a nil *UpdateAccountPlanInput.
+func (input UpdateAccountPlanInput) MarshalJSON() ([]byte, error) {
 	payload := map[string]any{}
 
 	if input.Label != nil {

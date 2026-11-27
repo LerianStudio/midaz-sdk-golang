@@ -646,9 +646,34 @@ func TestUpdateAccountPlanInput_BuildersOnNil(t *testing.T) {
 	assert.Nil(t, input.WithFeePatch("pixIn", AccountPlanFeePatch{FreeQuota: ptr(1)}))
 	assert.Nil(t, input.WithoutFee("pixIn"))
 
-	body, err := input.MarshalJSON()
+	body, err := json.Marshal(input)
 	require.NoError(t, err)
 	assert.Equal(t, "null", string(body))
+}
+
+func TestUpdateAccountPlanInput_JSONSameByValueAndPointer(t *testing.T) {
+	input := NewUpdateAccountPlanInput().WithDescription("x").WithoutFee("b")
+
+	const want = `{"description":"x","fees":{"b":null}}`
+
+	byPointer, err := json.Marshal(input)
+	require.NoError(t, err)
+	assert.Equal(t, want, string(byPointer))
+
+	byValue, err := json.Marshal(*input)
+	require.NoError(t, err)
+	assert.Equal(t, want, string(byValue))
+
+	var held any = *input
+	inInterface, err := json.Marshal(held)
+	require.NoError(t, err)
+	assert.Equal(t, want, string(inInterface))
+
+	inStruct, err := json.Marshal(struct {
+		Body UpdateAccountPlanInput `json:"body"`
+	}{Body: *input})
+	require.NoError(t, err)
+	assert.Equal(t, `{"body":`+want+`}`, string(inStruct))
 }
 
 func TestAssignAccountPlanInput_Validate(t *testing.T) {
