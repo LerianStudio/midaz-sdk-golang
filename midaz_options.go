@@ -594,9 +594,10 @@ func WithTracerAPIKey(apiKey string) Option {
 	}
 }
 
-// WithActorRelay makes every request to the Ledger plane carry the token of the
-// partner the call is made on behalf of, in the X-Lerian-Actor header, so the
-// Ledger applies that partner's rules. It is off by default.
+// WithActorRelay makes every request sent through the typed Ledger client carry
+// the token of the partner the call is made on behalf of, in the
+// X-Lerian-Actor header, so the Ledger applies that partner's rules. It is off
+// by default.
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to
 // [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config.WithActorRelay],
@@ -604,15 +605,18 @@ func WithTracerAPIKey(apiKey string) Option {
 //
 // source is called once per Ledger request with the context of the call. When
 // it returns false, or a token that is empty or blank, no header is sent;
-// otherwise the trimmed token is set, replacing any value already on the
-// request. Retry attempts and the replay after a 401 keep the header. source
-// MUST be safe for concurrent use and cheap: it runs on every Ledger request
-// and the SDK does not wrap it in a timeout of its own.
+// otherwise the trimmed token is set; a [WithHTTPTransport] wrapper runs later
+// and a value it sets wins. Retry attempts and the replay after a 401 keep the
+// header. source MUST be safe for concurrent use and cheap. The SDK does not
+// bound it: it runs in the caller's goroutine before the request is sent, so
+// source MUST honor the ctx it receives and MUST NOT block.
 //
-// Reach: the Ledger plane only, including its default URL, the /v1 and /v2
-// facades, and the raw Ledger client returned by Entity.Planes(). The Tracer
-// plane, the Access Manager token exchange and [CRMReader] MUST NOT receive the
-// header, whatever host each one is served from. A nil source makes [New]
+// Reach: the typed Ledger client only, that is the /v1 and /v2 facades
+// (including the default Ledger URL) and the raw Ledger client returned by
+// Entity.Planes(). The Tracer plane, the Access Manager token exchange,
+// [Client.ServerVersion] and [CRMReader] do not receive the header, whatever
+// host each one is served from; a plugin that reads the embedded CRM through
+// [CRMReader] gets no partner rules from this option. A nil source makes [New]
 // return an error.
 //
 //	client, err := midaz.New(

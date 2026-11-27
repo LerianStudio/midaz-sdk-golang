@@ -478,26 +478,30 @@ func WithHTTPClient(client *http.Client) Option {
 	}
 }
 
-// WithActorRelay makes every request to the Ledger plane carry the token of the
-// partner the call is made on behalf of, in the X-Lerian-Actor header, so the
-// Ledger applies that partner's rules.
+// WithActorRelay makes every request sent through the typed Ledger client carry
+// the token of the partner the call is made on behalf of, in the
+// X-Lerian-Actor header, so the Ledger applies that partner's rules.
 //
 // source is called on every Ledger request, with the context of the call. When
 // it returns false, or a token that is empty or blank after trimming spaces, the
 // request carries no X-Lerian-Actor header. Otherwise the header is set to the
-// token without surrounding spaces, replacing any value already on the request.
+// token without surrounding spaces; a [WithHTTPTransport] wrapper runs later
+// and a value it sets wins.
 // The signature matches a context reader such as lib-commons
 // actor.TokenFromContext, which can be passed as is.
 //
 // source is called once per Ledger request, before it is sent; retry attempts
 // and the replay after a 401 reuse the header already set. Calls run
-// concurrently, so source MUST be safe for concurrent use and cheap; the SDK
-// does not wrap it in a timeout of its own.
+// concurrently, so source MUST be safe for concurrent use and cheap. The SDK
+// does not bound it: it runs in the caller's goroutine before the request is
+// sent, so source MUST honor the ctx it receives and MUST NOT block.
 //
-// Reach: the Ledger plane only, including the default Ledger URL and the raw
-// Ledger client returned by Entity.Planes(). The Tracer plane, the Access
-// Manager token exchange and the separate CRM reader MUST NOT receive the
-// header. A nil source is refused with an error.
+// Reach: the typed Ledger client only, that is the /v1 and /v2 facades
+// (including the default Ledger URL) and the raw Ledger client returned by
+// Entity.Planes(). The Tracer plane, the Access Manager token exchange, the
+// client's ServerVersion read and the separate CRM reader do not receive the
+// header; a plugin that reads the embedded CRM through the CRM reader gets no
+// partner rules from this option. A nil source is refused with an error.
 //
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
