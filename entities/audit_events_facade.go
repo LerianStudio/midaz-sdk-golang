@@ -151,7 +151,7 @@ func (f *auditEventsFacade) Verify(ctx context.Context, id string) (*models.Hash
 // ListAuditEventsParams. Every filter has a native *string slot; there is no
 // request editor.
 //
-//nolint:gocyclo,cyclop // A flat sequence of independent, optional filter guards (one per query param); complexity is the field count (18 slots), not branching logic. Any "simplification" (loop/table) would obscure the exact query-param wiring this audit-trail list depends on.
+//nolint:gocyclo,cyclop // A flat sequence of independent, optional filter guards (one per query param); complexity is one guard per filter the facade exposes, not branching logic. Any "simplification" (loop/table) would obscure the exact query-param wiring this audit-trail list depends on.
 func listAuditEventRecordsParams(opts models.AuditEventRecordsListOpts) *gentracer.ListAuditEventsParams {
 	params := &gentracer.ListAuditEventsParams{}
 
