@@ -78,9 +78,9 @@ func TestVersionGroups_MembershipMatchesServerSurface(t *testing.T) {
 			absent: []string{
 				"Holders", "Instruments", "Encryption", "Composition",
 				"ProtectionAudit", "BillingPackages", "FeePackages", "FeeEstimates",
-				"BillingCalculations",
+				"BillingCalculations", "AccountPlans",
 			},
-			absentW: "Midaz removed this family from /v1; a V1 accessor for it would 404",
+			absentW: "Midaz removed this family from, or never served it on, /v1; a V1 accessor for it would 404",
 		},
 		{
 			group: "V2",
@@ -92,6 +92,8 @@ func TestVersionGroups_MembershipMatchesServerSurface(t *testing.T) {
 				"Holders", "Instruments", "Encryption", "Composition",
 				"ProtectionAudit", "BillingPackages", "FeePackages", "FeeEstimates",
 				"BillingCalculations",
+				// Served from Midaz 4.4.0 on /v2 only.
+				"AccountPlans",
 			},
 			absent:  []string{"AssetRates"},
 			absentW: "/v2 dropped asset rates; they are V1-only",

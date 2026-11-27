@@ -161,6 +161,68 @@ components:
       required:
         - exceptions
       type: object
+    AccountPlanList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/FeeAccountPlan"
+          type:
+            - array
+            - "null"
+        limit:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        page:
+          examples:
+            - 1
+          format: int64
+          type: integer
+        total:
+          description: Number of items on this page.
+          examples:
+            - 1
+          format: int64
+          type: integer
+      required:
+        - items
+        - page
+        - limit
+        - total
+      type: object
+    AccountPlanVersionList:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/FeeAccountPlanVersion"
+          type:
+            - array
+            - "null"
+        limit:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        page:
+          examples:
+            - 1
+          format: int64
+          type: integer
+        total:
+          description: Number of items on this page.
+          examples:
+            - 2
+          format: int64
+          type: integer
+      required:
+        - items
+        - page
+        - limit
+        - total
+      type: object
     AccountRule:
       additionalProperties: false
       properties:
@@ -2176,6 +2238,627 @@ components:
         - isDeductibleFrom
         - creditAccount
       type: object
+    FeeAccountPlan:
+      additionalProperties: false
+      properties:
+        createdAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        currentVersion:
+          description: Highest version created for the plan.
+          examples:
+            - 1
+          format: int64
+          type: integer
+        deletedAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        description:
+          examples:
+            - Essential plan for individuals
+          type: string
+        enable:
+          description: Whether new accounts can be assigned to the plan. Disabling it keeps charging the accounts already assigned.
+          examples:
+            - true
+          type: boolean
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        label:
+          description: Plan name, unique among the ledger's plans that are not deleted.
+          examples:
+            - Essential PF
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        timezone:
+          description: IANA timezone the monthly free quota is counted in. Defaults to America/Sao_Paulo.
+          examples:
+            - America/Sao_Paulo
+          type: string
+        updatedAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - organizationId
+        - ledgerId
+        - label
+        - enable
+        - timezone
+        - currentVersion
+        - createdAt
+        - updatedAt
+      type: object
+    FeeAccountPlanAccounting:
+      additionalProperties: false
+      properties:
+        operationRouteFrom:
+          description: Operation route of the fee debit leg. A received fee posts no debit leg of its own, since it is deducted from the receiving leg, so the route is stored but not used.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        operationRouteTo:
+          description: Operation route of the fee credit leg.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        transactionRoute:
+          description: Transaction route identifier the transaction routeId must equal for the fee to match.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+      required:
+        - transactionRoute
+        - operationRouteFrom
+        - operationRouteTo
+      type: object
+    FeeAccountPlanAccountingInput:
+      additionalProperties: false
+      properties:
+        operationRouteFrom:
+          description: Operation route of the fee debit leg. It must be linked to the transaction route, as optional on a transaction fee. A received fee posts no debit leg of its own, since it is deducted from the receiving leg, so the route is required alike but only stored.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        operationRouteTo:
+          description: Operation route of the fee credit leg. It must be linked to the transaction route, as optional on a transaction fee.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        transactionRoute:
+          description: Transaction route a transaction must carry for the fee to match, when the ledger validates routes.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+      type: object
+    FeeAccountPlanAssignment:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          examples:
+            - "@cliente_x"
+          type: string
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        accountPlanId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        endedAt:
+          description: Instant the assignment ended; null while it is active.
+          examples:
+            - "2026-02-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        startedAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - organizationId
+        - ledgerId
+        - accountId
+        - accountAlias
+        - accountPlanId
+        - startedAt
+        - endedAt
+      type: object
+    FeeAccountPlanAssignments:
+      additionalProperties: false
+      properties:
+        active:
+          $ref: "#/components/schemas/FeeAccountPlanAssignment"
+          description: Active assignment of the account; null when it has none.
+        history:
+          description: Every assignment of the account, most recent startedAt first.
+          items:
+            $ref: "#/components/schemas/FeeAccountPlanAssignment"
+          type:
+            - array
+            - "null"
+      required:
+        - active
+        - history
+      type: object
+    FeeAccountPlanFee:
+      additionalProperties: false
+      properties:
+        accounting:
+          $ref: "#/components/schemas/FeeAccountPlanAccounting"
+          description: Routes of the fee. Required when the ledger validates accounting routes; only stored otherwise.
+        calculationModel:
+          $ref: "#/components/schemas/FeeCalculationModel"
+        creditAccount:
+          description: Alias of the ledger account that receives the fee.
+          examples:
+            - receita_tarifa_ted
+          type: string
+        deferrable:
+          description: Whether the share of a charged unit the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. On a transaction fee it applies only to /v2 direct transactions, atomic batch items included; a /v2 hold still refuses, and /v1 applies no account plan. Always false on a received fee, which is deducted from what the account receives. A version created before the field existed reads false.
+          examples:
+            - false
+          type: boolean
+        feeLabel:
+          examples:
+            - TED enviada
+          type: string
+        freeQuota:
+          description: Units per period charged nothing. Defaults to 0.
+          examples:
+            - 10
+          format: int64
+          minimum: 0
+          type: integer
+        period:
+          description: Window the free quota resets on. Only monthly is accepted.
+          enum:
+            - monthly
+          examples:
+            - monthly
+          type: string
+        referenceAmount:
+          description: "Amount the fee is calculated on. Only originalAmount is accepted: the amount the account sends on a sent fee, the amount it receives on a received fee."
+          enum:
+            - originalAmount
+          examples:
+            - originalAmount
+          type: string
+        trigger:
+          $ref: "#/components/schemas/FeeAccountPlanTrigger"
+      required:
+        - feeLabel
+        - trigger
+        - calculationModel
+        - referenceAmount
+        - creditAccount
+        - freeQuota
+        - period
+        - deferrable
+      type: object
+    FeeAccountPlanFeeInput:
+      additionalProperties: false
+      properties:
+        accounting:
+          $ref: "#/components/schemas/FeeAccountPlanAccountingInput"
+          description: Routes of the fee. Required when the ledger validates accounting routes; only stored otherwise.
+        calculationModel:
+          $ref: "#/components/schemas/FeeCalculationModel"
+        creditAccount:
+          description: Alias of the ledger account that receives the fee. It must exist in the ledger.
+          examples:
+            - receita_tarifa_ted
+          type: string
+        deferrable:
+          description: Whether the share of a charged unit the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. On a transaction fee it applies only to /v2 direct transactions, atomic batch items included; a /v2 hold still refuses, and /v1 applies no account plan. Refused on a received fee, which is deducted from what the account receives. Defaults to false.
+          examples:
+            - false
+          type:
+            - boolean
+            - "null"
+        feeLabel:
+          examples:
+            - TED enviada
+          type: string
+        freeQuota:
+          description: Units per period charged nothing. Defaults to 0.
+          examples:
+            - 10
+          format: int64
+          minimum: 0
+          type:
+            - integer
+            - "null"
+        period:
+          description: Window the free quota resets on. Only monthly is accepted, and it is the default.
+          examples:
+            - monthly
+          type: string
+        referenceAmount:
+          description: "Amount the fee is calculated on. Only originalAmount is accepted, and it is the default: the amount the account sends on a sent fee, the amount it receives on a received fee."
+          examples:
+            - originalAmount
+          type: string
+        trigger:
+          $ref: "#/components/schemas/FeeAccountPlanTriggerInput"
+      required:
+        - feeLabel
+        - trigger
+        - calculationModel
+        - creditAccount
+      type: object
+    FeeAccountPlanFeePatch:
+      additionalProperties: false
+      properties:
+        accounting:
+          $ref: "#/components/schemas/FeeAccountPlanAccountingInput"
+        calculationModel:
+          $ref: "#/components/schemas/FeeCalculationModel"
+        creditAccount:
+          examples:
+            - receita_tarifa_ted
+          type:
+            - string
+            - "null"
+        deferrable:
+          description: Whether the share of a charged unit the payer cannot fund becomes a fee debt instead of refusing the transaction, on /v2 direct transactions only. Sending it replaces the stored value; omitting it keeps it.
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        feeLabel:
+          examples:
+            - TED enviada
+          type:
+            - string
+            - "null"
+        freeQuota:
+          examples:
+            - 5
+          format: int64
+          minimum: 0
+          type:
+            - integer
+            - "null"
+        period:
+          examples:
+            - monthly
+          type:
+            - string
+            - "null"
+        referenceAmount:
+          examples:
+            - originalAmount
+          type:
+            - string
+            - "null"
+        trigger:
+          $ref: "#/components/schemas/FeeAccountPlanTriggerInput"
+      type: object
+    FeeAccountPlanFeeUsage:
+      additionalProperties: false
+      properties:
+        charged:
+          description: Units consumed in the period that were charged.
+          examples:
+            - 0
+          format: int64
+          type: integer
+        feeKey:
+          examples:
+            - tedEnviada
+          type: string
+        freeQuota:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        period:
+          $ref: "#/components/schemas/FeeQuotaUsagePeriod"
+        remaining:
+          description: Free units left in the period; never negative.
+          examples:
+            - 3
+          format: int64
+          type: integer
+        trigger:
+          description: "Opaque key of the free-quota counter the units are counted under: fee:<feeKey>:* for a transaction fee, one counter shared by every scheme the fee matches, and fee:<feeKey> for a service fee. Editing the fee, including its schemes, keeps the key; do not parse it, read feeKey instead."
+          examples:
+            - fee:tedEnviada:*
+          type: string
+        used:
+          description: Units consumed in the period, free or charged.
+          examples:
+            - 7
+          format: int64
+          type: integer
+      required:
+        - feeKey
+        - trigger
+        - period
+        - freeQuota
+        - used
+        - remaining
+        - charged
+      type: object
+    FeeAccountPlanTrigger:
+      additionalProperties: false
+      properties:
+        direction:
+          description: Side of the transaction the fee incurs on. sent charges the account that sends, on top of what it sends; received charges the account that receives, deducted from what it receives. Transaction fees only.
+          enum:
+            - sent
+            - received
+          examples:
+            - sent
+          type: string
+        metadata:
+          additionalProperties:
+            type: string
+          description: "Metadata pairs a transaction must all carry for the fee to match, each matching only a string metadata value equal to it. Each pair counts one toward fee specificity: among the fees of a plan that match one transaction, the one carrying the most pairs applies. Transaction fees only. Absent or empty matches whatever the metadata."
+          examples:
+            - channel: app
+          type: object
+        schemes:
+          description: Transaction schemes the fee matches, normalized to trimmed upper case. Empty matches any scheme, including a transaction that declares none, on the fee transaction route when the ledger validates accounting routes. When the ledger does not, a transaction fee lists at least one scheme or one metadata pair, and empty matches any scheme its metadata selector admits.
+          examples:
+            - - TED
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        serviceCode:
+          description: Service code charged through fee-charges, normalized to trimmed upper case. Required for a service trigger.
+          examples:
+            - SAQUE
+          type: string
+        type:
+          enum:
+            - transaction
+            - service
+          examples:
+            - transaction
+          type: string
+      required:
+        - type
+      type: object
+    FeeAccountPlanTriggerInput:
+      additionalProperties: false
+      properties:
+        direction:
+          description: Side of the transaction the fee incurs on. Required for a transaction fee, refused on a service fee. sent charges the account that sends, on top of what it sends; received charges the account that receives, deducted from what it receives, and cannot be deferrable.
+          enum:
+            - sent
+            - received
+          examples:
+            - sent
+          type: string
+        metadata:
+          additionalProperties:
+            type: string
+          description: "Metadata pairs a transaction must all carry for the fee to match, each matching only a string metadata value equal to it. Each pair counts one toward fee specificity: among the fees of a plan that match one transaction, the one carrying the most pairs applies. Transaction fees only, refused on a service fee. Omit it, or send an empty object, to match whatever the metadata."
+          examples:
+            - channel: app
+          type: object
+        schemes:
+          description: Transaction schemes the fee matches, normalized to trimmed upper case (^[A-Z0-9_-]{1,50}$). Transaction fees only. Omit it to match every scheme, including a transaction that declares none. When the ledger does not validate accounting routes, a transaction fee must declare at least one scheme or one metadata pair.
+          examples:
+            - - TED
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        serviceCode:
+          description: Service code charged through fee-charges, normalized like a scheme. Required for a service fee, refused on a transaction fee.
+          examples:
+            - SAQUE
+          type: string
+        type:
+          enum:
+            - transaction
+            - service
+          examples:
+            - transaction
+          type: string
+      required:
+        - type
+      type: object
+    FeeAccountPlanUsage:
+      additionalProperties: false
+      properties:
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        accountPlanId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        accountPlanVersion:
+          description: Version of the plan in effect now, whose fees and free quotas are listed.
+          examples:
+            - 1
+          format: int64
+          type: integer
+        items:
+          description: One item per fee. A transaction fee counts its free quota on a single counter shared by every scheme it matches, so it lists one item whatever schemes it declares.
+          items:
+            $ref: "#/components/schemas/FeeAccountPlanFeeUsage"
+          type:
+            - array
+            - "null"
+        period:
+          $ref: "#/components/schemas/FeeQuotaUsagePeriod"
+          description: Period the consumption is counted in.
+      required:
+        - accountId
+        - accountPlanId
+        - accountPlanVersion
+        - period
+        - items
+      type: object
+    FeeAccountPlanVersion:
+      additionalProperties: false
+      properties:
+        accountPlanId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        createdAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        effectiveFrom:
+          description: Instant from which this version applies.
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        fees:
+          additionalProperties:
+            $ref: "#/components/schemas/FeeAccountPlanFee"
+          description: Fees keyed by fee key. A key must match ^[a-z][a-zA-Z0-9]*$.
+          type: object
+        rounding:
+          $ref: "#/components/schemas/FeeRounding"
+          description: Scale and mode every fee of this version is rounded to. Absent when the version charges unrounded amounts.
+        version:
+          examples:
+            - 1
+          format: int64
+          type: integer
+      required:
+        - accountPlanId
+        - version
+        - effectiveFrom
+        - fees
+        - createdAt
+      type: object
+    FeeAccountPlanView:
+      additionalProperties: false
+      properties:
+        createdAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        currentVersion:
+          description: Highest version created for the plan.
+          examples:
+            - 1
+          format: int64
+          type: integer
+        deletedAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        description:
+          examples:
+            - Essential plan for individuals
+          type: string
+        effectiveFrom:
+          description: Instant the version in effect applies from.
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        enable:
+          description: Whether new accounts can be assigned to the plan. Disabling it keeps charging the accounts already assigned.
+          examples:
+            - true
+          type: boolean
+        fees:
+          additionalProperties:
+            $ref: "#/components/schemas/FeeAccountPlanFee"
+          description: Fees of the version in effect, keyed by fee key.
+          type: object
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        label:
+          description: Plan name, unique among the ledger's plans that are not deleted.
+          examples:
+            - Essential PF
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        rounding:
+          $ref: "#/components/schemas/FeeRounding"
+          description: Scale and mode every fee of the version in effect is rounded to. Absent when that version charges unrounded amounts.
+        timezone:
+          description: IANA timezone the monthly free quota is counted in. Defaults to America/Sao_Paulo.
+          examples:
+            - America/Sao_Paulo
+          type: string
+        updatedAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        version:
+          description: Version in effect at the instant of the read.
+          examples:
+            - 1
+          format: int64
+          type: integer
+      required:
+        - version
+        - effectiveFrom
+        - fees
+        - id
+        - organizationId
+        - ledgerId
+        - label
+        - enable
+        - timezone
+        - currentVersion
+        - createdAt
+        - updatedAt
+      type: object
     FeeAccountTarget:
       additionalProperties: false
       properties:
@@ -2196,6 +2879,18 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           type: string
+      type: object
+    FeeAssignAccountPlanInput:
+      additionalProperties: false
+      properties:
+        accountPlanId:
+          description: Account plan to assign. It must belong to the ledger of the path, not be deleted and be enabled.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+      required:
+        - accountPlanId
       type: object
     FeeBillingCalculateRequest:
       additionalProperties: false
@@ -2455,6 +3150,47 @@ components:
       required:
         - applicationRule
         - calculations
+      type: object
+    FeeCreateAccountPlanInput:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Essential plan for individuals
+          type:
+            - string
+            - "null"
+        enable:
+          description: Whether new accounts can be assigned to the plan.
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        fees:
+          additionalProperties:
+            $ref: "#/components/schemas/FeeAccountPlanFeeInput"
+          description: Fees keyed by fee key, at least one. A key must match ^[a-z][a-zA-Z0-9]*$.
+          type: object
+        label:
+          description: Plan name, unique among the ledger's plans that are not deleted.
+          examples:
+            - Essential PF
+          type: string
+        rounding:
+          $ref: "#/components/schemas/FeeRounding"
+          description: Rounds every fee this plan charges to one scale, whatever the asset. Omit it to charge unrounded amounts.
+        timezone:
+          description: IANA timezone the monthly free quota is counted in. Defaults to America/Sao_Paulo.
+          examples:
+            - America/Sao_Paulo
+          type:
+            - string
+            - "null"
+      required:
+        - label
+        - enable
+        - fees
       type: object
     FeeCreateBillingPackageInput:
       additionalProperties: false
@@ -2766,6 +3502,49 @@ components:
         - limit
         - total
       type: object
+    FeePatchAccountPlanInput:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Essential plan for individuals
+          type:
+            - string
+            - "null"
+        effectiveFrom:
+          description: RFC 3339 instant the new version applies from, only with fees or rounding. Defaults to the request instant; must not precede the effectiveFrom of the latest version.
+          examples:
+            - "2026-11-01T03:00:00Z"
+          type:
+            - string
+            - "null"
+        enable:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        fees:
+          additionalProperties:
+            $ref: "#/components/schemas/FeeAccountPlanFeePatch"
+          description: Fee patches keyed by fee key. An entry naming a stored key replaces the fields it sets on that fee, or removes the fee when it sets no field. Any other key adds a fee and must carry every required field. Sending fees or rounding creates a new plan version with the full resulting fee map.
+          type: object
+        label:
+          examples:
+            - Essential PF
+          type:
+            - string
+            - "null"
+        rounding:
+          $ref: "#/components/schemas/FeeRounding"
+          description: Replaces the stored rounding whole and creates a new plan version. Omit it to keep the stored one; an update cannot remove a stored rounding.
+        timezone:
+          examples:
+            - America/Sao_Paulo
+          type:
+            - string
+            - "null"
+      type: object
     FeePricingTier:
       additionalProperties: false
       properties:
@@ -2786,6 +3565,54 @@ components:
       required:
         - minQuantity
         - unitPrice
+      type: object
+    FeeQuotaUsagePeriod:
+      additionalProperties: false
+      properties:
+        end:
+          description: End of the period, excluded.
+          examples:
+            - "2026-11-01T03:00:00Z"
+          format: date-time
+          type: string
+        label:
+          description: Period in the YYYY-MM format.
+          examples:
+            - 2026-10
+          type: string
+        start:
+          description: Start of the period, included.
+          examples:
+            - "2026-10-01T03:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - label
+        - start
+        - end
+      type: object
+    FeeRounding:
+      additionalProperties: false
+      properties:
+        mode:
+          description: "How each fee total is rounded: floor rounds down, halfUp rounds half away from zero. Each payer's share rounds toward zero and the largest payer takes the remainder, so the shares sum to the total."
+          enum:
+            - floor
+            - halfUp
+          examples:
+            - floor
+          type: string
+        scale:
+          description: Decimal places each fee total and each payer's share is rounded to.
+          examples:
+            - 2
+          format: int32
+          maximum: 18
+          minimum: 0
+          type: integer
+      required:
+        - scale
+        - mode
       type: object
     FeeUpdatePackageInput:
       additionalProperties: false
@@ -12401,6 +13228,443 @@ paths:
       summary: Update an existing ledger
       tags:
         - Ledgers (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-plans:
+    get:
+      operationId: getAllAccountPlansV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Filter by enabled flag (true, false)
+          explode: false
+          in: query
+          name: enable
+          schema:
+            description: Filter by enabled flag (true, false)
+            type: string
+        - description: Number of items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Number of items per page (default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountPlanList"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List the account plans of a ledger
+      tags:
+        - Account Plans (v2)
+    post:
+      description: Creates a fee plan linked directly to ledger accounts, with its version 1 in effect from the instant of the creation.
+      operationId: createAccountPlanV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeeCreateAccountPlanInput"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeAccountPlanView"
+          description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create an account plan
+      tags:
+        - Account Plans (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-plans/{account_plan_id}:
+    delete:
+      description: Soft-deletes the plan. A plan still assigned to at least one account is refused with 409.
+      operationId: deleteAccountPlanV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account plan ID (UUID)
+          in: path
+          name: account_plan_id
+          required: true
+          schema:
+            description: Account plan ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account plan
+      tags:
+        - Account Plans (v2)
+    get:
+      description: Returns the plan header and the version in effect at the instant of the request.
+      operationId: getAccountPlanByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account plan ID (UUID)
+          in: path
+          name: account_plan_id
+          required: true
+          schema:
+            description: Account plan ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeAccountPlanView"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get an account plan
+      tags:
+        - Account Plans (v2)
+    patch:
+      description: label, description, enable and timezone change only the plan header. fees or rounding creates a new immutable version holding the full resulting fee map and rounding, in effect from effectiveFrom (the request instant when absent). Existing versions never change.
+      operationId: updateAccountPlanV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account plan ID (UUID)
+          in: path
+          name: account_plan_id
+          required: true
+          schema:
+            description: Account plan ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeePatchAccountPlanInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeAccountPlanView"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account plan
+      tags:
+        - Account Plans (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-plans/{account_plan_id}/accounts:
+    get:
+      description: Lists the active assignments of the account plan, ordered by startedAt.
+      operationId: listAccountPlanAccountsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account plan ID (UUID)
+          in: path
+          name: account_plan_id
+          required: true
+          schema:
+            description: Account plan ID (UUID)
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction by assignment start (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction by assignment start (asc, desc)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List the accounts assigned to an account plan
+      tags:
+        - Account Plan Assignments (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-plans/{account_plan_id}/versions:
+    get:
+      operationId: getAccountPlanVersionsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account plan ID (UUID)
+          in: path
+          name: account_plan_id
+          required: true
+          schema:
+            description: Account plan ID (UUID)
+            type: string
+        - description: Number of items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Number of items per page (default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountPlanVersionList"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List the versions of an account plan
+      tags:
+        - Account Plans (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
       operationId: listAccountTypesV2
@@ -13257,6 +14521,237 @@ paths:
       summary: Count accounts
       tags:
         - Accounts (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/account-plan:
+    delete:
+      description: Ends the active assignment of the account, which then follows the fee plans of the ledger again. An account without an active assignment answers 404 (0554).
+      operationId: unassignAccountPlanV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: End the account plan assignment of an account
+      tags:
+        - Account Plan Assignments (v2)
+    get:
+      description: Returns the active assignment of the account, or null, and every assignment it had, the active one included, most recent startedAt first. The history stays readable after the account is deleted.
+      operationId: getAccountPlanAssignmentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeAccountPlanAssignments"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get the account plan assignment of an account
+      tags:
+        - Account Plan Assignments (v2)
+    put:
+      description: Assigns the account plan to the account. An active assignment of another plan ends at the instant the new one starts, in one atomic step. Assigning the plan already active returns the active assignment unchanged. The account must exist in the ledger (404). The plan must belong to the ledger and not be deleted (404), and must be enabled (422, 0545). A concurrent assignment of the same account may answer 409 (0560) and may be retried. ledgerId in the query or the body is refused with 0235.
+      operationId: assignAccountPlanV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeeAssignAccountPlanInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeAccountPlanAssignment"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Assign an account plan to an account
+      tags:
+        - Account Plan Assignments (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/account-plan/usage:
+    get:
+      description: "Returns the free-quota consumption of the account in a period, for each fee of the version in effect now of its active account plan: the quota trigger, the period, the free quota, the units used, the free units remaining (never negative) and the units charged. It lists one item per fee: a transaction fee counts its free quota on a single counter shared by every scheme it matches. The numbers come from the same counters the fee decision reads. period (YYYY-MM, in the plan timezone) reads a past month and defaults to the current one; a malformed or future period is refused with 0082. The account must exist in the ledger (404) and have an active assignment (404, 0554). ledgerId in the query is refused with 0235."
+      operationId: getAccountPlanUsageV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Period to read, in the YYYY-MM format and the plan timezone. Defaults to the current period; a future period is refused.
+          explode: false
+          in: query
+          name: period
+          schema:
+            description: Period to read, in the YYYY-MM format and the plan timezone. Defaults to the current period; a future period is refused.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeAccountPlanUsage"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get the account plan usage of an account
+      tags:
+        - Account Plan Assignments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       operationId: getAllBalancesByAccountIDV2

@@ -69,6 +69,29 @@ type Account struct{ ... }
 type AccountContext struct{ ... }
 type AccountOperationsFilters struct{ ... }
 type AccountOperationsListOpts struct{ ... }
+type AccountPlan struct{ ... }
+type AccountPlanAccounting struct{ ... }
+type AccountPlanAccountingInput struct{ ... }
+type AccountPlanAccountsListOpts struct{ ... }
+type AccountPlanAssignment struct{ ... }
+type AccountPlanAssignments struct{ ... }
+type AccountPlanFee struct{ ... }
+type AccountPlanFeeInput struct{ ... }
+type AccountPlanFeePatch struct{ ... }
+type AccountPlanFeeUsage struct{ ... }
+type AccountPlanTrigger struct{ ... }
+type AccountPlanTriggerDirection string
+    const AccountPlanTriggerDirectionSent AccountPlanTriggerDirection = "sent" ...
+type AccountPlanTriggerInput struct{ ... }
+type AccountPlanTriggerType string
+    const AccountPlanTriggerTypeTransaction AccountPlanTriggerType = "transaction" ...
+type AccountPlanUsage struct{ ... }
+type AccountPlanUsageOpts struct{ ... }
+type AccountPlanVersion struct{ ... }
+type AccountPlanVersionsListOpts struct{ ... }
+type AccountPlanView struct{ ... }
+type AccountPlansFilters struct{ ... }
+type AccountPlansListOpts struct{ ... }
 type AccountRule struct{ ... }
 type AccountSkip struct{ ... }
 type AccountType struct{ ... }
@@ -92,6 +115,8 @@ type AssetRatesFilters struct{ ... }
 type AssetRatesListOpts struct{ ... }
 type AssetsFilters struct{ ... }
 type AssetsListOpts struct{ ... }
+type AssignAccountPlanInput struct{ ... }
+    func NewAssignAccountPlanInput(accountPlanID string) *AssignAccountPlanInput
 type AuditEvent struct{ ... }
 type AuditEventRecord struct{ ... }
 type AuditEventRecordFilters struct{ ... }
@@ -120,6 +145,8 @@ type Calculation struct{ ... }
 type Contact struct{ ... }
 type CreateAccountInput struct{ ... }
     func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput
+type CreateAccountPlanInput struct{ ... }
+    func NewCreateAccountPlanInput(label string, enable bool, fees map[string]AccountPlanFeeInput) *CreateAccountPlanInput
 type CreateAccountTypeInput struct{ ... }
     func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput
 type CreateAnnotationInput struct{ ... }
@@ -186,6 +213,9 @@ type FeeEstimateResponse struct{ ... }
 type FeeEstimateResult struct{ ... }
 type FeeEstimateTransactionInput struct{ ... }
 type FeePackage struct{ ... }
+type FeeRounding struct{ ... }
+type FeeRoundingMode string
+    const FeeRoundingModeFloor FeeRoundingMode = "floor" ...
 type FromToInput struct{ ... }
 type HashChainVerificationResult struct{ ... }
 type Holder struct{ ... }
@@ -245,6 +275,7 @@ type ProvisionEncryptionInput struct{ ... }
     func NewProvisionEncryptionInput(actor, reason string) *ProvisionEncryptionInput
 type ProvisionEncryptionResponse struct{ ... }
 type ProvisioningStatusResponse struct{ ... }
+type QuotaUsagePeriod struct{ ... }
 type Rate struct{ ... }
 type RegulatoryFields struct{ ... }
 type RelatedParty struct{ ... }
@@ -292,6 +323,8 @@ type TransactionsFilters struct{ ... }
 type TransactionsListOpts struct{ ... }
 type UpdateAccountInput struct{ ... }
     func NewUpdateAccountInput() *UpdateAccountInput
+type UpdateAccountPlanInput struct{ ... }
+    func NewUpdateAccountPlanInput() *UpdateAccountPlanInput
 type UpdateAccountTypeInput struct{ ... }
     func NewUpdateAccountTypeInput() *UpdateAccountTypeInput
 type UpdateAssetInput struct{ ... }

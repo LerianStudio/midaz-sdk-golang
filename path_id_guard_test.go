@@ -214,6 +214,13 @@ func TestEmptyPathID_RejectedAcrossFacades(t *testing.T) {
 				&models.BillingCalculateInput{})
 			return err
 		}},
+		{"account plans", "id", func(ctx context.Context, c *Client) error {
+			_, err := c.V2.AccountPlans.Get(ctx, "org-1", "led-1", "")
+			return err
+		}},
+		{"account plan assignments", "accountID", func(ctx context.Context, c *Client) error {
+			return c.V2.AccountPlans.Unassign(ctx, "org-1", "led-1", "")
+		}},
 
 		// --- Tracer surface ---
 		{"rules", "id", func(ctx context.Context, c *Client) error {

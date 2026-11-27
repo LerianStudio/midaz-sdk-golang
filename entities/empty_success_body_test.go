@@ -587,3 +587,122 @@ func TestCancelStillSynthesizesOnAnEmptyBody(t *testing.T) {
 		})
 	}
 }
+
+// accountPlanObjectReads are the six account plan operations that answer with
+// one object. They reach decodeOne through readOne (the three reads) and
+// writeJSON (the three writes); the rows pin that each one refuses a 2xx with
+// no resource and hands back a nil result rather than a zero-valued model.
+var accountPlanObjectReads = []struct {
+	name   string
+	status int
+	call   func(t *testing.T, srv *httptest.Server) (bool, error)
+}{
+	{
+		name:   "V2.AccountPlans.Create",
+		status: http.StatusCreated,
+		call: func(t *testing.T, srv *httptest.Server) (bool, error) {
+			t.Helper()
+
+			got, err := newAccountPlansFacade(newTestLedgerClient(t, srv)).Create(context.Background(), txOrgID, txLedgerID,
+				models.NewCreateAccountPlanInput("plano", true, map[string]models.AccountPlanFeeInput{"pixOut": {
+					FeeLabel:         "Pix enviado",
+					Trigger:          models.AccountPlanTriggerInput{Type: models.AccountPlanTriggerTypeTransaction, Direction: models.AccountPlanTriggerDirectionSent},
+					CalculationModel: models.FeeCalculationModel{ApplicationRule: "flatFee", Calculations: []models.Calculation{{Type: "flat", Value: "1.00"}}},
+					CreditAccount:    "@fees",
+				}}))
+
+			return got == nil, err
+		},
+	},
+	{
+		name:   "V2.AccountPlans.Get",
+		status: http.StatusOK,
+		call: func(t *testing.T, srv *httptest.Server) (bool, error) {
+			t.Helper()
+
+			got, err := newAccountPlansFacade(newTestLedgerClient(t, srv)).Get(context.Background(), txOrgID, txLedgerID, txID)
+
+			return got == nil, err
+		},
+	},
+	{
+		name:   "V2.AccountPlans.Update",
+		status: http.StatusOK,
+		call: func(t *testing.T, srv *httptest.Server) (bool, error) {
+			t.Helper()
+
+			got, err := newAccountPlansFacade(newTestLedgerClient(t, srv)).Update(context.Background(), txOrgID, txLedgerID, txID,
+				models.NewUpdateAccountPlanInput().WithDescription("x"))
+
+			return got == nil, err
+		},
+	},
+	{
+		name:   "V2.AccountPlans.Assign",
+		status: http.StatusOK,
+		call: func(t *testing.T, srv *httptest.Server) (bool, error) {
+			t.Helper()
+
+			got, err := newAccountPlansFacade(newTestLedgerClient(t, srv)).Assign(context.Background(), txOrgID, txLedgerID, txID,
+				models.NewAssignAccountPlanInput("01a21da6-a6fa-7044-9058-c1f644284b5a"))
+
+			return got == nil, err
+		},
+	},
+	{
+		name:   "V2.AccountPlans.GetAssignment",
+		status: http.StatusOK,
+		call: func(t *testing.T, srv *httptest.Server) (bool, error) {
+			t.Helper()
+
+			got, err := newAccountPlansFacade(newTestLedgerClient(t, srv)).GetAssignment(context.Background(), txOrgID, txLedgerID, txID)
+
+			return got == nil, err
+		},
+	},
+	{
+		name:   "V2.AccountPlans.GetUsage",
+		status: http.StatusOK,
+		call: func(t *testing.T, srv *httptest.Server) (bool, error) {
+			t.Helper()
+
+			got, err := newAccountPlansFacade(newTestLedgerClient(t, srv)).GetUsage(context.Background(), txOrgID, txLedgerID, txID,
+				models.AccountPlanUsageOpts{})
+
+			return got == nil, err
+		},
+	},
+}
+
+// TestEmptySuccessBodyIsRefusedOnAccountPlans runs every no-resource shape
+// against the six account plan operations that return an object.
+func TestEmptySuccessBodyIsRefusedOnAccountPlans(t *testing.T) {
+	for _, op := range accountPlanObjectReads {
+		t.Run(op.name, func(t *testing.T) {
+			for _, shape := range emptySuccessBodies {
+				t.Run(shape.name, func(t *testing.T) {
+					assertAccountPlanEmptyBodyRefused(t, op.name, op.status, shape.body, op.call)
+				})
+			}
+		})
+	}
+}
+
+// assertAccountPlanEmptyBodyRefused runs one account plan object operation
+// against one no-resource body shape.
+func assertAccountPlanEmptyBodyRefused(t *testing.T, name string, status int, body string, call func(*testing.T, *httptest.Server) (bool, error)) {
+	t.Helper()
+
+	isNil, err := call(t, emptyBodyServer(t, status, body))
+	if err == nil {
+		t.Fatalf("a %d carrying %q must not read as a successful %s", status, body, name)
+	}
+
+	if !sdkerrors.IsResponseDecodeError(err) {
+		t.Fatalf("want a response-decode error (outcome unknown), got %v", err)
+	}
+
+	if !isNil {
+		t.Fatalf("%s must return a nil result with the error, never a zero model", name)
+	}
+}

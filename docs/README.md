@@ -78,7 +78,7 @@ accessors are therefore grouped by the version that serves them, reached as
 `c.V1.<Service>` / `c.V2.<Service>` (or through the embedded `c.Entity` field).
 The version travels in the request path, not in the base URL.
 
-**Build against `c.V2`.** It is the wider surface: 22 services against V1's 14.
+**Build against `c.V2`.** It is the wider surface: 23 services against V1's 14.
 
 Served by both (13 families):
 
@@ -86,11 +86,12 @@ Served by both (13 families):
 - `Balances`, `Operations`, `Transactions`, `MetadataIndexes`
 - `Portfolios`, `Segments`, `OperationRoutes`, `TransactionRoutes`
 
-`c.V2` only, because Midaz removed them from `/v1`:
+`c.V2` only, because Midaz removed them from, or never served them on, `/v1`:
 
 - `Holders`, `Instruments`, `Encryption`, `Composition`, `ProtectionAudit`
 - `BillingPackages`, `FeePackages`, `FeeEstimates`, `BillingCalculations`
   (ledger-scoped on `/v2` — the family moved from organization scope)
+- `AccountPlans` (per-account fee plans; never served on `/v1`, Midaz 4.4.0+)
 
 `c.V1` only, because `/v2` dropped them:
 

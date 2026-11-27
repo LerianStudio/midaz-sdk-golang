@@ -195,6 +195,12 @@ type V2Services struct {
 	// path — the request body carries no ledgerId and the server rejects one
 	// (closed schema).
 	BillingCalculations *billingCalculateFacade
+
+	// AccountPlans manages per-account fee plans, their versions, their
+	// assignment to accounts and the free-quota usage. /v2 only, Midaz 4.4.0+.
+	// Its writes never send X-Idempotency and are never retried automatically.
+	// Full reference: docs/mapping/external_apis.md, section AccountPlans.
+	AccountPlans *accountPlansFacade
 }
 
 // newV1Services wires every V1 ledger accessor over one plane client.
@@ -242,5 +248,6 @@ func newV2Services(ledger *genledger.ClientWithResponses, enableIdempotency bool
 		FeePackages:         newFeePackagesFacade(ledger, enableIdempotency),
 		FeeEstimates:        newFeeEstimateFacade(ledger),
 		BillingCalculations: newBillingCalculateFacade(ledger),
+		AccountPlans:        newAccountPlansFacade(ledger),
 	}
 }

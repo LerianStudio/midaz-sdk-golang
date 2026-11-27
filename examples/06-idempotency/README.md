@@ -16,7 +16,9 @@ requests.
    intentional transactions with identical requests inside the ledger's
    idempotency window are answered with the first one: pass a distinct key
    (mode 2) for each. Opt in to a random UUID per create, update and delete
-   with `midaz.WithIdempotency(true)` or `MIDAZ_IDEMPOTENCY=true`.
+   with `midaz.WithIdempotency(true)` or `MIDAZ_IDEMPOTENCY=true`
+   (except the `V2.AccountPlans` writes, which never send a key and are never
+   retried automatically).
 
 2. **Caller-supplied key** — `sdkctx.WithIdempotencyKey(ctx, "stable-key")`
    makes the SDK emit the caller's key. The recommended pattern for
@@ -31,6 +33,8 @@ requests.
 
 Global default: auto-idempotency is off; `midaz.WithIdempotency(true)` turns
 on a random key per create, update and delete request for the client lifetime.
+The `V2.AccountPlans` writes are the exception: they never send a key, with or
+without the option or a context key, and are never retried automatically.
 
 ## When to use this pattern
 

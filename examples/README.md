@@ -13,7 +13,7 @@ section below.
 
 The SDK serves **both** Midaz ledger surfaces, and the version lives in
 the request path rather than in the base URL: `c.V1.<Service>` (14
-services) and `c.V2.<Service>` (22 services). Tracer accessors are not
+services) and `c.V2.<Service>` (23 services). Tracer accessors are not
 grouped — they stay flat on the client.
 
 Midaz deprecated all of /v1, so **these examples use `c.V2` by default**.

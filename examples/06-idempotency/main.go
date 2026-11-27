@@ -12,7 +12,8 @@
 //     window are answered with the first one: pass a distinct key (mode 2).
 //     Opt-in: [midaz.WithIdempotency](true) or MIDAZ_IDEMPOTENCY=true makes the
 //     SDK generate a random UUID per create, update and delete request instead;
-//     commit, cancel and revert carry a key only when you supply one.
+//     commit, cancel and revert carry a key only when you supply one, and the
+//     V2.AccountPlans writes never carry one and are never retried automatically.
 //
 //  2. Explicit caller-supplied key (recommended for at-least-once
 //     producers): pass a stable key via [sdkctx.WithIdempotencyKey]

@@ -153,10 +153,11 @@ The grouping is a fact about the server, not a style choice. Midaz carries the v
 - `Client.V1.Organizations`, `Client.V1.Ledgers`, `Client.V1.Accounts`, `Client.V1.AccountTypes`, `Client.V1.Assets`, `Client.V1.Portfolios`, `Client.V1.Segments`, `Client.V1.OperationRoutes`, `Client.V1.TransactionRoutes`, `Client.V1.MetadataIndexes`, `Client.V1.Balances`, `Client.V1.Operations`, `Client.V1.Transactions`
 - `Client.V1.AssetRates` - **V1 only.** /v2 dropped the resource.
 
-`V2Services`, 22 members — wider than V1, and the surface to build against:
+`V2Services`, 23 members — wider than V1, and the surface to build against:
 
 - Dual-served families: `Client.V2.Organizations`, `Client.V2.Ledgers`, `Client.V2.Accounts`, `Client.V2.AccountTypes`, `Client.V2.Assets`, `Client.V2.Portfolios`, `Client.V2.Segments`, `Client.V2.OperationRoutes`, `Client.V2.TransactionRoutes`, `Client.V2.MetadataIndexes`, `Client.V2.Balances`, `Client.V2.Operations`, `Client.V2.Transactions`
 - **V2 only** (Midaz removed these from /v1): `Client.V2.Holders`, `Client.V2.Instruments`, `Client.V2.Encryption`, `Client.V2.Composition`, `Client.V2.ProtectionAudit`, `Client.V2.BillingPackages`, `Client.V2.FeePackages`, `Client.V2.FeeEstimates`, `Client.V2.BillingCalculations`
+- **V2 only, never served on /v1** (Midaz 4.4.0+): `Client.V2.AccountPlans`
 
 Two V2 members differ in **shape** from their V1 namesake rather than only in path:
 
@@ -570,6 +571,33 @@ Ledger plane, **ledger-scoped**. Period billing calculation; a 2xx with empty re
 
 - `CalculateBilling(ctx, organizationID, ledgerID, input)`
 
+#### AccountPlans
+
+Ledger plane, **ledger-scoped**, /v2 only. Per-account fee plans: the plan and its versions, the assignment of a plan to an account, and the free-quota usage of an account. Midaz serves these routes from **4.4.0**; against an older server the SDK passes the `404` on (it does not check the server version first). `rounding` and the `received` fee direction require **4.6.0**.
+
+- `Create(ctx, organizationID, ledgerID, input)` - `input` is `models.CreateAccountPlanInput`; returns `*models.AccountPlanView` (the plan with the version in effect).
+- `List(ctx, organizationID, ledgerID, opts)` - `opts` is `models.AccountPlansListOpts` (`Limit`, `Page`, `Filters.Enable`); returns `*models.ListResponse[models.AccountPlan]`.
+- `Pages(ctx, organizationID, ledgerID, opts)` / `All(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)` - returns `*models.AccountPlanView`; `Rounding` is nil when the version in effect does not round, which is distinct from a rounding of scale 0.
+- `Update(ctx, organizationID, ledgerID, id, input)` - `input` is `models.UpdateAccountPlanInput`; only the fields it sets are sent. Setting fees or rounding creates a new version.
+- `Delete(ctx, organizationID, ledgerID, id)` - the server refuses a plan still assigned to an account (`409`/`0546`).
+- `ListVersions(ctx, organizationID, ledgerID, id, opts)` - `opts` is `models.AccountPlanVersionsListOpts`; returns `*models.ListResponse[models.AccountPlanVersion]`.
+- `VersionPages(ctx, organizationID, ledgerID, id, opts)` / `AllVersions(ctx, organizationID, ledgerID, id, opts)`
+- `ListAccounts(ctx, organizationID, ledgerID, id, opts)` - `opts` is `models.AccountPlanAccountsListOpts` (`SortDirection` is sent as `sort_order`, by assignment start); returns `*models.ListResponse[models.AccountPlanAssignment]`. The response carries no total.
+- `AccountPages(ctx, organizationID, ledgerID, id, opts)` / `AllAccounts(ctx, organizationID, ledgerID, id, opts)`
+- `Assign(ctx, organizationID, ledgerID, accountID, input)` - `input` is `models.AssignAccountPlanInput`; replaces the account's active plan and returns `*models.AccountPlanAssignment`.
+- `GetAssignment(ctx, organizationID, ledgerID, accountID)` - returns `*models.AccountPlanAssignments`; `Active` is nil when the account has no plan.
+- `Unassign(ctx, organizationID, ledgerID, accountID)` - `404`/`0554` when the account has no active plan.
+- `GetUsage(ctx, organizationID, ledgerID, accountID, opts)` - `opts` is `models.AccountPlanUsageOpts{Period}` (`YYYY-MM`, empty for the current period); returns `*models.AccountPlanUsage`.
+
+**No `X-Idempotency` and no automatic retry.** The server ignores the key on these routes (the same key and body answer `409`/`0543` on a create instead of a replay), so the five writes never send it — not by default, not with `WithIdempotency(true)` or `MIDAZ_IDEMPOTENCY=true`, and not with `sdkctx.WithIdempotencyKey` — and, being keyless, each is sent exactly once: a timeout or a `5xx` is not retried. A retried update that sets fees or rounding would create one more version. `Assign` is idempotent on the server, so a caller may repeat it after an unknown outcome.
+
+**Pagination.** The three listings are page-mode, and their `total` is the number of items on the page, not across pages, so `Pagination.HasMore()` is not reliable on them. The iterators start at page 1 and stop on the first page shorter than the limit the server echoes. Only `limit`, `page`, `enable` (plans) and `sort_order` (plan accounts) are sent; the inherited date-range fields are not.
+
+**Rollout note on `received`.** `models.AccountPlanTriggerDirectionReceived` charges the account that receives, deducted from what it receives. Create a `received` fee only when every server pod runs Midaz 4.6.0 or later: during a rolling upgrade an older pod charges the sender instead.
+
+Server refusals keep their status and code (`errors.GetStatusCode`, `(*errors.Error).APICode`); the account plan codes (`0543` to `0560`) have no typed helper.
+
 ## Transaction helpers package
 
 Use `github.com/LerianStudio/midaz-sdk-golang/v6/pkg/transaction` for post-create settlement waits.
@@ -671,6 +699,9 @@ Each per-entity opts struct exposes:
 - `models.NewFeeEstimateInput(packageID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
 - `models.NewCreateVolumeBillingPackageInput(label, assetCode, debitAlias, creditAlias)` and `models.NewCreateMaintenanceBillingPackageInput(label, assetCode, feeAmount, maintenanceCreditAccount)` with `WithDescription`, `WithEnable`, `WithEventFilter`, `WithPricingModel`, `WithPricingTiers`, `WithFreeQuota`, `WithDiscountTiers`, `WithCountMode`, and `WithAccountTarget`. Feed `BillingPackages.Create`.
 - `models.NewBillingCalculateInput(period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
+- `models.NewCreateAccountPlanInput(label, enable, fees)` with `WithDescription`, `WithTimezone` and `WithRounding(models.FeeRounding{Scale, Mode})`. `fees` maps a fee key (`^[a-z][a-zA-Z0-9]*$`) to `models.AccountPlanFeeInput` (label, `AccountPlanTriggerInput`, `FeeCalculationModel`, credit account, and optional free quota, deferrable and accounting routes). `enable` is always sent, `false` included; unset optional fields are omitted. Feeds `AccountPlans.Create`.
+- `models.NewUpdateAccountPlanInput()` with `WithLabel`, `WithDescription`, `WithEnable`, `WithTimezone`, `WithRounding` (always the whole object; a stored rounding cannot be removed), `WithEffectiveFrom`, `WithFeePatch(key, models.AccountPlanFeePatch)` (only the fields the patch sets; a new key adds a fee and must carry every required field) and `WithoutFee(key)` (sent as `null`). The last fee call on a key wins. An empty update, and a fee patch that sets nothing, are refused locally. Feeds `AccountPlans.Update`.
+- `models.NewAssignAccountPlanInput(accountPlanID)` - the plan id must be a UUID. Feeds `AccountPlans.Assign`.
 - `models.NewCreateHolderAccountInput(assetCode, accountType)` with account setters (`WithName`, `WithParentAccountID`, `WithEntityID`, `WithPortfolioID`, `WithSegmentID`, `WithStatus`, `WithAlias`, `WithMetadata`) and instrument setters (`WithBankingDetails`, `WithRegulatoryFields`, `WithRelatedParties`). An instrument is written if and only if any instrument setter is used. Feeds `Composition.CreateHolderAccount`.
 
 None of the four fee/billing inputs carries a ledger: the ledger is a path segment on every fee/billing route and the server rejects a body that also names one.
