@@ -103,7 +103,7 @@ func actorRelayPlanes(t *testing.T, srv *httptest.Server, source func(context.Co
 }
 
 // ledgerListAndCreate makes one Ledger read and one Ledger write.
-func ledgerListAndCreate(t *testing.T, ctx context.Context, planes *PlaneClients) {
+func ledgerListAndCreate(ctx context.Context, t *testing.T, planes *PlaneClients) {
 	t.Helper()
 
 	limit := "10"
@@ -137,10 +137,10 @@ func TestPlaneClients_ActorRelay(t *testing.T) {
 
 	t.Run("contexto-sem-token-nao-envia", func(t *testing.T) {
 		withSrv, withSeen := actorRelayServer(t, false)
-		ledgerListAndCreate(t, context.Background(), actorRelayPlanes(t, withSrv, actorRelaySource, planeTestRetryOptions()))
+		ledgerListAndCreate(context.Background(), t, actorRelayPlanes(t, withSrv, actorRelaySource, planeTestRetryOptions()))
 
 		withoutSrv, withoutSeen := actorRelayServer(t, false)
-		ledgerListAndCreate(t, context.Background(), actorRelayPlanes(t, withoutSrv, nil, planeTestRetryOptions()))
+		ledgerListAndCreate(context.Background(), t, actorRelayPlanes(t, withoutSrv, nil, planeTestRetryOptions()))
 
 		withOption, withoutOption := withSeen(), withoutSeen()
 		require.Len(t, withOption, 2)
@@ -166,7 +166,7 @@ func TestPlaneClients_ActorRelay(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				srv, seen := actorRelayServer(t, false)
-				ledgerListAndCreate(t, withActorToken(tc.token), actorRelayPlanes(t, srv, actorRelaySource, planeTestRetryOptions()))
+				ledgerListAndCreate(withActorToken(tc.token), t, actorRelayPlanes(t, srv, actorRelaySource, planeTestRetryOptions()))
 
 				for _, req := range seen() {
 					_, present := req.header[actorHeader]
@@ -178,7 +178,7 @@ func TestPlaneClients_ActorRelay(t *testing.T) {
 
 	t.Run("token with surrounding spaces is sent trimmed", func(t *testing.T) {
 		srv, seen := actorRelayServer(t, false)
-		ledgerListAndCreate(t, withActorToken("  "+actorRelayFakeToken+" "), actorRelayPlanes(t, srv, actorRelaySource, planeTestRetryOptions()))
+		ledgerListAndCreate(withActorToken("  "+actorRelayFakeToken+" "), t, actorRelayPlanes(t, srv, actorRelaySource, planeTestRetryOptions()))
 
 		for _, req := range seen() {
 			assert.Equal(t, []string{actorRelayFakeToken}, req.header.Values(actorHeader))
@@ -217,7 +217,7 @@ func TestPlaneClients_ActorRelay(t *testing.T) {
 		assert.Len(t, ledgerClient.RequestEditors, 1, "without the option only the trace editor is installed")
 
 		ctx := withActorToken(actorRelayFakeToken)
-		ledgerListAndCreate(t, ctx, planes)
+		ledgerListAndCreate(ctx, t, planes)
 		_, err := planes.Tracer.ListRulesWithResponse(ctx, nil)
 		require.NoError(t, err)
 
@@ -232,7 +232,7 @@ func TestPlaneClients_ActorRelay(t *testing.T) {
 		// The header set a Ledger read and write carried before this change.
 		assert.ElementsMatch(t, []string{"Accept-Encoding", "Authorization", "User-Agent"}, headerNames(got[0].header))
 		assert.ElementsMatch(t, []string{"Accept-Encoding", "Authorization", "Content-Length", "Content-Type", "User-Agent"}, headerNames(got[1].header))
-		assert.Equal(t, `{"legalName":"Acme","legalDocument":"123"}`, got[1].body)
+		assert.JSONEq(t, `{"legalName":"Acme","legalDocument":"123"}`, got[1].body)
 	})
 
 	t.Run("option installs one more editor on the ledger client only", func(t *testing.T) {

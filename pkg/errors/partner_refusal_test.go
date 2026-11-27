@@ -218,10 +218,10 @@ func TestPartnerRefusalConstants(t *testing.T) {
 	assert.Equal(t, "AUT-1018", sdkerrors.APICodePartnerNoLongerValid)
 	assert.Equal(t, "AUT-1019", sdkerrors.APICodePartnerNotAllowed)
 
-	assert.Equal(t, sdkerrors.PartnerRefusalReason("other_tenant"), sdkerrors.PartnerRefusalOtherTenant)
-	assert.Equal(t, sdkerrors.PartnerRefusalReason("suspended"), sdkerrors.PartnerRefusalSuspended)
-	assert.Equal(t, sdkerrors.PartnerRefusalReason("no_longer_valid"), sdkerrors.PartnerRefusalNoLongerValid)
-	assert.Equal(t, sdkerrors.PartnerRefusalReason("not_allowed"), sdkerrors.PartnerRefusalNotAllowed)
+	assert.Equal(t, "other_tenant", string(sdkerrors.PartnerRefusalOtherTenant))
+	assert.Equal(t, "suspended", string(sdkerrors.PartnerRefusalSuspended))
+	assert.Equal(t, "no_longer_valid", string(sdkerrors.PartnerRefusalNoLongerValid))
+	assert.Equal(t, "not_allowed", string(sdkerrors.PartnerRefusalNotAllowed))
 }
 
 // TestPartnerRefusalKeepsExistingClassification guards that recognizing a
@@ -235,7 +235,7 @@ func TestPartnerRefusalKeepsExistingClassification(t *testing.T) {
 			libAuthActorDenialBody(refusal.code, refusal.title, refusal.message), "req-1")
 
 		var sdkErr *sdkerrors.Error
-		require.True(t, stderrors.As(err, &sdkErr))
+		require.ErrorAs(t, err, &sdkErr)
 
 		assert.Equal(t, sdkerrors.ErrorCode("permission_error"), sdkErr.Code)
 		assert.Equal(t, sdkerrors.ErrorCategory("authorization"), sdkErr.Category)
