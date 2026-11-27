@@ -86,7 +86,7 @@ Served by both (13 families):
 - `Balances`, `Operations`, `Transactions`, `MetadataIndexes`
 - `Portfolios`, `Segments`, `OperationRoutes`, `TransactionRoutes`
 
-`c.V2` only, because Midaz removed them from `/v1`:
+`c.V2` only, because Midaz removed them from, or never served them on, `/v1`:
 
 - `Holders`, `Instruments`, `Encryption`, `Composition`, `ProtectionAudit`
 - `BillingPackages`, `FeePackages`, `FeeEstimates`, `BillingCalculations`

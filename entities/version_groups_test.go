@@ -80,7 +80,7 @@ func TestVersionGroups_MembershipMatchesServerSurface(t *testing.T) {
 				"ProtectionAudit", "BillingPackages", "FeePackages", "FeeEstimates",
 				"BillingCalculations", "AccountPlans",
 			},
-			absentW: "Midaz removed this family from /v1; a V1 accessor for it would 404",
+			absentW: "Midaz removed this family from, or never served it on, /v1; a V1 accessor for it would 404",
 		},
 		{
 			group: "V2",
