@@ -17035,6 +17035,303 @@ paths:
       summary: Close an account
       tags:
         - Accounts (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/fee-charges:
+    get:
+      description: Lists the fee charges of the account, newest first, narrowed to a quota period (YYYY-MM) when period is given. An invalid period answers 400.
+      operationId: listFeeChargesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Quota period (YYYY-MM) the charges were counted in; omitted lists every period.
+          explode: false
+          in: query
+          name: period
+          schema:
+            description: Quota period (YYYY-MM) the charges were counted in; omitted lists every period.
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List the fee charges of an account
+      tags:
+        - Fee Charges (v2)
+    post:
+      description: "Charges service fees of the account plan of the account. Each occurrence of a code in serviceCodes is one unit. Units inside the free quota of their fee come out as quota and cost nothing; units past it come out as charged at the fee's flat amount. Codes the account's plan does not declare, and every code of an account without a plan, come out as not_covered and consume nothing. All charged units post in a single fee transaction in the account's asset, as one debit of the account and one credit of the fee's creditAccount of the same amount per creditAccount and operation routes for deferrable fees, while other fees keep one debit of the account per operation route and one credit per creditAccount and operation route, on the fees' transaction route when the ledger validates accounting routes; neither account plans nor fee packages apply to it. When no unit is charged the charge is recorded without a transaction. The share of a charged unit of a deferrable fee that the account's available balance cannot fund becomes a fee debt of the charge (origin fee_charge on GET .../fee-debts), settled by the account's later credits, instead of refusing the charge: an account holding nothing opens the whole fee as a debt without any fee transaction, and feeTransactionIds is empty. The charge records the charged totalAmount, not what was paid. Each item carries status DEFERRED when its fee is deferrable, whether the unit was paid or not, and APPROVED otherwise; the charge is DEFERRED when one item is. The X-Idempotency header is required (400, 0552); a retry with the same key and body returns the recorded charge with X-Idempotency-Replayed and charges nothing again. The fee transaction carries the reserved metadata feeChargeId, the id of the charge, and a body naming that key is refused as reserved (400). A retry after a record that was lost, or a call that takes over the claim of a stopped call, looks the fee transaction up in the ledger by feeChargeId and adopts it as replayed, never posting it twice; a claim the ledger shows no fee transaction for past the seven days the ledger keeps the key answers 409 (0084), posting nothing, until the transaction shows. A code no fee of the ledger declares is refused (422, 0549), as is a code only transaction fees declare (422, 0550) and codes whose fees have different transaction routes (422, 0551). When the fee transaction is refused, for insufficient funds for a fee that is not deferrable for instance (422, 0018), the charge is refused with the same error and nothing is consumed or deferred. ledgerId in the query or the body is refused with 0235. On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
+      operationId: chargeServiceFeesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: "Required. Idempotency key of the charge, unique per account: a retry with the same key and body returns the recorded charge with X-Idempotency-Replayed, a different body under the same key answers 409 (0084), and so does a retry while an earlier attempt is still processing or its outcome is unknown, for as long as 7 days."
+          in: header
+          name: X-Idempotency
+          required: true
+          schema:
+            description: "Required. Idempotency key of the charge, unique per account: a retry with the same key and body returns the recorded charge with X-Idempotency-Replayed, a different body under the same key answers 409 (0084), and so does a retry while an earlier attempt is still processing or its outcome is unknown, for as long as 7 days."
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeeChargeServiceFeesInput"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeCharge"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Charge service fees to an account
+      tags:
+        - Fee Charges (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/fee-charges/{fee_charge_id}:
+    get:
+      description: "Returns one fee charge of the account. A charge of another account is not found. A charge is readable once recorded: a charge still in flight, or held, is not found."
+      operationId: getFeeChargeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Fee charge ID (UUID)
+          in: path
+          name: fee_charge_id
+          required: true
+          schema:
+            description: Fee charge ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeCharge"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get a fee charge of an account
+      tags:
+        - Fee Charges (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/fee-charges/{fee_charge_id}/cancel:
+    post:
+      description: "Cancels a recorded fee charge of the account and marks it with canceledAt. A charge with fee transactions reverts each of them through the /v2 revert: the paid amount goes back to the account, what stays open of the fee debts it opened is canceled, what a later credit settled of them is given back to the debtor, and the free-quota units are given back while the charge's period is still the current one: a unit of a closed period stays counted. A charge recorded without a fee transaction, whose units only opened fee debts, cancels those debts without moving any balance and without recording a transaction, and gives the free-quota units back; what a later credit already paid of those debts goes back to the debtor by a transaction that names the execution that opened them in the reserved metadata feeDebtOriginId, booked under the routes the debts opened with, and whose revert is refused (0088); a charge that charged nothing gives its free-quota units back while its period is the current one in the timezone it was decided in, and is refused once that period closed (409, 0587), changing nothing. A second cancel answers 200 with the same canceledAt and X-Idempotency-Replayed, changing nothing. A charge of another account, ledger or organization is not found (404, 0007). A charge still being decided by the request that claimed its key, or held, is refused (409, 0585) and nothing changes. A refusal of the revert, such as an account that can no longer give the paid amount back, answers the revert's error and leaves the charge as it was. ledgerId in the query is refused with 0235. On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
+      operationId: cancelFeeChargeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Fee charge ID (UUID)
+          in: path
+          name: fee_charge_id
+          required: true
+          schema:
+            description: Fee charge ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeCharge"
+          description: OK
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Cancel a fee charge of an account
+      tags:
+        - Fee Charges (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       operationId: getAllOperationsByAccountV2
@@ -18515,6 +18812,222 @@ paths:
       summary: Create a fee estimate calculation
       tags:
         - Fees (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts:
+    get:
+      operationId: listFeeDebtsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Only the debts of this debtor account, in settlement order
+          explode: false
+          in: query
+          name: account_alias
+          schema:
+            description: Only the debts of this debtor account, in settlement order
+            type: string
+        - description: Debtor balance key; requires account_alias (default "default")
+          explode: false
+          in: query
+          name: balance_key
+          schema:
+            description: Debtor balance key; requires account_alias (default "default")
+            type: string
+        - description: "open: remaining above zero; settled: the rest. Absent lists both"
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: "open: remaining above zero; settled: the rest. Absent lists both"
+            type: string
+        - description: "Only the debts of this origin: fee_package, account_plan, fee_charge, billing_charge or billing_package. fee_package also lists the debts recorded before the ledger kept the origin that carry a feePackageId. Absent lists every origin"
+          explode: false
+          in: query
+          name: origin_type
+          schema:
+            description: "Only the debts of this origin: fee_package, account_plan, fee_charge, billing_charge or billing_package. fee_package also lists the debts recorded before the ledger kept the origin that carry a feePackageId. Absent lists every origin"
+            type: string
+        - description: Number of items per page (default 10, max 100)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Number of items per page (default 10, max 100)
+            type: string
+        - description: Opaque cursor from a previous page
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeDebtListBody"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List the fee debts of a ledger, oldest first
+      tags:
+        - Fee Debts (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/collect:
+    post:
+      description: "Settles the balance's open fee debts oldest first from its available funds, up to maxAmount and never more than it owes, in one transaction. It charges no new fee. Without an error, it collects nothing when the balance has no available funds or is blocked, cannot send, is closing or closed, deleted, debit-direction or external, and it stops at the first debt whose fee account is blocked, cannot receive, is closing or closed, deleted, debit-direction, external, in overdraft or of another asset. When nothing is settled the response is collected 0 and no transaction is created. With X-Idempotency a retry returns the first collection; an answer that settled nothing is not kept. Without it every call is a new collection. A collection transaction cannot be reverted. On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
+      operationId: collectFeeDebtsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the collection; a retry after the first collection completes returns it (an answer that settled nothing is not kept), another request under the same key or a retry while the first is still executing answers 409 (0084). Without it every call is a new collection.
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the collection; a retry after the first collection completes returns it (an answer that settled nothing is not kept), another request under the same key or a retry while the first is still executing answers 409 (0084). Without it every call is a new collection.
+            type: string
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error"
+          in: header
+          name: X-TTL
+          schema:
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error"
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeeDebtCollectInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeDebtCollectOutput"
+          description: OK
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Collect a balance's open fee debts
+      tags:
+        - Fee Debts (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{fee_debt_id}:
+    get:
+      operationId: getFeeDebtV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Fee debt ID
+          in: path
+          name: fee_debt_id
+          required: true
+          schema:
+            description: Fee debt ID
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeDebtView"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get a fee debt
+      tags:
+        - Fee Debts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts:
     post:
       operationId: createHolderAccountV2
