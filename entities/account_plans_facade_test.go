@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -367,6 +368,20 @@ func TestAccountPlansFacade_GetAssignment(t *testing.T) {
 		assert.Nil(t, got.Active.EndedAt)
 		require.Len(t, got.History, 3)
 		assert.NotNil(t, got.History[1].EndedAt)
+
+		// Most recent first, in the order the server listed them.
+		ids := make([]string, 0, len(got.History))
+		for _, entry := range got.History {
+			ids = append(ids, entry.ID)
+		}
+
+		assert.Equal(t, []string{
+			"01a21dac-8b76-7978-b2af-ac3107bf3c46",
+			"01a21dac-8b63-77e1-a2e4-a419e5a79ded",
+			"01a21da6-a748-796a-8591-5ba05e7212ea",
+		}, ids)
+		assert.True(t, got.History[0].StartedAt.After(got.History[1].StartedAt))
+		assert.True(t, got.History[1].StartedAt.After(got.History[2].StartedAt))
 	})
 
 	t.Run("conta-sem-plano-ativo", func(t *testing.T) {
@@ -1012,8 +1027,7 @@ func TestAccountPlansFacade_ServerRefusalsKeepStatusAndCode(t *testing.T) {
 			return err
 		}},
 		{"recusa-do-servidor-repassada: retroactive effectiveFrom", http.StatusUnprocessableEntity, apErrRetroactive, "0553", func(ctx context.Context, f *accountPlansFacade) error {
-			_, err := f.Update(ctx, apOrgID, apLedgerID, apPlanID, models.NewUpdateAccountPlanInput().
-				WithRounding(models.FeeRounding{Scale: 2, Mode: models.FeeRoundingModeHalfUp}))
+			_, err := f.Update(ctx, apOrgID, apLedgerID, apPlanID, apRetroactiveUpdateInput())
 			return err
 		}},
 		{"recusa-do-servidor-repassada: schemes required", http.StatusUnprocessableEntity, apErrSchemesRequired, "0556", func(ctx context.Context, f *accountPlansFacade) error {
@@ -1420,4 +1434,28 @@ func TestAccountPlansFacade_PagesRefuseAnInvalidPathID(t *testing.T) {
 			}
 		}
 	}
+}
+
+// apUpdateRetroactiveRequest is the PATCH the server refused with 422/0553: a
+// rounding with an effectiveFrom before the version in effect.
+const apUpdateRetroactiveRequest = `{"effectiveFrom":"2020-01-01T00:00:00Z","rounding":{"scale":2,"mode":"halfUp"}}`
+
+func apRetroactiveUpdateInput() *models.UpdateAccountPlanInput {
+	return models.NewUpdateAccountPlanInput().
+		WithEffectiveFrom(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)).
+		WithRounding(models.FeeRounding{Scale: 2, Mode: models.FeeRoundingModeHalfUp})
+}
+
+func TestAccountPlansFacade_ServerRefusalOfARetroactiveUpdate(t *testing.T) {
+	rec, srv := newAPServer(t, http.StatusUnprocessableEntity, apErrRetroactive)
+
+	plan, err := newTestAccountPlansFacade(t, srv).Update(context.Background(), apOrgID, apLedgerID, apPlanID, apRetroactiveUpdateInput())
+	require.Error(t, err)
+	assert.Nil(t, plan)
+
+	var sdkErr *sdkerrors.Error
+	require.ErrorAs(t, err, &sdkErr)
+	assert.Equal(t, http.StatusUnprocessableEntity, sdkerrors.GetStatusCode(err))
+	assert.Equal(t, "0553", sdkErr.APICode)
+	assert.Equal(t, apUpdateRetroactiveRequest, rec.only(t).body, "the request the server refused, as captured")
 }
