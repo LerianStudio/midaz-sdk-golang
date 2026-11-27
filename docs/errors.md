@@ -153,7 +153,7 @@ When a facade call (`c.V1.*`, `c.V2.*` and the Tracer services such as `c.Rules`
 | Failure | Predicate | Synthetic status |
 | --- | --- | --- |
 | Connection refused or reset, DNS lookup failure | `IsNetworkError(err)` | `503` |
-| Client timeout (`midaz.WithTimeout`) or a context deadline | `IsTimeoutError(err)` | `504` |
+| Client timeout (`midaz.WithTimeout`), a context deadline, or the response-header timeout of the HTTP transport | `IsTimeoutError(err)` | `504` |
 
 A client timeout or context deadline that expires while the SDK is still fetching the Access Manager token is also reported as `IsTimeoutError`, with `HTTPRequestSent` `true` even though the facade request had not been sent yet.
 
@@ -187,7 +187,7 @@ These pre-response failures still come back as an internal error (`IsInternalErr
 - The Access Manager token request fails because the connection is refused or the Access Manager gives a bad answer. The facade request never left the client.
 - The server closes the connection cleanly without a response (`EOF`).
 
-Known limit: only the client timeout and a context deadline are reported as `IsTimeoutError`. A dial timeout comes back as `IsNetworkError`. A timeout that the transport reports only through `Timeout()`, such as the response-header timeout, comes back as `IsInternalError`.
+Known limit: a timeout that the transport reports only through `Timeout()` is not reported as `IsTimeoutError`. A dial timeout comes back as `IsNetworkError`, and a TLS handshake timeout comes back as `IsInternalError`.
 
 `Retryable()` returns `true` for network, timeout and internal errors, and the SDK retry engine makes the same attempts as before. `HTTPRequestSent` is now `true` on these errors: a write that fails after the request was sent may already have taken effect, so replay it only with a stable idempotency key (`sdkctx.WithIdempotencyKey`).
 
