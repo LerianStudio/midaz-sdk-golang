@@ -10,12 +10,12 @@
   ],
   "branches": {
     "main": {
-      "commit": "b6506518f9923add04fe2639b5ff1175f899b6ed",
-      "pinned_at": "2026-10-01"
+      "commit": "bbc75ec09010fd6c9e7a3872c47f7798091ce9df",
+      "pinned_at": "2026-11-27"
     },
     "develop": {
-      "commit": "b6506518f9923add04fe2639b5ff1175f899b6ed",
-      "pinned_at": "2026-10-01"
+      "commit": "bbc75ec09010fd6c9e7a3872c47f7798091ce9df",
+      "pinned_at": "2026-11-27"
     }
   }
 }
