@@ -95,3 +95,42 @@ func TestAccountPlanListOpts_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestAccountPlanListOpts_ToQueryParamsSendsOnlyDocumentedKeys(t *testing.T) {
+	enabled := true
+	page := PageListOpts{
+		Limit:         10,
+		Page:          2,
+		SortDirection: SortAscending,
+		StartDate:     "2026-01-01",
+		EndDate:       "2026-01-31",
+	}
+
+	tests := []struct {
+		name string
+		opts accountPlanListOpts
+		want map[string]string
+	}{
+		{
+			"plans send limit, page and enable",
+			AccountPlansListOpts{PageListOpts: page, Filters: AccountPlansFilters{Enable: &enabled}},
+			map[string]string{"limit": "10", "page": "2", "enable": "true"},
+		},
+		{
+			"versions send limit and page",
+			AccountPlanVersionsListOpts{PageListOpts: page},
+			map[string]string{"limit": "10", "page": "2"},
+		},
+		{
+			"plan accounts send limit, page and sort_order",
+			AccountPlanAccountsListOpts{PageListOpts: page},
+			map[string]string{"limit": "10", "page": "2", "sort_order": "asc"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.opts.ToQueryParams())
+		})
+	}
+}

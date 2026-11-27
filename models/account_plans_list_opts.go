@@ -45,8 +45,11 @@ func (o AccountPlansListOpts) Validate() error {
 //
 // Exported because the entity layer in package entities calls it. Treat as an
 // internal contract; not part of the user-facing API.
+//
+// Only the keys the endpoint documents are emitted: limit, page and enable.
+// The inherited sort and date-range fields are not sent.
 func (o AccountPlansListOpts) ToQueryParams() map[string]string {
-	params := PageQueryParams(o.PageListOpts)
+	params := accountPlanPageQueryParams(o.PageListOpts)
 
 	if o.Filters.Enable != nil {
 		params["enable"] = strconv.FormatBool(*o.Filters.Enable)
@@ -73,8 +76,11 @@ func (o AccountPlanVersionsListOpts) Validate() error {
 //
 // Exported because the entity layer in package entities calls it. Treat as an
 // internal contract; not part of the user-facing API.
+//
+// Only the keys the endpoint documents are emitted: limit and page. The
+// inherited sort and date-range fields are not sent.
 func (o AccountPlanVersionsListOpts) ToQueryParams() map[string]string {
-	return PageQueryParams(o.PageListOpts)
+	return accountPlanPageQueryParams(o.PageListOpts)
 }
 
 // AccountPlanAccountsListOpts is the typed options struct for listing the
@@ -96,8 +102,33 @@ func (o AccountPlanAccountsListOpts) Validate() error {
 //
 // Exported because the entity layer in package entities calls it. Treat as an
 // internal contract; not part of the user-facing API.
+//
+// Only the keys the endpoint documents are emitted: limit, page and
+// sort_order. The inherited date-range fields are not sent.
 func (o AccountPlanAccountsListOpts) ToQueryParams() map[string]string {
-	return PageQueryParams(o.PageListOpts)
+	params := accountPlanPageQueryParams(o.PageListOpts)
+
+	if o.SortDirection != "" {
+		params[QueryParamOrderDirection] = string(o.SortDirection)
+	}
+
+	return params
+}
+
+// accountPlanPageQueryParams renders only limit and page, the pagination keys
+// every account plan listing documents.
+func accountPlanPageQueryParams(o PageListOpts) map[string]string {
+	params := make(map[string]string)
+
+	if o.Limit > 0 {
+		params[QueryParamLimit] = strconv.Itoa(o.Limit)
+	}
+
+	if o.Page > 0 {
+		params[QueryParamPage] = strconv.Itoa(o.Page)
+	}
+
+	return params
 }
 
 // AccountPlanUsageOpts selects the period of an account plan usage read.
