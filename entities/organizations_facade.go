@@ -15,6 +15,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
@@ -291,8 +292,9 @@ func validationErr(operation string, err error) error {
 // also comes back as network.
 //
 // The classifier strips the userinfo from a *url.Error in the chain in place,
-// before it classifies, so the cause of the internal fallback below renders
-// without that userinfo too.
+// before it classifies, so the cause of the last internal fallback below
+// renders without that userinfo too. The two earlier internal returns run
+// before the classifier and leave the chain untouched.
 //
 // Everything else keeps the internal error the facade has always returned
 // ([errors.NewInternalError]: internal, 500, Source sdk, HTTPRequestSent
@@ -305,6 +307,12 @@ func validationErr(operation string, err error) error {
 //     internal. The classifier would hand it back untouched, so it would
 //     suddenly surface with its own category instead of the one callers see
 //     today.
+//   - A failed Access Manager token fetch (an
+//     *auth.AccessManagerTokenRequestError in the chain) stays internal. The
+//     auth round tripper fetches the token before the request goes out, so the
+//     ledger or Tracer request never left; classified, a refused or timed-out
+//     token fetch would come back as network or timeout with HTTPRequestSent
+//     true.
 //   - Any cause the classifier does not recognize as network or timeout
 //     (errNoResponse, an oversized body, an unknown failure) stays internal.
 //     The classifier would mark it Source transport and HTTPRequestSent true,
@@ -316,6 +324,11 @@ func transportErr(operation string, err error) error {
 
 	var sdkErr *errors.Error
 	if stderrors.As(err, &sdkErr) {
+		return errors.NewInternalError(operation, err)
+	}
+
+	var tokenErr *auth.AccessManagerTokenRequestError
+	if stderrors.As(err, &tokenErr) {
 		return errors.NewInternalError(operation, err)
 	}
 
