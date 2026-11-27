@@ -338,6 +338,10 @@ if errors.As(err, &sdkErr) {
 `Category`. Use it instead of re-implementing a category switch in
 consumer code.
 
+`sdkerrors.IsPartnerRefusal(err)` and `sdkerrors.GetPartnerRefusalReason(err)`
+tell you the Ledger refused the partner a call was relayed for (`AUT-1016` to
+`AUT-1019`), and why. See [`docs/errors.md`](docs/errors.md#domain-specific-error-predicates).
+
 ### Logging
 
 Inject a `*slog.Logger`:
@@ -428,6 +432,10 @@ token. The SDK does not expose tenant configuration and does not send
 scope differs.
 
 See [`docs/multi-tenancy.md`](docs/multi-tenancy.md).
+
+A plugin that calls the Ledger on behalf of a partner can relay the partner's
+token in `X-Lerian-Actor` with `midaz.WithActorRelay` (off by default; Ledger
+plane only). See [`docs/auth.md`](docs/auth.md#relaying-the-partner-actor-to-the-ledger).
 
 ### Testing with mocks
 
