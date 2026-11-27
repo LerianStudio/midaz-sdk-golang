@@ -13,16 +13,14 @@ components:
           type: object
         status:
           examples:
-            - active
+            - ACTIVE
           type: string
         type:
           examples:
-            - checking
+            - deposit
           type: string
       required:
         - accountId
-        - type
-        - status
       type: object
     Actor:
       additionalProperties: false
@@ -95,6 +93,7 @@ components:
             - TRANSACTION_VALIDATED
           type: string
         hash:
+          description: SHA-256 digest of this event's own fields. Events created before the audit linker hold the digest chained to their predecessor.
           examples:
             - a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2
           type: string
@@ -102,6 +101,7 @@ components:
           additionalProperties: {}
           type: object
         previousHash:
+          description: Hash of the preceding event. Set only on events created before the audit linker; newer events are chained in batches and carry none.
           examples:
             - b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3
           type: string
@@ -126,6 +126,146 @@ components:
         - resourceId
         - resourceType
         - actor
+      type: object
+    ControlEvaluation:
+      additionalProperties: false
+      properties:
+        bindingId:
+          description: Binding that decided the instruction; absent when it came from the fallback mode.
+          type: string
+        control:
+          description: "Control evaluated: RULES or LIMITS."
+          examples:
+            - RULES
+          type: string
+        decidedBy:
+          description: Rules (RULES control) or limits (LIMITS control) that produced the verdict.
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        effect:
+          description: "This control's contribution: REFUSE when the instruction is ENFORCE and the verdict is DENY or REVIEW, PROCEED otherwise."
+          examples:
+            - REFUSE
+          type: string
+        instruction:
+          description: "What the caller does with the verdict: ENFORCE, ADVISORY, AUDIT or OFF."
+          examples:
+            - ENFORCE
+          type: string
+        verdict:
+          description: "What the control decided: ALLOW, DENY, REVIEW or NOT_EVALUATED."
+          examples:
+            - DENY
+          type: string
+      required:
+        - control
+        - verdict
+        - instruction
+        - decidedBy
+        - effect
+      type: object
+    CreateLimitInput:
+      additionalProperties: true
+      properties:
+        activeTimeEnd:
+          examples:
+            - "17:00"
+          type: string
+        activeTimeStart:
+          examples:
+            - "09:00"
+          type: string
+        asset:
+          examples:
+            - USD
+          maxLength: 100
+          minLength: 1
+          type: string
+        customEndDate:
+          examples:
+            - "2026-11-29T00:00:00Z"
+          format: date-time
+          type: string
+        customStartDate:
+          examples:
+            - "2026-11-27T00:00:00Z"
+          format: date-time
+          type: string
+        description:
+          description: Limit description, at most 1000 characters.
+          maxLength: 1000
+          type: string
+        limitType:
+          enum:
+            - DAILY
+            - MONTHLY
+            - PER_TRANSACTION
+            - WEEKLY
+            - CUSTOM
+          examples:
+            - DAILY
+          type: string
+        maxAmount:
+          examples:
+            - "1000.00"
+          type: string
+        name:
+          description: Limit name, 1 to 255 characters.
+          maxLength: 255
+          minLength: 1
+          type: string
+        resetTime:
+          examples:
+            - "09:00"
+          type: string
+        scopes:
+          items:
+            $ref: "#/components/schemas/Scope"
+          type: array
+      required:
+        - name
+        - limitType
+        - maxAmount
+        - asset
+        - scopes
+      type: object
+    CreateRuleInput:
+      additionalProperties: true
+      properties:
+        action:
+          enum:
+            - ALLOW
+            - DENY
+            - REVIEW
+          examples:
+            - DENY
+          type: string
+        description:
+          description: Rule description, at most 1000 characters.
+          maxLength: 1000
+          type: string
+        expression:
+          description: CEL expression, 1 to 5000 characters.
+          maxLength: 5000
+          minLength: 1
+          type: string
+        name:
+          description: Rule name, 1 to 255 characters.
+          maxLength: 255
+          minLength: 1
+          type: string
+        scopes:
+          items:
+            $ref: "#/components/schemas/Scope"
+          type: array
+      required:
+        - name
+        - expression
+        - action
       type: object
     DashboardFraudTypes:
       additionalProperties: false
@@ -176,6 +316,7 @@ components:
           format: int64
           type: integer
         amountSaved:
+          description: Blocked amount of the single asset in the window. Present only when exactly one asset carried blocked volume; absent otherwise. Read amountSavedByAsset for the general case.
           examples:
             - "12500.00"
           type: string
@@ -191,6 +332,7 @@ components:
           format: double
           type: number
         asset:
+          description: The single asset amountSaved is expressed in. Present only when exactly one asset carried blocked volume; absent otherwise.
           examples:
             - USD
           type: string
@@ -400,6 +542,7 @@ components:
             - hash chain intact
           type: string
         totalChecked:
+          description: "Hash-chain rows verified for legacy events; chain links (at most 3: the event's link and its neighbours) for newer events."
           examples:
             - 1000
           format: int64
@@ -470,6 +613,10 @@ components:
           examples:
             - "2021-01-02T00:00:00Z"
           format: date-time
+          type: string
+        resetTime:
+          examples:
+            - "09:00"
           type: string
         scopes:
           items:
@@ -652,9 +799,28 @@ components:
           type: string
       required:
         - merchantId
-        - name
-        - category
-        - country
+      type: object
+    PolicyEvaluation:
+      additionalProperties: false
+      properties:
+        controls:
+          items:
+            $ref: "#/components/schemas/ControlEvaluation"
+          type:
+            - array
+            - "null"
+        policyId:
+          description: Evaluated policy; empty for the active rules and limits evaluated as one.
+          type: string
+        revision:
+          description: Revision of the evaluated policy; 0 for the active rules and limits evaluated as one.
+          format: int32
+          minimum: 0
+          type: integer
+      required:
+        - policyId
+        - revision
+        - controls
       type: object
     PortfolioContext:
       additionalProperties: false
@@ -674,41 +840,63 @@ components:
       required:
         - portfolioId
       type: object
-    ReservationActionResponse:
+    Reservation:
       additionalProperties: false
       properties:
+        amount:
+          description: Amount held against the limit, a decimal string in the transaction's asset.
+          examples:
+            - "500.00"
+          minimum: 0
+          type: string
+        confirmedAt:
+          description: When the ledger confirmed the transaction; absent until then.
+          format: date-time
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        limitId:
+          format: uuid
+          type: string
+        periodKey:
+          description: "Usage period of the bucket: yyyy-mm-dd (DAILY), yyyy-mm (MONTHLY), yyyy-Www (WEEKLY) or custom (CUSTOM)."
+          type: string
+        releasedAt:
+          description: When the hold returned its amount, by release or expiry; absent otherwise. A hold confirmed after it expired carries both.
+          format: date-time
+          type: string
+        reservationExpiresAt:
+          description: When an unsettled hold expires and returns its amount.
+          format: date-time
+          type: string
         reservationId:
           format: uuid
           type: string
-        status:
-          examples:
-            - CONFIRMED
+        scopeKey:
+          description: "Usage bucket the hold sits in: the scope's ids as acct:, port:, seg: and merch: entries joined by |; empty for a limit scoped only by scheme or sub type."
           type: string
-      required:
-        - reservationId
-        - status
-      type: object
-    ReserveResponse:
-      additionalProperties: false
-      properties:
-        denied:
-          examples:
-            - false
-          type: boolean
-        reservationIds:
-          items:
-            format: uuid
-            type: string
-          type:
-            - array
-            - "null"
+        status:
+          description: "State of the hold: RESERVED (held), CONFIRMED (the transaction committed; the amount counts as spent), RELEASED (the transaction was cancelled; the amount was returned) or EXPIRED (nothing settled it before reservationExpiresAt; the amount was returned)."
+          enum:
+            - RESERVED
+            - CONFIRMED
+            - RELEASED
+            - EXPIRED
+          type: string
         transactionId:
           format: uuid
           type: string
       required:
+        - reservationId
+        - limitId
+        - scopeKey
+        - periodKey
+        - amount
+        - status
         - transactionId
-        - denied
-        - reservationIds
+        - reservationExpiresAt
+        - createdAt
       type: object
     Rule:
       additionalProperties: false
@@ -798,19 +986,26 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         segmentId:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         subType:
+          description: "Sub type the scope is restricted to (optional): 1 to 50 bytes after trimming and lower-casing; a blank value is refused. Matched case-insensitively."
           examples:
             - purchase
           maxLength: 50
           type: string
         transactionType:
           examples:
-            - CARD
+            - PIX
+          maxLength: 50
           type: string
       type: object
     SegmentContext:
@@ -869,26 +1064,6 @@ components:
         - detectionRate
         - avgProcessingMs
       type: object
-    TransactionActionResponse:
-      additionalProperties: false
-      properties:
-        flipped:
-          examples:
-            - 2
-          format: int64
-          type: integer
-        status:
-          examples:
-            - CONFIRMED
-          type: string
-        transactionId:
-          format: uuid
-          type: string
-      required:
-        - transactionId
-        - status
-        - flipped
-      type: object
     TransactionValidation:
       additionalProperties: false
       properties:
@@ -918,7 +1093,17 @@ components:
           type:
             - array
             - "null"
+        instructionSource:
+          description: "Where the instructions came from: BINDING, or FALLBACK when at least one control used the caller's fallback mode. Absent for a record a decision did not write."
+          examples:
+            - FALLBACK
+          type: string
+        ledgerId:
+          description: Midaz ledger of the transaction this reservation decided on. Absent for a validation or rules-only request, and for records written before the ledger sent it.
+          format: uuid
+          type: string
         limitUsageDetails:
+          description: Usage of every limit checked. Empty for a request a partner made.
           items:
             $ref: "#/components/schemas/LimitUsageDetail"
           type:
@@ -936,6 +1121,22 @@ components:
         metadata:
           additionalProperties: {}
           type: object
+        organizationId:
+          description: Midaz organization of the transaction this reservation decided on. Absent for a validation or rules-only request, and for records written before the ledger sent it.
+          format: uuid
+          type: string
+        outcome:
+          description: "Effect the caller obeyed: REFUSE or PROCEED. Absent for a record a decision did not write."
+          examples:
+            - REFUSE
+          type: string
+        policies:
+          description: Evaluation of every policy, per control. Absent for a record a decision did not write and for a request a partner made.
+          items:
+            $ref: "#/components/schemas/PolicyEvaluation"
+          type:
+            - array
+            - "null"
         portfolio:
           $ref: "#/components/schemas/PortfolioContext"
         processingTimeMs:
@@ -952,8 +1153,20 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         segment:
           $ref: "#/components/schemas/SegmentContext"
+        sources:
+          description: Outcome per source of a reserve with more than one source. Absent for any other record and for a request a partner made.
+          items:
+            $ref: "#/components/schemas/ValidationSource"
+          type:
+            - array
+            - "null"
         subType:
           examples:
             - purchase
@@ -964,6 +1177,11 @@ components:
             - 42
           format: int64
           type: integer
+        transactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
         transactionTimestamp:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -971,7 +1189,8 @@ components:
           type: string
         transactionType:
           examples:
-            - CARD
+            - PIX
+          maxLength: 50
           type: string
         truncated:
           examples:
@@ -986,6 +1205,7 @@ components:
         - validationId
         - requestId
         - transactionType
+        - scheme
         - amount
         - asset
         - transactionTimestamp
@@ -999,6 +1219,98 @@ components:
         - reason
         - totalRulesLoaded
         - truncated
+      type: object
+    UnauthorizedError:
+      additionalProperties: false
+      properties:
+        code:
+          description: Stable error code.
+          type: string
+        message:
+          description: Human-readable explanation.
+          type: string
+        title:
+          description: Short summary of the error.
+          type: string
+      required:
+        - code
+        - title
+        - message
+      type: object
+    UpdateLimitInput:
+      additionalProperties: true
+      properties:
+        activeTimeEnd:
+          description: End of the daily time window (HH:MM). Send activeTimeStart and activeTimeEnd both as null to remove the window.
+          examples:
+            - "17:00"
+          type:
+            - string
+            - "null"
+        activeTimeStart:
+          description: Start of the daily time window (HH:MM). Send activeTimeStart and activeTimeEnd both as null to remove the window.
+          examples:
+            - "09:00"
+          type:
+            - string
+            - "null"
+        customEndDate:
+          examples:
+            - "2026-11-29T00:00:00Z"
+          format: date-time
+          type: string
+        customStartDate:
+          examples:
+            - "2026-11-27T00:00:00Z"
+          format: date-time
+          type: string
+        description:
+          description: Limit description, at most 1000 characters.
+          maxLength: 1000
+          type: string
+        maxAmount:
+          examples:
+            - "1000.00"
+          type: string
+        name:
+          description: Limit name, 1 to 255 characters.
+          maxLength: 255
+          minLength: 1
+          type: string
+        scopes:
+          items:
+            $ref: "#/components/schemas/Scope"
+          type: array
+      type: object
+    UpdateRuleInput:
+      additionalProperties: true
+      properties:
+        action:
+          enum:
+            - ALLOW
+            - DENY
+            - REVIEW
+          examples:
+            - DENY
+          type: string
+        description:
+          description: Rule description, at most 1000 characters.
+          maxLength: 1000
+          type: string
+        expression:
+          description: CEL expression, 1 to 5000 characters. Editable only while the rule is in DRAFT status.
+          maxLength: 5000
+          minLength: 1
+          type: string
+        name:
+          description: Rule name, 1 to 255 characters.
+          maxLength: 255
+          minLength: 1
+          type: string
+        scopes:
+          items:
+            $ref: "#/components/schemas/Scope"
+          type: array
       type: object
     Upstream:
       additionalProperties: false
@@ -1047,6 +1359,75 @@ components:
         - utilizationPercent
         - nearLimit
       type: object
+    ValidationRequest:
+      additionalProperties: true
+      properties:
+        account:
+          $ref: "#/components/schemas/AccountContext"
+        amount:
+          examples:
+            - "100.00"
+          type: string
+        asset:
+          examples:
+            - USD
+          type: string
+        merchant:
+          $ref: "#/components/schemas/MerchantContext"
+        metadata:
+          additionalProperties: {}
+          type: object
+        portfolio:
+          $ref: "#/components/schemas/PortfolioContext"
+        requestId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        scheme:
+          description: "Payment scheme, required unless the deprecated transactionType is sent: 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing."
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
+        segment:
+          $ref: "#/components/schemas/SegmentContext"
+        subType:
+          description: Sub type, at most 50 bytes after trimming; stored lower-cased and matched case-insensitively.
+          examples:
+            - purchase
+          maxLength: 50
+          type: string
+        transactionTimestamp:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        transactionType:
+          deprecated: true
+          description: "Deprecated: use scheme. Same value under its former name; when both are sent they must match."
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
+      required:
+        - requestId
+        - amount
+        - asset
+        - transactionTimestamp
+        - account
+      type: object
+    ValidationReservations:
+      additionalProperties: false
+      properties:
+        reservations:
+          description: Every hold the transaction placed, ordered by limitId, scopeKey and periodKey. Empty when the validation has no transaction or the transaction held nothing.
+          items:
+            $ref: "#/components/schemas/Reservation"
+          type: array
+      required:
+        - reservations
+      type: object
     ValidationResponse:
       additionalProperties: false
       properties:
@@ -1067,6 +1448,7 @@ components:
             - array
             - "null"
         limitUsageDetails:
+          description: Usage of every limit checked. Empty for a request a partner made.
           items:
             $ref: "#/components/schemas/LimitUsageDetail"
           type:
@@ -1120,6 +1502,52 @@ components:
         - totalRulesLoaded
         - truncated
       type: object
+    ValidationSource:
+      additionalProperties: false
+      properties:
+        accountId:
+          description: Source account id; empty for the entry that groups the external legs.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        accountType:
+          examples:
+            - deposit
+          type: string
+        amount:
+          examples:
+            - "100.00"
+          type: string
+        decision:
+          examples:
+            - DENY
+          type: string
+        exceededLimitIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        matchedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        portfolioId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        segmentId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+      required:
+        - accountId
+        - amount
+      type: object
     ValidationSummary:
       additionalProperties: false
       properties:
@@ -1142,16 +1570,42 @@ components:
             - ALLOW
           type: string
         exceededLimitIds:
+          description: Limits the amount exceeded. Empty for a request a partner made.
           items:
             format: uuid
             type: string
           type:
             - array
             - "null"
+        instructionSource:
+          description: "Where the instructions came from: BINDING, or FALLBACK when at least one control used the caller's fallback mode. Absent for a record a decision did not write."
+          examples:
+            - FALLBACK
+          type: string
+        ledgerId:
+          description: Midaz ledger of the transaction this reservation decided on. Absent for a validation or rules-only request, and for records written before the ledger sent it.
+          format: uuid
+          type: string
         matchedRuleIds:
           items:
             format: uuid
             type: string
+          type:
+            - array
+            - "null"
+        organizationId:
+          description: Midaz organization of the transaction this reservation decided on. Absent for a validation or rules-only request, and for records written before the ledger sent it.
+          format: uuid
+          type: string
+        outcome:
+          description: "Effect the caller obeyed: REFUSE or PROCEED. Absent for a record a decision did not write."
+          examples:
+            - REFUSE
+          type: string
+        policies:
+          description: Evaluation of every policy, per control. Absent for a record a decision did not write and for a request a partner made.
+          items:
+            $ref: "#/components/schemas/PolicyEvaluation"
           type:
             - array
             - "null"
@@ -1167,12 +1621,31 @@ components:
           examples:
             - All rules passed
           type: string
+        scheme:
+          description: Payment scheme of the validated transaction.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         segmentId:
           format: uuid
           type: string
+        sources:
+          description: Outcome per source of a reserve with more than one source. Absent for any other record and for a request a partner made.
+          items:
+            $ref: "#/components/schemas/ValidationSource"
+          type:
+            - array
+            - "null"
+        transactionId:
+          description: Ledger transaction a reservation decided on; absent for a rules-only evaluation.
+          format: uuid
+          type: string
         transactionType:
+          description: Deprecated name of scheme; always carries the same value.
           examples:
-            - CARD
+            - PIX
+          maxLength: 50
           type: string
         validationId:
           format: uuid
@@ -1184,6 +1657,7 @@ components:
         - amount
         - asset
         - transactionType
+        - scheme
         - accountId
         - matchedRuleIds
         - exceededLimitIds
@@ -1218,41 +1692,49 @@ components:
       scheme: bearer
       type: http
 info:
+  contact:
+    email: contact@lerian.studio
+    name: Lerian Studio
+    url: https://lerian.studio
+  description: Reference for Midaz Tracer transaction validation, fraud rules, spending limits, and audit events.
+  license:
+    name: Lerian Studio General License
   title: Midaz Tracer API
   version: 4.0.0
 openapi: 3.1.0
 paths:
   /audit-events:
     get:
+      description: Use this endpoint to list audit events with filters and cursor-based pagination. A request a partner made never lists reservation events, which sum to a limit's shared counter, and an event_type or resource_type filter asking for them answers 400 (code 0082).
       operationId: listAuditEvents
       parameters:
-        - description: Start date (RFC3339 format)
+        - description: Start date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only start is 00:00:00)
           explode: false
           in: query
           name: start_date
           schema:
-            description: Start date (RFC3339 format)
+            description: Start date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only start is 00:00:00)
             type: string
-        - description: End date (RFC3339 format)
+        - description: End date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only end covers the whole day)
           explode: false
           in: query
           name: end_date
           schema:
-            description: End date (RFC3339 format)
+            description: End date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only end covers the whole day)
             type: string
-        - description: Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)
+        - description: Filter by event type (TRANSACTION_VALIDATED, RULE_CREATED, RULE_UPDATED, RULE_ACTIVATED, RULE_DEACTIVATED, RULE_DRAFTED, RULE_DELETED, LIMIT_CREATED, LIMIT_UPDATED, LIMIT_DELETED, LIMIT_ACTIVATED, LIMIT_DEACTIVATED, LIMIT_DRAFTED, RESERVATION_RESERVED, RESERVATION_CONFIRMED, RESERVATION_RELEASED, RESERVATION_EXPIRED, RESERVATION_SKIPPED)
           explode: false
           in: query
           name: event_type
           schema:
-            description: Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)
+            description: Filter by event type (TRANSACTION_VALIDATED, RULE_CREATED, RULE_UPDATED, RULE_ACTIVATED, RULE_DEACTIVATED, RULE_DRAFTED, RULE_DELETED, LIMIT_CREATED, LIMIT_UPDATED, LIMIT_DELETED, LIMIT_ACTIVATED, LIMIT_DEACTIVATED, LIMIT_DRAFTED, RESERVATION_RESERVED, RESERVATION_CONFIRMED, RESERVATION_RELEASED, RESERVATION_EXPIRED, RESERVATION_SKIPPED)
             type: string
-        - description: Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)
+        - description: Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, RESERVE, CONFIRM, RELEASE, EXPIRE, SKIP)
           explode: false
           in: query
           name: action
           schema:
-            description: Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)
+            description: Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, RESERVE, CONFIRM, RELEASE, EXPIRE, SKIP)
             type: string
         - description: Filter by result (SUCCESS, FAILED, ALLOW, DENY, REVIEW)
           explode: false
@@ -1261,12 +1743,12 @@ paths:
           schema:
             description: Filter by result (SUCCESS, FAILED, ALLOW, DENY, REVIEW)
             type: string
-        - description: Filter by resource type (transaction, rule, limit)
+        - description: Filter by resource type (transaction, rule, limit, reservation)
           explode: false
           in: query
           name: resource_type
           schema:
-            description: Filter by resource type (transaction, rule, limit)
+            description: Filter by resource type (transaction, rule, limit, reservation)
             type: string
         - description: Filter by resource ID (UUID)
           explode: false
@@ -1275,12 +1757,12 @@ paths:
           schema:
             description: Filter by resource ID (UUID)
             type: string
-        - description: Filter by actor type (user, system)
+        - description: Filter by actor type (user, api_key, system)
           explode: false
           in: query
           name: actor_type
           schema:
-            description: Filter by actor type (user, system)
+            description: Filter by actor type (user, api_key, system)
             type: string
         - description: Filter by actor ID
           explode: false
@@ -1310,12 +1792,20 @@ paths:
           schema:
             description: Filter by portfolio ID (UUID)
             type: string
-        - description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+        - description: "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"
           explode: false
           in: query
           name: transaction_type
           schema:
-            description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+            deprecated: true
+            description: "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"
+            type: string
+        - description: "Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"
+          explode: false
+          in: query
+          name: scheme
+          schema:
+            description: "Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"
             type: string
         - description: Filter by matched rule ID (UUID)
           explode: false
@@ -1359,6 +1849,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListAuditEventsResponse"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1383,13 +1882,14 @@ paths:
       summary: List audit events
       tags:
         - Audit
-  /audit-events/{id}:
+  /audit-events/{audit_event_id}:
     get:
+      description: Use this endpoint to retrieve a single audit event by its unique identifier. A reservation event answers a request a partner made 404, as for an unknown event.
       operationId: getAuditEvent
       parameters:
         - description: Audit event ID (UUID)
           in: path
-          name: id
+          name: audit_event_id
           required: true
           schema:
             description: Audit event ID (UUID)
@@ -1401,6 +1901,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditEvent"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1425,13 +1934,14 @@ paths:
       summary: Get an audit event by ID
       tags:
         - Audit
-  /audit-events/{id}/verify:
+  /audit-events/{audit_event_id}/verify:
     get:
+      description: Verifies the event's place in the hash chain. An event written after the linker cutover is linked within seconds; until then the answer is 409 (code 0566, retry), never isValid=false.
       operationId: verifyAuditEvent
       parameters:
         - description: Audit event ID (UUID)
           in: path
-          name: id
+          name: audit_event_id
           required: true
           schema:
             description: Audit event ID (UUID)
@@ -1443,6 +1953,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/HashChainVerificationResult"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1469,7 +1988,7 @@ paths:
         - Audit
   /dashboard/fraud-types:
     get:
-      description: Returns DENY + REVIEW decisions broken down by transaction type, with each type's share of the flagged traffic.
+      description: "Returns DENY + REVIEW decisions broken down by payment scheme, with each scheme's share of the flagged traffic: the ten schemes that flag most, plus one OTHER slice summing the rest."
       operationId: getDashboardFraudTypes
       parameters:
         - description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
@@ -1479,19 +1998,19 @@ paths:
           schema:
             description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
             type: string
-        - description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+        - description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
           explode: false
           in: query
           name: start_date
           schema:
-            description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+            description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
             type: string
-        - description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+        - description: Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
           explode: false
           in: query
           name: end_date
           schema:
-            description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+            description: Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
             type: string
       responses:
         "200":
@@ -1504,6 +2023,15 @@ paths:
             Cache-Control:
               schema:
                 type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1540,19 +2068,19 @@ paths:
           schema:
             description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
             type: string
-        - description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+        - description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
           explode: false
           in: query
           name: start_date
           schema:
-            description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+            description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
             type: string
-        - description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+        - description: Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
           explode: false
           in: query
           name: end_date
           schema:
-            description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+            description: Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
             type: string
       responses:
         "200":
@@ -1565,6 +2093,15 @@ paths:
             Cache-Control:
               schema:
                 type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1601,19 +2138,19 @@ paths:
           schema:
             description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
             type: string
-        - description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+        - description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
           explode: false
           in: query
           name: start_date
           schema:
-            description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+            description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
             type: string
-        - description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+        - description: Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
           explode: false
           in: query
           name: end_date
           schema:
-            description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+            description: Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
             type: string
       responses:
         "200":
@@ -1626,6 +2163,15 @@ paths:
             Cache-Control:
               schema:
                 type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1662,19 +2208,19 @@ paths:
           schema:
             description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
             type: string
-        - description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+        - description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
           explode: false
           in: query
           name: start_date
           schema:
-            description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+            description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
             type: string
-        - description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+        - description: Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
           explode: false
           in: query
           name: end_date
           schema:
-            description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+            description: Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
             type: string
       responses:
         "200":
@@ -1687,6 +2233,15 @@ paths:
             Cache-Control:
               schema:
                 type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1713,6 +2268,7 @@ paths:
         - Dashboard
   /limits:
     get:
+      description: Use this endpoint to list spending limits with cursor-based pagination and optional filters. DELETED limits are not returned in listings.
       operationId: listLimits
       parameters:
         - description: Filter by name (case-insensitive partial match)
@@ -1764,12 +2320,20 @@ paths:
           schema:
             description: Filter by scope merchant_id (UUID)
             type: string
-        - description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+        - description: "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"
           explode: false
           in: query
           name: transaction_type
           schema:
-            description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+            deprecated: true
+            description: "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"
+            type: string
+        - description: "Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"
+          explode: false
+          in: query
+          name: scheme
+          schema:
+            description: "Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"
             type: string
         - description: Filter by scope sub_type (case-insensitive; max 50 chars)
           explode: false
@@ -1813,6 +2377,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListLimitsResponse"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1838,14 +2411,13 @@ paths:
       tags:
         - Limits
     post:
+      description: Use this endpoint to create a spending limit with scopes array. Limits are created in DRAFT status. Use the activate endpoint to start enforcement. After creation, limitType, asset and resetTime cannot be changed.
       operationId: createLimit
       requestBody:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateLimitInput"
         required: true
       responses:
         "201":
@@ -1854,6 +2426,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1878,13 +2459,14 @@ paths:
       summary: Create a new spending limit
       tags:
         - Limits
-  /limits/{id}:
+  /limits/{limit_id}:
     delete:
+      description: Use this endpoint to soft-delete a spending limit. Only DRAFT and INACTIVE limits can be deleted. ACTIVE limits must be deactivated first. The limit is preserved in the audit trail.
       operationId: deleteLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -1892,6 +2474,15 @@ paths:
       responses:
         "204":
           description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1917,11 +2508,12 @@ paths:
       tags:
         - Limits
     get:
+      description: Use this endpoint to retrieve a spending limit by its unique identifier.
       operationId: getLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -1933,6 +2525,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -1958,11 +2559,12 @@ paths:
       tags:
         - Limits
     patch:
+      description: Use this endpoint to partially update a spending limit. Only provided fields are updated. limitType, asset and resetTime are immutable and cannot be changed. Send activeTimeStart and activeTimeEnd both as null to remove the time window; the limit then applies all day.
       operationId: updateLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -1971,9 +2573,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateLimitInput"
         required: true
       responses:
         "200":
@@ -1982,6 +2582,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2006,13 +2615,14 @@ paths:
       summary: Partially update an existing spending limit
       tags:
         - Limits
-  /limits/{id}/activate:
+  /limits/{limit_id}/activate:
     post:
+      description: Use this endpoint to activate a spending limit. Activates the limit for enforcement in validations.
       operationId: activateLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -2024,6 +2634,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2048,13 +2667,14 @@ paths:
       summary: Activate a spending limit
       tags:
         - Limits
-  /limits/{id}/deactivate:
+  /limits/{limit_id}/deactivate:
     post:
+      description: Use this endpoint to deactivate a spending limit. Pauses the limit from being enforced in validations.
       operationId: deactivateLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -2066,6 +2686,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2090,13 +2719,14 @@ paths:
       summary: Deactivate a spending limit
       tags:
         - Limits
-  /limits/{id}/draft:
+  /limits/{limit_id}/draft:
     post:
+      description: Use this endpoint to transition a limit from INACTIVE back to DRAFT. Allows re-editing a previously deactivated limit before re-activating it.
       operationId: draftLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -2108,6 +2738,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2132,13 +2771,14 @@ paths:
       summary: Transition a limit back to draft
       tags:
         - Limits
-  /limits/{id}/usage:
+  /limits/{limit_id}/usage:
     get:
+      description: "Use this endpoint to retrieve the current usage snapshot for a spending limit. A request a partner made answers 404, as for an unknown limit: a limit's usage spans other accounts."
       operationId: getLimitUsage
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -2150,6 +2790,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/UsageSnapshot"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2174,218 +2823,9 @@ paths:
       summary: Get usage snapshot for a limit
       tags:
         - Limits
-  /reservations:
-    post:
-      operationId: createReservation
-      requestBody:
-        content:
-          application/json:
-            schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReserveResponse"
-          description: Created
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      summary: Reserve transaction capacity (phase one)
-      tags:
-        - Reservations
-  /reservations/transaction/{transaction_id}/confirm:
-    post:
-      operationId: confirmReservationByTransaction
-      parameters:
-        - description: Transaction ID (UUID)
-          in: path
-          name: transaction_id
-          required: true
-          schema:
-            description: Transaction ID (UUID)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TransactionActionResponse"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      summary: Confirm a transaction's reservations (phase two — commit by transaction)
-      tags:
-        - Reservations
-  /reservations/transaction/{transaction_id}/release:
-    post:
-      operationId: releaseReservationByTransaction
-      parameters:
-        - description: Transaction ID (UUID)
-          in: path
-          name: transaction_id
-          required: true
-          schema:
-            description: Transaction ID (UUID)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TransactionActionResponse"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      summary: Release a transaction's reservations (phase two — abort by transaction)
-      tags:
-        - Reservations
-  /reservations/{id}/confirm:
-    post:
-      operationId: confirmReservation
-      parameters:
-        - description: Reservation ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Reservation ID (UUID)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReservationActionResponse"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      summary: Confirm a reservation (phase two — commit)
-      tags:
-        - Reservations
-  /reservations/{id}/release:
-    post:
-      operationId: releaseReservation
-      parameters:
-        - description: Reservation ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Reservation ID (UUID)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReservationActionResponse"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      summary: Release a reservation (phase two — abort)
-      tags:
-        - Reservations
   /rules:
     get:
+      description: Use this endpoint to list fraud rules with cursor-based pagination and optional filters. DELETED rules are not returned in listings.
       operationId: listRules
       parameters:
         - description: Filter by name (case-insensitive partial match)
@@ -2437,12 +2877,20 @@ paths:
           schema:
             description: Filter by scope merchant_id (UUID)
             type: string
-        - description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+        - description: "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"
           explode: false
           in: query
           name: transaction_type
           schema:
-            description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+            deprecated: true
+            description: "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"
+            type: string
+        - description: "Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"
+          explode: false
+          in: query
+          name: scheme
+          schema:
+            description: "Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"
             type: string
         - description: Filter by scope sub_type (case-insensitive; max 50 chars)
           explode: false
@@ -2486,6 +2934,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListRulesResponse"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2511,14 +2968,13 @@ paths:
       tags:
         - Rules
     post:
+      description: Use this endpoint to create a fraud rule with a CEL expression and scopes array. Rules are always created in DRAFT status. Use the activate endpoint to start evaluation.
       operationId: createRule
       requestBody:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/CreateRuleInput"
         required: true
       responses:
         "201":
@@ -2527,6 +2983,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2551,13 +3016,14 @@ paths:
       summary: Create a new fraud rule
       tags:
         - Rules
-  /rules/{id}:
+  /rules/{rule_id}:
     delete:
+      description: Use this endpoint to soft-delete a fraud rule. Only DRAFT and INACTIVE rules can be deleted. ACTIVE rules must be deactivated first. The rule is preserved in the audit trail.
       operationId: deleteRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2565,6 +3031,15 @@ paths:
       responses:
         "204":
           description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2590,11 +3065,12 @@ paths:
       tags:
         - Rules
     get:
+      description: Use this endpoint to retrieve a fraud rule by its unique identifier.
       operationId: getRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2606,6 +3082,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2631,11 +3116,12 @@ paths:
       tags:
         - Rules
     patch:
+      description: Use this endpoint to partially update a fraud rule. Only provided fields are updated. Expression can only be modified when rule is in DRAFT status.
       operationId: updateRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2644,9 +3130,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/UpdateRuleInput"
         required: true
       responses:
         "200":
@@ -2655,6 +3139,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2679,13 +3172,14 @@ paths:
       summary: Partially update an existing fraud rule
       tags:
         - Rules
-  /rules/{id}/activate:
+  /rules/{rule_id}/activate:
     post:
+      description: Use this endpoint to activate a fraud rule. Activates the fraud rule for evaluation in validations. Valid transitions are DRAFT to ACTIVE and INACTIVE to ACTIVE.
       operationId: activateRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2697,6 +3191,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2721,13 +3224,14 @@ paths:
       summary: Activate a fraud rule
       tags:
         - Rules
-  /rules/{id}/deactivate:
+  /rules/{rule_id}/deactivate:
     post:
+      description: Use this endpoint to deactivate a fraud rule. Pauses the fraud rule from being evaluated in validations. The valid transition is ACTIVE to INACTIVE; a DRAFT rule cannot be deactivated.
       operationId: deactivateRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2739,6 +3243,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2763,13 +3276,14 @@ paths:
       summary: Deactivate a fraud rule
       tags:
         - Rules
-  /rules/{id}/draft:
+  /rules/{rule_id}/draft:
     post:
+      description: Use this endpoint to transition a fraud rule from INACTIVE back to DRAFT. Allows re-editing a previously deactivated rule before re-activating it.
       operationId: draftRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2781,6 +3295,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2807,6 +3330,7 @@ paths:
         - Rules
   /validations:
     get:
+      description: Use this endpoint to list transaction validation records with cursor-based pagination and filters. Useful for compliance reporting and trend analysis.
       operationId: listValidations
       parameters:
         - description: "Max items per page (1-1000, default: 100)"
@@ -2837,19 +3361,19 @@ paths:
           schema:
             description: "Sort direction (ASC, DESC; default: DESC)"
             type: string
-        - description: Filter from this date (RFC3339)
+        - description: Filter from this date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only start is 00:00:00)
           explode: false
           in: query
           name: start_date
           schema:
-            description: Filter from this date (RFC3339)
+            description: Filter from this date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only start is 00:00:00)
             type: string
-        - description: Filter to this date (RFC3339)
+        - description: Filter to this date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only end covers the whole day)
           explode: false
           in: query
           name: end_date
           schema:
-            description: Filter to this date (RFC3339)
+            description: Filter to this date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only end covers the whole day)
             type: string
         - description: Filter by decision (ALLOW, DENY, REVIEW)
           explode: false
@@ -2872,12 +3396,12 @@ paths:
           schema:
             description: Filter by matched rule ID (UUID)
             type: string
-        - description: Filter by exceeded limit ID (UUID)
+        - description: Filter by exceeded limit ID (UUID). Refused (0082) for a request a partner made.
           explode: false
           in: query
           name: exceeded_limit_id
           schema:
-            description: Filter by exceeded limit ID (UUID)
+            description: Filter by exceeded limit ID (UUID). Refused (0082) for a request a partner made.
             type: string
         - description: Filter by segment ID (UUID)
           explode: false
@@ -2893,12 +3417,27 @@ paths:
           schema:
             description: Filter by portfolio ID (UUID)
             type: string
-        - description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+        - description: Filter by the ledger transaction a reservation decided on (UUID)
+          explode: false
+          in: query
+          name: transaction_id
+          schema:
+            description: Filter by the ledger transaction a reservation decided on (UUID)
+            type: string
+        - description: "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"
           explode: false
           in: query
           name: transaction_type
           schema:
-            description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+            deprecated: true
+            description: "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"
+            type: string
+        - description: "Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"
+          explode: false
+          in: query
+          name: scheme
+          schema:
+            description: "Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"
             type: string
       responses:
         "200":
@@ -2907,6 +3446,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListTransactionValidationsResponse"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -2932,14 +3480,13 @@ paths:
       tags:
         - Validations
     post:
+      description: "Use this endpoint to check a transaction against the active rules and the applicable spending limits in real time. Returns a decision (ALLOW, DENY, or REVIEW) along with details about which rules matched and the usage each limit would reach. A request a partner made, with its own credential or relayed as an application's actor, receives the same answer with an empty limitUsageDetails: a limit's scope and shared counters span other accounts. A DENY or REVIEW by the rules decides; an ALLOW is checked against each applicable limit, and an amount that would take a limit past its maximum answers DENY with reason limit_exceeded. It is a check: no limit counter moves and nothing is reserved; only the ledger's transaction reserve consumes a limit. A requestId already stored returns that stored verdict with 200 when the request body is the same (key order and whitespace do not matter), and 409 (code 0084) when the body differs in any field other than transactionTimestamp, which is ignored: use a new requestId for a different request. A requestId first stored through POST /v1/validations/rules-only also answers 409 (code 0084); a requestId stored before request fingerprints existed replays whatever the body."
       operationId: validateTransaction
       requestBody:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/ValidationRequest"
         required: true
       responses:
         "200":
@@ -2950,6 +3497,21 @@ paths:
           description: OK
         "201":
           description: New validation created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: The requestId is already stored for a request that differs in a field other than transactionTimestamp (a body differing only in transactionTimestamp replays; a requestId first stored through the other validate route also answers 409; a requestId stored before request fingerprints existed replays whatever the body)
         "422":
           content:
             application/problem+json:
@@ -2962,6 +3524,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
           description: Internal Server Error
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: The tenant's rule cache is not hydrated yet (code 0437); retry shortly
       security:
         - BearerAuth: []
         - ApiKeyAuth: []
@@ -2970,15 +3538,13 @@ paths:
         - Validations
   /validations/rules-only:
     post:
-      description: "Same request, response and errors as POST /v1/validations, judged by rules alone: no limit is checked or counted. requestId is one idempotency space shared with POST /v1/validations: a requestId already used on either route returns that stored verdict, so never reuse one across routes."
+      description: "Use this endpoint to validate a transaction against the active rules in real time. Returns a decision (ALLOW, DENY, or REVIEW) along with details about which rules matched. The verdict is judged by rules alone: no limit is read, reserved or counted. A requestId already stored returns that stored verdict with 200 when the request body is the same (key order and whitespace do not matter), and 409 (code 0084) when the body differs in any field other than transactionTimestamp, which is ignored: use a new requestId for a different request. A requestId first stored through POST /v1/validations also answers 409 (code 0084); a requestId stored before request fingerprints existed replays whatever the body."
       operationId: validateTransactionRulesOnly
       requestBody:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: "#/components/schemas/ValidationRequest"
         required: true
       responses:
         "200":
@@ -2989,6 +3555,21 @@ paths:
           description: OK
         "201":
           description: New validation created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: The requestId is already stored for a request that differs in a field other than transactionTimestamp (a body differing only in transactionTimestamp replays; a requestId first stored through the other validate route also answers 409; a requestId stored before request fingerprints existed replays whatever the body)
         "422":
           content:
             application/problem+json:
@@ -3001,19 +3582,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
           description: Internal Server Error
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: The tenant's rule cache is not hydrated yet (code 0437); retry shortly
       security:
         - BearerAuth: []
         - ApiKeyAuth: []
       summary: Validate a transaction by rules only
       tags:
         - Validations
-  /validations/{id}:
+  /validations/{validation_id}:
     get:
+      description: Use this endpoint to retrieve a transaction validation record by its unique identifier. Useful for auditing and debugging validation decisions.
       operationId: getValidation
       parameters:
         - description: Transaction Validation ID (UUID)
           in: path
-          name: id
+          name: validation_id
           required: true
           schema:
             description: Transaction Validation ID (UUID)
@@ -3025,6 +3613,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/TransactionValidation"
           description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
         "422":
           content:
             application/problem+json:
@@ -3049,5 +3646,68 @@ paths:
       summary: Get a transaction validation record by ID
       tags:
         - Validations
+  /validations/{validation_id}/reservations:
+    get:
+      description: "Use this endpoint to read the holds the ledger's reserve placed on spending limits for the transaction this validation decided on, each with its state: RESERVED (held), CONFIRMED (the transaction committed and the amount counts as spent), RELEASED (the transaction was cancelled and the amount returned) or EXPIRED (nothing settled the hold before reservationExpiresAt and the amount was returned). The read takes no lock and changes nothing. A validation with no transaction, from POST /v1/validations or /v1/validations/rules-only, or whose transaction held nothing, answers 200 with an empty list. An unknown validation answers 404 (code 0432). A request a partner made, with its own credential or relayed as an application's actor, also answers 404 (code 0432), as for an unknown validation: a hold names a limit, a scope, a period and an amount, which sum to the limit's shared counter."
+      operationId: listValidationReservations
+      parameters:
+        - description: Transaction Validation ID (UUID)
+          in: path
+          name: validation_id
+          required: true
+          schema:
+            description: Transaction Validation ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationReservations"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Missing or invalid credentials. API-key mode (or a bearer token without sub) answers application/json; an Access Manager refusal under plugin auth answers application/problem+json.
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List the holds of a validation's transaction
+      tags:
+        - Validations
 servers:
   - url: /v1
+tags:
+  - description: Validate transactions in real time against active rules and spending limits, and read the stored decisions.
+    name: Validations
+  - description: "Manage fraud rules: CEL expressions with scopes, and their DRAFT, ACTIVE and INACTIVE lifecycle."
+    name: Rules
+  - description: Manage spending limits, their lifecycle and their current usage.
+    name: Limits
+  - description: Read the hash-chained audit events and verify the integrity of the chain.
+    name: Audit
+  - description: "Read aggregate metrics over a time window: flagged traffic, headline metrics, busiest rules and validation volume."
+    name: Dashboard
