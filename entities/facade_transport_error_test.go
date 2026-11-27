@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -185,4 +186,137 @@ type facadeTransportErrorCase struct {
 	wantSent            bool
 	wantMessage         string
 	wantPreviousMessage string
+}
+
+// newFailingPlanes builds the real plane chain (retry RT -> auth RT ->
+// generated clients) over a transport that fails every request with cause, with
+// retries off so each call makes exactly one attempt.
+func newFailingPlanes(t *testing.T, cause error) *PlaneClients {
+	t.Helper()
+
+	planes, err := newPlaneClients(planeClientsConfig{
+		ledgerURL: "http://ledger.test",
+		tracerURL: "http://tracer.test/v1",
+		auth: authRoundTripperConfig{
+			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
+		},
+		httpClient:   &http.Client{Transport: transportErrorRoundTripper{err: cause}},
+		retryOptions: planeTestRetryOptions(),
+	})
+	require.NoError(t, err)
+
+	return planes
+}
+
+// TestFacadeTransportError_ResponseShapes drives one facade call per response
+// shape and one per Tracer facade over a transport that refuses the connection
+// or times out, and requires the classified error, not the internal one
+// (porta-fechada-leitura-v2, porta-fechada-escrita-v2,
+// porta-fechada-delete-e-count, porta-fechada-fachada-v1,
+// porta-fechada-plano-tracer at the facade level).
+func TestFacadeTransportError_ResponseShapes(t *testing.T) {
+	const (
+		orgID    = "11111111-1111-1111-1111-111111111111"
+		ledgerID = "22222222-2222-2222-2222-222222222222"
+		itemID   = "33333333-3333-3333-3333-333333333333"
+	)
+
+	ctx := context.Background()
+
+	shapes := []struct {
+		name      string
+		operation string
+		call      func(*PlaneClients) error
+	}{
+		{"writeJSON", "Ledgers.Create", func(p *PlaneClients) error {
+			_, err := newLedgersFacade(p.Ledger, true).Create(ctx, orgID, &models.CreateLedgerInput{Name: "Treasury"})
+			return err
+		}},
+		{"readOne", "Ledgers.Get", func(p *PlaneClients) error {
+			_, err := newLedgersFacade(p.Ledger, true).Get(ctx, orgID, ledgerID)
+			return err
+		}},
+		{"readList", "Ledgers.List", func(p *PlaneClients) error {
+			_, err := newLedgersFacade(p.Ledger, true).List(ctx, orgID, models.LedgersListOpts{})
+			return err
+		}},
+		{"readSlice", "MetadataIndexes.List", func(p *PlaneClients) error {
+			_, err := newMetadataIndexesFacade(p.Ledger, true).List(ctx, "")
+			return err
+		}},
+		{"deleteResource", "Ledgers.Delete", func(p *PlaneClients) error {
+			return newLedgersFacade(p.Ledger, true).Delete(ctx, orgID, ledgerID)
+		}},
+		{"readCount", "Count", func(p *PlaneClients) error {
+			_, err := newLedgersFacade(p.Ledger, true).Count(ctx, orgID)
+			return err
+		}},
+		{"lifecycle v1", "Transactions.Commit", func(p *PlaneClients) error {
+			_, err := newTransactionsFacade(p.Ledger, true).Commit(ctx, orgID, ledgerID, itemID)
+			return err
+		}},
+		{"lifecycle v2", "V2.Transactions.Commit", func(p *PlaneClients) error {
+			_, err := newTransactionsV2Facade(p.Ledger, true).Commit(ctx, orgID, ledgerID, itemID)
+			return err
+		}},
+		{"cancel v2", "V2.Transactions.Cancel", func(p *PlaneClients) error {
+			_, err := newTransactionsV2Facade(p.Ledger, true).Cancel(ctx, orgID, ledgerID, itemID)
+			return err
+		}},
+		{"tracer rules", "Rules.List", func(p *PlaneClients) error {
+			_, err := newRulesFacade(p.Tracer, true).List(ctx, models.RulesListOpts{})
+			return err
+		}},
+		{"tracer limits", "Limits.List", func(p *PlaneClients) error {
+			_, err := newLimitsFacade(p.Tracer, true).List(ctx, models.LimitsListOpts{})
+			return err
+		}},
+		{"tracer validations", "Validations.List", func(p *PlaneClients) error {
+			_, err := newValidationsFacade(p.Tracer).List(ctx, models.ValidationsListOpts{})
+			return err
+		}},
+		{"tracer audit events", "AuditEvents.List", func(p *PlaneClients) error {
+			_, err := newAuditEventsFacade(p.Tracer).List(ctx, models.AuditEventRecordsListOpts{})
+			return err
+		}},
+		{"tracer reservations", "Reservations.Confirm", func(p *PlaneClients) error {
+			_, err := newReservationsFacade(p.Tracer).Confirm(ctx, itemID)
+			return err
+		}},
+	}
+
+	failures := []struct {
+		name      string
+		newCause  func() error
+		predicate func(error) bool
+		cause     error
+	}{
+		{"connection refused", func() error {
+			return &net.OpError{Op: "dial", Net: "tcp", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}
+		}, sdkerrors.IsNetworkError, syscall.ECONNREFUSED},
+		// The deadline is the cause a client timeout or a context deadline leaves
+		// in the chain. A bare net.Error timeout from the transport does not reach
+		// the classifier as one: the retry engine wraps it and *url.Error.Timeout
+		// only asserts its direct cause.
+		{"timeout", func() error { return context.DeadlineExceeded }, sdkerrors.IsTimeoutError, context.DeadlineExceeded},
+	}
+
+	for _, shape := range shapes {
+		for _, failure := range failures {
+			t.Run(shape.name+"/"+failure.name, func(t *testing.T) {
+				err := shape.call(newFailingPlanes(t, failure.newCause()))
+
+				require.Error(t, err)
+				assert.True(t, failure.predicate(err), "got %v", err)
+				assert.False(t, sdkerrors.IsInternalError(err), "got %v", err)
+				require.ErrorIs(t, err, failure.cause)
+
+				var sdkErr *sdkerrors.Error
+				require.ErrorAs(t, err, &sdkErr)
+				assert.Equal(t, shape.operation, sdkErr.Operation)
+				assert.Equal(t, sdkerrors.ErrorSourceTransport, sdkErr.Source)
+				assert.True(t, sdkErr.HTTPRequestSent)
+			})
+		}
+	}
 }
