@@ -404,7 +404,7 @@ func TestCreateAccountPlanInput_JSONSendsEnableFalseAndOmitsUnset(t *testing.T) 
 	body, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	assert.Equal(t, `{"label":"plano","enable":false,"fees":{"pixOut":{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees"}}}`, string(body))
+	assert.JSONEq(t, `{"label":"plano","enable":false,"fees":{"pixOut":{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees"}}}`, string(body))
 }
 
 func TestCreateAccountPlanInput_JSONMatchesCapturedCreateWithRounding(t *testing.T) {
@@ -472,7 +472,7 @@ func TestAccountPlanFeeInput_JSONSendsAccounting(t *testing.T) {
 	body, err := json.Marshal(fee)
 	require.NoError(t, err)
 
-	assert.Equal(t, `{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees","accounting":{"transactionRoute":"tr","operationRouteFrom":"from","operationRouteTo":"to"}}`, string(body))
+	assert.JSONEq(t, `{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees","accounting":{"transactionRoute":"tr","operationRouteFrom":"from","operationRouteTo":"to"}}`, string(body))
 }
 
 func marshalUpdate(t *testing.T, input *UpdateAccountPlanInput) string {
@@ -575,6 +575,7 @@ func TestUpdateAccountPlanInput_JSONIsDeterministic(t *testing.T) {
 		assert.Equal(t, first, marshalUpdate(t, input))
 	}
 
+	//nolint:testifylint // byte order is the property under test; JSONEq would ignore key order.
 	assert.Equal(t, `{"fees":{"aaa":{"freeQuota":1},"boleto":{"freeQuota":1},"pixIn":{"freeQuota":1},"pixOut":{"freeQuota":1},"tedIn":{"freeQuota":1},"zzz":{"freeQuota":1}}}`, first)
 }
 
@@ -582,12 +583,12 @@ func TestUpdateAccountPlanInput_LastFeeCallWins(t *testing.T) {
 	patchThenRemove := NewUpdateAccountPlanInput().
 		WithFeePatch("pixIn", AccountPlanFeePatch{FreeQuota: ptr(3)}).
 		WithoutFee("pixIn")
-	assert.Equal(t, `{"fees":{"pixIn":null}}`, marshalUpdate(t, patchThenRemove))
+	assert.JSONEq(t, `{"fees":{"pixIn":null}}`, marshalUpdate(t, patchThenRemove))
 
 	removeThenPatch := NewUpdateAccountPlanInput().
 		WithoutFee("pixIn").
 		WithFeePatch("pixIn", AccountPlanFeePatch{FreeQuota: ptr(3)})
-	assert.Equal(t, `{"fees":{"pixIn":{"freeQuota":3}}}`, marshalUpdate(t, removeThenPatch))
+	assert.JSONEq(t, `{"fees":{"pixIn":{"freeQuota":3}}}`, marshalUpdate(t, removeThenPatch))
 }
 
 func TestUpdateAccountPlanInput_FeePatchIsCopied(t *testing.T) {
@@ -596,7 +597,7 @@ func TestUpdateAccountPlanInput_FeePatchIsCopied(t *testing.T) {
 
 	patch.FreeQuota = ptr(9)
 
-	assert.Equal(t, `{"fees":{"pixIn":{"freeQuota":3}}}`, marshalUpdate(t, input))
+	assert.JSONEq(t, `{"fees":{"pixIn":{"freeQuota":3}}}`, marshalUpdate(t, input))
 }
 
 func TestUpdateAccountPlanInput_ValidateRejectsNilAndEmpty(t *testing.T) {
@@ -662,18 +663,18 @@ func TestUpdateAccountPlanInput_JSONSameThroughPointerAndInterface(t *testing.T)
 
 	byPointer, err := json.Marshal(input)
 	require.NoError(t, err)
-	assert.Equal(t, want, string(byPointer))
+	assert.JSONEq(t, want, string(byPointer))
 
 	var held any = input
 	inInterface, err := json.Marshal(held)
 	require.NoError(t, err)
-	assert.Equal(t, want, string(inInterface))
+	assert.JSONEq(t, want, string(inInterface))
 
 	inStruct, err := json.Marshal(struct {
 		Body *UpdateAccountPlanInput `json:"body"`
 	}{Body: input})
 	require.NoError(t, err)
-	assert.Equal(t, `{"body":`+want+`}`, string(inStruct))
+	assert.JSONEq(t, `{"body":`+want+`}`, string(inStruct))
 }
 
 func TestAssignAccountPlanInput_Validate(t *testing.T) {
@@ -709,7 +710,7 @@ func TestAssignAccountPlanInput_JSON(t *testing.T) {
 	require.NoError(t, err)
 
 	// Request body the server accepted with 200.
-	assert.Equal(t, `{"accountPlanId":"01a21da6-a6fa-7044-9058-c1f644284b5a"}`, string(body))
+	assert.JSONEq(t, `{"accountPlanId":"01a21da6-a6fa-7044-9058-c1f644284b5a"}`, string(body))
 }
 
 func TestCreateAccountPlanInput_JSONOmitsZeroFreeQuotaAndDeferrable(t *testing.T) {
@@ -721,5 +722,5 @@ func TestCreateAccountPlanInput_JSONOmitsZeroFreeQuotaAndDeferrable(t *testing.T
 	require.NoError(t, err)
 
 	// Zero is the server default for both, so omitting them is equivalent.
-	assert.Equal(t, `{"label":"plano","enable":true,"fees":{"pixOut":{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees"}}}`, string(body))
+	assert.JSONEq(t, `{"label":"plano","enable":true,"fees":{"pixOut":{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees"}}}`, string(body))
 }
