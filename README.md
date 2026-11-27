@@ -319,7 +319,7 @@ if err != nil {
     case sdkerrors.IsValidationError(err):
         return fmt.Errorf("input invalid: %w", err)
     case sdkerrors.IsNetworkError(err):
-        return fmt.Errorf("transient transport: %w", err) // retry-safe
+        return fmt.Errorf("transient transport: %w", err) // transient; retry writes only with an idempotency key
     }
 }
 ```
