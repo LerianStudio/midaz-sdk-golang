@@ -43,7 +43,8 @@ func closedPortURL(t *testing.T) string {
 }
 
 // rawTCPServer accepts connections and hands each to handle. Cleanup closes the
-// listener and every accepted connection, then waits for the accept loop and
+// listener, waits for the accept loop to return so no connection can still be
+// on its way into the list, closes every accepted connection, then waits for
 // every handler to return.
 func rawTCPServer(t *testing.T, handle func(net.Conn)) string {
 	t.Helper()
@@ -52,15 +53,16 @@ func rawTCPServer(t *testing.T, handle func(net.Conn)) string {
 	require.NoError(t, err)
 
 	var (
-		wg    sync.WaitGroup
-		mu    sync.Mutex
-		conns []net.Conn
+		acceptWG  sync.WaitGroup
+		handlerWG sync.WaitGroup
+		mu        sync.Mutex
+		conns     []net.Conn
 	)
 
-	wg.Add(1)
+	acceptWG.Add(1)
 
 	go func() {
-		defer wg.Done()
+		defer acceptWG.Done()
 
 		for {
 			conn, err := ln.Accept()
@@ -72,10 +74,10 @@ func rawTCPServer(t *testing.T, handle func(net.Conn)) string {
 			conns = append(conns, conn)
 			mu.Unlock()
 
-			wg.Add(1)
+			handlerWG.Add(1)
 
 			go func() {
-				defer wg.Done()
+				defer handlerWG.Done()
 				handle(conn)
 			}()
 		}
@@ -83,6 +85,7 @@ func rawTCPServer(t *testing.T, handle func(net.Conn)) string {
 
 	t.Cleanup(func() {
 		_ = ln.Close()
+		acceptWG.Wait()
 
 		mu.Lock()
 		for _, conn := range conns {
@@ -90,7 +93,7 @@ func rawTCPServer(t *testing.T, handle func(net.Conn)) string {
 		}
 		mu.Unlock()
 
-		wg.Wait()
+		handlerWG.Wait()
 	})
 
 	return "http://" + ln.Addr().String()
@@ -217,7 +220,6 @@ func TestFacadeTransport_RealClient(t *testing.T) {
 		// so the failure is the body read, not the wait for a response.
 		headersSeen := make(chan struct{})
 		done := make(chan struct{})
-		t.Cleanup(func() { close(done) })
 
 		baseURL := rawTCPServer(t, func(conn net.Conn) {
 			if readFullRequest(conn) != nil {
@@ -233,6 +235,10 @@ func TestFacadeTransport_RealClient(t *testing.T) {
 
 			resetConn(conn)
 		})
+
+		// Registered after the server, so it runs first: a run that never sees
+		// the headers releases the handler instead of hanging the server cleanup.
+		t.Cleanup(func() { close(done) })
 
 		var once sync.Once
 
