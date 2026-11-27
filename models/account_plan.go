@@ -572,6 +572,10 @@ func validateFeeRounding(errs *validation.FieldErrors, rounding FeeRounding) {
 //
 // The server accepts an empty PATCH as a no-op; Validate refuses it locally
 // instead, to avoid the round trip.
+//
+// Marshal it through its pointer, as NewUpdateAccountPlanInput and the builders
+// return it: MarshalJSON has a pointer receiver, like every Update*Input in
+// this package, so a value copy marshals with the default encoder.
 type UpdateAccountPlanInput struct {
 	// Label replaces the plan name.
 	Label *string `json:"-"`
@@ -802,11 +806,13 @@ func validateAccountPlanFeePatch(errs *validation.FieldErrors, prefix string, pa
 }
 
 // MarshalJSON emits only the fields that were set, under their server wire
-// names, with keys in a stable order. A removed fee is emitted as null.
-//
-// It has a value receiver so a pointer and a value marshal to the same body;
-// encoding/json emits null for a nil *UpdateAccountPlanInput.
-func (input UpdateAccountPlanInput) MarshalJSON() ([]byte, error) {
+// names, with keys in a stable order. A removed fee is emitted as null. A nil
+// input marshals as null.
+func (input *UpdateAccountPlanInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
 	payload := map[string]any{}
 
 	if input.Label != nil {

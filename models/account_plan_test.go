@@ -649,9 +649,13 @@ func TestUpdateAccountPlanInput_BuildersOnNil(t *testing.T) {
 	body, err := json.Marshal(input)
 	require.NoError(t, err)
 	assert.Equal(t, "null", string(body))
+
+	direct, err := input.MarshalJSON()
+	require.NoError(t, err)
+	assert.Equal(t, "null", string(direct), "a direct call on a nil pointer must not panic")
 }
 
-func TestUpdateAccountPlanInput_JSONSameByValueAndPointer(t *testing.T) {
+func TestUpdateAccountPlanInput_JSONSameThroughPointerAndInterface(t *testing.T) {
 	input := NewUpdateAccountPlanInput().WithDescription("x").WithoutFee("b")
 
 	const want = `{"description":"x","fees":{"b":null}}`
@@ -660,18 +664,14 @@ func TestUpdateAccountPlanInput_JSONSameByValueAndPointer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, want, string(byPointer))
 
-	byValue, err := json.Marshal(*input)
-	require.NoError(t, err)
-	assert.Equal(t, want, string(byValue))
-
-	var held any = *input
+	var held any = input
 	inInterface, err := json.Marshal(held)
 	require.NoError(t, err)
 	assert.Equal(t, want, string(inInterface))
 
 	inStruct, err := json.Marshal(struct {
-		Body UpdateAccountPlanInput `json:"body"`
-	}{Body: *input})
+		Body *UpdateAccountPlanInput `json:"body"`
+	}{Body: input})
 	require.NoError(t, err)
 	assert.Equal(t, `{"body":`+want+`}`, string(inStruct))
 }
