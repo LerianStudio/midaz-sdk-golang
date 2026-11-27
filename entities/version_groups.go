@@ -195,6 +195,13 @@ type V2Services struct {
 	// path — the request body carries no ledgerId and the server rejects one
 	// (closed schema).
 	BillingCalculations *billingCalculateFacade
+
+	// AccountPlans is the account plan surface (/v2/.../account-plans and
+	// /v2/.../accounts/{id}/account-plan): per-account fee plans, their
+	// versions, their assignment to accounts and the free-quota usage. V2 ONLY
+	// and ledger-scoped; served from Midaz 4.4.0. Its writes send no
+	// X-Idempotency and are never retried — see the type doc.
+	AccountPlans *accountPlansFacade
 }
 
 // newV1Services wires every V1 ledger accessor over one plane client.
@@ -242,5 +249,6 @@ func newV2Services(ledger *genledger.ClientWithResponses, enableIdempotency bool
 		FeePackages:         newFeePackagesFacade(ledger, enableIdempotency),
 		FeeEstimates:        newFeeEstimateFacade(ledger),
 		BillingCalculations: newBillingCalculateFacade(ledger),
+		AccountPlans:        newAccountPlansFacade(ledger),
 	}
 }
