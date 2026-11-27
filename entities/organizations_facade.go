@@ -312,11 +312,15 @@ func validationErr(operation string, err error) error {
 //     or the Access Manager rejects it, and the auth round tripper fetches the
 //     token before the request goes out, so the ledger or Tracer request never
 //     left; classified, a refused or timed-out token request would come back
-//     as network or timeout with HTTPRequestSent true. Two token-path failures
-//     are not that type and go through the classifier like any other cause:
-//     the caller's context ending while the token fetch is in flight (a bare
-//     context error) and an error returned by a caller-supplied
-//     auth.CredentialSource.
+//     as network or timeout with HTTPRequestSent true. Three token-path
+//     failures do not reach here with that type and go through the
+//     classifier like any other cause:
+//     the client timeout firing during the token fetch (net/http replaces the
+//     round tripper's error with a text-only timeout error, so the type is
+//     gone); the caller's context deadline expiring during the fetch (a bare
+//     context error); and an error returned by a caller-supplied
+//     auth.CredentialSource. The first two come out as timeout; the third is
+//     classified by its cause.
 //   - Any cause the classifier does not recognize as network or timeout
 //     (errNoResponse, an oversized body, an unknown failure) stays internal.
 //     The classifier would mark it Source transport and HTTPRequestSent true,
