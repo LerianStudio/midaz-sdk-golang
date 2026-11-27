@@ -59,6 +59,15 @@ func decodedError(status int, code string) error {
 	return sdkerrors.DecodeProblemJSON(status, libAuthActorDenialBody(code, "Refused", "refused"), "req-1")
 }
 
+// selfReferencingError builds an SDK error whose Err points back at itself, so
+// a chain walk without a bound would never end.
+func selfReferencingError() error {
+	sdkErr := &sdkerrors.Error{}
+	sdkErr.Err = sdkErr
+
+	return sdkErr
+}
+
 func TestIsPartnerRefusal(t *testing.T) {
 	t.Run("recusa-de-partner-reconhecida", func(t *testing.T) {
 		for _, refusal := range libAuthPartnerRefusals {
@@ -97,6 +106,36 @@ func TestIsPartnerRefusal(t *testing.T) {
 		{name: "status-nao-condiciona/409", err: decodedError(http.StatusConflict, "AUT-1017"), want: true},
 		{name: "status-nao-condiciona/500", err: decodedError(http.StatusInternalServerError, "AUT-1017"), want: true},
 		{name: "whole code surrounded by spaces", err: &sdkerrors.Error{APICode: " AUT-1016 "}, want: true},
+		{
+			name: "erro-do-sdk-embrulhado-por-outro-erro-do-sdk/outer-without-code",
+			err:  &sdkerrors.Error{Err: decodedError(http.StatusForbidden, "AUT-1019")},
+			want: true,
+		},
+		{
+			name: "erro-do-sdk-embrulhado-por-outro-erro-do-sdk/outer-with-other-code",
+			err:  &sdkerrors.Error{APICode: "0001", Err: decodedError(http.StatusForbidden, "AUT-1019")},
+			want: true,
+		},
+		{
+			name: "outer sdk error wrapping AUT-1020 is not a partner refusal",
+			err:  &sdkerrors.Error{Err: decodedError(http.StatusForbidden, "AUT-1020")},
+			want: false,
+		},
+		{name: "typed-nil sdk error", err: error((*sdkerrors.Error)(nil)), want: false},
+		{name: "lowercase code does not match", err: decodedError(http.StatusForbidden, "aut-1016"), want: false},
+		{name: "self-referencing sdk error terminates", err: selfReferencingError(), want: false},
+		{
+			name: "join with a plain error first is recognized",
+			err:  stderrors.Join(stderrors.New("first"), decodedError(http.StatusForbidden, "AUT-1019")),
+			want: true,
+		},
+		{
+			// Documented limit: the walk follows only the branch holding the
+			// first SDK error errors.As finds in a join tree.
+			name: "join with a codeless sdk error first is not recognized",
+			err:  stderrors.Join(&sdkerrors.Error{}, decodedError(http.StatusForbidden, "AUT-1019")),
+			want: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -120,6 +159,37 @@ func TestGetPartnerRefusalReason(t *testing.T) {
 			})
 		}
 	})
+
+	recognized := []struct {
+		name string
+		err  error
+		want sdkerrors.PartnerRefusalReason
+	}{
+		{
+			name: "erro-do-sdk-embrulhado-por-outro-erro-do-sdk/outer-without-code",
+			err:  &sdkerrors.Error{Err: decodedError(http.StatusForbidden, "AUT-1019")},
+			want: "not_allowed",
+		},
+		{
+			name: "erro-do-sdk-embrulhado-por-outro-erro-do-sdk/outer-with-other-code",
+			err:  &sdkerrors.Error{APICode: "0001", Err: decodedError(http.StatusForbidden, "AUT-1019")},
+			want: "not_allowed",
+		},
+		{
+			name: "wrapped with %w",
+			err:  fmt.Errorf("list ledgers: %w", decodedError(http.StatusForbidden, "AUT-1016")),
+			want: "other_tenant",
+		},
+	}
+
+	for _, tt := range recognized {
+		t.Run(tt.name, func(t *testing.T) {
+			reason, ok := sdkerrors.GetPartnerRefusalReason(tt.err)
+
+			assert.True(t, ok)
+			assert.Equal(t, tt.want, reason)
+		})
+	}
 
 	tests := []struct {
 		name string
