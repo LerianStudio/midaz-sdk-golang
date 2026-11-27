@@ -638,3 +638,164 @@ func TestAccountPlansFacade_PagesWithoutLimitFollowTheEchoedLimit(t *testing.T) 
 	assert.Equal(t, 1, pages)
 	assert.Equal(t, url.Values{"page": {"1"}}, rec.only(t).query)
 }
+
+func TestAccountPlansFacade_Create(t *testing.T) {
+	t.Run("criacao-de-plano", func(t *testing.T) {
+		rec, srv := newAPServer(t, http.StatusCreated, apCreateRoundingResponse)
+
+		plan, err := newTestAccountPlansFacade(t, srv).Create(context.Background(), apOrgID, apLedgerID, apCreateRoundingInput())
+		require.NoError(t, err)
+
+		req := rec.only(t)
+		assert.Equal(t, http.MethodPost, req.method)
+		assert.Equal(t, apPlansURL, req.path)
+		assert.Equal(t, "application/json", req.header.Get("Content-Type"))
+		assert.JSONEq(t, apCreateRoundingRequest, req.body)
+
+		assert.Equal(t, apPlanID, plan.ID)
+		assert.Equal(t, 1, plan.Version)
+		assert.Equal(t, "America/Sao_Paulo", plan.Timezone)
+		require.NotNil(t, plan.Rounding)
+		assert.Equal(t, models.FeeRounding{Scale: 2, Mode: models.FeeRoundingModeHalfUp}, *plan.Rounding)
+		assert.Equal(t, models.AccountPlanTriggerDirectionReceived, plan.Fees["pixIn"].Trigger.Direction)
+		assert.Equal(t, models.AccountPlanTriggerDirectionSent, plan.Fees["pixOut"].Trigger.Direction)
+	})
+
+	t.Run("corpo-de-criacao-enviado", func(t *testing.T) {
+		rec, srv := newAPServer(t, http.StatusCreated, apCreateDisabledResponse)
+
+		plan, err := newTestAccountPlansFacade(t, srv).Create(context.Background(), apOrgID, apLedgerID, apCreateDisabledInput())
+		require.NoError(t, err)
+
+		body := rec.only(t).body
+		assert.JSONEq(t, apCreateDisabledRequest, body)
+		assert.Contains(t, body, `"enable":false`)
+
+		for _, absent := range []string{`"description"`, `"timezone"`, `"rounding"`} {
+			assert.NotContains(t, body, absent)
+		}
+
+		assert.False(t, plan.Enable)
+		assert.Nil(t, plan.Rounding)
+	})
+}
+
+func TestAccountPlansFacade_Update(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       *models.UpdateAccountPlanInput
+		wantBody    string
+		response    string
+		wantVersion int
+		check       func(t *testing.T, plan *models.AccountPlanView)
+	}{
+		{
+			name:        "edicao-de-cadastro",
+			input:       models.NewUpdateAccountPlanInput().WithDescription("x"),
+			wantBody:    apUpdateDescriptionRequest,
+			response:    apUpdateDescriptionResponse,
+			wantVersion: 1,
+			check: func(t *testing.T, plan *models.AccountPlanView) {
+				t.Helper()
+				require.NotNil(t, plan.Description)
+				assert.Equal(t, "x", *plan.Description)
+			},
+		},
+		{
+			name: "edicao-de-fees-cria-versao",
+			input: models.NewUpdateAccountPlanInput().WithFeePatch("pixOut", models.AccountPlanFeePatch{
+				FreeQuota:  apIntPtr(5),
+				Deferrable: apBoolPtr(true),
+			}),
+			wantBody:    apUpdateFeePatchRequest,
+			response:    apUpdateFeePatchResponse,
+			wantVersion: 2,
+			check: func(t *testing.T, plan *models.AccountPlanView) {
+				t.Helper()
+				assert.Equal(t, 5, plan.Fees["pixOut"].FreeQuota)
+				assert.True(t, plan.Fees["pixOut"].Deferrable)
+			},
+		},
+		{
+			name:        "remocao-de-fee",
+			input:       models.NewUpdateAccountPlanInput().WithoutFee("b"),
+			wantBody:    apUpdateRemoveFeeRequest,
+			response:    apUpdateRemoveFeeResponse,
+			wantVersion: 2,
+			check: func(t *testing.T, plan *models.AccountPlanView) {
+				t.Helper()
+				assert.NotContains(t, plan.Fees, "b")
+				assert.Contains(t, plan.Fees, "a")
+			},
+		},
+		{
+			name:        "substituicao-de-rounding",
+			input:       models.NewUpdateAccountPlanInput().WithRounding(models.FeeRounding{Scale: 2, Mode: models.FeeRoundingModeFloor}),
+			wantBody:    apUpdateRoundingRequest,
+			response:    apUpdateRoundingResponse,
+			wantVersion: 2,
+			check: func(t *testing.T, plan *models.AccountPlanView) {
+				t.Helper()
+				require.NotNil(t, plan.Rounding)
+				assert.Equal(t, models.FeeRounding{Scale: 2, Mode: models.FeeRoundingModeFloor}, *plan.Rounding)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec, srv := newAPServer(t, http.StatusOK, tt.response)
+
+			plan, err := newTestAccountPlansFacade(t, srv).Update(context.Background(), apOrgID, apLedgerID, apPlanID, tt.input)
+			require.NoError(t, err)
+
+			req := rec.only(t)
+			assert.Equal(t, http.MethodPatch, req.method)
+			assert.Equal(t, apPlanURL, req.path)
+			assert.Equal(t, tt.wantBody, req.body, "only the fields set are sent, as the captured request")
+			assert.Equal(t, tt.wantVersion, plan.Version)
+			tt.check(t, plan)
+		})
+	}
+}
+
+func TestAccountPlansFacade_Delete(t *testing.T) {
+	rec, srv := newAPServer(t, http.StatusNoContent, "")
+
+	require.NoError(t, newTestAccountPlansFacade(t, srv).Delete(context.Background(), apOrgID, apLedgerID, apPlanID))
+
+	req := rec.only(t)
+	assert.Equal(t, http.MethodDelete, req.method)
+	assert.Equal(t, apPlanURL, req.path)
+	assert.Empty(t, req.body)
+}
+
+func TestAccountPlansFacade_Assign(t *testing.T) {
+	rec, srv := newAPServer(t, http.StatusOK, apAssignResponse)
+
+	assignment, err := newTestAccountPlansFacade(t, srv).Assign(context.Background(), apOrgID, apLedgerID, apAccountID, models.NewAssignAccountPlanInput(apPlanID))
+	require.NoError(t, err)
+
+	req := rec.only(t)
+	assert.Equal(t, http.MethodPut, req.method)
+	assert.Equal(t, apAccPlnURL, req.path)
+	assert.Equal(t, apAssignRequest, req.body)
+
+	assert.Equal(t, "01a21da6-a748-796a-8591-5ba05e7212ea", assignment.ID)
+	assert.Equal(t, apPlanID, assignment.AccountPlanID)
+	assert.Equal(t, "@cust-1795793790", assignment.AccountAlias)
+	assert.Nil(t, assignment.EndedAt)
+}
+
+func TestAccountPlansFacade_Unassign(t *testing.T) {
+	rec, srv := newAPServer(t, http.StatusNoContent, "")
+
+	require.NoError(t, newTestAccountPlansFacade(t, srv).Unassign(context.Background(), apOrgID, apLedgerID, apAccountID))
+
+	req := rec.only(t)
+	assert.Equal(t, http.MethodDelete, req.method)
+	assert.Equal(t, apAccPlnURL, req.path)
+}
+
+func apIntPtr(v int) *int    { return &v }
+func apBoolPtr(v bool) *bool { return &v }
