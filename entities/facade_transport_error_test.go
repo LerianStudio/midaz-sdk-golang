@@ -9,10 +9,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
+	"sync/atomic"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
@@ -365,4 +368,111 @@ func TestFacadeTransportError_ResponseShapes(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestFacadeTransportError_AccessManagerTokenFailure is
+// falha-do-access-manager-inalterada: when the real Access Manager token fetch
+// is refused or times out, the facade request never leaves, and the facade
+// returns the same internal error it returned before transport classification.
+func TestFacadeTransportError_AccessManagerTokenFailure(t *testing.T) {
+	const (
+		orgID    = "11111111-1111-1111-1111-111111111111"
+		ledgerID = "22222222-2222-2222-2222-222222222222"
+	)
+
+	var ledgerHits atomic.Int32
+
+	ledger := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		ledgerHits.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(ledger.Close)
+
+	closed, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	closedURL := "http://" + closed.Addr().String()
+	require.NoError(t, closed.Close())
+
+	// The silent Access Manager holds each token request until the client gives
+	// up or the test ends. release is registered after the server, so it runs
+	// first and unblocks any handler before the server's Close waits on it.
+	release := make(chan struct{})
+	silent := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	t.Cleanup(silent.Close)
+	t.Cleanup(func() { close(release) })
+
+	fetches := []struct {
+		name        string
+		address     string
+		tokenClient *http.Client
+	}{
+		{"refused", closedURL, &http.Client{}},
+		{"timeout", silent.URL, &http.Client{Timeout: 200 * time.Millisecond}},
+	}
+
+	for _, fetch := range fetches {
+		accessManager := auth.AccessManager{
+			Enabled:           true,
+			Address:           fetch.address,
+			ClientID:          "facade-transport-client",
+			ClientSecret:      "facade-transport-secret",
+			AllowInsecureHTTP: true,
+		}
+
+		planes, err := newPlaneClients(planeClientsConfig{
+			ledgerURL: ledger.URL,
+			tracerURL: ledger.URL + "/v1",
+			auth: authRoundTripperConfig{
+				tokenProvider: func(ctx context.Context) (string, error) {
+					return auth.GetTokenFromAccessManager(ctx, accessManager, fetch.tokenClient)
+				},
+			},
+			httpClient:   ledger.Client(),
+			retryOptions: planeTestRetryOptions(),
+		})
+		require.NoError(t, err)
+
+		calls := []struct {
+			name      string
+			operation string
+			call      func() error
+		}{
+			{"read", "Ledgers.Get", func() error {
+				_, err := newLedgersFacade(planes.Ledger, true).Get(context.Background(), orgID, ledgerID)
+				return err
+			}},
+			{"write", "Ledgers.Create", func() error {
+				_, err := newLedgersFacade(planes.Ledger, true).Create(context.Background(), orgID, &models.CreateLedgerInput{Name: "Treasury"})
+				return err
+			}},
+		}
+
+		for _, call := range calls {
+			t.Run("falha-do-access-manager-inalterada/"+fetch.name+"/"+call.name, func(t *testing.T) {
+				err := call.call()
+
+				require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
+				assert.False(t, sdkerrors.IsNetworkError(err))
+				assert.False(t, sdkerrors.IsTimeoutError(err))
+
+				var tokenErr *auth.AccessManagerTokenRequestError
+				require.ErrorAs(t, err, &tokenErr)
+
+				var sdkErr *sdkerrors.Error
+				require.ErrorAs(t, err, &sdkErr)
+				assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode)
+				assert.Equal(t, sdkerrors.ErrorSourceSDK, sdkErr.Source)
+				assert.False(t, sdkErr.HTTPRequestSent)
+				assert.Equal(t, call.operation, sdkErr.Operation)
+			})
+		}
+	}
+
+	assert.Zero(t, ledgerHits.Load(), "no facade request may reach the ledger when the token fetch fails")
 }
