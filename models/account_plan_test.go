@@ -711,3 +711,15 @@ func TestAssignAccountPlanInput_JSON(t *testing.T) {
 	// Request body the server accepted with 200.
 	assert.Equal(t, `{"accountPlanId":"01a21da6-a6fa-7044-9058-c1f644284b5a"}`, string(body))
 }
+
+func TestCreateAccountPlanInput_JSONOmitsZeroFreeQuotaAndDeferrable(t *testing.T) {
+	fee := validAccountPlanFeeInput()
+	fee.FreeQuota = 0
+	fee.Deferrable = false
+
+	body, err := json.Marshal(NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"pixOut": fee}))
+	require.NoError(t, err)
+
+	// Zero is the server default for both, so omitting them is equivalent.
+	assert.Equal(t, `{"label":"plano","enable":true,"fees":{"pixOut":{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees"}}}`, string(body))
+}
