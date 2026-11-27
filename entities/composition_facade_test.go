@@ -230,8 +230,8 @@ func TestCompositionFacade_CreateHolderAccount_Validation(t *testing.T) {
 
 // TestCompositionFacade_CreateHolderAccount_ReplaySafe is the 401-replay guard:
 // the write body must survive the auth round tripper's post-401 replay
-// (rewindable *bytes.Reader), since the composition endpoint has no idempotency
-// slot.
+// (rewindable *bytes.Reader), since the facade stamps idempotency through
+// request editors, not the generated params.
 func TestCompositionFacade_CreateHolderAccount_ReplaySafe(t *testing.T) {
 	var attempts int
 	var replayed string

@@ -34,10 +34,12 @@ import (
 // become a Go error. ONLY a transport error or a non-2xx status becomes
 // *errors.Error.
 //
-// Auto-idempotency IS wired: this endpoint has no native idempotency param
-// slot, so the write threads idempotencyEditors(ctx, f.enableIdempotency),
-// which stamps X-Idempotency (and X-TTL when set) as a request-editor header,
-// gated on enableIdempotency; an explicit or context key stamps regardless. The
+// Auto-idempotency IS wired: since the v4.6.0 contract the generated params
+// expose X-Idempotency and X-TTL slots, which the facade leaves unset; the write
+// threads idempotencyEditors(ctx, f.enableIdempotency) instead, which stamps
+// X-Idempotency (and X-TTL when set) as request-editor headers so every write
+// resolves them in one place, gated on enableIdempotency; an explicit or
+// context key stamps regardless. The
 // write stays 401-replay safe via the rewindable *bytes.Reader body in
 // writeJSON. Authorization is passed as nil so the client-level auth round
 // tripper injects the Bearer token. The public surface stays models.* +
@@ -70,8 +72,9 @@ func (f *compositionFacade) CreateHolderAccount(ctx context.Context, orgID, ledg
 	}
 
 	// Authorization is nil: the client-level auth editor injects the Bearer
-	// token. No idempotency slot exists on this endpoint, so the key rides via
-	// the request editor (X-Idempotency), gated by enableIdempotency.
+	// token. The X-Idempotency and X-TTL slots (present since v4.6.0) stay
+	// empty: the key and TTL ride via the request editors, gated by
+	// enableIdempotency.
 	params := &genledger.CreateHolderAccountV2Params{}
 
 	return writeJSON[models.HolderAccountResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {

@@ -37,7 +37,9 @@ import (
 // type filter below); the caller's opts are never mutated.
 //
 // The generated ListInstrumentsV2Params exposes slots for holder_id/limit/
-// sort_order/include_deleted/document. The type filter has no slot, so the
+// sort_order/include_deleted/document. Since v4.6.0 the contract also declares
+// banking_details_*, related_party_* and regulatory_fields_participant_document
+// filters, which the facade does not expose. The type filter has no slot, so the
 // facade injects it as a query param via a request editor.
 //
 // Auto-idempotency IS wired: each write threads idempotencyEditors(ctx,
