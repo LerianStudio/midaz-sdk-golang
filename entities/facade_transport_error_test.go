@@ -411,9 +411,12 @@ func TestFacadeTransportError_AccessManagerTokenFailure(t *testing.T) {
 		name        string
 		address     string
 		tokenClient *http.Client
+		// cause is what the token fetch failure must really hold: the refused
+		// dial's errno, or the deadline the token client's timeout leaves.
+		cause error
 	}{
-		{"refused", closedURL, &http.Client{}},
-		{"timeout", silent.URL, &http.Client{Timeout: 200 * time.Millisecond}},
+		{"refused", closedURL, &http.Client{}, syscall.ECONNREFUSED},
+		{"timeout", silent.URL, &http.Client{Timeout: 200 * time.Millisecond}, context.DeadlineExceeded},
 	}
 
 	for _, fetch := range fetches {
@@ -463,6 +466,7 @@ func TestFacadeTransportError_AccessManagerTokenFailure(t *testing.T) {
 
 				var tokenErr *auth.AccessManagerTokenRequestError
 				require.ErrorAs(t, err, &tokenErr)
+				require.ErrorIs(t, tokenErr, fetch.cause)
 
 				var sdkErr *sdkerrors.Error
 				require.ErrorAs(t, err, &sdkErr)
