@@ -322,3 +322,23 @@ func TestFacadeTransport_SendAttempts(t *testing.T) {
 		})
 	}
 }
+
+// TestFacadeTransport_CleanClose is fechamento-limpo-sem-resposta-inalterado: a
+// server that reads the request and closes with a FIN, no reset and no
+// response, leaves a cause the classifier does not recognize as network, so the
+// facade keeps the internal error it returned before.
+func TestFacadeTransport_CleanClose(t *testing.T) {
+	baseURL := rawTCPServer(t, func(conn net.Conn) {
+		_ = readFullRequest(conn)
+		_ = conn.Close()
+	})
+
+	c := newFacadeTransportClient(t, baseURL)
+
+	_, err := c.V2.Ledgers.Get(context.Background(), transportTestOrgID, transportTestLedgerID)
+
+	require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
+	assert.False(t, sdkerrors.IsNetworkError(err))
+	assert.False(t, sdkerrors.IsTimeoutError(err))
+	assert.False(t, sdkerrors.HTTPRequestSent(err))
+}
