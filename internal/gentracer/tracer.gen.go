@@ -23,12 +23,105 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
+// Defines values for CreateLimitInputLimitType.
+const (
+	CUSTOM         CreateLimitInputLimitType = "CUSTOM"
+	DAILY          CreateLimitInputLimitType = "DAILY"
+	MONTHLY        CreateLimitInputLimitType = "MONTHLY"
+	PERTRANSACTION CreateLimitInputLimitType = "PER_TRANSACTION"
+	WEEKLY         CreateLimitInputLimitType = "WEEKLY"
+)
+
+// Valid indicates whether the value is a known member of the CreateLimitInputLimitType enum.
+func (e CreateLimitInputLimitType) Valid() bool {
+	switch e {
+	case CUSTOM:
+		return true
+	case DAILY:
+		return true
+	case MONTHLY:
+		return true
+	case PERTRANSACTION:
+		return true
+	case WEEKLY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRuleInputAction.
+const (
+	CreateRuleInputActionALLOW  CreateRuleInputAction = "ALLOW"
+	CreateRuleInputActionDENY   CreateRuleInputAction = "DENY"
+	CreateRuleInputActionREVIEW CreateRuleInputAction = "REVIEW"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuleInputAction enum.
+func (e CreateRuleInputAction) Valid() bool {
+	switch e {
+	case CreateRuleInputActionALLOW:
+		return true
+	case CreateRuleInputActionDENY:
+		return true
+	case CreateRuleInputActionREVIEW:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReservationStatus.
+const (
+	CONFIRMED ReservationStatus = "CONFIRMED"
+	EXPIRED   ReservationStatus = "EXPIRED"
+	RELEASED  ReservationStatus = "RELEASED"
+	RESERVED  ReservationStatus = "RESERVED"
+)
+
+// Valid indicates whether the value is a known member of the ReservationStatus enum.
+func (e ReservationStatus) Valid() bool {
+	switch e {
+	case CONFIRMED:
+		return true
+	case EXPIRED:
+		return true
+	case RELEASED:
+		return true
+	case RESERVED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateRuleInputAction.
+const (
+	UpdateRuleInputActionALLOW  UpdateRuleInputAction = "ALLOW"
+	UpdateRuleInputActionDENY   UpdateRuleInputAction = "DENY"
+	UpdateRuleInputActionREVIEW UpdateRuleInputAction = "REVIEW"
+)
+
+// Valid indicates whether the value is a known member of the UpdateRuleInputAction enum.
+func (e UpdateRuleInputAction) Valid() bool {
+	switch e {
+	case UpdateRuleInputActionALLOW:
+		return true
+	case UpdateRuleInputActionDENY:
+		return true
+	case UpdateRuleInputActionREVIEW:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccountContext defines model for AccountContext.
 type AccountContext struct {
 	AccountId openapi_types.UUID      `json:"accountId"`
 	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
-	Status    string                  `json:"status"`
-	Type      string                  `json:"type"`
+	Status    *string                 `json:"status,omitempty"`
+	Type      *string                 `json:"type,omitempty"`
 }
 
 // Actor defines model for Actor.
@@ -48,19 +141,86 @@ type AssetAmount struct {
 
 // AuditEvent defines model for AuditEvent.
 type AuditEvent struct {
-	Action       string                  `json:"action"`
-	Actor        Actor                   `json:"actor"`
-	Context      *map[string]interface{} `json:"context,omitempty"`
-	CreatedAt    time.Time               `json:"createdAt"`
-	EventId      openapi_types.UUID      `json:"eventId"`
-	EventType    string                  `json:"eventType"`
-	Hash         *string                 `json:"hash,omitempty"`
-	Metadata     *map[string]interface{} `json:"metadata,omitempty"`
-	PreviousHash *string                 `json:"previousHash,omitempty"`
-	ResourceId   string                  `json:"resourceId"`
-	ResourceType string                  `json:"resourceType"`
-	Result       string                  `json:"result"`
+	Action    string                  `json:"action"`
+	Actor     Actor                   `json:"actor"`
+	Context   *map[string]interface{} `json:"context,omitempty"`
+	CreatedAt time.Time               `json:"createdAt"`
+	EventId   openapi_types.UUID      `json:"eventId"`
+	EventType string                  `json:"eventType"`
+
+	// Hash SHA-256 digest of this event's own fields. Events created before the audit linker hold the digest chained to their predecessor.
+	Hash     *string                 `json:"hash,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+	// PreviousHash Hash of the preceding event. Set only on events created before the audit linker; newer events are chained in batches and carry none.
+	PreviousHash *string `json:"previousHash,omitempty"`
+	ResourceId   string  `json:"resourceId"`
+	ResourceType string  `json:"resourceType"`
+	Result       string  `json:"result"`
 }
+
+// ControlEvaluation defines model for ControlEvaluation.
+type ControlEvaluation struct {
+	// BindingId Binding that decided the instruction; absent when it came from the fallback mode.
+	BindingId *string `json:"bindingId,omitempty"`
+
+	// Control Control evaluated: RULES or LIMITS.
+	Control string `json:"control"`
+
+	// DecidedBy Rules (RULES control) or limits (LIMITS control) that produced the verdict.
+	DecidedBy *[]openapi_types.UUID `json:"decidedBy"`
+
+	// Effect This control's contribution: REFUSE when the instruction is ENFORCE and the verdict is DENY or REVIEW, PROCEED otherwise.
+	Effect string `json:"effect"`
+
+	// Instruction What the caller does with the verdict: ENFORCE, ADVISORY, AUDIT or OFF.
+	Instruction string `json:"instruction"`
+
+	// Verdict What the control decided: ALLOW, DENY, REVIEW or NOT_EVALUATED.
+	Verdict string `json:"verdict"`
+}
+
+// CreateLimitInput defines model for CreateLimitInput.
+type CreateLimitInput struct {
+	ActiveTimeEnd   *string    `json:"activeTimeEnd,omitempty"`
+	ActiveTimeStart *string    `json:"activeTimeStart,omitempty"`
+	Asset           string     `json:"asset"`
+	CustomEndDate   *time.Time `json:"customEndDate,omitempty"`
+	CustomStartDate *time.Time `json:"customStartDate,omitempty"`
+
+	// Description Limit description, at most 1000 characters.
+	Description *string                   `json:"description,omitempty"`
+	LimitType   CreateLimitInputLimitType `json:"limitType"`
+	MaxAmount   string                    `json:"maxAmount"`
+
+	// Name Limit name, 1 to 255 characters.
+	Name                 string                 `json:"name"`
+	ResetTime            *string                `json:"resetTime,omitempty"`
+	Scopes               []Scope                `json:"scopes"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// CreateLimitInputLimitType defines model for CreateLimitInput.LimitType.
+type CreateLimitInputLimitType string
+
+// CreateRuleInput defines model for CreateRuleInput.
+type CreateRuleInput struct {
+	Action CreateRuleInputAction `json:"action"`
+
+	// Description Rule description, at most 1000 characters.
+	Description *string `json:"description,omitempty"`
+
+	// Expression CEL expression, 1 to 5000 characters.
+	Expression string `json:"expression"`
+
+	// Name Rule name, 1 to 255 characters.
+	Name                 string                 `json:"name"`
+	Scopes               *[]Scope               `json:"scopes,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// CreateRuleInputAction defines model for CreateRuleInput.Action.
+type CreateRuleInputAction string
 
 // DashboardFraudTypes defines model for DashboardFraudTypes.
 type DashboardFraudTypes struct {
@@ -73,22 +233,26 @@ type DashboardFraudTypes struct {
 
 // DashboardMetrics defines model for DashboardMetrics.
 type DashboardMetrics struct {
-	ActiveLimits          int64          `json:"activeLimits"`
-	ActiveRules           int64          `json:"activeRules"`
-	Allowed               int64          `json:"allowed"`
-	AmountSaved           *string        `json:"amountSaved,omitempty"`
-	AmountSavedByAsset    *[]AssetAmount `json:"amountSavedByAsset"`
-	ApprovalRate          float64        `json:"approvalRate"`
-	Asset                 *string        `json:"asset,omitempty"`
-	AvgProcessingTimeMs   float64        `json:"avgProcessingTimeMs"`
-	FraudDetectionRate    float64        `json:"fraudDetectionRate"`
-	FraudsBlocked         int64          `json:"fraudsBlocked"`
-	ManualReviewRate      float64        `json:"manualReviewRate"`
-	ManualReviews         int64          `json:"manualReviews"`
-	TransactionsProcessed int64          `json:"transactionsProcessed"`
-	UpdatedAt             time.Time      `json:"updatedAt"`
-	WindowEnd             time.Time      `json:"windowEnd"`
-	WindowStart           time.Time      `json:"windowStart"`
+	ActiveLimits int64 `json:"activeLimits"`
+	ActiveRules  int64 `json:"activeRules"`
+	Allowed      int64 `json:"allowed"`
+
+	// AmountSaved Blocked amount of the single asset in the window. Present only when exactly one asset carried blocked volume; absent otherwise. Read amountSavedByAsset for the general case.
+	AmountSaved        *string        `json:"amountSaved,omitempty"`
+	AmountSavedByAsset *[]AssetAmount `json:"amountSavedByAsset"`
+	ApprovalRate       float64        `json:"approvalRate"`
+
+	// Asset The single asset amountSaved is expressed in. Present only when exactly one asset carried blocked volume; absent otherwise.
+	Asset                 *string   `json:"asset,omitempty"`
+	AvgProcessingTimeMs   float64   `json:"avgProcessingTimeMs"`
+	FraudDetectionRate    float64   `json:"fraudDetectionRate"`
+	FraudsBlocked         int64     `json:"fraudsBlocked"`
+	ManualReviewRate      float64   `json:"manualReviewRate"`
+	ManualReviews         int64     `json:"manualReviews"`
+	TransactionsProcessed int64     `json:"transactionsProcessed"`
+	UpdatedAt             time.Time `json:"updatedAt"`
+	WindowEnd             time.Time `json:"windowEnd"`
+	WindowStart           time.Time `json:"windowStart"`
 }
 
 // DashboardTopRules defines model for DashboardTopRules.
@@ -158,7 +322,9 @@ type HashChainVerificationResult struct {
 	FirstInvalidId *int64 `json:"firstInvalidId,omitempty"`
 	IsValid        bool   `json:"isValid"`
 	Message        string `json:"message"`
-	TotalChecked   int64  `json:"totalChecked"`
+
+	// TotalChecked Hash-chain rows verified for legacy events; chain links (at most 3: the event's link and its neighbours) for newer events.
+	TotalChecked int64 `json:"totalChecked"`
 }
 
 // Limit defines model for Limit.
@@ -176,6 +342,7 @@ type Limit struct {
 	MaxAmount       string             `json:"maxAmount"`
 	Name            string             `json:"name"`
 	ResetAt         *time.Time         `json:"resetAt,omitempty"`
+	ResetTime       *string            `json:"resetTime,omitempty"`
 	Scopes          *[]Scope           `json:"scopes"`
 	Status          string             `json:"status"`
 	UpdatedAt       time.Time          `json:"updatedAt"`
@@ -224,11 +391,22 @@ type ListTransactionValidationsResponse struct {
 
 // MerchantContext defines model for MerchantContext.
 type MerchantContext struct {
-	Category   string                  `json:"category"`
-	Country    string                  `json:"country"`
+	Category   *string                 `json:"category,omitempty"`
+	Country    *string                 `json:"country,omitempty"`
 	MerchantId openapi_types.UUID      `json:"merchantId"`
 	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
-	Name       string                  `json:"name"`
+	Name       *string                 `json:"name,omitempty"`
+}
+
+// PolicyEvaluation defines model for PolicyEvaluation.
+type PolicyEvaluation struct {
+	Controls *[]ControlEvaluation `json:"controls"`
+
+	// PolicyId Evaluated policy; empty for the active rules and limits evaluated as one.
+	PolicyId string `json:"policyId"`
+
+	// Revision Revision of the evaluated policy; 0 for the active rules and limits evaluated as one.
+	Revision int32 `json:"revision"`
 }
 
 // PortfolioContext defines model for PortfolioContext.
@@ -237,6 +415,37 @@ type PortfolioContext struct {
 	Name        *string                 `json:"name,omitempty"`
 	PortfolioId openapi_types.UUID      `json:"portfolioId"`
 }
+
+// Reservation defines model for Reservation.
+type Reservation struct {
+	// Amount Amount held against the limit, a decimal string in the transaction's asset.
+	Amount string `json:"amount"`
+
+	// ConfirmedAt When the ledger confirmed the transaction; absent until then.
+	ConfirmedAt *time.Time         `json:"confirmedAt,omitempty"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	LimitId     openapi_types.UUID `json:"limitId"`
+
+	// PeriodKey Usage period of the bucket: yyyy-mm-dd (DAILY), yyyy-mm (MONTHLY), yyyy-Www (WEEKLY) or custom (CUSTOM).
+	PeriodKey string `json:"periodKey"`
+
+	// ReleasedAt When the hold returned its amount, by release or expiry; absent otherwise. A hold confirmed after it expired carries both.
+	ReleasedAt *time.Time `json:"releasedAt,omitempty"`
+
+	// ReservationExpiresAt When an unsettled hold expires and returns its amount.
+	ReservationExpiresAt time.Time          `json:"reservationExpiresAt"`
+	ReservationId        openapi_types.UUID `json:"reservationId"`
+
+	// ScopeKey Usage bucket the hold sits in: the scope's ids as acct:, port:, seg: and merch: entries joined by |; empty for a limit scoped only by scheme or sub type.
+	ScopeKey string `json:"scopeKey"`
+
+	// Status State of the hold: RESERVED (held), CONFIRMED (the transaction committed; the amount counts as spent), RELEASED (the transaction was cancelled; the amount was returned) or EXPIRED (nothing settled it before reservationExpiresAt; the amount was returned).
+	Status        ReservationStatus  `json:"status"`
+	TransactionId openapi_types.UUID `json:"transactionId"`
+}
+
+// ReservationStatus State of the hold: RESERVED (held), CONFIRMED (the transaction committed; the amount counts as spent), RELEASED (the transaction was cancelled; the amount was returned) or EXPIRED (nothing settled it before reservationExpiresAt; the amount was returned).
+type ReservationStatus string
 
 // ReservationActionResponse defines model for ReservationActionResponse.
 type ReservationActionResponse struct {
@@ -269,12 +478,15 @@ type Rule struct {
 
 // Scope defines model for Scope.
 type Scope struct {
-	AccountId       *openapi_types.UUID `json:"accountId,omitempty"`
-	MerchantId      *openapi_types.UUID `json:"merchantId,omitempty"`
-	PortfolioId     *openapi_types.UUID `json:"portfolioId,omitempty"`
-	SegmentId       *openapi_types.UUID `json:"segmentId,omitempty"`
-	SubType         *string             `json:"subType,omitempty"`
-	TransactionType *string             `json:"transactionType,omitempty"`
+	AccountId   *openapi_types.UUID `json:"accountId,omitempty"`
+	MerchantId  *openapi_types.UUID `json:"merchantId,omitempty"`
+	PortfolioId *openapi_types.UUID `json:"portfolioId,omitempty"`
+	Scheme      *string             `json:"scheme,omitempty"`
+	SegmentId   *openapi_types.UUID `json:"segmentId,omitempty"`
+
+	// SubType Sub type the scope is restricted to (optional): 1 to 50 bytes after trimming and lower-casing; a blank value is refused. Matched case-insensitively.
+	SubType         *string `json:"subType,omitempty"`
+	TransactionType *string `json:"transactionType,omitempty"`
 }
 
 // SegmentContext defines model for SegmentContext.
@@ -303,28 +515,101 @@ type TransactionActionResponse struct {
 
 // TransactionValidation defines model for TransactionValidation.
 type TransactionValidation struct {
-	Account              AccountContext          `json:"account"`
-	Amount               string                  `json:"amount"`
-	Asset                string                  `json:"asset"`
-	CreatedAt            time.Time               `json:"createdAt"`
-	Decision             string                  `json:"decision"`
-	EvaluatedRuleIds     *[]openapi_types.UUID   `json:"evaluatedRuleIds"`
-	LimitUsageDetails    *[]LimitUsageDetail     `json:"limitUsageDetails"`
-	MatchedRuleIds       *[]openapi_types.UUID   `json:"matchedRuleIds"`
-	Merchant             *MerchantContext        `json:"merchant,omitempty"`
-	Metadata             *map[string]interface{} `json:"metadata,omitempty"`
-	Portfolio            *PortfolioContext       `json:"portfolio,omitempty"`
-	ProcessingTimeMs     float64                 `json:"processingTimeMs"`
-	Reason               string                  `json:"reason"`
-	RequestId            openapi_types.UUID      `json:"requestId"`
-	Segment              *SegmentContext         `json:"segment,omitempty"`
-	SubType              *string                 `json:"subType,omitempty"`
-	TotalRulesLoaded     int64                   `json:"totalRulesLoaded"`
-	TransactionTimestamp time.Time               `json:"transactionTimestamp"`
-	TransactionType      string                  `json:"transactionType"`
-	Truncated            bool                    `json:"truncated"`
-	ValidationId         openapi_types.UUID      `json:"validationId"`
+	Account          AccountContext        `json:"account"`
+	Amount           string                `json:"amount"`
+	Asset            string                `json:"asset"`
+	CreatedAt        time.Time             `json:"createdAt"`
+	Decision         string                `json:"decision"`
+	EvaluatedRuleIds *[]openapi_types.UUID `json:"evaluatedRuleIds"`
+
+	// InstructionSource Where the instructions came from: BINDING, or FALLBACK when at least one control used the caller's fallback mode. Absent for a record a decision did not write.
+	InstructionSource *string `json:"instructionSource,omitempty"`
+
+	// LedgerId Midaz ledger of the transaction this reservation decided on. Absent for a validation or rules-only request, and for records written before the ledger sent it.
+	LedgerId *openapi_types.UUID `json:"ledgerId,omitempty"`
+
+	// LimitUsageDetails Usage of every limit checked. Empty for a request a partner made.
+	LimitUsageDetails *[]LimitUsageDetail     `json:"limitUsageDetails"`
+	MatchedRuleIds    *[]openapi_types.UUID   `json:"matchedRuleIds"`
+	Merchant          *MerchantContext        `json:"merchant,omitempty"`
+	Metadata          *map[string]interface{} `json:"metadata,omitempty"`
+
+	// OrganizationId Midaz organization of the transaction this reservation decided on. Absent for a validation or rules-only request, and for records written before the ledger sent it.
+	OrganizationId *openapi_types.UUID `json:"organizationId,omitempty"`
+
+	// Outcome Effect the caller obeyed: REFUSE or PROCEED. Absent for a record a decision did not write.
+	Outcome *string `json:"outcome,omitempty"`
+
+	// Policies Evaluation of every policy, per control. Absent for a record a decision did not write and for a request a partner made.
+	Policies         *[]PolicyEvaluation `json:"policies,omitempty"`
+	Portfolio        *PortfolioContext   `json:"portfolio,omitempty"`
+	ProcessingTimeMs float64             `json:"processingTimeMs"`
+	Reason           string              `json:"reason"`
+	RequestId        openapi_types.UUID  `json:"requestId"`
+	Scheme           string              `json:"scheme"`
+	Segment          *SegmentContext     `json:"segment,omitempty"`
+
+	// Sources Outcome per source of a reserve with more than one source. Absent for any other record and for a request a partner made.
+	Sources              *[]ValidationSource `json:"sources,omitempty"`
+	SubType              *string             `json:"subType,omitempty"`
+	TotalRulesLoaded     int64               `json:"totalRulesLoaded"`
+	TransactionId        *openapi_types.UUID `json:"transactionId,omitempty"`
+	TransactionTimestamp time.Time           `json:"transactionTimestamp"`
+	TransactionType      string              `json:"transactionType"`
+	Truncated            bool                `json:"truncated"`
+	ValidationId         openapi_types.UUID  `json:"validationId"`
 }
+
+// UnauthorizedError defines model for UnauthorizedError.
+type UnauthorizedError struct {
+	// Code Stable error code.
+	Code string `json:"code"`
+
+	// Message Human-readable explanation.
+	Message string `json:"message"`
+
+	// Title Short summary of the error.
+	Title string `json:"title"`
+}
+
+// UpdateLimitInput defines model for UpdateLimitInput.
+type UpdateLimitInput struct {
+	// ActiveTimeEnd End of the daily time window (HH:MM). Send activeTimeStart and activeTimeEnd both as null to remove the window.
+	ActiveTimeEnd *string `json:"activeTimeEnd,omitempty"`
+
+	// ActiveTimeStart Start of the daily time window (HH:MM). Send activeTimeStart and activeTimeEnd both as null to remove the window.
+	ActiveTimeStart *string    `json:"activeTimeStart,omitempty"`
+	CustomEndDate   *time.Time `json:"customEndDate,omitempty"`
+	CustomStartDate *time.Time `json:"customStartDate,omitempty"`
+
+	// Description Limit description, at most 1000 characters.
+	Description *string `json:"description,omitempty"`
+	MaxAmount   *string `json:"maxAmount,omitempty"`
+
+	// Name Limit name, 1 to 255 characters.
+	Name                 *string                `json:"name,omitempty"`
+	Scopes               *[]Scope               `json:"scopes,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// UpdateRuleInput defines model for UpdateRuleInput.
+type UpdateRuleInput struct {
+	Action *UpdateRuleInputAction `json:"action,omitempty"`
+
+	// Description Rule description, at most 1000 characters.
+	Description *string `json:"description,omitempty"`
+
+	// Expression CEL expression, 1 to 5000 characters. Editable only while the rule is in DRAFT status.
+	Expression *string `json:"expression,omitempty"`
+
+	// Name Rule name, 1 to 255 characters.
+	Name                 *string                `json:"name,omitempty"`
+	Scopes               *[]Scope               `json:"scopes,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// UpdateRuleInputAction defines model for UpdateRuleInput.Action.
+type UpdateRuleInputAction string
 
 // Upstream defines model for Upstream.
 type Upstream struct {
@@ -345,11 +630,43 @@ type UsageSnapshot struct {
 	UtilizationPercent float64            `json:"utilizationPercent"`
 }
 
+// ValidationRequest defines model for ValidationRequest.
+type ValidationRequest struct {
+	Account   AccountContext          `json:"account"`
+	Amount    string                  `json:"amount"`
+	Asset     string                  `json:"asset"`
+	Merchant  *MerchantContext        `json:"merchant,omitempty"`
+	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
+	Portfolio *PortfolioContext       `json:"portfolio,omitempty"`
+	RequestId openapi_types.UUID      `json:"requestId"`
+
+	// Scheme Payment scheme, required unless the deprecated transactionType is sent: 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing.
+	Scheme  *string         `json:"scheme,omitempty"`
+	Segment *SegmentContext `json:"segment,omitempty"`
+
+	// SubType Sub type, at most 50 bytes after trimming; stored lower-cased and matched case-insensitively.
+	SubType              *string   `json:"subType,omitempty"`
+	TransactionTimestamp time.Time `json:"transactionTimestamp"`
+
+	// TransactionType Deprecated: use scheme. Same value under its former name; when both are sent they must match.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	TransactionType      *string                `json:"transactionType,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// ValidationReservations defines model for ValidationReservations.
+type ValidationReservations struct {
+	// Reservations Every hold the transaction placed, ordered by limitId, scopeKey and periodKey. Empty when the validation has no transaction or the transaction held nothing.
+	Reservations []Reservation `json:"reservations"`
+}
+
 // ValidationResponse defines model for ValidationResponse.
 type ValidationResponse struct {
-	Decision          string                `json:"decision"`
-	EvaluatedAt       time.Time             `json:"evaluatedAt"`
-	EvaluatedRuleIds  *[]openapi_types.UUID `json:"evaluatedRuleIds"`
+	Decision         string                `json:"decision"`
+	EvaluatedAt      time.Time             `json:"evaluatedAt"`
+	EvaluatedRuleIds *[]openapi_types.UUID `json:"evaluatedRuleIds"`
+
+	// LimitUsageDetails Usage of every limit checked. Empty for a request a partner made.
 	LimitUsageDetails *[]LimitUsageDetail   `json:"limitUsageDetails"`
 	MatchedRuleIds    *[]openapi_types.UUID `json:"matchedRuleIds"`
 	ProcessingTimeMs  float64               `json:"processingTimeMs"`
@@ -360,21 +677,62 @@ type ValidationResponse struct {
 	ValidationId      openapi_types.UUID    `json:"validationId"`
 }
 
+// ValidationSource defines model for ValidationSource.
+type ValidationSource struct {
+	// AccountId Source account id; empty for the entry that groups the external legs.
+	AccountId        string                `json:"accountId"`
+	AccountType      *string               `json:"accountType,omitempty"`
+	Amount           string                `json:"amount"`
+	Decision         *string               `json:"decision,omitempty"`
+	ExceededLimitIds *[]openapi_types.UUID `json:"exceededLimitIds,omitempty"`
+	MatchedRuleIds   *[]openapi_types.UUID `json:"matchedRuleIds,omitempty"`
+	PortfolioId      *string               `json:"portfolioId,omitempty"`
+	SegmentId        *string               `json:"segmentId,omitempty"`
+}
+
 // ValidationSummary defines model for ValidationSummary.
 type ValidationSummary struct {
-	AccountId        openapi_types.UUID    `json:"accountId"`
-	Amount           string                `json:"amount"`
-	Asset            string                `json:"asset"`
-	CreatedAt        time.Time             `json:"createdAt"`
-	Decision         string                `json:"decision"`
+	AccountId openapi_types.UUID `json:"accountId"`
+	Amount    string             `json:"amount"`
+	Asset     string             `json:"asset"`
+	CreatedAt time.Time          `json:"createdAt"`
+	Decision  string             `json:"decision"`
+
+	// ExceededLimitIds Limits the amount exceeded. Empty for a request a partner made.
 	ExceededLimitIds *[]openapi_types.UUID `json:"exceededLimitIds"`
-	MatchedRuleIds   *[]openapi_types.UUID `json:"matchedRuleIds"`
-	PortfolioId      *openapi_types.UUID   `json:"portfolioId,omitempty"`
-	ProcessingTimeMs float64               `json:"processingTimeMs"`
-	Reason           string                `json:"reason"`
-	SegmentId        *openapi_types.UUID   `json:"segmentId,omitempty"`
-	TransactionType  string                `json:"transactionType"`
-	ValidationId     openapi_types.UUID    `json:"validationId"`
+
+	// InstructionSource Where the instructions came from: BINDING, or FALLBACK when at least one control used the caller's fallback mode. Absent for a record a decision did not write.
+	InstructionSource *string `json:"instructionSource,omitempty"`
+
+	// LedgerId Midaz ledger of the transaction this reservation decided on. Absent for a validation or rules-only request, and for records written before the ledger sent it.
+	LedgerId       *openapi_types.UUID   `json:"ledgerId,omitempty"`
+	MatchedRuleIds *[]openapi_types.UUID `json:"matchedRuleIds"`
+
+	// OrganizationId Midaz organization of the transaction this reservation decided on. Absent for a validation or rules-only request, and for records written before the ledger sent it.
+	OrganizationId *openapi_types.UUID `json:"organizationId,omitempty"`
+
+	// Outcome Effect the caller obeyed: REFUSE or PROCEED. Absent for a record a decision did not write.
+	Outcome *string `json:"outcome,omitempty"`
+
+	// Policies Evaluation of every policy, per control. Absent for a record a decision did not write and for a request a partner made.
+	Policies         *[]PolicyEvaluation `json:"policies,omitempty"`
+	PortfolioId      *openapi_types.UUID `json:"portfolioId,omitempty"`
+	ProcessingTimeMs float64             `json:"processingTimeMs"`
+	Reason           string              `json:"reason"`
+
+	// Scheme Payment scheme of the validated transaction.
+	Scheme    string              `json:"scheme"`
+	SegmentId *openapi_types.UUID `json:"segmentId,omitempty"`
+
+	// Sources Outcome per source of a reserve with more than one source. Absent for any other record and for a request a partner made.
+	Sources *[]ValidationSource `json:"sources,omitempty"`
+
+	// TransactionId Ledger transaction a reservation decided on; absent for a rules-only evaluation.
+	TransactionId *openapi_types.UUID `json:"transactionId,omitempty"`
+
+	// TransactionType Deprecated name of scheme; always carries the same value.
+	TransactionType string             `json:"transactionType"`
+	ValidationId    openapi_types.UUID `json:"validationId"`
 }
 
 // VolumePoint defines model for VolumePoint.
@@ -391,28 +749,28 @@ type bearerAuthContextKey string
 
 // ListAuditEventsParams defines parameters for ListAuditEvents.
 type ListAuditEventsParams struct {
-	// StartDate Start date (RFC3339 format)
+	// StartDate Start date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only start is 00:00:00)
 	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
 
-	// EndDate End date (RFC3339 format)
+	// EndDate End date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only end covers the whole day)
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 
-	// EventType Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)
+	// EventType Filter by event type (TRANSACTION_VALIDATED, RULE_CREATED, RULE_UPDATED, RULE_ACTIVATED, RULE_DEACTIVATED, RULE_DRAFTED, RULE_DELETED, LIMIT_CREATED, LIMIT_UPDATED, LIMIT_DELETED, LIMIT_ACTIVATED, LIMIT_DEACTIVATED, LIMIT_DRAFTED, RESERVATION_RESERVED, RESERVATION_CONFIRMED, RESERVATION_RELEASED, RESERVATION_EXPIRED, RESERVATION_SKIPPED)
 	EventType *string `form:"event_type,omitempty" json:"event_type,omitempty"`
 
-	// Action Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)
+	// Action Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, RESERVE, CONFIRM, RELEASE, EXPIRE, SKIP)
 	Action *string `form:"action,omitempty" json:"action,omitempty"`
 
 	// Result Filter by result (SUCCESS, FAILED, ALLOW, DENY, REVIEW)
 	Result *string `form:"result,omitempty" json:"result,omitempty"`
 
-	// ResourceType Filter by resource type (transaction, rule, limit)
+	// ResourceType Filter by resource type (transaction, rule, limit, reservation)
 	ResourceType *string `form:"resource_type,omitempty" json:"resource_type,omitempty"`
 
 	// ResourceId Filter by resource ID (UUID)
 	ResourceId *string `form:"resource_id,omitempty" json:"resource_id,omitempty"`
 
-	// ActorType Filter by actor type (user, system)
+	// ActorType Filter by actor type (user, api_key, system)
 	ActorType *string `form:"actor_type,omitempty" json:"actor_type,omitempty"`
 
 	// ActorId Filter by actor ID
@@ -427,8 +785,11 @@ type ListAuditEventsParams struct {
 	// PortfolioId Filter by portfolio ID (UUID)
 	PortfolioId *string `form:"portfolio_id,omitempty" json:"portfolio_id,omitempty"`
 
-	// TransactionType Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+	// TransactionType Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value
 	TransactionType *string `form:"transaction_type,omitempty" json:"transaction_type,omitempty"`
+
+	// Scheme Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching
+	Scheme *string `form:"scheme,omitempty" json:"scheme,omitempty"`
 
 	// MatchedRuleId Filter by matched rule ID (UUID)
 	MatchedRuleId *string `form:"matched_rule_id,omitempty" json:"matched_rule_id,omitempty"`
@@ -451,10 +812,10 @@ type GetDashboardFraudTypesParams struct {
 	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
 	Period *string `form:"period,omitempty" json:"period,omitempty"`
 
-	// StartDate Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+	// StartDate Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
 	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
 
-	// EndDate Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+	// EndDate Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 }
 
@@ -463,10 +824,10 @@ type GetDashboardMetricsParams struct {
 	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
 	Period *string `form:"period,omitempty" json:"period,omitempty"`
 
-	// StartDate Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+	// StartDate Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
 	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
 
-	// EndDate Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+	// EndDate Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 }
 
@@ -475,10 +836,10 @@ type GetDashboardTopRulesParams struct {
 	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
 	Period *string `form:"period,omitempty" json:"period,omitempty"`
 
-	// StartDate Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+	// StartDate Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
 	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
 
-	// EndDate Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+	// EndDate Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 }
 
@@ -487,10 +848,10 @@ type GetDashboardVolumeParams struct {
 	// Period Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date.
 	Period *string `form:"period,omitempty" json:"period,omitempty"`
 
-	// StartDate Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+	// StartDate Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
 	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
 
-	// EndDate Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+	// EndDate Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). 00:00:00 or 23:59:59 covers that whole day in its own offset; any other end is inclusive. Requires start_date. The window may not exceed 90 days.
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 }
 
@@ -517,8 +878,11 @@ type ListLimitsParams struct {
 	// MerchantId Filter by scope merchant_id (UUID)
 	MerchantId *string `form:"merchant_id,omitempty" json:"merchant_id,omitempty"`
 
-	// TransactionType Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+	// TransactionType Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value
 	TransactionType *string `form:"transaction_type,omitempty" json:"transaction_type,omitempty"`
+
+	// Scheme Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching
+	Scheme *string `form:"scheme,omitempty" json:"scheme,omitempty"`
 
 	// SubType Filter by scope sub_type (case-insensitive; max 50 chars)
 	SubType *string `form:"sub_type,omitempty" json:"sub_type,omitempty"`
@@ -535,12 +899,6 @@ type ListLimitsParams struct {
 	// SortOrder Sort direction (ASC, DESC)
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
-
-// CreateLimitJSONBody defines parameters for CreateLimit.
-type CreateLimitJSONBody = openapi_types.File
-
-// UpdateLimitJSONBody defines parameters for UpdateLimit.
-type UpdateLimitJSONBody = openapi_types.File
 
 // CreateReservationJSONBody defines parameters for CreateReservation.
 type CreateReservationJSONBody = openapi_types.File
@@ -568,8 +926,11 @@ type ListRulesParams struct {
 	// MerchantId Filter by scope merchant_id (UUID)
 	MerchantId *string `form:"merchant_id,omitempty" json:"merchant_id,omitempty"`
 
-	// TransactionType Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+	// TransactionType Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value
 	TransactionType *string `form:"transaction_type,omitempty" json:"transaction_type,omitempty"`
+
+	// Scheme Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching
+	Scheme *string `form:"scheme,omitempty" json:"scheme,omitempty"`
 
 	// SubType Filter by scope sub_type (case-insensitive; max 50 chars)
 	SubType *string `form:"sub_type,omitempty" json:"sub_type,omitempty"`
@@ -587,12 +948,6 @@ type ListRulesParams struct {
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
 
-// CreateRuleJSONBody defines parameters for CreateRule.
-type CreateRuleJSONBody = openapi_types.File
-
-// UpdateRuleJSONBody defines parameters for UpdateRule.
-type UpdateRuleJSONBody = openapi_types.File
-
 // ListValidationsParams defines parameters for ListValidations.
 type ListValidationsParams struct {
 	// Limit Max items per page (1-1000, default: 100)
@@ -607,10 +962,10 @@ type ListValidationsParams struct {
 	// SortOrder Sort direction (ASC, DESC; default: DESC)
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 
-	// StartDate Filter from this date (RFC3339)
+	// StartDate Filter from this date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only start is 00:00:00)
 	StartDate *string `form:"start_date,omitempty" json:"start_date,omitempty"`
 
-	// EndDate Filter to this date (RFC3339)
+	// EndDate Filter to this date (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; a date-only end covers the whole day)
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
 
 	// Decision Filter by decision (ALLOW, DENY, REVIEW)
@@ -622,7 +977,7 @@ type ListValidationsParams struct {
 	// MatchedRuleId Filter by matched rule ID (UUID)
 	MatchedRuleId *string `form:"matched_rule_id,omitempty" json:"matched_rule_id,omitempty"`
 
-	// ExceededLimitId Filter by exceeded limit ID (UUID)
+	// ExceededLimitId Filter by exceeded limit ID (UUID). Refused (0082) for a request a partner made.
 	ExceededLimitId *string `form:"exceeded_limit_id,omitempty" json:"exceeded_limit_id,omitempty"`
 
 	// SegmentId Filter by segment ID (UUID)
@@ -631,36 +986,368 @@ type ListValidationsParams struct {
 	// PortfolioId Filter by portfolio ID (UUID)
 	PortfolioId *string `form:"portfolio_id,omitempty" json:"portfolio_id,omitempty"`
 
-	// TransactionType Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+	// TransactionId Filter by the ledger transaction a reservation decided on (UUID)
+	TransactionId *string `form:"transaction_id,omitempty" json:"transaction_id,omitempty"`
+
+	// TransactionType Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value
 	TransactionType *string `form:"transaction_type,omitempty" json:"transaction_type,omitempty"`
+
+	// Scheme Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching
+	Scheme *string `form:"scheme,omitempty" json:"scheme,omitempty"`
 }
 
-// ValidateTransactionJSONBody defines parameters for ValidateTransaction.
-type ValidateTransactionJSONBody = openapi_types.File
-
-// ValidateTransactionRulesOnlyJSONBody defines parameters for ValidateTransactionRulesOnly.
-type ValidateTransactionRulesOnlyJSONBody = openapi_types.File
-
 // CreateLimitJSONRequestBody defines body for CreateLimit for application/json ContentType.
-type CreateLimitJSONRequestBody = CreateLimitJSONBody
+type CreateLimitJSONRequestBody = CreateLimitInput
 
 // UpdateLimitJSONRequestBody defines body for UpdateLimit for application/json ContentType.
-type UpdateLimitJSONRequestBody = UpdateLimitJSONBody
+type UpdateLimitJSONRequestBody = UpdateLimitInput
 
 // CreateReservationJSONRequestBody defines body for CreateReservation for application/json ContentType.
 type CreateReservationJSONRequestBody = CreateReservationJSONBody
 
 // CreateRuleJSONRequestBody defines body for CreateRule for application/json ContentType.
-type CreateRuleJSONRequestBody = CreateRuleJSONBody
+type CreateRuleJSONRequestBody = CreateRuleInput
 
 // UpdateRuleJSONRequestBody defines body for UpdateRule for application/json ContentType.
-type UpdateRuleJSONRequestBody = UpdateRuleJSONBody
+type UpdateRuleJSONRequestBody = UpdateRuleInput
 
 // ValidateTransactionJSONRequestBody defines body for ValidateTransaction for application/json ContentType.
-type ValidateTransactionJSONRequestBody = ValidateTransactionJSONBody
+type ValidateTransactionJSONRequestBody = ValidationRequest
 
 // ValidateTransactionRulesOnlyJSONRequestBody defines body for ValidateTransactionRulesOnly for application/json ContentType.
-type ValidateTransactionRulesOnlyJSONRequestBody = ValidateTransactionRulesOnlyJSONBody
+type ValidateTransactionRulesOnlyJSONRequestBody = ValidationRequest
+
+// Getter for additional properties for CreateLimitInput. Returns the specified
+// element and whether it was found
+func (a CreateLimitInput) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for CreateLimitInput
+func (a *CreateLimitInput) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for CreateLimitInput to handle AdditionalProperties
+func (a *CreateLimitInput) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["activeTimeEnd"]; found {
+		err = json.Unmarshal(raw, &a.ActiveTimeEnd)
+		if err != nil {
+			return fmt.Errorf("error reading 'activeTimeEnd': %w", err)
+		}
+		delete(object, "activeTimeEnd")
+	}
+
+	if raw, found := object["activeTimeStart"]; found {
+		err = json.Unmarshal(raw, &a.ActiveTimeStart)
+		if err != nil {
+			return fmt.Errorf("error reading 'activeTimeStart': %w", err)
+		}
+		delete(object, "activeTimeStart")
+	}
+
+	if raw, found := object["asset"]; found {
+		err = json.Unmarshal(raw, &a.Asset)
+		if err != nil {
+			return fmt.Errorf("error reading 'asset': %w", err)
+		}
+		delete(object, "asset")
+	}
+
+	if raw, found := object["customEndDate"]; found {
+		err = json.Unmarshal(raw, &a.CustomEndDate)
+		if err != nil {
+			return fmt.Errorf("error reading 'customEndDate': %w", err)
+		}
+		delete(object, "customEndDate")
+	}
+
+	if raw, found := object["customStartDate"]; found {
+		err = json.Unmarshal(raw, &a.CustomStartDate)
+		if err != nil {
+			return fmt.Errorf("error reading 'customStartDate': %w", err)
+		}
+		delete(object, "customStartDate")
+	}
+
+	if raw, found := object["description"]; found {
+		err = json.Unmarshal(raw, &a.Description)
+		if err != nil {
+			return fmt.Errorf("error reading 'description': %w", err)
+		}
+		delete(object, "description")
+	}
+
+	if raw, found := object["limitType"]; found {
+		err = json.Unmarshal(raw, &a.LimitType)
+		if err != nil {
+			return fmt.Errorf("error reading 'limitType': %w", err)
+		}
+		delete(object, "limitType")
+	}
+
+	if raw, found := object["maxAmount"]; found {
+		err = json.Unmarshal(raw, &a.MaxAmount)
+		if err != nil {
+			return fmt.Errorf("error reading 'maxAmount': %w", err)
+		}
+		delete(object, "maxAmount")
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
+	if raw, found := object["resetTime"]; found {
+		err = json.Unmarshal(raw, &a.ResetTime)
+		if err != nil {
+			return fmt.Errorf("error reading 'resetTime': %w", err)
+		}
+		delete(object, "resetTime")
+	}
+
+	if raw, found := object["scopes"]; found {
+		err = json.Unmarshal(raw, &a.Scopes)
+		if err != nil {
+			return fmt.Errorf("error reading 'scopes': %w", err)
+		}
+		delete(object, "scopes")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for CreateLimitInput to handle AdditionalProperties
+func (a CreateLimitInput) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.ActiveTimeEnd != nil {
+		object["activeTimeEnd"], err = json.Marshal(a.ActiveTimeEnd)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'activeTimeEnd': %w", err)
+		}
+	}
+
+	if a.ActiveTimeStart != nil {
+		object["activeTimeStart"], err = json.Marshal(a.ActiveTimeStart)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'activeTimeStart': %w", err)
+		}
+	}
+
+	object["asset"], err = json.Marshal(a.Asset)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'asset': %w", err)
+	}
+
+	if a.CustomEndDate != nil {
+		object["customEndDate"], err = json.Marshal(a.CustomEndDate)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'customEndDate': %w", err)
+		}
+	}
+
+	if a.CustomStartDate != nil {
+		object["customStartDate"], err = json.Marshal(a.CustomStartDate)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'customStartDate': %w", err)
+		}
+	}
+
+	if a.Description != nil {
+		object["description"], err = json.Marshal(a.Description)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'description': %w", err)
+		}
+	}
+
+	object["limitType"], err = json.Marshal(a.LimitType)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'limitType': %w", err)
+	}
+
+	object["maxAmount"], err = json.Marshal(a.MaxAmount)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'maxAmount': %w", err)
+	}
+
+	object["name"], err = json.Marshal(a.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	if a.ResetTime != nil {
+		object["resetTime"], err = json.Marshal(a.ResetTime)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'resetTime': %w", err)
+		}
+	}
+
+	if a.Scopes != nil {
+		object["scopes"], err = json.Marshal(a.Scopes)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'scopes': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for CreateRuleInput. Returns the specified
+// element and whether it was found
+func (a CreateRuleInput) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for CreateRuleInput
+func (a *CreateRuleInput) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for CreateRuleInput to handle AdditionalProperties
+func (a *CreateRuleInput) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["action"]; found {
+		err = json.Unmarshal(raw, &a.Action)
+		if err != nil {
+			return fmt.Errorf("error reading 'action': %w", err)
+		}
+		delete(object, "action")
+	}
+
+	if raw, found := object["description"]; found {
+		err = json.Unmarshal(raw, &a.Description)
+		if err != nil {
+			return fmt.Errorf("error reading 'description': %w", err)
+		}
+		delete(object, "description")
+	}
+
+	if raw, found := object["expression"]; found {
+		err = json.Unmarshal(raw, &a.Expression)
+		if err != nil {
+			return fmt.Errorf("error reading 'expression': %w", err)
+		}
+		delete(object, "expression")
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
+	if raw, found := object["scopes"]; found {
+		err = json.Unmarshal(raw, &a.Scopes)
+		if err != nil {
+			return fmt.Errorf("error reading 'scopes': %w", err)
+		}
+		delete(object, "scopes")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for CreateRuleInput to handle AdditionalProperties
+func (a CreateRuleInput) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["action"], err = json.Marshal(a.Action)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'action': %w", err)
+	}
+
+	if a.Description != nil {
+		object["description"], err = json.Marshal(a.Description)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'description': %w", err)
+		}
+	}
+
+	object["expression"], err = json.Marshal(a.Expression)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'expression': %w", err)
+	}
+
+	object["name"], err = json.Marshal(a.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	if a.Scopes != nil {
+		object["scopes"], err = json.Marshal(a.Scopes)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'scopes': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
 
 // Getter for additional properties for Error. Returns the specified
 // element and whether it was found
@@ -835,6 +1522,530 @@ func (a Error) MarshalJSON() ([]byte, error) {
 	return json.Marshal(object)
 }
 
+// Getter for additional properties for UpdateLimitInput. Returns the specified
+// element and whether it was found
+func (a UpdateLimitInput) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for UpdateLimitInput
+func (a *UpdateLimitInput) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for UpdateLimitInput to handle AdditionalProperties
+func (a *UpdateLimitInput) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["activeTimeEnd"]; found {
+		err = json.Unmarshal(raw, &a.ActiveTimeEnd)
+		if err != nil {
+			return fmt.Errorf("error reading 'activeTimeEnd': %w", err)
+		}
+		delete(object, "activeTimeEnd")
+	}
+
+	if raw, found := object["activeTimeStart"]; found {
+		err = json.Unmarshal(raw, &a.ActiveTimeStart)
+		if err != nil {
+			return fmt.Errorf("error reading 'activeTimeStart': %w", err)
+		}
+		delete(object, "activeTimeStart")
+	}
+
+	if raw, found := object["customEndDate"]; found {
+		err = json.Unmarshal(raw, &a.CustomEndDate)
+		if err != nil {
+			return fmt.Errorf("error reading 'customEndDate': %w", err)
+		}
+		delete(object, "customEndDate")
+	}
+
+	if raw, found := object["customStartDate"]; found {
+		err = json.Unmarshal(raw, &a.CustomStartDate)
+		if err != nil {
+			return fmt.Errorf("error reading 'customStartDate': %w", err)
+		}
+		delete(object, "customStartDate")
+	}
+
+	if raw, found := object["description"]; found {
+		err = json.Unmarshal(raw, &a.Description)
+		if err != nil {
+			return fmt.Errorf("error reading 'description': %w", err)
+		}
+		delete(object, "description")
+	}
+
+	if raw, found := object["maxAmount"]; found {
+		err = json.Unmarshal(raw, &a.MaxAmount)
+		if err != nil {
+			return fmt.Errorf("error reading 'maxAmount': %w", err)
+		}
+		delete(object, "maxAmount")
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
+	if raw, found := object["scopes"]; found {
+		err = json.Unmarshal(raw, &a.Scopes)
+		if err != nil {
+			return fmt.Errorf("error reading 'scopes': %w", err)
+		}
+		delete(object, "scopes")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for UpdateLimitInput to handle AdditionalProperties
+func (a UpdateLimitInput) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.ActiveTimeEnd != nil {
+		object["activeTimeEnd"], err = json.Marshal(a.ActiveTimeEnd)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'activeTimeEnd': %w", err)
+		}
+	}
+
+	if a.ActiveTimeStart != nil {
+		object["activeTimeStart"], err = json.Marshal(a.ActiveTimeStart)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'activeTimeStart': %w", err)
+		}
+	}
+
+	if a.CustomEndDate != nil {
+		object["customEndDate"], err = json.Marshal(a.CustomEndDate)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'customEndDate': %w", err)
+		}
+	}
+
+	if a.CustomStartDate != nil {
+		object["customStartDate"], err = json.Marshal(a.CustomStartDate)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'customStartDate': %w", err)
+		}
+	}
+
+	if a.Description != nil {
+		object["description"], err = json.Marshal(a.Description)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'description': %w", err)
+		}
+	}
+
+	if a.MaxAmount != nil {
+		object["maxAmount"], err = json.Marshal(a.MaxAmount)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'maxAmount': %w", err)
+		}
+	}
+
+	if a.Name != nil {
+		object["name"], err = json.Marshal(a.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'name': %w", err)
+		}
+	}
+
+	if a.Scopes != nil {
+		object["scopes"], err = json.Marshal(a.Scopes)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'scopes': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for UpdateRuleInput. Returns the specified
+// element and whether it was found
+func (a UpdateRuleInput) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for UpdateRuleInput
+func (a *UpdateRuleInput) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for UpdateRuleInput to handle AdditionalProperties
+func (a *UpdateRuleInput) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["action"]; found {
+		err = json.Unmarshal(raw, &a.Action)
+		if err != nil {
+			return fmt.Errorf("error reading 'action': %w", err)
+		}
+		delete(object, "action")
+	}
+
+	if raw, found := object["description"]; found {
+		err = json.Unmarshal(raw, &a.Description)
+		if err != nil {
+			return fmt.Errorf("error reading 'description': %w", err)
+		}
+		delete(object, "description")
+	}
+
+	if raw, found := object["expression"]; found {
+		err = json.Unmarshal(raw, &a.Expression)
+		if err != nil {
+			return fmt.Errorf("error reading 'expression': %w", err)
+		}
+		delete(object, "expression")
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
+	if raw, found := object["scopes"]; found {
+		err = json.Unmarshal(raw, &a.Scopes)
+		if err != nil {
+			return fmt.Errorf("error reading 'scopes': %w", err)
+		}
+		delete(object, "scopes")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for UpdateRuleInput to handle AdditionalProperties
+func (a UpdateRuleInput) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Action != nil {
+		object["action"], err = json.Marshal(a.Action)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'action': %w", err)
+		}
+	}
+
+	if a.Description != nil {
+		object["description"], err = json.Marshal(a.Description)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'description': %w", err)
+		}
+	}
+
+	if a.Expression != nil {
+		object["expression"], err = json.Marshal(a.Expression)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'expression': %w", err)
+		}
+	}
+
+	if a.Name != nil {
+		object["name"], err = json.Marshal(a.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'name': %w", err)
+		}
+	}
+
+	if a.Scopes != nil {
+		object["scopes"], err = json.Marshal(a.Scopes)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'scopes': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for ValidationRequest. Returns the specified
+// element and whether it was found
+func (a ValidationRequest) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for ValidationRequest
+func (a *ValidationRequest) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for ValidationRequest to handle AdditionalProperties
+func (a *ValidationRequest) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["account"]; found {
+		err = json.Unmarshal(raw, &a.Account)
+		if err != nil {
+			return fmt.Errorf("error reading 'account': %w", err)
+		}
+		delete(object, "account")
+	}
+
+	if raw, found := object["amount"]; found {
+		err = json.Unmarshal(raw, &a.Amount)
+		if err != nil {
+			return fmt.Errorf("error reading 'amount': %w", err)
+		}
+		delete(object, "amount")
+	}
+
+	if raw, found := object["asset"]; found {
+		err = json.Unmarshal(raw, &a.Asset)
+		if err != nil {
+			return fmt.Errorf("error reading 'asset': %w", err)
+		}
+		delete(object, "asset")
+	}
+
+	if raw, found := object["merchant"]; found {
+		err = json.Unmarshal(raw, &a.Merchant)
+		if err != nil {
+			return fmt.Errorf("error reading 'merchant': %w", err)
+		}
+		delete(object, "merchant")
+	}
+
+	if raw, found := object["metadata"]; found {
+		err = json.Unmarshal(raw, &a.Metadata)
+		if err != nil {
+			return fmt.Errorf("error reading 'metadata': %w", err)
+		}
+		delete(object, "metadata")
+	}
+
+	if raw, found := object["portfolio"]; found {
+		err = json.Unmarshal(raw, &a.Portfolio)
+		if err != nil {
+			return fmt.Errorf("error reading 'portfolio': %w", err)
+		}
+		delete(object, "portfolio")
+	}
+
+	if raw, found := object["requestId"]; found {
+		err = json.Unmarshal(raw, &a.RequestId)
+		if err != nil {
+			return fmt.Errorf("error reading 'requestId': %w", err)
+		}
+		delete(object, "requestId")
+	}
+
+	if raw, found := object["scheme"]; found {
+		err = json.Unmarshal(raw, &a.Scheme)
+		if err != nil {
+			return fmt.Errorf("error reading 'scheme': %w", err)
+		}
+		delete(object, "scheme")
+	}
+
+	if raw, found := object["segment"]; found {
+		err = json.Unmarshal(raw, &a.Segment)
+		if err != nil {
+			return fmt.Errorf("error reading 'segment': %w", err)
+		}
+		delete(object, "segment")
+	}
+
+	if raw, found := object["subType"]; found {
+		err = json.Unmarshal(raw, &a.SubType)
+		if err != nil {
+			return fmt.Errorf("error reading 'subType': %w", err)
+		}
+		delete(object, "subType")
+	}
+
+	if raw, found := object["transactionTimestamp"]; found {
+		err = json.Unmarshal(raw, &a.TransactionTimestamp)
+		if err != nil {
+			return fmt.Errorf("error reading 'transactionTimestamp': %w", err)
+		}
+		delete(object, "transactionTimestamp")
+	}
+
+	if raw, found := object["transactionType"]; found {
+		err = json.Unmarshal(raw, &a.TransactionType)
+		if err != nil {
+			return fmt.Errorf("error reading 'transactionType': %w", err)
+		}
+		delete(object, "transactionType")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for ValidationRequest to handle AdditionalProperties
+func (a ValidationRequest) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["account"], err = json.Marshal(a.Account)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'account': %w", err)
+	}
+
+	object["amount"], err = json.Marshal(a.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'amount': %w", err)
+	}
+
+	object["asset"], err = json.Marshal(a.Asset)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'asset': %w", err)
+	}
+
+	if a.Merchant != nil {
+		object["merchant"], err = json.Marshal(a.Merchant)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'merchant': %w", err)
+		}
+	}
+
+	if a.Metadata != nil {
+		object["metadata"], err = json.Marshal(a.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'metadata': %w", err)
+		}
+	}
+
+	if a.Portfolio != nil {
+		object["portfolio"], err = json.Marshal(a.Portfolio)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'portfolio': %w", err)
+		}
+	}
+
+	object["requestId"], err = json.Marshal(a.RequestId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'requestId': %w", err)
+	}
+
+	if a.Scheme != nil {
+		object["scheme"], err = json.Marshal(a.Scheme)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'scheme': %w", err)
+		}
+	}
+
+	if a.Segment != nil {
+		object["segment"], err = json.Marshal(a.Segment)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'segment': %w", err)
+		}
+	}
+
+	if a.SubType != nil {
+		object["subType"], err = json.Marshal(a.SubType)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'subType': %w", err)
+		}
+	}
+
+	object["transactionTimestamp"], err = json.Marshal(a.TransactionTimestamp)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'transactionTimestamp': %w", err)
+	}
+
+	if a.TransactionType != nil {
+		object["transactionType"], err = json.Marshal(a.TransactionType)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'transactionType': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
 
@@ -912,10 +2123,10 @@ type ClientInterface interface {
 	ListAuditEvents(ctx context.Context, params *ListAuditEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAuditEvent request
-	GetAuditEvent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetAuditEvent(ctx context.Context, auditEventId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// VerifyAuditEvent request
-	VerifyAuditEvent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	VerifyAuditEvent(ctx context.Context, auditEventId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetDashboardFraudTypes request
 	GetDashboardFraudTypes(ctx context.Context, params *GetDashboardFraudTypesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -938,27 +2149,27 @@ type ClientInterface interface {
 	CreateLimit(ctx context.Context, body CreateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteLimit request
-	DeleteLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetLimit request
-	GetLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateLimitWithBody request with any body
-	UpdateLimitWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateLimitWithBody(ctx context.Context, limitId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateLimit(ctx context.Context, id string, body UpdateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateLimit(ctx context.Context, limitId string, body UpdateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ActivateLimit request
-	ActivateLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ActivateLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeactivateLimit request
-	DeactivateLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeactivateLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DraftLimit request
-	DraftLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DraftLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetLimitUsage request
-	GetLimitUsage(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetLimitUsage(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateReservationWithBody request with any body
 	CreateReservationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -986,24 +2197,24 @@ type ClientInterface interface {
 	CreateRule(ctx context.Context, body CreateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteRule request
-	DeleteRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetRule request
-	GetRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateRuleWithBody request with any body
-	UpdateRuleWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateRuleWithBody(ctx context.Context, ruleId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateRule(ctx context.Context, id string, body UpdateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateRule(ctx context.Context, ruleId string, body UpdateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ActivateRule request
-	ActivateRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ActivateRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeactivateRule request
-	DeactivateRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeactivateRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DraftRule request
-	DraftRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DraftRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListValidations request
 	ListValidations(ctx context.Context, params *ListValidationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1019,7 +2230,10 @@ type ClientInterface interface {
 	ValidateTransactionRulesOnly(ctx context.Context, body ValidateTransactionRulesOnlyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetValidation request
-	GetValidation(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetValidation(ctx context.Context, validationId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListValidationReservations request
+	ListValidationReservations(ctx context.Context, validationId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) ListAuditEvents(ctx context.Context, params *ListAuditEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1034,8 +2248,8 @@ func (c *Client) ListAuditEvents(ctx context.Context, params *ListAuditEventsPar
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetAuditEvent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAuditEventRequest(c.Server, id)
+func (c *Client) GetAuditEvent(ctx context.Context, auditEventId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAuditEventRequest(c.Server, auditEventId)
 	if err != nil {
 		return nil, err
 	}
@@ -1046,8 +2260,8 @@ func (c *Client) GetAuditEvent(ctx context.Context, id string, reqEditors ...Req
 	return c.Client.Do(req)
 }
 
-func (c *Client) VerifyAuditEvent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewVerifyAuditEventRequest(c.Server, id)
+func (c *Client) VerifyAuditEvent(ctx context.Context, auditEventId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVerifyAuditEventRequest(c.Server, auditEventId)
 	if err != nil {
 		return nil, err
 	}
@@ -1142,8 +2356,8 @@ func (c *Client) CreateLimit(ctx context.Context, body CreateLimitJSONRequestBod
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteLimitRequest(c.Server, id)
+func (c *Client) DeleteLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteLimitRequest(c.Server, limitId)
 	if err != nil {
 		return nil, err
 	}
@@ -1154,8 +2368,8 @@ func (c *Client) DeleteLimit(ctx context.Context, id string, reqEditors ...Reque
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetLimitRequest(c.Server, id)
+func (c *Client) GetLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLimitRequest(c.Server, limitId)
 	if err != nil {
 		return nil, err
 	}
@@ -1166,8 +2380,8 @@ func (c *Client) GetLimit(ctx context.Context, id string, reqEditors ...RequestE
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateLimitWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateLimitRequestWithBody(c.Server, id, contentType, body)
+func (c *Client) UpdateLimitWithBody(ctx context.Context, limitId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLimitRequestWithBody(c.Server, limitId, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1178,8 +2392,8 @@ func (c *Client) UpdateLimitWithBody(ctx context.Context, id string, contentType
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateLimit(ctx context.Context, id string, body UpdateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateLimitRequest(c.Server, id, body)
+func (c *Client) UpdateLimit(ctx context.Context, limitId string, body UpdateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLimitRequest(c.Server, limitId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1190,8 +2404,8 @@ func (c *Client) UpdateLimit(ctx context.Context, id string, body UpdateLimitJSO
 	return c.Client.Do(req)
 }
 
-func (c *Client) ActivateLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewActivateLimitRequest(c.Server, id)
+func (c *Client) ActivateLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewActivateLimitRequest(c.Server, limitId)
 	if err != nil {
 		return nil, err
 	}
@@ -1202,8 +2416,8 @@ func (c *Client) ActivateLimit(ctx context.Context, id string, reqEditors ...Req
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeactivateLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeactivateLimitRequest(c.Server, id)
+func (c *Client) DeactivateLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeactivateLimitRequest(c.Server, limitId)
 	if err != nil {
 		return nil, err
 	}
@@ -1214,8 +2428,8 @@ func (c *Client) DeactivateLimit(ctx context.Context, id string, reqEditors ...R
 	return c.Client.Do(req)
 }
 
-func (c *Client) DraftLimit(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDraftLimitRequest(c.Server, id)
+func (c *Client) DraftLimit(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDraftLimitRequest(c.Server, limitId)
 	if err != nil {
 		return nil, err
 	}
@@ -1226,8 +2440,8 @@ func (c *Client) DraftLimit(ctx context.Context, id string, reqEditors ...Reques
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetLimitUsage(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetLimitUsageRequest(c.Server, id)
+func (c *Client) GetLimitUsage(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLimitUsageRequest(c.Server, limitId)
 	if err != nil {
 		return nil, err
 	}
@@ -1346,8 +2560,8 @@ func (c *Client) CreateRule(ctx context.Context, body CreateRuleJSONRequestBody,
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteRuleRequest(c.Server, id)
+func (c *Client) DeleteRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteRuleRequest(c.Server, ruleId)
 	if err != nil {
 		return nil, err
 	}
@@ -1358,8 +2572,8 @@ func (c *Client) DeleteRule(ctx context.Context, id string, reqEditors ...Reques
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRuleRequest(c.Server, id)
+func (c *Client) GetRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRuleRequest(c.Server, ruleId)
 	if err != nil {
 		return nil, err
 	}
@@ -1370,8 +2584,8 @@ func (c *Client) GetRule(ctx context.Context, id string, reqEditors ...RequestEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateRuleWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateRuleRequestWithBody(c.Server, id, contentType, body)
+func (c *Client) UpdateRuleWithBody(ctx context.Context, ruleId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateRuleRequestWithBody(c.Server, ruleId, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1382,8 +2596,8 @@ func (c *Client) UpdateRuleWithBody(ctx context.Context, id string, contentType 
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateRule(ctx context.Context, id string, body UpdateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateRuleRequest(c.Server, id, body)
+func (c *Client) UpdateRule(ctx context.Context, ruleId string, body UpdateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateRuleRequest(c.Server, ruleId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1394,8 +2608,8 @@ func (c *Client) UpdateRule(ctx context.Context, id string, body UpdateRuleJSONR
 	return c.Client.Do(req)
 }
 
-func (c *Client) ActivateRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewActivateRuleRequest(c.Server, id)
+func (c *Client) ActivateRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewActivateRuleRequest(c.Server, ruleId)
 	if err != nil {
 		return nil, err
 	}
@@ -1406,8 +2620,8 @@ func (c *Client) ActivateRule(ctx context.Context, id string, reqEditors ...Requ
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeactivateRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeactivateRuleRequest(c.Server, id)
+func (c *Client) DeactivateRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeactivateRuleRequest(c.Server, ruleId)
 	if err != nil {
 		return nil, err
 	}
@@ -1418,8 +2632,8 @@ func (c *Client) DeactivateRule(ctx context.Context, id string, reqEditors ...Re
 	return c.Client.Do(req)
 }
 
-func (c *Client) DraftRule(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDraftRuleRequest(c.Server, id)
+func (c *Client) DraftRule(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDraftRuleRequest(c.Server, ruleId)
 	if err != nil {
 		return nil, err
 	}
@@ -1490,8 +2704,20 @@ func (c *Client) ValidateTransactionRulesOnly(ctx context.Context, body Validate
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetValidation(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetValidationRequest(c.Server, id)
+func (c *Client) GetValidation(ctx context.Context, validationId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetValidationRequest(c.Server, validationId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListValidationReservations(ctx context.Context, validationId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListValidationReservationsRequest(c.Server, validationId)
 	if err != nil {
 		return nil, err
 	}
@@ -1686,6 +2912,18 @@ func NewListAuditEventsRequest(server string, params *ListAuditEventsParams) (*h
 
 		}
 
+		if params.Scheme != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "scheme", *params.Scheme, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.MatchedRuleId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "matched_rule_id", *params.MatchedRuleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -1761,12 +2999,12 @@ func NewListAuditEventsRequest(server string, params *ListAuditEventsParams) (*h
 }
 
 // NewGetAuditEventRequest generates requests for GetAuditEvent
-func NewGetAuditEventRequest(server string, id string) (*http.Request, error) {
+func NewGetAuditEventRequest(server string, auditEventId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "audit_event_id", auditEventId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -1795,12 +3033,12 @@ func NewGetAuditEventRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewVerifyAuditEventRequest generates requests for VerifyAuditEvent
-func NewVerifyAuditEventRequest(server string, id string) (*http.Request, error) {
+func NewVerifyAuditEventRequest(server string, auditEventId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "audit_event_id", auditEventId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2264,6 +3502,18 @@ func NewListLimitsRequest(server string, params *ListLimitsParams) (*http.Reques
 
 		}
 
+		if params.Scheme != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "scheme", *params.Scheme, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.SubType != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "sub_type", *params.SubType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -2379,12 +3629,12 @@ func NewCreateLimitRequestWithBody(server string, contentType string, body io.Re
 }
 
 // NewDeleteLimitRequest generates requests for DeleteLimit
-func NewDeleteLimitRequest(server string, id string) (*http.Request, error) {
+func NewDeleteLimitRequest(server string, limitId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "limit_id", limitId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2413,12 +3663,12 @@ func NewDeleteLimitRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewGetLimitRequest generates requests for GetLimit
-func NewGetLimitRequest(server string, id string) (*http.Request, error) {
+func NewGetLimitRequest(server string, limitId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "limit_id", limitId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2447,23 +3697,23 @@ func NewGetLimitRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewUpdateLimitRequest calls the generic UpdateLimit builder with application/json body
-func NewUpdateLimitRequest(server string, id string, body UpdateLimitJSONRequestBody) (*http.Request, error) {
+func NewUpdateLimitRequest(server string, limitId string, body UpdateLimitJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateLimitRequestWithBody(server, id, "application/json", bodyReader)
+	return NewUpdateLimitRequestWithBody(server, limitId, "application/json", bodyReader)
 }
 
 // NewUpdateLimitRequestWithBody generates requests for UpdateLimit with any type of body
-func NewUpdateLimitRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateLimitRequestWithBody(server string, limitId string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "limit_id", limitId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2494,12 +3744,12 @@ func NewUpdateLimitRequestWithBody(server string, id string, contentType string,
 }
 
 // NewActivateLimitRequest generates requests for ActivateLimit
-func NewActivateLimitRequest(server string, id string) (*http.Request, error) {
+func NewActivateLimitRequest(server string, limitId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "limit_id", limitId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2528,12 +3778,12 @@ func NewActivateLimitRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewDeactivateLimitRequest generates requests for DeactivateLimit
-func NewDeactivateLimitRequest(server string, id string) (*http.Request, error) {
+func NewDeactivateLimitRequest(server string, limitId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "limit_id", limitId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2562,12 +3812,12 @@ func NewDeactivateLimitRequest(server string, id string) (*http.Request, error) 
 }
 
 // NewDraftLimitRequest generates requests for DraftLimit
-func NewDraftLimitRequest(server string, id string) (*http.Request, error) {
+func NewDraftLimitRequest(server string, limitId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "limit_id", limitId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2596,12 +3846,12 @@ func NewDraftLimitRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewGetLimitUsageRequest generates requests for GetLimitUsage
-func NewGetLimitUsageRequest(server string, id string) (*http.Request, error) {
+func NewGetLimitUsageRequest(server string, limitId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "limit_id", limitId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -2929,6 +4179,18 @@ func NewListRulesRequest(server string, params *ListRulesParams) (*http.Request,
 
 		}
 
+		if params.Scheme != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "scheme", *params.Scheme, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.SubType != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "sub_type", *params.SubType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -3044,12 +4306,12 @@ func NewCreateRuleRequestWithBody(server string, contentType string, body io.Rea
 }
 
 // NewDeleteRuleRequest generates requests for DeleteRule
-func NewDeleteRuleRequest(server string, id string) (*http.Request, error) {
+func NewDeleteRuleRequest(server string, ruleId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "rule_id", ruleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -3078,12 +4340,12 @@ func NewDeleteRuleRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewGetRuleRequest generates requests for GetRule
-func NewGetRuleRequest(server string, id string) (*http.Request, error) {
+func NewGetRuleRequest(server string, ruleId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "rule_id", ruleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -3112,23 +4374,23 @@ func NewGetRuleRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewUpdateRuleRequest calls the generic UpdateRule builder with application/json body
-func NewUpdateRuleRequest(server string, id string, body UpdateRuleJSONRequestBody) (*http.Request, error) {
+func NewUpdateRuleRequest(server string, ruleId string, body UpdateRuleJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateRuleRequestWithBody(server, id, "application/json", bodyReader)
+	return NewUpdateRuleRequestWithBody(server, ruleId, "application/json", bodyReader)
 }
 
 // NewUpdateRuleRequestWithBody generates requests for UpdateRule with any type of body
-func NewUpdateRuleRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+func NewUpdateRuleRequestWithBody(server string, ruleId string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "rule_id", ruleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -3159,12 +4421,12 @@ func NewUpdateRuleRequestWithBody(server string, id string, contentType string, 
 }
 
 // NewActivateRuleRequest generates requests for ActivateRule
-func NewActivateRuleRequest(server string, id string) (*http.Request, error) {
+func NewActivateRuleRequest(server string, ruleId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "rule_id", ruleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -3193,12 +4455,12 @@ func NewActivateRuleRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewDeactivateRuleRequest generates requests for DeactivateRule
-func NewDeactivateRuleRequest(server string, id string) (*http.Request, error) {
+func NewDeactivateRuleRequest(server string, ruleId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "rule_id", ruleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -3227,12 +4489,12 @@ func NewDeactivateRuleRequest(server string, id string) (*http.Request, error) {
 }
 
 // NewDraftRuleRequest generates requests for DraftRule
-func NewDraftRuleRequest(server string, id string) (*http.Request, error) {
+func NewDraftRuleRequest(server string, ruleId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "rule_id", ruleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -3432,9 +4694,33 @@ func NewListValidationsRequest(server string, params *ListValidationsParams) (*h
 
 		}
 
+		if params.TransactionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "transaction_id", *params.TransactionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.TransactionType != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "transaction_type", *params.TransactionType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Scheme != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "scheme", *params.Scheme, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -3539,12 +4825,12 @@ func NewValidateTransactionRulesOnlyRequestWithBody(server string, contentType s
 }
 
 // NewGetValidationRequest generates requests for GetValidation
-func NewGetValidationRequest(server string, id string) (*http.Request, error) {
+func NewGetValidationRequest(server string, validationId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "validation_id", validationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
 	if err != nil {
 		return nil, err
 	}
@@ -3555,6 +4841,40 @@ func NewGetValidationRequest(server string, id string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/validations/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListValidationReservationsRequest generates requests for ListValidationReservations
+func NewListValidationReservationsRequest(server string, validationId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "validation_id", validationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/validations/%s/reservations", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3619,10 +4939,10 @@ type ClientWithResponsesInterface interface {
 	ListAuditEventsWithResponse(ctx context.Context, params *ListAuditEventsParams, reqEditors ...RequestEditorFn) (*ListAuditEventsResp, error)
 
 	// GetAuditEventWithResponse request
-	GetAuditEventWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAuditEventResp, error)
+	GetAuditEventWithResponse(ctx context.Context, auditEventId string, reqEditors ...RequestEditorFn) (*GetAuditEventResp, error)
 
 	// VerifyAuditEventWithResponse request
-	VerifyAuditEventWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*VerifyAuditEventResp, error)
+	VerifyAuditEventWithResponse(ctx context.Context, auditEventId string, reqEditors ...RequestEditorFn) (*VerifyAuditEventResp, error)
 
 	// GetDashboardFraudTypesWithResponse request
 	GetDashboardFraudTypesWithResponse(ctx context.Context, params *GetDashboardFraudTypesParams, reqEditors ...RequestEditorFn) (*GetDashboardFraudTypesResp, error)
@@ -3645,27 +4965,27 @@ type ClientWithResponsesInterface interface {
 	CreateLimitWithResponse(ctx context.Context, body CreateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLimitResp, error)
 
 	// DeleteLimitWithResponse request
-	DeleteLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteLimitResp, error)
+	DeleteLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*DeleteLimitResp, error)
 
 	// GetLimitWithResponse request
-	GetLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetLimitResp, error)
+	GetLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*GetLimitResp, error)
 
 	// UpdateLimitWithBodyWithResponse request with any body
-	UpdateLimitWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLimitResp, error)
+	UpdateLimitWithBodyWithResponse(ctx context.Context, limitId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLimitResp, error)
 
-	UpdateLimitWithResponse(ctx context.Context, id string, body UpdateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLimitResp, error)
+	UpdateLimitWithResponse(ctx context.Context, limitId string, body UpdateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLimitResp, error)
 
 	// ActivateLimitWithResponse request
-	ActivateLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ActivateLimitResp, error)
+	ActivateLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*ActivateLimitResp, error)
 
 	// DeactivateLimitWithResponse request
-	DeactivateLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeactivateLimitResp, error)
+	DeactivateLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*DeactivateLimitResp, error)
 
 	// DraftLimitWithResponse request
-	DraftLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DraftLimitResp, error)
+	DraftLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*DraftLimitResp, error)
 
 	// GetLimitUsageWithResponse request
-	GetLimitUsageWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetLimitUsageResp, error)
+	GetLimitUsageWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*GetLimitUsageResp, error)
 
 	// CreateReservationWithBodyWithResponse request with any body
 	CreateReservationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateReservationResp, error)
@@ -3693,24 +5013,24 @@ type ClientWithResponsesInterface interface {
 	CreateRuleWithResponse(ctx context.Context, body CreateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateRuleResp, error)
 
 	// DeleteRuleWithResponse request
-	DeleteRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteRuleResp, error)
+	DeleteRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*DeleteRuleResp, error)
 
 	// GetRuleWithResponse request
-	GetRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetRuleResp, error)
+	GetRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*GetRuleResp, error)
 
 	// UpdateRuleWithBodyWithResponse request with any body
-	UpdateRuleWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateRuleResp, error)
+	UpdateRuleWithBodyWithResponse(ctx context.Context, ruleId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateRuleResp, error)
 
-	UpdateRuleWithResponse(ctx context.Context, id string, body UpdateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateRuleResp, error)
+	UpdateRuleWithResponse(ctx context.Context, ruleId string, body UpdateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateRuleResp, error)
 
 	// ActivateRuleWithResponse request
-	ActivateRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ActivateRuleResp, error)
+	ActivateRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*ActivateRuleResp, error)
 
 	// DeactivateRuleWithResponse request
-	DeactivateRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeactivateRuleResp, error)
+	DeactivateRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*DeactivateRuleResp, error)
 
 	// DraftRuleWithResponse request
-	DraftRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DraftRuleResp, error)
+	DraftRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*DraftRuleResp, error)
 
 	// ListValidationsWithResponse request
 	ListValidationsWithResponse(ctx context.Context, params *ListValidationsParams, reqEditors ...RequestEditorFn) (*ListValidationsResp, error)
@@ -3726,13 +5046,18 @@ type ClientWithResponsesInterface interface {
 	ValidateTransactionRulesOnlyWithResponse(ctx context.Context, body ValidateTransactionRulesOnlyJSONRequestBody, reqEditors ...RequestEditorFn) (*ValidateTransactionRulesOnlyResp, error)
 
 	// GetValidationWithResponse request
-	GetValidationWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetValidationResp, error)
+	GetValidationWithResponse(ctx context.Context, validationId string, reqEditors ...RequestEditorFn) (*GetValidationResp, error)
+
+	// ListValidationReservationsWithResponse request
+	ListValidationReservationsWithResponse(ctx context.Context, validationId string, reqEditors ...RequestEditorFn) (*ListValidationReservationsResp, error)
 }
 
 type ListAuditEventsResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ListAuditEventsResponse
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -3766,6 +5091,8 @@ type GetAuditEventResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *AuditEvent
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -3799,6 +5126,8 @@ type VerifyAuditEventResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *HashChainVerificationResult
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -3832,6 +5161,8 @@ type GetDashboardFraudTypesResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *DashboardFraudTypes
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -3865,6 +5196,8 @@ type GetDashboardMetricsResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *DashboardMetrics
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -3898,6 +5231,8 @@ type GetDashboardTopRulesResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *DashboardTopRules
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -3931,6 +5266,8 @@ type GetDashboardVolumeResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *DashboardVolume
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -3964,6 +5301,8 @@ type ListLimitsResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ListLimitsResponse
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -3997,6 +5336,8 @@ type CreateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Limit
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4029,6 +5370,8 @@ func (r CreateLimitResp) ContentType() string {
 type DeleteLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4062,6 +5405,8 @@ type GetLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4095,6 +5440,8 @@ type UpdateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4128,6 +5475,8 @@ type ActivateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4161,6 +5510,8 @@ type DeactivateLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4194,6 +5545,8 @@ type DraftLimitResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Limit
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4227,6 +5580,8 @@ type GetLimitUsageResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *UsageSnapshot
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4425,6 +5780,8 @@ type ListRulesResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ListRulesResponse
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4458,6 +5815,8 @@ type CreateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON201                       *Rule
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4490,6 +5849,8 @@ func (r CreateRuleResp) ContentType() string {
 type DeleteRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4523,6 +5884,8 @@ type GetRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4556,6 +5919,8 @@ type UpdateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4589,6 +5954,8 @@ type ActivateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4622,6 +5989,8 @@ type DeactivateRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4655,6 +6024,8 @@ type DraftRuleResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *Rule
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4688,6 +6059,8 @@ type ListValidationsResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *ListTransactionValidationsResponse
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4721,8 +6094,12 @@ type ValidateTransactionResp struct {
 	Body                      []byte
 	HTTPResponse              *http.Response
 	JSON200                   *ValidationResponse
+	JSON401                   *UnauthorizedError
+	ApplicationproblemJSON401 *Error
+	ApplicationproblemJSON409 *Error
 	ApplicationproblemJSON422 *Error
 	ApplicationproblemJSON500 *Error
+	ApplicationproblemJSON503 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -4753,8 +6130,12 @@ type ValidateTransactionRulesOnlyResp struct {
 	Body                      []byte
 	HTTPResponse              *http.Response
 	JSON200                   *ValidationResponse
+	JSON401                   *UnauthorizedError
+	ApplicationproblemJSON401 *Error
+	ApplicationproblemJSON409 *Error
 	ApplicationproblemJSON422 *Error
 	ApplicationproblemJSON500 *Error
+	ApplicationproblemJSON503 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -4785,6 +6166,8 @@ type GetValidationResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
 	JSON200                       *TransactionValidation
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
 	ApplicationproblemJSON422     *Error
 	ApplicationproblemJSON500     *Error
 	ApplicationproblemJSONDefault *Error
@@ -4814,6 +6197,41 @@ func (r GetValidationResp) ContentType() string {
 	return ""
 }
 
+type ListValidationReservationsResp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *ValidationReservations
+	JSON401                       *UnauthorizedError
+	ApplicationproblemJSON401     *Error
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListValidationReservationsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListValidationReservationsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListValidationReservationsResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListAuditEventsWithResponse request returning *ListAuditEventsResp
 func (c *ClientWithResponses) ListAuditEventsWithResponse(ctx context.Context, params *ListAuditEventsParams, reqEditors ...RequestEditorFn) (*ListAuditEventsResp, error) {
 	rsp, err := c.ListAuditEvents(ctx, params, reqEditors...)
@@ -4824,8 +6242,8 @@ func (c *ClientWithResponses) ListAuditEventsWithResponse(ctx context.Context, p
 }
 
 // GetAuditEventWithResponse request returning *GetAuditEventResp
-func (c *ClientWithResponses) GetAuditEventWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetAuditEventResp, error) {
-	rsp, err := c.GetAuditEvent(ctx, id, reqEditors...)
+func (c *ClientWithResponses) GetAuditEventWithResponse(ctx context.Context, auditEventId string, reqEditors ...RequestEditorFn) (*GetAuditEventResp, error) {
+	rsp, err := c.GetAuditEvent(ctx, auditEventId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4833,8 +6251,8 @@ func (c *ClientWithResponses) GetAuditEventWithResponse(ctx context.Context, id 
 }
 
 // VerifyAuditEventWithResponse request returning *VerifyAuditEventResp
-func (c *ClientWithResponses) VerifyAuditEventWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*VerifyAuditEventResp, error) {
-	rsp, err := c.VerifyAuditEvent(ctx, id, reqEditors...)
+func (c *ClientWithResponses) VerifyAuditEventWithResponse(ctx context.Context, auditEventId string, reqEditors ...RequestEditorFn) (*VerifyAuditEventResp, error) {
+	rsp, err := c.VerifyAuditEvent(ctx, auditEventId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4904,8 +6322,8 @@ func (c *ClientWithResponses) CreateLimitWithResponse(ctx context.Context, body 
 }
 
 // DeleteLimitWithResponse request returning *DeleteLimitResp
-func (c *ClientWithResponses) DeleteLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteLimitResp, error) {
-	rsp, err := c.DeleteLimit(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DeleteLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*DeleteLimitResp, error) {
+	rsp, err := c.DeleteLimit(ctx, limitId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4913,8 +6331,8 @@ func (c *ClientWithResponses) DeleteLimitWithResponse(ctx context.Context, id st
 }
 
 // GetLimitWithResponse request returning *GetLimitResp
-func (c *ClientWithResponses) GetLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetLimitResp, error) {
-	rsp, err := c.GetLimit(ctx, id, reqEditors...)
+func (c *ClientWithResponses) GetLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*GetLimitResp, error) {
+	rsp, err := c.GetLimit(ctx, limitId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4922,16 +6340,16 @@ func (c *ClientWithResponses) GetLimitWithResponse(ctx context.Context, id strin
 }
 
 // UpdateLimitWithBodyWithResponse request with arbitrary body returning *UpdateLimitResp
-func (c *ClientWithResponses) UpdateLimitWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLimitResp, error) {
-	rsp, err := c.UpdateLimitWithBody(ctx, id, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UpdateLimitWithBodyWithResponse(ctx context.Context, limitId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLimitResp, error) {
+	rsp, err := c.UpdateLimitWithBody(ctx, limitId, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseUpdateLimitResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateLimitWithResponse(ctx context.Context, id string, body UpdateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLimitResp, error) {
-	rsp, err := c.UpdateLimit(ctx, id, body, reqEditors...)
+func (c *ClientWithResponses) UpdateLimitWithResponse(ctx context.Context, limitId string, body UpdateLimitJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLimitResp, error) {
+	rsp, err := c.UpdateLimit(ctx, limitId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4939,8 +6357,8 @@ func (c *ClientWithResponses) UpdateLimitWithResponse(ctx context.Context, id st
 }
 
 // ActivateLimitWithResponse request returning *ActivateLimitResp
-func (c *ClientWithResponses) ActivateLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ActivateLimitResp, error) {
-	rsp, err := c.ActivateLimit(ctx, id, reqEditors...)
+func (c *ClientWithResponses) ActivateLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*ActivateLimitResp, error) {
+	rsp, err := c.ActivateLimit(ctx, limitId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4948,8 +6366,8 @@ func (c *ClientWithResponses) ActivateLimitWithResponse(ctx context.Context, id 
 }
 
 // DeactivateLimitWithResponse request returning *DeactivateLimitResp
-func (c *ClientWithResponses) DeactivateLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeactivateLimitResp, error) {
-	rsp, err := c.DeactivateLimit(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DeactivateLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*DeactivateLimitResp, error) {
+	rsp, err := c.DeactivateLimit(ctx, limitId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4957,8 +6375,8 @@ func (c *ClientWithResponses) DeactivateLimitWithResponse(ctx context.Context, i
 }
 
 // DraftLimitWithResponse request returning *DraftLimitResp
-func (c *ClientWithResponses) DraftLimitWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DraftLimitResp, error) {
-	rsp, err := c.DraftLimit(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DraftLimitWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*DraftLimitResp, error) {
+	rsp, err := c.DraftLimit(ctx, limitId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4966,8 +6384,8 @@ func (c *ClientWithResponses) DraftLimitWithResponse(ctx context.Context, id str
 }
 
 // GetLimitUsageWithResponse request returning *GetLimitUsageResp
-func (c *ClientWithResponses) GetLimitUsageWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetLimitUsageResp, error) {
-	rsp, err := c.GetLimitUsage(ctx, id, reqEditors...)
+func (c *ClientWithResponses) GetLimitUsageWithResponse(ctx context.Context, limitId string, reqEditors ...RequestEditorFn) (*GetLimitUsageResp, error) {
+	rsp, err := c.GetLimitUsage(ctx, limitId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5054,8 +6472,8 @@ func (c *ClientWithResponses) CreateRuleWithResponse(ctx context.Context, body C
 }
 
 // DeleteRuleWithResponse request returning *DeleteRuleResp
-func (c *ClientWithResponses) DeleteRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteRuleResp, error) {
-	rsp, err := c.DeleteRule(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DeleteRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*DeleteRuleResp, error) {
+	rsp, err := c.DeleteRule(ctx, ruleId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5063,8 +6481,8 @@ func (c *ClientWithResponses) DeleteRuleWithResponse(ctx context.Context, id str
 }
 
 // GetRuleWithResponse request returning *GetRuleResp
-func (c *ClientWithResponses) GetRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetRuleResp, error) {
-	rsp, err := c.GetRule(ctx, id, reqEditors...)
+func (c *ClientWithResponses) GetRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*GetRuleResp, error) {
+	rsp, err := c.GetRule(ctx, ruleId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5072,16 +6490,16 @@ func (c *ClientWithResponses) GetRuleWithResponse(ctx context.Context, id string
 }
 
 // UpdateRuleWithBodyWithResponse request with arbitrary body returning *UpdateRuleResp
-func (c *ClientWithResponses) UpdateRuleWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateRuleResp, error) {
-	rsp, err := c.UpdateRuleWithBody(ctx, id, contentType, body, reqEditors...)
+func (c *ClientWithResponses) UpdateRuleWithBodyWithResponse(ctx context.Context, ruleId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateRuleResp, error) {
+	rsp, err := c.UpdateRuleWithBody(ctx, ruleId, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseUpdateRuleResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateRuleWithResponse(ctx context.Context, id string, body UpdateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateRuleResp, error) {
-	rsp, err := c.UpdateRule(ctx, id, body, reqEditors...)
+func (c *ClientWithResponses) UpdateRuleWithResponse(ctx context.Context, ruleId string, body UpdateRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateRuleResp, error) {
+	rsp, err := c.UpdateRule(ctx, ruleId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5089,8 +6507,8 @@ func (c *ClientWithResponses) UpdateRuleWithResponse(ctx context.Context, id str
 }
 
 // ActivateRuleWithResponse request returning *ActivateRuleResp
-func (c *ClientWithResponses) ActivateRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ActivateRuleResp, error) {
-	rsp, err := c.ActivateRule(ctx, id, reqEditors...)
+func (c *ClientWithResponses) ActivateRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*ActivateRuleResp, error) {
+	rsp, err := c.ActivateRule(ctx, ruleId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5098,8 +6516,8 @@ func (c *ClientWithResponses) ActivateRuleWithResponse(ctx context.Context, id s
 }
 
 // DeactivateRuleWithResponse request returning *DeactivateRuleResp
-func (c *ClientWithResponses) DeactivateRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeactivateRuleResp, error) {
-	rsp, err := c.DeactivateRule(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DeactivateRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*DeactivateRuleResp, error) {
+	rsp, err := c.DeactivateRule(ctx, ruleId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5107,8 +6525,8 @@ func (c *ClientWithResponses) DeactivateRuleWithResponse(ctx context.Context, id
 }
 
 // DraftRuleWithResponse request returning *DraftRuleResp
-func (c *ClientWithResponses) DraftRuleWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DraftRuleResp, error) {
-	rsp, err := c.DraftRule(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DraftRuleWithResponse(ctx context.Context, ruleId string, reqEditors ...RequestEditorFn) (*DraftRuleResp, error) {
+	rsp, err := c.DraftRule(ctx, ruleId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5159,12 +6577,21 @@ func (c *ClientWithResponses) ValidateTransactionRulesOnlyWithResponse(ctx conte
 }
 
 // GetValidationWithResponse request returning *GetValidationResp
-func (c *ClientWithResponses) GetValidationWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetValidationResp, error) {
-	rsp, err := c.GetValidation(ctx, id, reqEditors...)
+func (c *ClientWithResponses) GetValidationWithResponse(ctx context.Context, validationId string, reqEditors ...RequestEditorFn) (*GetValidationResp, error) {
+	rsp, err := c.GetValidation(ctx, validationId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseGetValidationResp(rsp)
+}
+
+// ListValidationReservationsWithResponse request returning *ListValidationReservationsResp
+func (c *ClientWithResponses) ListValidationReservationsWithResponse(ctx context.Context, validationId string, reqEditors ...RequestEditorFn) (*ListValidationReservationsResp, error) {
+	rsp, err := c.ListValidationReservations(ctx, validationId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListValidationReservationsResp(rsp)
 }
 
 // ParseListAuditEventsResp parses an HTTP response from a ListAuditEventsWithResponse call
@@ -5181,6 +6608,20 @@ func ParseListAuditEventsResp(rsp *http.Response) (*ListAuditEventsResp, error) 
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ListAuditEventsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5228,6 +6669,20 @@ func ParseGetAuditEventResp(rsp *http.Response) (*GetAuditEventResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest AuditEvent
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5275,6 +6730,20 @@ func ParseVerifyAuditEventResp(rsp *http.Response) (*VerifyAuditEventResp, error
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest HashChainVerificationResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5322,6 +6791,20 @@ func ParseGetDashboardFraudTypesResp(rsp *http.Response) (*GetDashboardFraudType
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest DashboardFraudTypes
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5369,6 +6852,20 @@ func ParseGetDashboardMetricsResp(rsp *http.Response) (*GetDashboardMetricsResp,
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest DashboardMetrics
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5416,6 +6913,20 @@ func ParseGetDashboardTopRulesResp(rsp *http.Response) (*GetDashboardTopRulesRes
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest DashboardTopRules
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5463,6 +6974,20 @@ func ParseGetDashboardVolumeResp(rsp *http.Response) (*GetDashboardVolumeResp, e
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest DashboardVolume
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5510,6 +7035,20 @@ func ParseListLimitsResp(rsp *http.Response) (*ListLimitsResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ListLimitsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5557,6 +7096,20 @@ func ParseCreateLimitResp(rsp *http.Response) (*CreateLimitResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Limit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5604,6 +7157,20 @@ func ParseDeleteLimitResp(rsp *http.Response) (*DeleteLimitResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5644,6 +7211,20 @@ func ParseGetLimitResp(rsp *http.Response) (*GetLimitResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Limit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5691,6 +7272,20 @@ func ParseUpdateLimitResp(rsp *http.Response) (*UpdateLimitResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Limit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5738,6 +7333,20 @@ func ParseActivateLimitResp(rsp *http.Response) (*ActivateLimitResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Limit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5785,6 +7394,20 @@ func ParseDeactivateLimitResp(rsp *http.Response) (*DeactivateLimitResp, error) 
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Limit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5832,6 +7455,20 @@ func ParseDraftLimitResp(rsp *http.Response) (*DraftLimitResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Limit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -5879,6 +7516,20 @@ func ParseGetLimitUsageResp(rsp *http.Response) (*GetLimitUsageResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest UsageSnapshot
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6161,6 +7812,20 @@ func ParseListRulesResp(rsp *http.Response) (*ListRulesResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ListRulesResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6208,6 +7873,20 @@ func ParseCreateRuleResp(rsp *http.Response) (*CreateRuleResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Rule
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6255,6 +7934,20 @@ func ParseDeleteRuleResp(rsp *http.Response) (*DeleteRuleResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6295,6 +7988,20 @@ func ParseGetRuleResp(rsp *http.Response) (*GetRuleResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Rule
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6342,6 +8049,20 @@ func ParseUpdateRuleResp(rsp *http.Response) (*UpdateRuleResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Rule
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6389,6 +8110,20 @@ func ParseActivateRuleResp(rsp *http.Response) (*ActivateRuleResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Rule
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6436,6 +8171,20 @@ func ParseDeactivateRuleResp(rsp *http.Response) (*DeactivateRuleResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Rule
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6483,6 +8232,20 @@ func ParseDraftRuleResp(rsp *http.Response) (*DraftRuleResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Rule
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6530,6 +8293,20 @@ func ParseListValidationsResp(rsp *http.Response) (*ListValidationsResp, error) 
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ListTransactionValidationsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -6577,12 +8354,33 @@ func ParseValidateTransactionResp(rsp *http.Response) (*ValidateTransactionResp,
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ValidationResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error
@@ -6597,6 +8395,13 @@ func ParseValidateTransactionResp(rsp *http.Response) (*ValidateTransactionResp,
 			return nil, err
 		}
 		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
 
 	}
 
@@ -6617,12 +8422,33 @@ func ParseValidateTransactionRulesOnlyResp(rsp *http.Response) (*ValidateTransac
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ValidationResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error
@@ -6637,6 +8463,13 @@ func ParseValidateTransactionRulesOnlyResp(rsp *http.Response) (*ValidateTransac
 			return nil, err
 		}
 		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
 
 	}
 
@@ -6657,8 +8490,83 @@ func ParseGetValidationResp(rsp *http.Response) (*GetValidationResp, error) {
 	}
 
 	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest TransactionValidation
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListValidationReservationsResp parses an HTTP response from a ListValidationReservationsWithResponse call
+func ParseListValidationReservationsResp(rsp *http.Response) (*ListValidationReservationsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListValidationReservationsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest UnauthorizedError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ValidationReservations
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
