@@ -19,6 +19,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
 )
 
 // Identifiers of the captured exchanges below.
@@ -1091,6 +1092,131 @@ func TestAccountPlansFacade_ObjectsRefuseANonObjectBody(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, sdkerrors.IsResponseDecodeError(err), "want a response-decode error, got %v", err)
 			assert.Nil(t, plan)
+		})
+	}
+}
+
+// apWrite is one of the five account plan writes, with the status and body the
+// server answers it with on success.
+type apWrite struct {
+	name   string
+	status int
+	body   string
+	call   func(ctx context.Context, f *accountPlansFacade) error
+}
+
+func apWrites() []apWrite {
+	return []apWrite{
+		{"Create", http.StatusCreated, apCreateRoundingResponse, func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Create(ctx, apOrgID, apLedgerID, apCreateRoundingInput())
+			return err
+		}},
+		{"Update", http.StatusOK, apUpdateFeePatchResponse, func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Update(ctx, apOrgID, apLedgerID, apPlanID, models.NewUpdateAccountPlanInput().
+				WithFeePatch("pixOut", models.AccountPlanFeePatch{FreeQuota: apIntPtr(5)}))
+			return err
+		}},
+		{"Delete", http.StatusNoContent, "", func(ctx context.Context, f *accountPlansFacade) error {
+			return f.Delete(ctx, apOrgID, apLedgerID, apPlanID)
+		}},
+		{"Assign", http.StatusOK, apAssignResponse, func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Assign(ctx, apOrgID, apLedgerID, apAccountID, models.NewAssignAccountPlanInput(apPlanID))
+			return err
+		}},
+		{"Unassign", http.StatusNoContent, "", func(ctx context.Context, f *accountPlansFacade) error {
+			return f.Unassign(ctx, apOrgID, apLedgerID, apAccountID)
+		}},
+	}
+}
+
+func TestAccountPlansFacade_WritesSendNoIdempotencyKey(t *testing.T) {
+	configs := []struct {
+		name   string
+		ctx    func() context.Context
+		facade func(t *testing.T, srv *httptest.Server) *accountPlansFacade
+	}{
+		{
+			name: "sem-chave-por-padrao",
+			ctx:  context.Background,
+			facade: func(t *testing.T, srv *httptest.Server) *accountPlansFacade {
+				t.Helper()
+
+				return newV2Services(newTestLedgerClient(t, srv), false).AccountPlans
+			},
+		},
+		{
+			name: "sem-chave-com-a-opcao-ligada",
+			ctx:  context.Background,
+			facade: func(t *testing.T, srv *httptest.Server) *accountPlansFacade {
+				t.Helper()
+
+				return newV2Services(newTestLedgerClient(t, srv), true).AccountPlans
+			},
+		},
+		{
+			name: "chave-do-contexto-nao-enviada",
+			ctx: func() context.Context {
+				return sdkctx.WithIdempotencyKey(context.Background(), "caller-key-1")
+			},
+			facade: func(t *testing.T, srv *httptest.Server) *accountPlansFacade {
+				t.Helper()
+
+				return newV2Services(newTestLedgerClient(t, srv), true).AccountPlans
+			},
+		},
+	}
+
+	for _, cfg := range configs {
+		for _, write := range apWrites() {
+			t.Run(cfg.name+"/"+write.name, func(t *testing.T) {
+				rec, srv := newAPServer(t, write.status, write.body)
+
+				require.NoError(t, write.call(cfg.ctx(), cfg.facade(t, srv)))
+
+				req := rec.only(t)
+				assert.Empty(t, req.header.Values("X-Idempotency"), "account plan writes never send X-Idempotency")
+				assert.Empty(t, req.header.Values("X-TTL"))
+			})
+		}
+	}
+}
+
+// newRetryingAccountPlansFacade builds the facade over a ledger client whose
+// retry engine is ENABLED, so a request that is retryable is retried.
+func newRetryingAccountPlansFacade(t *testing.T, srv *httptest.Server) *accountPlansFacade {
+	t.Helper()
+
+	planes, err := newPlaneClients(planeClientsConfig{
+		ledgerURL: srv.URL,
+		tracerURL: srv.URL + "/v1",
+		auth: authRoundTripperConfig{
+			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
+		},
+		httpClient:   srv.Client(),
+		retryOptions: fastRetryOpts(),
+	})
+	require.NoError(t, err)
+
+	return newV2Services(planes.Ledger, true).AccountPlans
+}
+
+func TestAccountPlansFacade_WriteRetryIsNotAttempted(t *testing.T) {
+	t.Run("control: a read is retried on 503", func(t *testing.T) {
+		rec, srv := newAPServer(t, http.StatusServiceUnavailable, "")
+
+		_, err := newRetryingAccountPlansFacade(t, srv).Get(context.Background(), apOrgID, apLedgerID, apPlanID)
+		require.Error(t, err)
+		assert.Greater(t, len(rec.all()), 1, "the retry engine must be on, or the write rows prove nothing")
+	})
+
+	for _, write := range apWrites() {
+		t.Run("escrita-nao-e-repetida/"+write.name, func(t *testing.T) {
+			rec, srv := newAPServer(t, http.StatusServiceUnavailable, "")
+
+			err := write.call(sdkctx.WithIdempotencyKey(context.Background(), "caller-key-1"), newRetryingAccountPlansFacade(t, srv))
+			require.Error(t, err)
+			assert.Equal(t, http.StatusServiceUnavailable, sdkerrors.GetStatusCode(err))
+			assert.Len(t, rec.all(), 1, "a keyless account plan write is sent exactly once")
 		})
 	}
 }
