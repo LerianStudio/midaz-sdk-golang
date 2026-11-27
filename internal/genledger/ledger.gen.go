@@ -205,27 +205,138 @@ func (e FeeAccountPlanTriggerInputType) Valid() bool {
 	}
 }
 
+// Defines values for FeeChargeStatus.
+const (
+	FeeChargeStatusAPPROVED FeeChargeStatus = "APPROVED"
+	FeeChargeStatusDEFERRED FeeChargeStatus = "DEFERRED"
+)
+
+// Valid indicates whether the value is a known member of the FeeChargeStatus enum.
+func (e FeeChargeStatus) Valid() bool {
+	switch e {
+	case FeeChargeStatusAPPROVED:
+		return true
+	case FeeChargeStatusDEFERRED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeeChargeItemOutcome.
+const (
+	FeeChargeItemOutcomeCharged    FeeChargeItemOutcome = "charged"
+	FeeChargeItemOutcomeNotCovered FeeChargeItemOutcome = "not_covered"
+	FeeChargeItemOutcomeQuota      FeeChargeItemOutcome = "quota"
+)
+
+// Valid indicates whether the value is a known member of the FeeChargeItemOutcome enum.
+func (e FeeChargeItemOutcome) Valid() bool {
+	switch e {
+	case FeeChargeItemOutcomeCharged:
+		return true
+	case FeeChargeItemOutcomeNotCovered:
+		return true
+	case FeeChargeItemOutcomeQuota:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeeChargeItemStatus.
+const (
+	FeeChargeItemStatusAPPROVED FeeChargeItemStatus = "APPROVED"
+	FeeChargeItemStatusDEFERRED FeeChargeItemStatus = "DEFERRED"
+)
+
+// Valid indicates whether the value is a known member of the FeeChargeItemStatus enum.
+func (e FeeChargeItemStatus) Valid() bool {
+	switch e {
+	case FeeChargeItemStatusAPPROVED:
+		return true
+	case FeeChargeItemStatusDEFERRED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeeDebtEntryViewKind.
+const (
+	Canceled FeeDebtEntryViewKind = "canceled"
+	Opened   FeeDebtEntryViewKind = "opened"
+	Refunded FeeDebtEntryViewKind = "refunded"
+	Reopened FeeDebtEntryViewKind = "reopened"
+	Settled  FeeDebtEntryViewKind = "settled"
+)
+
+// Valid indicates whether the value is a known member of the FeeDebtEntryViewKind enum.
+func (e FeeDebtEntryViewKind) Valid() bool {
+	switch e {
+	case Canceled:
+		return true
+	case Opened:
+		return true
+	case Refunded:
+		return true
+	case Reopened:
+		return true
+	case Settled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeeDebtOriginViewType.
+const (
+	FeeDebtOriginViewTypeAccountPlan    FeeDebtOriginViewType = "account_plan"
+	FeeDebtOriginViewTypeBillingCharge  FeeDebtOriginViewType = "billing_charge"
+	FeeDebtOriginViewTypeBillingPackage FeeDebtOriginViewType = "billing_package"
+	FeeDebtOriginViewTypeFeeCharge      FeeDebtOriginViewType = "fee_charge"
+	FeeDebtOriginViewTypeFeePackage     FeeDebtOriginViewType = "fee_package"
+)
+
+// Valid indicates whether the value is a known member of the FeeDebtOriginViewType enum.
+func (e FeeDebtOriginViewType) Valid() bool {
+	switch e {
+	case FeeDebtOriginViewTypeAccountPlan:
+		return true
+	case FeeDebtOriginViewTypeBillingCharge:
+		return true
+	case FeeDebtOriginViewTypeBillingPackage:
+		return true
+	case FeeDebtOriginViewTypeFeeCharge:
+		return true
+	case FeeDebtOriginViewTypeFeePackage:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeeItemOutcome.
 const (
-	FeeItemOutcomeCharged  FeeItemOutcome = "charged"
-	FeeItemOutcomeExempt   FeeItemOutcome = "exempt"
-	FeeItemOutcomeQuota    FeeItemOutcome = "quota"
-	FeeItemOutcomeReleased FeeItemOutcome = "released"
-	FeeItemOutcomeReversed FeeItemOutcome = "reversed"
+	Charged  FeeItemOutcome = "charged"
+	Exempt   FeeItemOutcome = "exempt"
+	Quota    FeeItemOutcome = "quota"
+	Released FeeItemOutcome = "released"
+	Reversed FeeItemOutcome = "reversed"
 )
 
 // Valid indicates whether the value is a known member of the FeeItemOutcome enum.
 func (e FeeItemOutcome) Valid() bool {
 	switch e {
-	case FeeItemOutcomeCharged:
+	case Charged:
 		return true
-	case FeeItemOutcomeExempt:
+	case Exempt:
 		return true
-	case FeeItemOutcomeQuota:
+	case Quota:
 		return true
-	case FeeItemOutcomeReleased:
+	case Released:
 		return true
-	case FeeItemOutcomeReversed:
+	case Reversed:
 		return true
 	default:
 		return false
@@ -261,16 +372,16 @@ func (e FeeItemReason) Valid() bool {
 
 // Defines values for FeeItemSource.
 const (
-	AccountPlan FeeItemSource = "account_plan"
-	Package     FeeItemSource = "package"
+	FeeItemSourceAccountPlan FeeItemSource = "account_plan"
+	FeeItemSourcePackage     FeeItemSource = "package"
 )
 
 // Valid indicates whether the value is a known member of the FeeItemSource enum.
 func (e FeeItemSource) Valid() bool {
 	switch e {
-	case AccountPlan:
+	case FeeItemSourceAccountPlan:
 		return true
-	case Package:
+	case FeeItemSourcePackage:
 		return true
 	default:
 		return false
@@ -1620,6 +1731,87 @@ type FeeCalculationPatch struct {
 	Value *string `json:"value,omitempty"`
 }
 
+// FeeCharge defines model for FeeCharge.
+type FeeCharge struct {
+	AccountId string `json:"accountId"`
+
+	// AccountPlanId Account plan active for the account when the charge was taken; null when the account had none.
+	AccountPlanId string `json:"accountPlanId"`
+
+	// AccountPlanVersion Version of the account plan in effect when the charge was taken; 0 when the account had no plan.
+	AccountPlanVersion int64 `json:"accountPlanVersion"`
+
+	// AssetCode Asset of the account the charge was taken in.
+	AssetCode string `json:"assetCode"`
+
+	// CanceledAt When the charge was canceled; absent while it is not.
+	CanceledAt  *time.Time `json:"canceledAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	Description *string    `json:"description,omitempty"`
+
+	// FeeTransactionIds Fee transactions that charged the charged items; empty when nothing was charged, and when the charge only opened fee debts without moving any balance.
+	FeeTransactionIds *[]string `json:"feeTransactionIds"`
+	Id                string    `json:"id"`
+
+	// Items One item per service code of the request, in request order.
+	Items          *[]FeeChargeItem        `json:"items"`
+	LedgerId       string                  `json:"ledgerId"`
+	Metadata       *map[string]interface{} `json:"metadata,omitempty"`
+	OrganizationId string                  `json:"organizationId"`
+
+	// Period Monthly quota period (YYYY-MM) the units were counted in, in the plan timezone.
+	Period string `json:"period"`
+
+	// Status DEFERRED when at least one item is DEFERRED, APPROVED otherwise.
+	Status FeeChargeStatus `json:"status"`
+
+	// TotalAmount Sum of the amounts of the charged items.
+	TotalAmount string `json:"totalAmount"`
+}
+
+// FeeChargeStatus DEFERRED when at least one item is DEFERRED, APPROVED otherwise.
+type FeeChargeStatus string
+
+// FeeChargeItem defines model for FeeChargeItem.
+type FeeChargeItem struct {
+	// Amount Fee charged for the unit; 0 unless outcome is charged.
+	Amount string `json:"amount"`
+
+	// FeeKey Key of the account plan fee the code matched; empty when outcome is not_covered.
+	FeeKey string `json:"feeKey"`
+
+	// FreeQuota Free units per period of the matched fee; 0 when outcome is not_covered.
+	FreeQuota int64                `json:"freeQuota"`
+	Outcome   FeeChargeItemOutcome `json:"outcome"`
+
+	// ServiceCode Service code of the unit, normalized to trimmed upper case.
+	ServiceCode string `json:"serviceCode"`
+
+	// Status DEFERRED when the matched fee is deferrable, APPROVED otherwise, not_covered included. It describes the fee, not whether the unit was paid.
+	Status FeeChargeItemStatus `json:"status"`
+
+	// Unit Ordinal of the consumed unit in the period; 0 when outcome is not_covered.
+	Unit int64 `json:"unit"`
+}
+
+// FeeChargeItemOutcome defines model for FeeChargeItem.Outcome.
+type FeeChargeItemOutcome string
+
+// FeeChargeItemStatus DEFERRED when the matched fee is deferrable, APPROVED otherwise, not_covered included. It describes the fee, not whether the unit was paid.
+type FeeChargeItemStatus string
+
+// FeeChargeServiceFeesInput defines model for FeeChargeServiceFeesInput.
+type FeeChargeServiceFeesInput struct {
+	// Description Description of the charge, also used as the description of the fee transaction.
+	Description *string `json:"description,omitempty"`
+
+	// Metadata Flat metadata of the charge, also written to the fee transaction.
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+	// ServiceCodes Service codes to charge, 1 to 100. Each occurrence is one unit; codes are normalized to trimmed upper case.
+	ServiceCodes *[]string `json:"serviceCodes"`
+}
+
 // FeeCreateAccountPlanInput defines model for FeeCreateAccountPlanInput.
 type FeeCreateAccountPlanInput struct {
 	Description *string `json:"description,omitempty"`
@@ -1689,6 +1881,98 @@ type FeeCreatePackageInput struct {
 	// TransactionRoute Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. Omit it, or send it empty, to apply the package to every payment.
 	TransactionRoute *string   `json:"transactionRoute,omitempty"`
 	WaivedAccounts   *[]string `json:"waivedAccounts,omitempty"`
+}
+
+// FeeDebtCollectInput defines model for FeeDebtCollectInput.
+type FeeDebtCollectInput struct {
+	// AccountAlias Alias of the debtor account.
+	AccountAlias string `json:"accountAlias"`
+
+	// BalanceKey Key of the debtor balance; absent means the default balance.
+	BalanceKey *string `json:"balanceKey,omitempty"`
+
+	// MaxAmount Most the collection may settle, greater than zero; absent means everything the balance owes.
+	MaxAmount *string `json:"maxAmount,omitempty"`
+}
+
+// FeeDebtCollectOutput defines model for FeeDebtCollectOutput.
+type FeeDebtCollectOutput struct {
+	// Collected Amount settled, oldest debt first; 0 when the balance had no open debt, no available funds, or cannot pay a debt's fee account.
+	Collected string `json:"collected"`
+
+	// TransactionId Transaction recording the settlement, absent when nothing was collected.
+	TransactionId *openapi_types.UUID `json:"transactionId,omitempty"`
+}
+
+// FeeDebtEntryView defines model for FeeDebtEntryView.
+type FeeDebtEntryView struct {
+	Amount        string               `json:"amount"`
+	AppliedAt     time.Time            `json:"appliedAt"`
+	Kind          FeeDebtEntryViewKind `json:"kind"`
+	PostingRef    *string              `json:"postingRef,omitempty"`
+	TransactionId string               `json:"transactionId"`
+}
+
+// FeeDebtEntryViewKind defines model for FeeDebtEntryView.Kind.
+type FeeDebtEntryViewKind string
+
+// FeeDebtListBody defines model for FeeDebtListBody.
+type FeeDebtListBody struct {
+	Items      *[]FeeDebtView `json:"items"`
+	Limit      int64          `json:"limit"`
+	NextCursor *string        `json:"next_cursor,omitempty"`
+
+	// OpenTotal What this debtor balance (account_alias and balance_key) owes over all its open debts, not only this page, each counting at most its opened amount; present only with account_alias
+	OpenTotal  *string `json:"openTotal,omitempty"`
+	PrevCursor *string `json:"prev_cursor,omitempty"`
+}
+
+// FeeDebtOriginView defines model for FeeDebtOriginView.
+type FeeDebtOriginView struct {
+	// Id Identifier of the fee package, account plan, fee charge, billing charge or billing package that type names
+	Id string `json:"id"`
+
+	// Type fee_package: a fee of a fee package charged on a transaction; account_plan: a fee of the debtor's account plan; fee_charge: a service fee charged through fee-charges; billing_charge: a maintenance fee charged through billing/charge, one charge per package, account and period; billing_package: a maintenance fee of a billing package, as billing/charge named the debts it opened before it named the charge
+	Type FeeDebtOriginViewType `json:"type"`
+}
+
+// FeeDebtOriginViewType fee_package: a fee of a fee package charged on a transaction; account_plan: a fee of the debtor's account plan; fee_charge: a service fee charged through fee-charges; billing_charge: a maintenance fee charged through billing/charge, one charge per package, account and period; billing_package: a maintenance fee of a billing package, as billing/charge named the debts it opened before it named the charge
+type FeeDebtOriginViewType string
+
+// FeeDebtView defines model for FeeDebtView.
+type FeeDebtView struct {
+	AssetCode string `json:"assetCode"`
+
+	// CreatedAt When the earliest recorded change was applied
+	CreatedAt time.Time `json:"createdAt"`
+
+	// CreditBalance Fee account balance the debt pays, as alias#key
+	CreditBalance string `json:"creditBalance"`
+
+	// DebtorBalance Debtor balance as alias#key
+	DebtorBalance string `json:"debtorBalance"`
+
+	// Entries Recorded changes, oldest first
+	Entries *[]FeeDebtEntryView `json:"entries"`
+
+	// FeePackageId Fee package that charged the fee, present only on a debt a fee package opened
+	FeePackageId *string `json:"feePackageId,omitempty"`
+
+	// Id Origin transaction id and the fee debit posting the debt opened in
+	Id                  string             `json:"id"`
+	LedgerId            string             `json:"ledgerId"`
+	OpenedAmount        string             `json:"openedAmount"`
+	OpenedAt            *time.Time         `json:"openedAt,omitempty"`
+	OrganizationId      string             `json:"organizationId"`
+	Origin              *FeeDebtOriginView `json:"origin,omitempty"`
+	OriginTransactionId string             `json:"originTransactionId"`
+	Remaining           string             `json:"remaining"`
+
+	// Seq Settlement order among the debtor's debts, oldest first
+	Seq int64 `json:"seq"`
+
+	// UpdatedAt When the latest recorded change was applied
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // FeeDiscountTier defines model for FeeDiscountTier.
@@ -3622,6 +3906,24 @@ type GetAccountBalancesAtTimestampV2Params struct {
 	Date *string `form:"date,omitempty" json:"date,omitempty"`
 }
 
+// ListFeeChargesV2Params defines parameters for ListFeeChargesV2.
+type ListFeeChargesV2Params struct {
+	// Period Quota period (YYYY-MM) the charges were counted in; omitted lists every period.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// Limit Max items per page (1-100, default 10)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Page Page number (default 1)
+	Page *string `form:"page,omitempty" json:"page,omitempty"`
+}
+
+// ChargeServiceFeesV2Params defines parameters for ChargeServiceFeesV2.
+type ChargeServiceFeesV2Params struct {
+	// XIdempotency Required. Idempotency key of the charge, unique per account: a retry with the same key and body returns the recorded charge with X-Idempotency-Replayed, a different body under the same key answers 409 (0084), and so does a retry while an earlier attempt is still processing or its outcome is unknown, for as long as 7 days.
+	XIdempotency string `json:"X-Idempotency"`
+}
+
 // GetAllOperationsByAccountV2Params defines parameters for GetAllOperationsByAccountV2.
 type GetAllOperationsByAccountV2Params struct {
 	// Metadata Filter operations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
@@ -3746,6 +4048,36 @@ type GetLedgerDashboardVolumeV2Params struct {
 
 	// EndDate Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days.
 	EndDate *string `form:"end_date,omitempty" json:"end_date,omitempty"`
+}
+
+// ListFeeDebtsV2Params defines parameters for ListFeeDebtsV2.
+type ListFeeDebtsV2Params struct {
+	// AccountAlias Only the debts of this debtor account, in settlement order
+	AccountAlias *string `form:"account_alias,omitempty" json:"account_alias,omitempty"`
+
+	// BalanceKey Debtor balance key; requires account_alias (default "default")
+	BalanceKey *string `form:"balance_key,omitempty" json:"balance_key,omitempty"`
+
+	// Status open: remaining above zero; settled: the rest. Absent lists both
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// OriginType Only the debts of this origin: fee_package, account_plan, fee_charge, billing_charge or billing_package. fee_package also lists the debts recorded before the ledger kept the origin that carry a feePackageId. Absent lists every origin
+	OriginType *string `form:"origin_type,omitempty" json:"origin_type,omitempty"`
+
+	// Limit Number of items per page (default 10, max 100)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// CollectFeeDebtsV2Params defines parameters for CollectFeeDebtsV2.
+type CollectFeeDebtsV2Params struct {
+	// XIdempotency Idempotency key to safely retry the collection; a retry after the first collection completes returns it (an answer that settled nothing is not kept), another request under the same key or a retry while the first is still executing answers 409 (0084). Without it every call is a new collection.
+	XIdempotency *string `json:"X-Idempotency,omitempty"`
+
+	// XTTL Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error
+	XTTL *string `json:"X-TTL,omitempty"`
 }
 
 // CreateHolderAccountV2Params defines parameters for CreateHolderAccountV2.
@@ -4211,6 +4543,9 @@ type AssignAccountPlanV2JSONRequestBody = FeeAssignAccountPlanInput
 // CreateAdditionalBalanceV2JSONRequestBody defines body for CreateAdditionalBalanceV2 for application/json ContentType.
 type CreateAdditionalBalanceV2JSONRequestBody = CreateAdditionalBalance
 
+// ChargeServiceFeesV2JSONRequestBody defines body for ChargeServiceFeesV2 for application/json ContentType.
+type ChargeServiceFeesV2JSONRequestBody = FeeChargeServiceFeesInput
+
 // CreateAssetV2JSONRequestBody defines body for CreateAssetV2 for application/json ContentType.
 type CreateAssetV2JSONRequestBody = CreateAssetInput
 
@@ -4231,6 +4566,9 @@ type CalculateBillingV2JSONRequestBody = FeeBillingCalculateRequest
 
 // EstimateFeeCalculationV2JSONRequestBody defines body for EstimateFeeCalculationV2 for application/json ContentType.
 type EstimateFeeCalculationV2JSONRequestBody = FeeEstimate
+
+// CollectFeeDebtsV2JSONRequestBody defines body for CollectFeeDebtsV2 for application/json ContentType.
+type CollectFeeDebtsV2JSONRequestBody = FeeDebtCollectInput
 
 // CreateHolderAccountV2JSONRequestBody defines body for CreateHolderAccountV2 for application/json ContentType.
 type CreateHolderAccountV2JSONRequestBody = CreateHolderAccountInput
@@ -5529,6 +5867,20 @@ type ClientInterface interface {
 	// CloseAccountV2 request
 	CloseAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListFeeChargesV2 request
+	ListFeeChargesV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ListFeeChargesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ChargeServiceFeesV2WithBody request with any body
+	ChargeServiceFeesV2WithBody(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ChargeServiceFeesV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, body ChargeServiceFeesV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFeeChargeV2 request
+	GetFeeChargeV2(ctx context.Context, organizationId string, ledgerId string, accountId string, feeChargeId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelFeeChargeV2 request
+	CancelFeeChargeV2(ctx context.Context, organizationId string, ledgerId string, accountId string, feeChargeId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAllOperationsByAccountV2 request
 	GetAllOperationsByAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5611,6 +5963,17 @@ type ClientInterface interface {
 	EstimateFeeCalculationV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	EstimateFeeCalculationV2(ctx context.Context, organizationId string, ledgerId string, body EstimateFeeCalculationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListFeeDebtsV2 request
+	ListFeeDebtsV2(ctx context.Context, organizationId string, ledgerId string, params *ListFeeDebtsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CollectFeeDebtsV2WithBody request with any body
+	CollectFeeDebtsV2WithBody(ctx context.Context, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CollectFeeDebtsV2(ctx context.Context, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, body CollectFeeDebtsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFeeDebtV2 request
+	GetFeeDebtV2(ctx context.Context, organizationId string, ledgerId string, feeDebtId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateHolderAccountV2WithBody request with any body
 	CreateHolderAccountV2WithBody(ctx context.Context, organizationId string, ledgerId string, holderId string, params *CreateHolderAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -8188,6 +8551,66 @@ func (c *Client) CloseAccountV2(ctx context.Context, organizationId string, ledg
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListFeeChargesV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ListFeeChargesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListFeeChargesV2Request(c.Server, organizationId, ledgerId, accountId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ChargeServiceFeesV2WithBody(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewChargeServiceFeesV2RequestWithBody(c.Server, organizationId, ledgerId, accountId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ChargeServiceFeesV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, body ChargeServiceFeesV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewChargeServiceFeesV2Request(c.Server, organizationId, ledgerId, accountId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetFeeChargeV2(ctx context.Context, organizationId string, ledgerId string, accountId string, feeChargeId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFeeChargeV2Request(c.Server, organizationId, ledgerId, accountId, feeChargeId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CancelFeeChargeV2(ctx context.Context, organizationId string, ledgerId string, accountId string, feeChargeId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelFeeChargeV2Request(c.Server, organizationId, ledgerId, accountId, feeChargeId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetAllOperationsByAccountV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAllOperationsByAccountV2Request(c.Server, organizationId, ledgerId, accountId, params)
 	if err != nil {
@@ -8538,6 +8961,54 @@ func (c *Client) EstimateFeeCalculationV2WithBody(ctx context.Context, organizat
 
 func (c *Client) EstimateFeeCalculationV2(ctx context.Context, organizationId string, ledgerId string, body EstimateFeeCalculationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEstimateFeeCalculationV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListFeeDebtsV2(ctx context.Context, organizationId string, ledgerId string, params *ListFeeDebtsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListFeeDebtsV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CollectFeeDebtsV2WithBody(ctx context.Context, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCollectFeeDebtsV2RequestWithBody(c.Server, organizationId, ledgerId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CollectFeeDebtsV2(ctx context.Context, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, body CollectFeeDebtsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCollectFeeDebtsV2Request(c.Server, organizationId, ledgerId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetFeeDebtV2(ctx context.Context, organizationId string, ledgerId string, feeDebtId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFeeDebtV2Request(c.Server, organizationId, ledgerId, feeDebtId)
 	if err != nil {
 		return nil, err
 	}
@@ -19840,6 +20311,289 @@ func NewCloseAccountV2Request(server string, organizationId string, ledgerId str
 	return req, nil
 }
 
+// NewListFeeChargesV2Request generates requests for ListFeeChargesV2
+func NewListFeeChargesV2Request(server string, organizationId string, ledgerId string, accountId string, params *ListFeeChargesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/fee-charges", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewChargeServiceFeesV2Request calls the generic ChargeServiceFeesV2 builder with application/json body
+func NewChargeServiceFeesV2Request(server string, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, body ChargeServiceFeesV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewChargeServiceFeesV2RequestWithBody(server, organizationId, ledgerId, accountId, params, "application/json", bodyReader)
+}
+
+// NewChargeServiceFeesV2RequestWithBody generates requests for ChargeServiceFeesV2 with any type of body
+func NewChargeServiceFeesV2RequestWithBody(server string, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/fee-charges", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Idempotency", params.XIdempotency, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("X-Idempotency", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewGetFeeChargeV2Request generates requests for GetFeeChargeV2
+func NewGetFeeChargeV2Request(server string, organizationId string, ledgerId string, accountId string, feeChargeId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "fee_charge_id", feeChargeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/fee-charges/%s", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCancelFeeChargeV2Request generates requests for CancelFeeChargeV2
+func NewCancelFeeChargeV2Request(server string, organizationId string, ledgerId string, accountId string, feeChargeId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam3 string
+
+	pathParam3, err = runtime.StyleParamWithOptions("simple", false, "fee_charge_id", feeChargeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/fee-charges/%s/cancel", pathParam0, pathParam1, pathParam2, pathParam3)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetAllOperationsByAccountV2Request generates requests for GetAllOperationsByAccountV2
 func NewGetAllOperationsByAccountV2Request(server string, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params) (*http.Request, error) {
 	var err error
@@ -21477,6 +22231,262 @@ func NewEstimateFeeCalculationV2RequestWithBody(server string, organizationId st
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListFeeDebtsV2Request generates requests for ListFeeDebtsV2
+func NewListFeeDebtsV2Request(server string, organizationId string, ledgerId string, params *ListFeeDebtsV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/fee-debts", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.AccountAlias != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "account_alias", *params.AccountAlias, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.BalanceKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "balance_key", *params.BalanceKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.OriginType != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "origin_type", *params.OriginType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCollectFeeDebtsV2Request calls the generic CollectFeeDebtsV2 builder with application/json body
+func NewCollectFeeDebtsV2Request(server string, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, body CollectFeeDebtsV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCollectFeeDebtsV2RequestWithBody(server, organizationId, ledgerId, params, "application/json", bodyReader)
+}
+
+// NewCollectFeeDebtsV2RequestWithBody generates requests for CollectFeeDebtsV2 with any type of body
+func NewCollectFeeDebtsV2RequestWithBody(server string, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/fee-debts/collect", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XIdempotency != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Idempotency", *params.XIdempotency, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Idempotency", headerParam0)
+		}
+
+		if params.XTTL != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-TTL", *params.XTTL, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-TTL", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetFeeDebtV2Request generates requests for GetFeeDebtV2
+func NewGetFeeDebtV2Request(server string, organizationId string, ledgerId string, feeDebtId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "fee_debt_id", feeDebtId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/fee-debts/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -25903,6 +26913,20 @@ type ClientWithResponsesInterface interface {
 	// CloseAccountV2WithResponse request
 	CloseAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*CloseAccountV2Resp, error)
 
+	// ListFeeChargesV2WithResponse request
+	ListFeeChargesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ListFeeChargesV2Params, reqEditors ...RequestEditorFn) (*ListFeeChargesV2Resp, error)
+
+	// ChargeServiceFeesV2WithBodyWithResponse request with any body
+	ChargeServiceFeesV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ChargeServiceFeesV2Resp, error)
+
+	ChargeServiceFeesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, body ChargeServiceFeesV2JSONRequestBody, reqEditors ...RequestEditorFn) (*ChargeServiceFeesV2Resp, error)
+
+	// GetFeeChargeV2WithResponse request
+	GetFeeChargeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, feeChargeId string, reqEditors ...RequestEditorFn) (*GetFeeChargeV2Resp, error)
+
+	// CancelFeeChargeV2WithResponse request
+	CancelFeeChargeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, feeChargeId string, reqEditors ...RequestEditorFn) (*CancelFeeChargeV2Resp, error)
+
 	// GetAllOperationsByAccountV2WithResponse request
 	GetAllOperationsByAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*GetAllOperationsByAccountV2Resp, error)
 
@@ -25985,6 +27009,17 @@ type ClientWithResponsesInterface interface {
 	EstimateFeeCalculationV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationV2Resp, error)
 
 	EstimateFeeCalculationV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body EstimateFeeCalculationV2JSONRequestBody, reqEditors ...RequestEditorFn) (*EstimateFeeCalculationV2Resp, error)
+
+	// ListFeeDebtsV2WithResponse request
+	ListFeeDebtsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListFeeDebtsV2Params, reqEditors ...RequestEditorFn) (*ListFeeDebtsV2Resp, error)
+
+	// CollectFeeDebtsV2WithBodyWithResponse request with any body
+	CollectFeeDebtsV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CollectFeeDebtsV2Resp, error)
+
+	CollectFeeDebtsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, body CollectFeeDebtsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CollectFeeDebtsV2Resp, error)
+
+	// GetFeeDebtV2WithResponse request
+	GetFeeDebtV2WithResponse(ctx context.Context, organizationId string, ledgerId string, feeDebtId string, reqEditors ...RequestEditorFn) (*GetFeeDebtV2Resp, error)
 
 	// CreateHolderAccountV2WithBodyWithResponse request with any body
 	CreateHolderAccountV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, holderId string, params *CreateHolderAccountV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHolderAccountV2Resp, error)
@@ -31000,6 +32035,141 @@ func (r CloseAccountV2Resp) ContentType() string {
 	return ""
 }
 
+type ListFeeChargesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *Pagination
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListFeeChargesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListFeeChargesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListFeeChargesV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ChargeServiceFeesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON201                       *FeeCharge
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ChargeServiceFeesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ChargeServiceFeesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ChargeServiceFeesV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFeeChargeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeCharge
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFeeChargeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFeeChargeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFeeChargeV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CancelFeeChargeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeCharge
+	ApplicationproblemJSON403     *Error
+	ApplicationproblemJSON404     *Error
+	ApplicationproblemJSON409     *Error
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelFeeChargeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelFeeChargeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CancelFeeChargeV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetAllOperationsByAccountV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
@@ -31748,6 +32918,105 @@ func (r EstimateFeeCalculationV2Resp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r EstimateFeeCalculationV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListFeeDebtsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeDebtListBody
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListFeeDebtsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListFeeDebtsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListFeeDebtsV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CollectFeeDebtsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeDebtCollectOutput
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CollectFeeDebtsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CollectFeeDebtsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CollectFeeDebtsV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFeeDebtV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeDebtView
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFeeDebtV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFeeDebtV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFeeDebtV2Resp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -35335,6 +36604,50 @@ func (c *ClientWithResponses) CloseAccountV2WithResponse(ctx context.Context, or
 	return ParseCloseAccountV2Resp(rsp)
 }
 
+// ListFeeChargesV2WithResponse request returning *ListFeeChargesV2Resp
+func (c *ClientWithResponses) ListFeeChargesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ListFeeChargesV2Params, reqEditors ...RequestEditorFn) (*ListFeeChargesV2Resp, error) {
+	rsp, err := c.ListFeeChargesV2(ctx, organizationId, ledgerId, accountId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListFeeChargesV2Resp(rsp)
+}
+
+// ChargeServiceFeesV2WithBodyWithResponse request with arbitrary body returning *ChargeServiceFeesV2Resp
+func (c *ClientWithResponses) ChargeServiceFeesV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ChargeServiceFeesV2Resp, error) {
+	rsp, err := c.ChargeServiceFeesV2WithBody(ctx, organizationId, ledgerId, accountId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseChargeServiceFeesV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) ChargeServiceFeesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *ChargeServiceFeesV2Params, body ChargeServiceFeesV2JSONRequestBody, reqEditors ...RequestEditorFn) (*ChargeServiceFeesV2Resp, error) {
+	rsp, err := c.ChargeServiceFeesV2(ctx, organizationId, ledgerId, accountId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseChargeServiceFeesV2Resp(rsp)
+}
+
+// GetFeeChargeV2WithResponse request returning *GetFeeChargeV2Resp
+func (c *ClientWithResponses) GetFeeChargeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, feeChargeId string, reqEditors ...RequestEditorFn) (*GetFeeChargeV2Resp, error) {
+	rsp, err := c.GetFeeChargeV2(ctx, organizationId, ledgerId, accountId, feeChargeId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFeeChargeV2Resp(rsp)
+}
+
+// CancelFeeChargeV2WithResponse request returning *CancelFeeChargeV2Resp
+func (c *ClientWithResponses) CancelFeeChargeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, feeChargeId string, reqEditors ...RequestEditorFn) (*CancelFeeChargeV2Resp, error) {
+	rsp, err := c.CancelFeeChargeV2(ctx, organizationId, ledgerId, accountId, feeChargeId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelFeeChargeV2Resp(rsp)
+}
+
 // GetAllOperationsByAccountV2WithResponse request returning *GetAllOperationsByAccountV2Resp
 func (c *ClientWithResponses) GetAllOperationsByAccountV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllOperationsByAccountV2Params, reqEditors ...RequestEditorFn) (*GetAllOperationsByAccountV2Resp, error) {
 	rsp, err := c.GetAllOperationsByAccountV2(ctx, organizationId, ledgerId, accountId, params, reqEditors...)
@@ -35596,6 +36909,41 @@ func (c *ClientWithResponses) EstimateFeeCalculationV2WithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseEstimateFeeCalculationV2Resp(rsp)
+}
+
+// ListFeeDebtsV2WithResponse request returning *ListFeeDebtsV2Resp
+func (c *ClientWithResponses) ListFeeDebtsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListFeeDebtsV2Params, reqEditors ...RequestEditorFn) (*ListFeeDebtsV2Resp, error) {
+	rsp, err := c.ListFeeDebtsV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListFeeDebtsV2Resp(rsp)
+}
+
+// CollectFeeDebtsV2WithBodyWithResponse request with arbitrary body returning *CollectFeeDebtsV2Resp
+func (c *ClientWithResponses) CollectFeeDebtsV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CollectFeeDebtsV2Resp, error) {
+	rsp, err := c.CollectFeeDebtsV2WithBody(ctx, organizationId, ledgerId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCollectFeeDebtsV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) CollectFeeDebtsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *CollectFeeDebtsV2Params, body CollectFeeDebtsV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CollectFeeDebtsV2Resp, error) {
+	rsp, err := c.CollectFeeDebtsV2(ctx, organizationId, ledgerId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCollectFeeDebtsV2Resp(rsp)
+}
+
+// GetFeeDebtV2WithResponse request returning *GetFeeDebtV2Resp
+func (c *ClientWithResponses) GetFeeDebtV2WithResponse(ctx context.Context, organizationId string, ledgerId string, feeDebtId string, reqEditors ...RequestEditorFn) (*GetFeeDebtV2Resp, error) {
+	rsp, err := c.GetFeeDebtV2(ctx, organizationId, ledgerId, feeDebtId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFeeDebtV2Resp(rsp)
 }
 
 // CreateHolderAccountV2WithBodyWithResponse request with arbitrary body returning *CreateHolderAccountV2Resp
@@ -42771,6 +44119,215 @@ func ParseCloseAccountV2Resp(rsp *http.Response) (*CloseAccountV2Resp, error) {
 	return response, nil
 }
 
+// ParseListFeeChargesV2Resp parses an HTTP response from a ListFeeChargesV2WithResponse call
+func ParseListFeeChargesV2Resp(rsp *http.Response) (*ListFeeChargesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListFeeChargesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseChargeServiceFeesV2Resp parses an HTTP response from a ChargeServiceFeesV2WithResponse call
+func ParseChargeServiceFeesV2Resp(rsp *http.Response) (*ChargeServiceFeesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ChargeServiceFeesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest FeeCharge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFeeChargeV2Resp parses an HTTP response from a GetFeeChargeV2WithResponse call
+func ParseGetFeeChargeV2Resp(rsp *http.Response) (*GetFeeChargeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFeeChargeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeCharge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelFeeChargeV2Resp parses an HTTP response from a CancelFeeChargeV2WithResponse call
+func ParseCancelFeeChargeV2Resp(rsp *http.Response) (*CancelFeeChargeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelFeeChargeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeCharge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetAllOperationsByAccountV2Resp parses an HTTP response from a GetAllOperationsByAccountV2WithResponse call
 func ParseGetAllOperationsByAccountV2Resp(rsp *http.Response) (*GetAllOperationsByAccountV2Resp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -43783,6 +45340,147 @@ func ParseEstimateFeeCalculationV2Resp(rsp *http.Response) (*EstimateFeeCalculat
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest []byte
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListFeeDebtsV2Resp parses an HTTP response from a ListFeeDebtsV2WithResponse call
+func ParseListFeeDebtsV2Resp(rsp *http.Response) (*ListFeeDebtsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListFeeDebtsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeDebtListBody
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCollectFeeDebtsV2Resp parses an HTTP response from a CollectFeeDebtsV2WithResponse call
+func ParseCollectFeeDebtsV2Resp(rsp *http.Response) (*CollectFeeDebtsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CollectFeeDebtsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeDebtCollectOutput
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFeeDebtV2Resp parses an HTTP response from a GetFeeDebtV2WithResponse call
+func ParseGetFeeDebtV2Resp(rsp *http.Response) (*GetFeeDebtV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFeeDebtV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeDebtView
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
