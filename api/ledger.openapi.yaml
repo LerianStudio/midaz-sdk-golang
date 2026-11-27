@@ -10522,6 +10522,70 @@ paths:
       summary: Get all balances
       tags:
         - Balances (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/metrics/totals:
+    get:
+      deprecated: true
+      description: "Returns the available and on-hold totals and the count of the ledger's non-external balances of one key and asset: the sum of each balance's current state, as the balance reads return it, read during the request; not an atomic snapshot across balances, so a posting concurrent with the request may or may not be counted. When that state cannot be read, the request answers 503 (0542) and may be retried."
+      operationId: getBalanceTotals
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Required. Balance key to total, case-insensitive (no whitespace, max 100)
+          explode: false
+          in: query
+          name: balance_key
+          schema:
+            description: Required. Balance key to total, case-insensitive (no whitespace, max 100)
+            type: string
+        - description: Required. Asset code to total, compared exactly (no whitespace, max 100)
+          explode: false
+          in: query
+          name: asset_code
+          schema:
+            description: Required. Asset code to total, compared exactly (no whitespace, max 100)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceTotals"
+          description: OK
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get balance totals by key and asset
+      tags:
+        - Balances (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
       deprecated: true
@@ -17966,6 +18030,69 @@ paths:
       summary: Get all balances
       tags:
         - Balances (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/metrics/totals:
+    get:
+      description: "Returns the available and on-hold totals and the count of the ledger's non-external balances of one key and asset: the sum of each balance's current state, as the balance reads return it, read during the request; not an atomic snapshot across balances, so a posting concurrent with the request may or may not be counted. When that state cannot be read, the request answers 503 (0542) and may be retried."
+      operationId: getBalanceTotalsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Required. Balance key to total, case-insensitive (no whitespace, max 100)
+          explode: false
+          in: query
+          name: balance_key
+          schema:
+            description: Required. Balance key to total, case-insensitive (no whitespace, max 100)
+            type: string
+        - description: Required. Asset code to total, compared exactly (no whitespace, max 100)
+          explode: false
+          in: query
+          name: asset_code
+          schema:
+            description: Required. Asset code to total, compared exactly (no whitespace, max 100)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceTotals"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get balance totals by key and asset
+      tags:
+        - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
       description: Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.
@@ -18555,6 +18682,216 @@ paths:
       summary: Calculate billing
       tags:
         - Billing Calculate (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/charge:
+    post:
+      description: "Charges the maintenance fee of a period: for each enabled maintenance billing package of the ledger, or the one billingPackageId names (a disabled one is skipped, as billing/calculate skips it, and answers no account), and each active target account, posts one internal fee transaction of feeAmount from the account to maintenanceCreditAccount in the package asset, described \"Billing - <label> - <period>\" with metadata billingType, billingPackageId and period. When the ledger validates accounting routes the transaction takes the package accounting routes, and a package without them refuses the call (422, 0547) before anything is posted. Each package, account and period is charged at most once: the charge is recorded durably before it posts, an account already posted answers replayed with its transaction and posts nothing, and one another call is posting answers in_flight. A fee transaction the ledger refuses answers refused with its code, for insufficient funds for instance (0018) or an account in another asset, and the other accounts proceed; a later call for the period tries the refused accounts again. With deferrable, the share of the fee the account's available balance cannot fund opens a fee debt of the charge (origin billing_charge with the charge id on GET .../fee-debts; debts opened before name billing_package), settled by the account's later credits, instead of refusing: an account holding nothing opens the whole fee as a debt, posted without a fee transaction and so without transactionId; the overdraft is not drawn. period is YYYY-MM, not later than the current month (UTC) (400, 0082). The call walks the packages by id and, within each, the accounts by id, and visits at most limit accounts (1 to 500, default 100; 0080 above it), replayed ones included. When accounts remain it answers hasMore=true and nextCursor; sending that cursor in the next call resumes after the last account visited, and a call without cursor starts from the first account. A cursor that does not decode is refused (400, 0082). billing/calculate is unaffected and posts nothing. ledgerId in the query or the body is refused with 0235. On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
+      operationId: chargeBillingV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeeChargeBillingInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeBillingChargeResult"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Charge the maintenance fee of a period
+      tags:
+        - Billing Charge (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/charges:
+    get:
+      description: Lists the recorded maintenance charges of the period, posted, refused and canceled, with transactionId and amount, in id order and cursor-paginated. ledgerId in the query is refused with 0235.
+      operationId: listBillingChargesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Required. Charged period, YYYY-MM.
+          explode: false
+          in: query
+          name: period
+          schema:
+            description: Required. Charged period, YYYY-MM.
+            type: string
+        - description: Only the charges of this billing package
+          explode: false
+          in: query
+          name: billingPackageId
+          schema:
+            description: Only the charges of this billing package
+            type: string
+        - description: Number of items per page (default 10, max 100)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Number of items per page (default 10, max 100)
+            type: string
+        - description: Opaque cursor from a previous page
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingChargeListBody"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List the maintenance charges of a period
+      tags:
+        - Billing Charge (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/charges/{billing_charge_id}/cancel:
+    post:
+      description: "Cancels a posted maintenance charge of the ledger, sets its status to canceled and marks it with canceledAt. A charge with its fee transaction reverts it through the /v2 revert: the paid amount goes back to the account, what stays open of the fee debt it opened is canceled, and what a later credit settled of it is given back to the debtor. A charge posted without a fee transaction, whose fee only opened a fee debt (origin billing_charge on GET .../fee-debts), cancels that debt without moving any balance and without recording a transaction; what a later credit already paid of that debt goes back to the debtor by a transaction that names the execution that opened it in the reserved metadata feeDebtOriginId, booked under the routes the debt opened with, and whose revert is refused (0088). A canceled charge is not charged again: a later billing/charge call for the period answers it replayed. A second cancel answers 200 with the same charge, the same canceledAt, and X-Idempotency-Replayed, changing nothing. A charge of another ledger or organization is not found (404, 0007). A charge that is not posted, refused or still being posted by a call, is refused (409, 0586) and nothing changes. A refusal of the revert, such as an account that can no longer give the paid amount back, answers the revert's error and leaves the charge as it was. ledgerId in the query is refused with 0235. On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
+      operationId: cancelBillingChargeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Billing charge ID (UUID)
+          in: path
+          name: billing_charge_id
+          required: true
+          schema:
+            description: Billing charge ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeBillingCharge"
+          description: OK
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Conflict
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Cancel a maintenance charge
+      tags:
+        - Billing Charge (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/assets:
     get:
       description: "Returns the ledger's CURRENT position in each asset — how many distinct accounts hold it, and the summed available and on-hold figures — read from the balance table. It takes NO window and ignores any window parameter a caller sends: a balance is a running total, not an aggregate over history. Amounts are exact decimal strings, per asset, never summed across assets."
@@ -21264,6 +21601,62 @@ paths:
       security:
         - BearerAuth: []
       summary: Commit a Transaction (v2)
+      tags:
+        - Transactions (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/fees:
+    get:
+      description: "Answers the fees evaluated for the transaction, one item per fee in the order they were evaluated: what each fee amounted to and what happened to it. A canceled hold shows its charged fees as released, and a reversal shows the fees of the transaction it reverts as reversed. A transaction without fees evaluated answers an empty list with recorded false. A transaction the ledger does not hold in this ledger answers not found, as its retrieve does. When the ledger cannot read the list it answers 503 (0567) instead of an empty list; retry the read. Requires the transactions:get permission."
+      operationId: getTransactionFeesV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionFeesV2"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get the fees of a Transaction
       tags:
         - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
