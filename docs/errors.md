@@ -146,6 +146,51 @@ Common checkers include:
 - `IsAssetMismatchError(err)`
 - `IsUnprocessableError(err)`
 
+## Transport failures on the facade
+
+When a facade call (`c.V1.*`, `c.V2.*` and the Tracer services such as `c.Rules`) fails before any HTTP response arrives, the SDK reports the transport failure instead of an internal error:
+
+| Failure | Predicate | Synthetic status |
+| --- | --- | --- |
+| Connection refused or reset, DNS lookup failure | `IsNetworkError(err)` | `503` |
+| Client timeout (`midaz.WithTimeout`), a context deadline, or the response-header timeout of the HTTP transport | `IsTimeoutError(err)` | `504` |
+
+A client timeout or context deadline that expires while the SDK is still fetching the Access Manager token is also reported as `IsTimeoutError`, with `HTTPRequestSent` `true` even though the facade request had not been sent yet.
+
+Both errors carry `Source` `transport`, `HTTPRequestSent` `true`, `HTTPResponseReceived` `false` and the facade operation name in `Operation`. The original cause stays reachable through the standard library `errors.Is` and `errors.As`:
+
+```go
+import (
+    stderrors "errors"
+    "syscall"
+
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
+)
+
+_, err := c.V2.Ledgers.Get(ctx, orgID, ledgerID)
+switch {
+case sdkerrors.IsNetworkError(err):
+    if stderrors.Is(err, syscall.ECONNREFUSED) {
+        log.Printf("ledger refused the connection: %v", err)
+    }
+case sdkerrors.IsTimeoutError(err):
+    log.Printf("ledger did not answer in time: %v", err)
+}
+```
+
+These pre-response failures still come back as an internal error (`IsInternalError`, status `500`, `Source` `sdk`, `HTTPRequestSent` `false`):
+
+- The caller cancels the context. The facade does not report it as `IsCancellationError`.
+- A custom transport installed with `midaz.WithHTTPTransport` returns an error that is already an SDK `*errors.Error`.
+- The Access Manager token request fails because the connection is refused or the Access Manager gives a bad answer. The facade request never left the client. An expired deadline during the token request is the exception: it is reported as `IsTimeoutError`, as described above.
+- The server closes the connection cleanly without a response (`EOF`).
+
+Known limit: a TLS handshake timeout is not reported as `IsTimeoutError`; it comes back as `IsInternalError`.
+
+`Retryable()` returns `true` for network, timeout and internal errors, and the SDK retry engine makes the same attempts as before. `HTTPRequestSent` is now `true` on these errors, also on a refused connection where nothing reached the server: a write that fails after the request was sent may already have taken effect, so replay it only with a stable idempotency key (`sdkctx.WithIdempotencyKey`).
+
+If your code retries a facade call only when `IsInternalError(err)` is true, note that network and timeout failures on the facade no longer match it. Check `Retryable()` on the `*errors.Error`, or add `IsNetworkError(err)` and `IsTimeoutError(err)` to the condition.
+
 ## Domain-specific error predicates
 
 Beyond the category checkers above, `pkg/errors` exposes predicates that branch on specific server business conditions. They mirror the server error codes in `github.com/LerianStudio/midaz/v4/pkg/constant` and let callers react to a named condition instead of hardcoding raw `APICode` strings at call sites.
@@ -161,6 +206,15 @@ Beyond the category checkers above, `pkg/errors` exposes predicates that branch 
 `IsHolderNotFound` is distinct from the generic `IsNotFoundError`: it pins the CRM holder resource specifically, so a caller can tell "the holder you referenced is missing" apart from any other 404.
 
 `IsFeeError` is a family predicate — it returns `true` when the server code suffix falls in the fee/billing block `0179`–`0233`. Callers branch on "fee/billing problem" rather than each of the ~55 internal fee codes.
+
+`APICodeSuffix(code)` returns the four-digit suffix of a raw API code, the same suffix the SDK reads for `IsFeeError`. It accepts `<SERVICE>-NNNN` (`"CRM-0006"` gives `"0006"`) and a bare `NNNN` (`"0084"` gives `"0084"`). It cuts at the last `-` and returns `""` when the rest is not exactly four digits. It does not trim spaces. Use it to compare a code regardless of its service prefix instead of keeping your own parser:
+
+```go
+var sdkErr *sdkerrors.Error
+if stderrors.As(err, &sdkErr) && sdkerrors.APICodeSuffix(sdkErr.APICode) == "0084" {
+    // Idempotency conflict, regardless of prefix.
+}
+```
 
 Retryability note: midaz emits `0177`, `0531`, `0532` and `0535` only as a 422 (`UnprocessableOperationError`), which the SDK's retry transport does not retry. The others need no retryability override either: `0490`/`0491` (422) and `CRM-0006` (404) are already classified non-retryable by the SDK's HTTP-status→category mapping. The predicates are ergonomic — they let callers branch on the specific business condition — not a money-path concern.
 

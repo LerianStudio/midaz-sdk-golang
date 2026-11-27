@@ -757,7 +757,7 @@ func readLifecycleV2(operation string, resp *http.Response, err error, isMember 
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(resp, err)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	return decodeLifecycleV2(operation, httpResp, body, isMember)
@@ -833,7 +833,7 @@ func (f *transactionsV2Facade) Cancel(ctx context.Context, orgID, ledgerID, tran
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CancelTransactionV2(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	if !isSuccess(resp.StatusCode) {

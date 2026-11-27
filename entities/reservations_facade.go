@@ -10,7 +10,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/gentracer"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
 // reservationsFacade is the tracer-plane two-phase reservation facade (a twin of
@@ -90,7 +89,7 @@ func reservationTransition[T any](ctx context.Context, operation, paramName stri
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(call(ctx, id))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	return decodeOne[T](operation, resp.StatusCode, body, resp)

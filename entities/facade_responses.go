@@ -51,7 +51,7 @@ func deleteResource(operation string, resp *http.Response, err error) error {
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(resp, err)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return transportErr(operation, err)
 	}
 
 	if !isSuccess(httpResp.StatusCode) {
@@ -89,7 +89,7 @@ func readOne[T any](operation string, resp *http.Response, err error) (*T, error
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(resp, err)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	return decodeOne[T](operation, httpResp.StatusCode, body, httpResp)
@@ -141,7 +141,7 @@ func readList[T any](operation string, resp *http.Response, err error) (*models.
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(resp, err)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	if err := guardListBody(operation, httpResp.StatusCode, body, httpResp); err != nil {
@@ -174,7 +174,7 @@ func readSlice[T any](operation string, resp *http.Response, err error) ([]T, er
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
 	httpResp, body, err := readRawResponse(resp, err)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	if !isSuccess(httpResp.StatusCode) {

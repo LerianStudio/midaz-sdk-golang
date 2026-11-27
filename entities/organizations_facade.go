@@ -15,6 +15,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 )
 
@@ -276,6 +277,86 @@ func validationErr(operation string, err error) error {
 	return errors.NewValidationError(operation, "invalid input", err)
 }
 
+// transportErr normalizes the error a facade call got back from the transport
+// (the raw pair of a generated client call) into the SDK's typed error. Every
+// facade routes that failure through here, so the classification is decided in
+// one place rather than at each call site.
+//
+// Callers branch on [errors.IsNetworkError] and [errors.IsTimeoutError] to tell
+// "the ledger could not be reached" from "the SDK broke". A refused connection,
+// a reset, a DNS failure and a timeout whose chain matches
+// context.DeadlineExceeded (the client timeout, a context deadline, the
+// transport's response-header timeout) therefore come back exactly as
+// [errors.ClassifyTransportError] builds them: network (503) or timeout (504),
+// Source transport, HTTPRequestSent true, and the original cause reachable
+// through errors.Is. A string-only cause whose message carries one of the
+// classifier's network fragments ("connection refused", "i/o timeout", ...)
+// also comes back as network.
+//
+// A cause that reports a timeout only through Timeout(), with nothing in its
+// chain matching context.DeadlineExceeded, is a timeout only when the first
+// net.Error in the chain reports it. On a facade call it is not: http.Client
+// wraps the retry engine's error in a *url.Error, and *url.Error.Timeout() only
+// looks at its direct cause, the retry wrapper. The TLS handshake timeout is
+// such a cause and comes back internal.
+//
+// The classifier strips the userinfo from a *url.Error in the chain in place,
+// before it classifies, so the cause of the last internal fallback below
+// renders without that userinfo too. The two earlier internal returns run
+// before the classifier and leave the chain untouched.
+//
+// Everything else keeps the internal error the facade has always returned
+// ([errors.NewInternalError]: internal, 500, Source sdk, HTTPRequestSent
+// false), and that is deliberate:
+//
+//   - Cancellation by the caller stays internal. The classifier would turn it
+//     into a cancellation error with a different category, status and Retryable
+//     result, which is a separate decision from this one.
+//   - An error that already carries an *errors.Error in its chain stays
+//     internal. The classifier would hand it back untouched, so it would
+//     suddenly surface with its own category instead of the one callers see
+//     today.
+//   - An error whose chain holds an *auth.AccessManagerTokenRequestError, and
+//     does not match context.DeadlineExceeded, stays internal. The token
+//     request returns that type when it fails on the wire or the Access
+//     Manager rejects it, and the auth round tripper fetches the token before
+//     the request goes out, so the ledger or Tracer request never left;
+//     classified, a refused token request would come back as network with
+//     HTTPRequestSent true. An expired deadline is a timeout wherever the time
+//     was spent, so a token failure that matches context.DeadlineExceeded goes
+//     on to the classifier and comes back as timeout, whether the typed token
+//     error survives (the token request's own deadline returned first) or not
+//     (net/http replaced it with a text-only timeout error, or the caller's
+//     context deadline arrived as a bare context error). An error returned by
+//     a caller-supplied auth.CredentialSource is not that type and is
+//     classified by its cause.
+//   - Any cause the classifier does not recognize as network or timeout
+//     (errNoResponse, an oversized body, an unknown failure) stays internal.
+//     The classifier would mark it Source transport and HTTPRequestSent true,
+//     which is not what the facade reports for it today.
+func transportErr(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var sdkErr *errors.Error
+	if stderrors.As(err, &sdkErr) {
+		return errors.NewInternalError(operation, err)
+	}
+
+	var tokenErr *auth.AccessManagerTokenRequestError
+	if stderrors.As(err, &tokenErr) && !stderrors.Is(err, context.DeadlineExceeded) {
+		return errors.NewInternalError(operation, err)
+	}
+
+	classified := errors.ClassifyTransportError(operation, err)
+	if errors.IsNetworkError(classified) || errors.IsTimeoutError(classified) {
+		return classified
+	}
+
+	return errors.NewInternalError(operation, err)
+}
+
 // writeJSON is the shared write path for the facade layer (the money-path
 // exemplar). It marshals a SDK-native input, hands it to send as a *bytes.Reader
 // (rewindable so the auth round tripper can replay after a 401), and decodes the
@@ -290,7 +371,7 @@ func writeJSON[T any](_ context.Context, operation string, input any, send func(
 	//nolint:bodyclose // send is always a readRawResponse closure (transactions_facade.go:58), which closes resp.Body via defer before returning.
 	httpResp, body, err := send(bytes.NewReader(payload))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	return decodeOne[T](operation, statusOf(httpResp), body, httpResp)
