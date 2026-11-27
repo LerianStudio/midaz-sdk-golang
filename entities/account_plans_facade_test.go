@@ -799,3 +799,182 @@ func TestAccountPlansFacade_Unassign(t *testing.T) {
 
 func apIntPtr(v int) *int    { return &v }
 func apBoolPtr(v bool) *bool { return &v }
+
+// apOperation is one of the eleven facade operations, called with three path
+// values in the order its path takes them.
+type apOperation struct {
+	name   string
+	params [3]string
+	call   func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error
+}
+
+func apOperations() []apOperation {
+	plan := [3]string{"orgID", "ledgerID", "id"}
+	account := [3]string{"orgID", "ledgerID", "accountID"}
+
+	return []apOperation{
+		{"Create", [3]string{"orgID", "ledgerID", ""}, func(ctx context.Context, f *accountPlansFacade, org, ledger, _ string) error {
+			_, err := f.Create(ctx, org, ledger, apCreateRoundingInput())
+			return err
+		}},
+		{"List", [3]string{"orgID", "ledgerID", ""}, func(ctx context.Context, f *accountPlansFacade, org, ledger, _ string) error {
+			_, err := f.List(ctx, org, ledger, models.AccountPlansListOpts{})
+			return err
+		}},
+		{"Get", plan, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			_, err := f.Get(ctx, org, ledger, id)
+			return err
+		}},
+		{"Update", plan, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			_, err := f.Update(ctx, org, ledger, id, models.NewUpdateAccountPlanInput().WithDescription("x"))
+			return err
+		}},
+		{"Delete", plan, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			return f.Delete(ctx, org, ledger, id)
+		}},
+		{"ListVersions", plan, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			_, err := f.ListVersions(ctx, org, ledger, id, models.AccountPlanVersionsListOpts{})
+			return err
+		}},
+		{"ListAccounts", plan, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			_, err := f.ListAccounts(ctx, org, ledger, id, models.AccountPlanAccountsListOpts{})
+			return err
+		}},
+		{"Assign", account, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			_, err := f.Assign(ctx, org, ledger, id, models.NewAssignAccountPlanInput(apPlanID))
+			return err
+		}},
+		{"GetAssignment", account, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			_, err := f.GetAssignment(ctx, org, ledger, id)
+			return err
+		}},
+		{"Unassign", account, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			return f.Unassign(ctx, org, ledger, id)
+		}},
+		{"GetUsage", account, func(ctx context.Context, f *accountPlansFacade, org, ledger, id string) error {
+			_, err := f.GetUsage(ctx, org, ledger, id, models.AccountPlanUsageOpts{})
+			return err
+		}},
+	}
+}
+
+func (op apOperation) callWith(ctx context.Context, f *accountPlansFacade, values [3]string) error {
+	return op.call(ctx, f, values[0], values[1], values[2])
+}
+
+func TestAccountPlansFacade_PathIDRefusals(t *testing.T) {
+	valid := [3]string{apOrgID, apLedgerID, apPlanID}
+
+	operations := apOperations()
+	require.Len(t, operations, 11)
+
+	for _, op := range operations {
+		for position, param := range op.params {
+			if param == "" {
+				continue
+			}
+
+			for _, bad := range []string{"", "..", "a/b", " " + apPlanID} {
+				t.Run(op.name+"/"+param+"="+strconv.Quote(bad), func(t *testing.T) {
+					rec, srv := newAPServer(t, http.StatusOK, apGetResponse)
+
+					values := valid
+					values[position] = bad
+
+					err := op.callWith(context.Background(), newTestAccountPlansFacade(t, srv), values)
+					require.Error(t, err)
+					assert.True(t, sdkerrors.IsValidationError(err), "want a validation error, got %v", err)
+
+					if bad == "" {
+						assert.Contains(t, err.Error(), "missing required parameter: "+param)
+					}
+
+					assert.Empty(t, rec.all(), "a refused path id must never reach the server")
+				})
+			}
+		}
+	}
+}
+
+func TestAccountPlansFacade_LocalRefusals(t *testing.T) {
+	tests := []struct {
+		name      string
+		call      func(ctx context.Context, f *accountPlansFacade) error
+		wantField string
+	}{
+		{"input-de-criacao-invalido-recusado: blank label", func(ctx context.Context, f *accountPlansFacade) error {
+			input := apCreateRoundingInput()
+			input.Label = " "
+			_, err := f.Create(ctx, apOrgID, apLedgerID, input)
+			return err
+		}, "label"},
+		{"input-de-criacao-invalido-recusado: rounding scale 19", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Create(ctx, apOrgID, apLedgerID, apCreateRoundingInput().WithRounding(models.FeeRounding{Scale: 19, Mode: models.FeeRoundingModeHalfUp}))
+			return err
+		}, "rounding.scale"},
+		{"input-de-criacao-invalido-recusado: unknown direction", func(ctx context.Context, f *accountPlansFacade) error {
+			input := apCreateRoundingInput()
+			fee := input.Fees["pixIn"]
+			fee.Trigger.Direction = "both"
+			input.Fees["pixIn"] = fee
+			_, err := f.Create(ctx, apOrgID, apLedgerID, input)
+			return err
+		}, "fees[pixIn].trigger.direction"},
+		{"input-nulo-recusado: create", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Create(ctx, apOrgID, apLedgerID, nil)
+			return err
+		}, ""},
+		{"input-nulo-recusado: update", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Update(ctx, apOrgID, apLedgerID, apPlanID, nil)
+			return err
+		}, ""},
+		{"input-nulo-recusado: assign", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Assign(ctx, apOrgID, apLedgerID, apAccountID, nil)
+			return err
+		}, ""},
+		{"edicao-vazia-recusada", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Update(ctx, apOrgID, apLedgerID, apPlanID, models.NewUpdateAccountPlanInput())
+			return err
+		}, ""},
+		{"substituicao-de-rounding: invalid mode", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Update(ctx, apOrgID, apLedgerID, apPlanID, models.NewUpdateAccountPlanInput().WithRounding(models.FeeRounding{Scale: 2, Mode: "ceil"}))
+			return err
+		}, "rounding.mode"},
+		{"plano-invalido-na-atribuicao", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Assign(ctx, apOrgID, apLedgerID, apAccountID, models.NewAssignAccountPlanInput("plano-1795793790"))
+			return err
+		}, "accountPlanId"},
+		{"list limit over max", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.List(ctx, apOrgID, apLedgerID, models.AccountPlansListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
+			return err
+		}, ""},
+		{"versions negative page", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.ListVersions(ctx, apOrgID, apLedgerID, apPlanID, models.AccountPlanVersionsListOpts{PageListOpts: models.PageListOpts{Page: -1}})
+			return err
+		}, ""},
+		{"plan accounts unknown sort", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.ListAccounts(ctx, apOrgID, apLedgerID, apPlanID, models.AccountPlanAccountsListOpts{PageListOpts: models.PageListOpts{SortDirection: "up"}})
+			return err
+		}, ""},
+		{"usage period not YYYY-MM", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.GetUsage(ctx, apOrgID, apLedgerID, apAccountID, models.AccountPlanUsageOpts{Period: "2026-1"})
+			return err
+		}, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec, srv := newAPServer(t, http.StatusOK, apGetResponse)
+
+			err := tt.call(context.Background(), newTestAccountPlansFacade(t, srv))
+			require.Error(t, err)
+			assert.True(t, sdkerrors.IsValidationError(err), "want a validation error, got %v", err)
+
+			if tt.wantField != "" {
+				assert.Contains(t, err.Error(), tt.wantField)
+			}
+
+			assert.Empty(t, rec.all(), "a locally refused call must never reach the server")
+		})
+	}
+}
