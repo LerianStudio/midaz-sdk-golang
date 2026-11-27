@@ -286,7 +286,13 @@ func validationErr(operation string, err error) error {
 // a reset, a DNS or TLS failure and a timeout therefore come back exactly as
 // [errors.ClassifyTransportError] builds them: network (503) or timeout (504),
 // Source transport, HTTPRequestSent true, and the original cause reachable
-// through errors.Is.
+// through errors.Is. A string-only cause whose message carries one of the
+// classifier's network fragments ("connection refused", "i/o timeout", ...)
+// also comes back as network.
+//
+// The classifier strips the userinfo from a *url.Error in the chain in place,
+// before it classifies, so the cause of the internal fallback below renders
+// without that userinfo too.
 //
 // Everything else keeps the internal error the facade has always returned
 // ([errors.NewInternalError]: internal, 500, Source sdk, HTTPRequestSent
