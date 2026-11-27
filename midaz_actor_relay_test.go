@@ -697,7 +697,7 @@ func TestActorRelay_SpanAttributes(t *testing.T) {
 				for _, attr := range span.Attributes() {
 					key := string(attr.Key)
 					assert.NotContains(t, strings.ToLower(key), "x-lerian-actor", "span %q records the actor header", span.Name())
-					assert.NotContains(t, attr.Value.Emit(), actorTestTokenA, "span %q attribute %q carries the actor token", span.Name(), key)
+					assert.NotContains(t, attr.Value.String(), actorTestTokenA, "span %q attribute %q carries the actor token", span.Name(), key)
 				}
 			}
 		})
