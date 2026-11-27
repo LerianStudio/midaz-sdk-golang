@@ -8,6 +8,7 @@ import (
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Subtest names carry the scenario names of the partner-refusal-classification
@@ -151,4 +152,27 @@ func TestPartnerRefusalConstants(t *testing.T) {
 	assert.Equal(t, sdkerrors.PartnerRefusalReason("suspended"), sdkerrors.PartnerRefusalSuspended)
 	assert.Equal(t, sdkerrors.PartnerRefusalReason("no_longer_valid"), sdkerrors.PartnerRefusalNoLongerValid)
 	assert.Equal(t, sdkerrors.PartnerRefusalReason("not_allowed"), sdkerrors.PartnerRefusalNotAllowed)
+}
+
+// TestPartnerRefusalKeepsExistingClassification guards that recognizing a
+// partner refusal changes nothing in how the SDK already classifies the error.
+func TestPartnerRefusalKeepsExistingClassification(t *testing.T) {
+	t.Run("classificacao-existente-inalterada", func(t *testing.T) {
+		refusal := libAuthPartnerRefusals[3]
+		require.Equal(t, "AUT-1019", refusal.code)
+
+		err := sdkerrors.DecodeProblemJSON(http.StatusForbidden,
+			libAuthActorDenialBody(refusal.code, refusal.title, refusal.message), "req-1")
+
+		var sdkErr *sdkerrors.Error
+		require.True(t, stderrors.As(err, &sdkErr))
+
+		assert.Equal(t, sdkerrors.ErrorCode("permission_error"), sdkErr.Code)
+		assert.Equal(t, sdkerrors.ErrorCategory("authorization"), sdkErr.Category)
+		assert.Equal(t, http.StatusForbidden, sdkErr.StatusCode)
+		assert.Equal(t, "AUT-1019", sdkErr.APICode)
+		assert.Equal(t, "Partner Not Allowed", sdkErr.Title)
+		assert.True(t, sdkerrors.IsAuthorizationError(err))
+		assert.False(t, sdkerrors.IsAuthenticationError(err))
+	})
 }
