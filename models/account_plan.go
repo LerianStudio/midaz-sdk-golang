@@ -343,9 +343,11 @@ type CreateAccountPlanInput struct {
 	Fees map[string]AccountPlanFeeInput `json:"fees"`
 }
 
-// AccountPlanFeeInput is one fee of an account plan being created, or a fee
-// added by an update. Optional fields are omitted when zero; their zero value
-// is the server default.
+// AccountPlanFeeInput is one fee of an account plan being created. Optional
+// fields are omitted when zero; their zero value is the server default.
+//
+// An update adds a fee through UpdateAccountPlanInput.WithFeePatch instead,
+// with an AccountPlanFeePatch under a new key that carries every required field.
 type AccountPlanFeeInput struct {
 	// FeeLabel is the fee name. Required.
 	FeeLabel string `json:"feeLabel"`
