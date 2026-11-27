@@ -590,8 +590,9 @@ func resolveRetryOptions(opts []retry.Option) (*retry.Options, error) {
 // ALSO exposes the effective plane retry policy (entities.planeRetryConfig).
 // The embedded *config.Config promotes every base and optional Config method
 // (GetHTTPClient, GetBaseURLs, GetObservabilityProvider, GetPluginAuth,
-// GetTracerAPIKey, GetAllowInsecureHTTP); this wrapper adds only the resolved
-// retry policy, which lives on the midaz.Client rather than on config.Config.
+// GetTracerAPIKey, GetAllowInsecureHTTP, GetActorTokenSource); this wrapper
+// adds only the resolved retry policy, which lives on the midaz.Client rather
+// than on config.Config.
 type planeRetryConfigWrapper struct {
 	*config.Config
 
