@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"syscall"
 	"testing"
@@ -452,4 +453,57 @@ func TestFacadeTransport_Cancellation(t *testing.T) {
 	assert.False(t, sdkerrors.IsCancellationError(err))
 	assert.False(t, sdkerrors.IsNetworkError(err))
 	assert.False(t, sdkerrors.IsTimeoutError(err))
+}
+
+// headerTimeoutError is a net.Error with Timeout() true and no wrapped cause,
+// worded like the stdlib's response-header timeout.
+type headerTimeoutError struct{}
+
+func (headerTimeoutError) Error() string   { return "net/http: timeout awaiting response headers" }
+func (headerTimeoutError) Timeout() bool   { return true }
+func (headerTimeoutError) Temporary() bool { return false }
+
+// TestFacadeTransport_KnownLimitTimeoutNotRecognized pins a KNOWN LIMIT, not the
+// desired behavior: a timeout the transport reports only through Timeout() does
+// not come out of the facade as a timeout error.
+//
+// The mechanism: the retry engine wraps the last attempt's error
+// ("retry: retries exhausted: ...: %w"), and http.Client wraps that in a
+// *url.Error. *url.Error.Timeout() only type-asserts its DIRECT cause, which is
+// now the retry wrapper, so it reports false; the classifier takes the first
+// net.Error in the chain, that *url.Error, and never sees the inner Timeout().
+// It then falls through to the network checks: a dial *net.OpError matches
+// network, and a bare timeout error matches nothing and stays internal.
+//
+// The base URL is a closed port, but the installed transport answers first, so
+// nothing is dialed.
+//
+// A client timeout or a context deadline is unaffected: both leave
+// context.DeadlineExceeded in the chain (see timeout-do-cliente and
+// deadline-do-contexto).
+func TestFacadeTransport_KnownLimitTimeoutNotRecognized(t *testing.T) {
+	failWith := func(cause error) Option {
+		return WithHTTPTransport(func(http.RoundTripper) http.RoundTripper {
+			return roundTripperFunc(func(*http.Request) (*http.Response, error) { return nil, cause })
+		})
+	}
+
+	t.Run("known-limit/bare-timeout-error-comes-out-internal-not-timeout", func(t *testing.T) {
+		c := newFacadeTransportClient(t, closedPortURL(t), failWith(headerTimeoutError{}))
+
+		_, err := c.V2.Ledgers.Get(context.Background(), transportTestOrgID, transportTestLedgerID)
+
+		require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
+		assert.False(t, sdkerrors.IsTimeoutError(err))
+	})
+
+	t.Run("known-limit/dial-io-timeout-comes-out-network-not-timeout", func(t *testing.T) {
+		cause := &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded}
+		c := newFacadeTransportClient(t, closedPortURL(t), failWith(cause))
+
+		_, err := c.V2.Ledgers.Get(context.Background(), transportTestOrgID, transportTestLedgerID)
+
+		require.True(t, sdkerrors.IsNetworkError(err), "got %v", err)
+		assert.False(t, sdkerrors.IsTimeoutError(err))
+	})
 }
