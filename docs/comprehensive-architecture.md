@@ -312,7 +312,7 @@ type PlaneClients struct {
 
 Each plane client wraps the shared pooled transport in an auth round tripper, then a retry round tripper. The Ledger plane always authenticates with the shared Access Manager Bearer; the Tracer plane switches to `X-API-Key` when a Tracer API key is configured, otherwise it reuses the same Bearer. A 401 on either plane triggers one shared token refresh-and-replay.
 
-The public SDK surface stays hand-written. The `entities/*_facade.go` files (for example `holders_facade.go`, `accountsFacade`, `rulesFacade`) wrap the generated `ClientWithResponses`, layering `models.*` inputs/outputs, `*errors.Error` normalization from RFC 9457 problem-json envelopes, and pagination helpers on top. The generated types never leak into the public API.
+The public SDK surface stays hand-written. The `entities/*_facade.go` files (for example `holders_facade.go`, `accountsFacade`, `rulesFacade`) wrap the generated `ClientWithResponses`, layering `models.*` inputs/outputs, `*errors.Error` normalization from RFC 9457 problem-json envelopes, and pagination helpers on top. The facades never expose generated types; the only way to reach them is `Entity.Planes()`, an escape hatch outside the compatibility promise.
 
 Two categories of facade sit on the plane clients:
 

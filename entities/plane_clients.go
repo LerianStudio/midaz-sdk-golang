@@ -21,8 +21,11 @@ import (
 //
 // These are the low-level typed surfaces (oapi-codegen ClientWithResponses).
 // The hand-written entity facade layers ergonomics (error normalization,
-// pagination trinaldo, builders) on top of them; callers of the SDK never see
-// the generated types directly.
+// pagination trinaldo, builders) on top of them, and the facades are the
+// supported surface. Planes exposes these raw clients as an escape hatch: their
+// method set and types are generated from the vendored Midaz spec and change
+// whenever the spec is re-vendored, so they carry no compatibility guarantee
+// across SDK versions.
 type PlaneClients struct {
 	Ledger *genledger.ClientWithResponses
 	Tracer *gentracer.ClientWithResponses
@@ -234,7 +237,8 @@ func accessManagerAuthConfig(config Config, pluginAuth auth.AccessManager) authR
 }
 
 // Planes returns the two generated, typed plane clients (Ledger + Tracer).
-// Nil-safe: returns nil for a nil entity.
+// Nil-safe: returns nil for a nil entity. The clients follow the vendored spec
+// and carry no compatibility guarantee across SDK versions; see PlaneClients.
 func (e *Entity) Planes() *PlaneClients {
 	if e == nil {
 		return nil

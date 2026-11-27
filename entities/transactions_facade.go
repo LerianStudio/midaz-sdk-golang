@@ -433,6 +433,8 @@ func (f *transactionsFacade) Get(ctx context.Context, orgID, ledgerID, transacti
 // endpoint is CURSOR-paginated: opts carry a Cursor (never a Page). The
 // generated GetAllTransactionsParams exposes only the cursor/limit/sort/date
 // slots, and the metadata predicate rides as a query-param request editor.
+// Since v4.6.0 it also declares a parent_transaction_id slot, which the facade
+// leaves unset.
 //
 // The six transaction filters (asset_code/status/reference/source_account/
 // destination_account/route) are REFUSED here, exactly as on /v2. They never

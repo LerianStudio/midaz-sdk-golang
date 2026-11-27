@@ -528,7 +528,7 @@ func (f *transactionsV2Facade) Get(ctx context.Context, orgID, ledgerID, transac
 	}
 
 	//nolint:bodyclose // readOne drains and closes the body via readRawResponse.
-	resp, err := f.ledger.GetTransactionV2(ctx, orgID, ledgerID, transactionID)
+	resp, err := f.ledger.GetTransactionV2(ctx, orgID, ledgerID, transactionID, nil)
 
 	return readOne[models.TransactionV2](operation, resp, err)
 }

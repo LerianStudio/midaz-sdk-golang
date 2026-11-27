@@ -13,10 +13,13 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestTransactionsV2Facade(t *testing.T, srv *httptest.Server) *transactionsV2Facade {
@@ -1248,4 +1251,111 @@ func assertCrossLedgerAPIRefusal(t *testing.T, group *models.CrossLedgerTransact
 	if sdkErr.StatusCode != status || sdkErr.APICode != code {
 		t.Fatalf("decoded error = %+v, want status %d and code %s", sdkErr, status, code)
 	}
+}
+
+// capturedTransactionV2Fields is the body a local Midaz ledger served for a /v2
+// transaction read (GET without query, 200), without the closing brace and
+// without the "fees" object, which the server added last. The two bodies below
+// are the captured one (with "fees") and the same body without it, as a server
+// that predates the field answers.
+const capturedTransactionV2Fields = `{
+	"id":"01a1d70c-9321-7c0a-932c-3514bd0dd443",
+	"description":"fund",
+	"status":{"code":"APPROVED","description":"APPROVED"},
+	"amount":"10",
+	"assetCode":"BRL",
+	"debit":["@external/BRL"],
+	"credit":["@fc2"],
+	"ledgerId":"01a1d70b-4884-79c1-83f0-c015a6f80cbf",
+	"organizationId":"01a1d70b-485f-715c-b483-be6b0ece0f65",
+	"feesSkipped":false,
+	"tracerSkipped":false,
+	"createdAt":"2026-11-13T22:34:47.969789Z",
+	"updatedAt":"2026-11-13T22:34:47.994123Z",
+	"deletedAt":null,
+	"metadata":{"feeDebtSettlements":"[{\"debtId\":\"01a1d70c-9269-7ed6-99ac-21b77d8bb96a:from:0:debit\",\"debtorRef\":\"@fc2#default\",\"creditRef\":\"@receita_a#default\",\"amount\":\"3\",\"opened\":\"3\",\"seq\":\"1\"}]"},
+	"operations":[
+		{"id":"01a1d70c-9359-739b-8e04-c468ae9e328d","transactionId":"01a1d70c-9321-7c0a-932c-3514bd0dd443","description":"fund","type":"DEBIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"10","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a1d70b-48a6-7bbc-b596-e8dc0570ccb3","accountAlias":"@external/BRL","balanceKey":"default","balanceId":"01a1d70b-48b1-7db5-9e8d-78e55a68b610","organizationId":"01a1d70b-485f-715c-b483-be6b0ece0f65","ledgerId":"01a1d70b-4884-79c1-83f0-c015a6f80cbf","balanceAffected":true,"direction":"debit","createdAt":"2026-11-13T22:34:47.969789Z","updatedAt":"2026-11-13T22:34:47.994123Z","deletedAt":null,"metadata":null},
+		{"id":"01a1d70c-9359-739f-b483-c04d580bba47","transactionId":"01a1d70c-9321-7c0a-932c-3514bd0dd443","description":"fund","type":"CREDIT","assetCode":"BRL","amount":{"value":"10"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"10","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a1d70c-91ec-7915-aafe-c378ee91acde","accountAlias":"@fc2","balanceKey":"default","balanceId":"01a1d70c-9209-76e0-b347-ab85e846e805","organizationId":"01a1d70b-485f-715c-b483-be6b0ece0f65","ledgerId":"01a1d70b-4884-79c1-83f0-c015a6f80cbf","balanceAffected":true,"direction":"credit","createdAt":"2026-11-13T22:34:47.969789Z","updatedAt":"2026-11-13T22:34:47.994123Z","deletedAt":null,"metadata":null},
+		{"id":"01a1d70c-9359-73a0-858c-742525de04a1","transactionId":"01a1d70c-9321-7c0a-932c-3514bd0dd443","description":"fund","type":"FEE_SETTLEMENT","assetCode":"BRL","amount":{"value":"3"},"balance":{"available":"10","onHold":"0","version":1,"overdraftUsed":"0"},"balanceAfter":{"available":"7","onHold":"0","version":2,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a1d70c-91ec-7915-aafe-c378ee91acde","accountAlias":"@fc2","balanceKey":"default","balanceId":"01a1d70c-9209-76e0-b347-ab85e846e805","organizationId":"01a1d70b-485f-715c-b483-be6b0ece0f65","ledgerId":"01a1d70b-4884-79c1-83f0-c015a6f80cbf","balanceAffected":true,"direction":"debit","createdAt":"2026-11-13T22:34:47.969789Z","updatedAt":"2026-11-13T22:34:47.994123Z","deletedAt":null,"metadata":null},
+		{"id":"01a1d70c-9359-73a6-94b3-ab55cbee90be","transactionId":"01a1d70c-9321-7c0a-932c-3514bd0dd443","description":"fund","type":"FEE_SETTLEMENT","assetCode":"BRL","amount":{"value":"3"},"balance":{"available":"0","onHold":"0","version":0,"overdraftUsed":"0"},"balanceAfter":{"available":"3","onHold":"0","version":1,"overdraftUsed":"0"},"status":{"code":"","description":null},"accountId":"01a1d70b-7127-767d-98d7-4630804bbbb7","accountAlias":"@receita_a","balanceKey":"default","balanceId":"01a1d70b-7138-7b9f-867d-626f6f05c296","organizationId":"01a1d70b-485f-715c-b483-be6b0ece0f65","ledgerId":"01a1d70b-4884-79c1-83f0-c015a6f80cbf","balanceAffected":true,"direction":"credit","createdAt":"2026-11-13T22:34:47.969789Z","updatedAt":"2026-11-13T22:34:47.994123Z","deletedAt":null,"metadata":null}
+	]`
+
+// TestTransactionsV2Facade_GetByIDSendsNoQueryAndReadsTheSameModel pins the /v2
+// read by id across the server versions that do and do not serve "fees".
+//
+// The v4.6.0 contract gave GetTransactionV2 an optional include_fees query.
+// The facade passes no params, so the request stays the bare path it was, and
+// "fees" has no field in models.TransactionV2, so a server that sends it hands
+// back the same model as one that does not.
+func TestTransactionsV2Facade_GetByIDSendsNoQueryAndReadsTheSameModel(t *testing.T) {
+	const (
+		orgID    = "01a1d70b-485f-715c-b483-be6b0ece0f65"
+		ledgerID = "01a1d70b-4884-79c1-83f0-c015a6f80cbf"
+		id       = "01a1d70c-9321-7c0a-932c-3514bd0dd443"
+	)
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "server serves fees",
+			body: capturedTransactionV2Fields + `,
+	"fees":{"transactionId":"01a1d70c-9321-7c0a-932c-3514bd0dd443","recorded":false,"available":true,"items":[]}
+}`,
+		},
+		{
+			name: "server without fees",
+			body: capturedTransactionV2Fields + `
+}`,
+		},
+	}
+
+	got := make([]*models.TransactionV2, 0, len(cases))
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var method, path, rawQuery string
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				method, path, rawQuery = r.Method, r.URL.Path, r.URL.RawQuery
+
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer srv.Close()
+
+			tx, err := newTestTransactionsV2Facade(t, srv).Get(context.Background(), orgID, ledgerID, id)
+			require.NoError(t, err)
+			require.NotNil(t, tx)
+
+			assert.Equal(t, http.MethodGet, method)
+			assert.Equal(t, "/v2/organizations/"+orgID+"/ledgers/"+ledgerID+"/transactions/"+id, path)
+			assert.Empty(t, rawQuery, "the read must not send include_fees or any other query")
+
+			assert.Equal(t, id, tx.ID)
+			assert.Equal(t, "10", tx.Amount)
+			assert.Equal(t, "BRL", tx.AssetCode)
+			assert.Equal(t, "APPROVED", tx.Status.Code)
+			assert.Equal(t, []string{"@external/BRL"}, tx.Debit)
+			assert.Equal(t, []string{"@fc2"}, tx.Credit)
+			assert.Equal(t, orgID, tx.OrganizationID)
+			assert.Equal(t, ledgerID, tx.LedgerID)
+			assert.False(t, tx.FeesSkipped)
+			assert.Contains(t, tx.Metadata, "feeDebtSettlements")
+			assert.Equal(t, "2026-11-13T22:34:47.969789Z", tx.CreatedAt.UTC().Format(time.RFC3339Nano))
+
+			require.Len(t, tx.Operations, 4)
+			assert.Equal(t, "FEE_SETTLEMENT", tx.Operations[2].Type)
+			assert.Equal(t, "@fc2", tx.Operations[2].AccountAlias)
+			require.NotNil(t, tx.Operations[2].Amount.Value)
+			assert.Equal(t, "3", tx.Operations[2].Amount.Value.String())
+
+			got = append(got, tx)
+		})
+	}
+
+	require.Len(t, got, len(cases))
+	assert.Equal(t, got[0], got[1], "a body with fees must deliver the same model as one without")
 }

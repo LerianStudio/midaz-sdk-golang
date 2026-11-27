@@ -7836,12 +7836,12 @@ paths:
       deprecated: true
       operationId: listOrganizations
       parameters:
-        - description: JSON string to filter organizations by metadata fields
+        - description: Filter organizations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter organizations by metadata fields
+            description: Filter organizations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -7978,6 +7978,7 @@ paths:
   /v1/organizations/metrics/count:
     head:
       deprecated: true
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countOrganizations
       responses:
         "204":
@@ -7998,14 +7999,14 @@ paths:
       summary: Count total organizations
       tags:
         - Organizations (v1)
-  /v1/organizations/{id}:
+  /v1/organizations/{organization_id}:
     delete:
       deprecated: true
       operationId: deleteOrganization
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -8042,7 +8043,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -8079,11 +8080,12 @@ paths:
         - Organizations (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateOrganization
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -8136,12 +8138,12 @@ paths:
           schema:
             description: Organization ID (UUID)
             type: string
-        - description: JSON string to filter ledgers by metadata fields
+        - description: Filter ledgers by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter ledgers by metadata fields
+            description: Filter ledgers by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -8272,6 +8274,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/metrics/count:
     head:
       deprecated: true
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countLedgers
       parameters:
         - description: Organization ID (UUID)
@@ -8397,6 +8400,7 @@ paths:
         - Ledgers (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateLedger
       parameters:
         - description: Organization ID (UUID)
@@ -8468,12 +8472,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter account types by metadata fields
+        - description: Filter account types by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter account types by metadata fields
+            description: Filter account types by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Filter account types by key value
           explode: false
@@ -8608,7 +8612,7 @@ paths:
       summary: Create a new account type
       tags:
         - Account Types (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}:
     delete:
       deprecated: true
       operationId: deleteAccountType
@@ -8629,7 +8633,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -8680,7 +8684,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -8717,6 +8721,7 @@ paths:
         - Account Types (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -8735,7 +8740,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -8795,12 +8800,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter accounts by metadata fields
+        - description: Filter accounts by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter accounts by metadata fields
+            description: Filter accounts by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -9057,6 +9062,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
       deprecated: true
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getBalancesByAlias
       parameters:
         - description: Organization ID (UUID)
@@ -9169,6 +9175,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
       deprecated: true
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getBalancesExternalByCode
       parameters:
         - description: Organization ID (UUID)
@@ -9225,6 +9232,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
       deprecated: true
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countAccounts
       parameters:
         - description: Organization ID (UUID)
@@ -9262,9 +9270,186 @@ paths:
       summary: Count accounts
       tags:
         - Accounts (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}:
+    delete:
+      deprecated: true
+      description: Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried. The CRM instrument linked to the account is soft-deleted. The active account plan assignment of the account ends; its history stays readable. In every fee package of the ledger, a fee whose creditAccount is the account's alias is removed and the alias leaves waivedAccounts; a package left without fees is disabled. In billing packages, a debitAccountAlias, creditAccountAlias or maintenanceCreditAccount equal to the alias is cleared and the package is disabled; the alias leaves accountTarget.aliases, and the package is disabled only when that list empties. These effects happen before the account is deleted. If one of them fails, the account stays in place and the request may be retried.
+      operationId: deleteAccount
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account
+      tags:
+        - Accounts (v1)
+    get:
+      deprecated: true
+      operationId: getAccountByID
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: OK
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific account
+      tags:
+        - Accounts (v1)
+    patch:
+      deprecated: true
+      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
+      operationId: updateAccount
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: OK
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account
+      tags:
+        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       deprecated: true
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getAllBalancesByAccountID
       parameters:
         - description: Organization ID (UUID)
@@ -9507,12 +9692,12 @@ paths:
           schema:
             description: Account ID (UUID)
             type: string
-        - description: JSON string to filter operations by metadata fields
+        - description: Filter operations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter operations by metadata fields
+            description: Filter operations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (max 100, default 10)
           explode: false
@@ -9535,12 +9720,19 @@ paths:
           schema:
             description: Filter operations created on/before this date (YYYY-MM-DD)
             type: string
-        - description: Sort direction (asc, desc)
+        - description: Sort direction (asc, desc) for the chosen sort key
           explode: false
           in: query
           name: sort_order
           schema:
-            description: Sort direction (asc, desc)
+            description: Sort direction (asc, desc) for the chosen sort key
+            type: string
+        - description: Sort key (id, created_at). Default id. created_at orders by creation date, then id. A cursor is only valid with the sort key it was issued for
+          explode: false
+          in: query
+          name: sort_by
+          schema:
+            description: Sort key (id, created_at). Default id. created_at orders by creation date, then id. A cursor is only valid with the sort key it was issued for
             type: string
         - description: Opaque cursor token for pagination
           explode: false
@@ -9670,181 +9862,6 @@ paths:
       summary: Get Operation
       tags:
         - Operations (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
-    delete:
-      deprecated: true
-      operationId: deleteAccount
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
-      responses:
-        "204":
-          description: No Content
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete an account
-      tags:
-        - Accounts (v1)
-    get:
-      deprecated: true
-      operationId: getAccountByID
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Account"
-          description: OK
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve a specific account
-      tags:
-        - Accounts (v1)
-    patch:
-      deprecated: true
-      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command."
-      operationId: updateAccount
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateAccountInput"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Account"
-          description: OK
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update an account
-      tags:
-        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       deprecated: true
@@ -10077,12 +10094,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter assets by metadata fields
+        - description: Filter assets by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter assets by metadata fields
+            description: Filter assets by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -10212,6 +10229,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
       deprecated: true
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countAssets
       parameters:
         - description: Organization ID (UUID)
@@ -10249,9 +10267,10 @@ paths:
       summary: Count total assets
       tags:
         - Assets (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}:
     delete:
       deprecated: true
+      description: Deletes an asset together with its external account and that account's balances. An asset whose external balance is not exactly zero, available or on hold, is refused with 422 (0012).
       operationId: deleteAsset
       parameters:
         - description: Organization ID (UUID)
@@ -10270,7 +10289,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -10321,7 +10340,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -10358,6 +10377,7 @@ paths:
         - Assets (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateAsset
       parameters:
         - description: Organization ID (UUID)
@@ -10376,7 +10396,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -10420,6 +10440,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
       deprecated: true
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getAllBalances
       parameters:
         - description: Organization ID (UUID)
@@ -10504,6 +10525,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
       deprecated: true
+      description: Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.
       operationId: deleteBalance
       parameters:
         - description: Organization ID (UUID)
@@ -10555,6 +10577,7 @@ paths:
         - Balances (v1)
     get:
       deprecated: true
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getBalanceByID
       parameters:
         - description: Organization ID (UUID)
@@ -10813,19 +10836,19 @@ paths:
           schema:
             description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
             type: string
-        - description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+        - description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
           explode: false
           in: query
           name: start_date
           schema:
-            description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+            description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
             type: string
-        - description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+        - description: "Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days."
           explode: false
           in: query
           name: end_date
           schema:
-            description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+            description: "Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days."
             type: string
       responses:
         "200":
@@ -10888,19 +10911,19 @@ paths:
           schema:
             description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
             type: string
-        - description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+        - description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
           explode: false
           in: query
           name: start_date
           schema:
-            description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+            description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
             type: string
-        - description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+        - description: "Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days."
           explode: false
           in: query
           name: end_date
           schema:
-            description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+            description: "Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days."
             type: string
       responses:
         "200":
@@ -11183,6 +11206,7 @@ paths:
         - Operation Routes (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -11261,12 +11285,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter portfolios by metadata fields
+        - description: Filter portfolios by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter portfolios by metadata fields
+            description: Filter portfolios by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Filter portfolios by entity ID
           explode: false
@@ -11404,6 +11428,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
       deprecated: true
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countPortfolios
       parameters:
         - description: Organization ID (UUID)
@@ -11441,7 +11466,7 @@ paths:
       summary: Count total portfolios
       tags:
         - Portfolios (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}:
     delete:
       deprecated: true
       operationId: deletePortfolio
@@ -11462,7 +11487,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -11513,7 +11538,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -11550,6 +11575,7 @@ paths:
         - Portfolios (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updatePortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -11568,7 +11594,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -11628,12 +11654,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter segments by metadata fields
+        - description: Filter segments by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter segments by metadata fields
+            description: Filter segments by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -11757,6 +11783,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
       deprecated: true
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countSegments
       parameters:
         - description: Organization ID (UUID)
@@ -11794,7 +11821,7 @@ paths:
       summary: Count total segments
       tags:
         - Segments (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}:
     delete:
       deprecated: true
       operationId: deleteSegment
@@ -11815,7 +11842,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -11866,7 +11893,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -11903,6 +11930,7 @@ paths:
         - Segments (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateSegment
       parameters:
         - description: Organization ID (UUID)
@@ -11921,7 +11949,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -12313,6 +12341,7 @@ paths:
         - Transaction Routes (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -12391,12 +12420,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter transactions by metadata fields
+        - description: Filter transactions by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter transactions by metadata fields
+            description: Filter transactions by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -12440,6 +12469,13 @@ paths:
           schema:
             description: Filter transactions by atomic cross-ledger group UUID
             type: string
+        - description: "Filter transactions by parent transaction UUID: the estorno (revert) of that transaction. Applies inside the date window like every other filter. Lists are eventually consistent: right after a 0087 the estorno may take a moment to appear, so an empty page means retry, not 'no estorno'"
+          explode: false
+          in: query
+          name: parent_transaction_id
+          schema:
+            description: "Filter transactions by parent transaction UUID: the estorno (revert) of that transaction. Applies inside the date window like every other filter. Lists are eventually consistent: right after a 0087 the estorno may take a moment to appear, so an empty page means retry, not 'no estorno'"
+            type: string
       responses:
         "200":
           content:
@@ -12473,6 +12509,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
     post:
       deprecated: true
+      description: "A transactionDate before the start of the archive window is refused with 422 (0561); a replay of an idempotency key still returns its first outcome. The archive window exists only where the history archive is enabled. On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key. A 500 (0095) on this route means the annotation could not be persisted and may still be written later from its backup. Repeat the request with the same X-Idempotency key and the same body within 24 hours: 0095 again while it is still pending, 201 with X-Idempotency-Replayed: true once it is persisted. A 504 (0564) follows the same rule."
       operationId: createTransactionAnnotation
       parameters:
         - description: Organization ID (UUID)
@@ -12489,17 +12526,17 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: "Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084). After a 500 (0095) or 504 (0564) repeat the request with the same key and the same body within 24 hours: 0095 again while the annotation is still pending, 201 with X-Idempotency-Replayed true once it is persisted"
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: "Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084). After a 500 (0095) or 504 (0564) repeat the request with the same key and the same body within 24 hours: 0095 again while the annotation is still pending, 201 with X-Idempotency-Replayed true once it is persisted"
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a request refused by validation keeps nothing, so its repeat runs again; a failed persistence (0095) keeps the key for at least 24 hours (longer when X-TTL is longer); after X-TTL a repeat of an approved request posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a request refused by validation keeps nothing, so its repeat runs again; a failed persistence (0095) keeps the key for at least 24 hours (longer when X-TTL is longer); after X-TTL a repeat of an approved request posts again"
             type: string
       requestBody:
         content:
@@ -12544,6 +12581,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
     post:
       deprecated: true
+      description: "A transactionDate before the start of the archive window is refused with 422 (0561); a replay of an idempotency key still returns its first outcome. The archive window exists only where the history archive is enabled. On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key. On a ledger whose tracer mode is enforce this operation is refused with 422 (0574) before any balance work, whatever the fail posture: /v1 never asks the Tracer, so send this request through /v2 and run the whole transaction lifecycle there."
       operationId: createTransactionBlock
       parameters:
         - description: Organization ID (UUID)
@@ -12560,17 +12598,17 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -12615,6 +12653,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
       deprecated: true
+      description: "A transactionDate before the start of the archive window is refused with 422 (0561); a replay of an idempotency key still returns its first outcome. The archive window exists only where the history archive is enabled. On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key. On a ledger whose tracer mode is enforce this operation is refused with 422 (0574) before any balance work, whatever the fail posture: /v1 never asks the Tracer, so send this request through /v2 and run the whole transaction lifecycle there."
       operationId: createTransactionInflow
       parameters:
         - description: Organization ID (UUID)
@@ -12631,17 +12670,17 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -12686,6 +12725,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       deprecated: true
+      description: "A transactionDate before the start of the archive window is refused with 422 (0561); a replay of an idempotency key still returns its first outcome. The archive window exists only where the history archive is enabled. On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key. On a ledger whose tracer mode is enforce this operation is refused with 422 (0574) before any balance work, whatever the fail posture: /v1 never asks the Tracer, so send this request through /v2 and run the whole transaction lifecycle there."
       operationId: createTransactionJSON
       parameters:
         - description: Organization ID (UUID)
@@ -12702,17 +12742,17 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -12757,6 +12797,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
       deprecated: true
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted. Accepts the route, status, start_date and end_date filters; without start_date and end_date it counts only the transactions of the current UTC day.
       operationId: countTransactionsByFilters
       parameters:
         - description: Organization ID (UUID)
@@ -12787,19 +12828,19 @@ paths:
           schema:
             description: Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED, NOTED)
             type: string
-        - description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+        - description: Start of date range (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; defaults to today 00:00:00 UTC)
           explode: false
           in: query
           name: start_date
           schema:
-            description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+            description: Start of date range (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; defaults to today 00:00:00 UTC)
             type: string
-        - description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+        - description: End of date range (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; defaults to today 23:59:59 UTC); an end at 00:00:00 or 23:59:59 covers that whole day, as in the transaction list
           explode: false
           in: query
           name: end_date
           schema:
-            description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+            description: End of date range (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; defaults to today 23:59:59 UTC); an end at 00:00:00 or 23:59:59 covers that whole day, as in the transaction list
             type: string
       responses:
         "204":
@@ -12825,6 +12866,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       deprecated: true
+      description: "A transactionDate before the start of the archive window is refused with 422 (0561); a replay of an idempotency key still returns its first outcome. The archive window exists only where the history archive is enabled. On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key. On a ledger whose tracer mode is enforce this operation is refused with 422 (0574) before any balance work, whatever the fail posture: /v1 never asks the Tracer, so send this request through /v2 and run the whole transaction lifecycle there."
       operationId: createTransactionOutflow
       parameters:
         - description: Organization ID (UUID)
@@ -12841,17 +12883,17 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -12896,6 +12938,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
     post:
       deprecated: true
+      description: "A transactionDate before the start of the archive window is refused with 422 (0561); a replay of an idempotency key still returns its first outcome. The archive window exists only where the history archive is enabled. On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key. On a ledger whose tracer mode is enforce this operation is refused with 422 (0574) before any balance work, whatever the fail posture: /v1 never asks the Tracer, so send this request through /v2 and run the whole transaction lifecycle there."
       operationId: createTransactionUnblock
       parameters:
         - description: Organization ID (UUID)
@@ -12912,17 +12955,17 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -13026,6 +13069,7 @@ paths:
         - Transactions (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote. A change to a transaction or operation dated in a period the history archive has frozen is refused with 422 (0563). Archived periods exist only where the history archive is enabled."
       operationId: updateTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -13088,6 +13132,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       deprecated: true
+      description: "On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
       operationId: cancelTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -13144,6 +13189,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       deprecated: true
+      description: "On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
       operationId: commitTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -13200,6 +13246,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote. A change to a transaction or operation dated in a period the history archive has frozen is refused with 422 (0563). Archived periods exist only where the history archive is enabled."
       operationId: updateOperation
       parameters:
         - description: Organization ID (UUID)
@@ -13269,6 +13316,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       deprecated: true
+      description: "A revert whose pending fees have not finished being recorded is refused with 409 (0529); nothing moves, and a later retry may succeed. A revert of a transaction dated before the start of the archive window is refused with 422 (0562). The archive window exists only where the history archive is enabled. On a ledger whose tracer mode is enforce this operation is refused with 422 (0574) before any balance work, whatever the fail posture: /v1 never asks the Tracer, so send this request through /v2 and run the whole transaction lifecycle there. On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
       operationId: revertTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -13469,12 +13517,12 @@ paths:
     get:
       operationId: listOrganizationsV2
       parameters:
-        - description: JSON string to filter organizations by metadata fields
+        - description: Filter organizations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter organizations by metadata fields
+            description: Filter organizations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -13609,6 +13657,7 @@ paths:
         - Organizations (v2)
   /v2/organizations/metrics/count:
     head:
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countOrganizationsV2
       responses:
         "204":
@@ -13629,13 +13678,13 @@ paths:
       summary: Count total organizations
       tags:
         - Organizations (v2)
-  /v2/organizations/{id}:
+  /v2/organizations/{organization_id}:
     delete:
       operationId: deleteOrganizationV2
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -13671,7 +13720,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -13707,11 +13756,12 @@ paths:
       tags:
         - Organizations (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateOrganizationV2
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -13863,12 +13913,12 @@ paths:
           schema:
             description: Organization ID (UUID)
             type: string
-        - description: JSON string to filter holders by metadata fields
+        - description: Filter holders by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter holders by metadata fields
+            description: Filter holders by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -13958,11 +14008,11 @@ paths:
           schema:
             description: Idempotency key to safely retry the create; an identical retry returns the original holder
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error"
             type: string
       requestBody:
         content:
@@ -14004,6 +14054,241 @@ paths:
       summary: Create a Holder
       tags:
         - Holders (v2)
+  /v2/organizations/{organization_id}/holders/{holder_id}:
+    delete:
+      operationId: deleteHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+          explode: false
+          in: query
+          name: hard_delete
+          schema:
+            description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete a Holder
+      tags:
+        - Holders (v2)
+    get:
+      operationId: getHolderByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Returns the holder even if it was logically deleted (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Returns the holder even if it was logically deleted (true,false)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Holder"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve Holder details
+      tags:
+        - Holders (v2)
+    patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
+      operationId: updateHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHolderInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Holder"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a Holder
+      tags:
+        - Holders (v2)
+  /v2/organizations/{organization_id}/holders/{holder_id}/accounts:
+    get:
+      operationId: listAccountsByHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
+          explode: false
+          in: query
+          name: ledger_id
+          schema:
+            description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Accounts by Holder
+      tags:
+        - Holders (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
       description: "Creates an instrument linking a ledger account to its holder and banking details. A ledger account already linked to another instrument (CRM-0013) is refused with 409, and so is a bank account already registered to another live instrument of the organization (CRM-0043): the same bankId and account, on the same branch (leading zeros ignored when both branches are numeric) or where one of them has no branch, whatever the type."
@@ -14029,11 +14314,11 @@ paths:
           schema:
             description: Idempotency key to safely retry the create; an identical retry returns the original instrument
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error"
             type: string
       requestBody:
         content:
@@ -14195,7 +14480,7 @@ paths:
       tags:
         - Instruments (v2)
     patch:
-      description: Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043).
+      description: "Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043). Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateInstrumentV2
       parameters:
         - description: Organization ID (UUID)
@@ -14313,240 +14598,6 @@ paths:
       summary: Delete a Related Party
       tags:
         - Instruments (v2)
-  /v2/organizations/{organization_id}/holders/{id}:
-    delete:
-      operationId: deleteHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
-          explode: false
-          in: query
-          name: hard_delete
-          schema:
-            description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
-            type: string
-      responses:
-        "204":
-          description: No Content
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete a Holder
-      tags:
-        - Holders (v2)
-    get:
-      operationId: getHolderByIDV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Returns the holder even if it was logically deleted (true,false)
-          explode: false
-          in: query
-          name: include_deleted
-          schema:
-            description: Returns the holder even if it was logically deleted (true,false)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Holder"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve Holder details
-      tags:
-        - Holders (v2)
-    patch:
-      operationId: updateHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateHolderInput"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Holder"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update a Holder
-      tags:
-        - Holders (v2)
-  /v2/organizations/{organization_id}/holders/{id}/accounts:
-    get:
-      operationId: listAccountsByHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Max items per page (1-100, default 10)
-          explode: false
-          in: query
-          name: limit
-          schema:
-            description: Max items per page (1-100, default 10)
-            type: string
-        - description: Page number (default 1)
-          explode: false
-          in: query
-          name: page
-          schema:
-            description: Page number (default 1)
-            type: string
-        - description: Sort direction (asc, desc)
-          explode: false
-          in: query
-          name: sort_order
-          schema:
-            description: Sort direction (asc, desc)
-            type: string
-        - description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
-          explode: false
-          in: query
-          name: ledger_id
-          schema:
-            description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Pagination"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: List Accounts by Holder
-      tags:
-        - Holders (v2)
   /v2/organizations/{organization_id}/instruments:
     get:
       operationId: listInstrumentsV2
@@ -14565,12 +14616,12 @@ paths:
           schema:
             description: Filter instruments by holder ID (UUID)
             type: string
-        - description: JSON string to filter instruments by metadata fields
+        - description: Filter instruments by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter instruments by metadata fields
+            description: Filter instruments by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -14621,6 +14672,48 @@ paths:
           schema:
             description: Filter instrument by document
             type: string
+        - description: Filter instruments by banking details branch (exact, case-sensitive match on the stored value)
+          explode: false
+          in: query
+          name: banking_details_branch
+          schema:
+            description: Filter instruments by banking details branch (exact, case-sensitive match on the stored value)
+            type: string
+        - description: Filter instruments by banking details account number (exact, case-sensitive match on the stored value)
+          explode: false
+          in: query
+          name: banking_details_account
+          schema:
+            description: Filter instruments by banking details account number (exact, case-sensitive match on the stored value)
+            type: string
+        - description: Filter instruments by banking details IBAN (exact, case-sensitive match on the stored value)
+          explode: false
+          in: query
+          name: banking_details_iban
+          schema:
+            description: Filter instruments by banking details IBAN (exact, case-sensitive match on the stored value)
+            type: string
+        - description: Filter instruments by regulatory participant document (exact match on the stored value; no CPF/CNPJ formatting is stripped)
+          explode: false
+          in: query
+          name: regulatory_fields_participant_document
+          schema:
+            description: Filter instruments by regulatory participant document (exact match on the stored value; no CPF/CNPJ formatting is stripped)
+            type: string
+        - description: Filter instruments with any related party holding this document (exact match on the stored value; no CPF/CNPJ formatting is stripped)
+          explode: false
+          in: query
+          name: related_party_document
+          schema:
+            description: Filter instruments with any related party holding this document (exact match on the stored value; no CPF/CNPJ formatting is stripped)
+            type: string
+        - description: "Filter instruments with any related party in this role (exact, case-sensitive: PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY)"
+          explode: false
+          in: query
+          name: related_party_role
+          schema:
+            description: "Filter instruments with any related party in this role (exact, case-sensitive: PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY)"
+            type: string
       responses:
         "200":
           content:
@@ -14662,12 +14755,12 @@ paths:
           schema:
             description: Organization ID (UUID)
             type: string
-        - description: JSON string to filter ledgers by metadata fields
+        - description: Filter ledgers by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter ledgers by metadata fields
+            description: Filter ledgers by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -14796,6 +14889,7 @@ paths:
         - Ledgers (v2)
   /v2/organizations/{organization_id}/ledgers/metrics/count:
     head:
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countLedgersV2
       parameters:
         - description: Organization ID (UUID)
@@ -14918,6 +15012,7 @@ paths:
       tags:
         - Ledgers (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateLedgerV2
       parameters:
         - description: Organization ID (UUID)
@@ -15425,12 +15520,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter account types by metadata fields
+        - description: Filter account types by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter account types by metadata fields
+            description: Filter account types by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Filter account types by key value
           explode: false
@@ -15564,7 +15659,7 @@ paths:
       summary: Create a new account type
       tags:
         - Account Types (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}:
     delete:
       operationId: deleteAccountTypeV2
       parameters:
@@ -15584,7 +15679,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -15634,7 +15729,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -15670,6 +15765,7 @@ paths:
       tags:
         - Account Types (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateAccountTypeV2
       parameters:
         - description: Organization ID (UUID)
@@ -15688,7 +15784,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -15747,12 +15843,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter accounts by metadata fields
+        - description: Filter accounts by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter accounts by metadata fields
+            description: Filter accounts by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -16006,6 +16102,7 @@ paths:
         - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getBalancesByAliasV2
       parameters:
         - description: Organization ID (UUID)
@@ -16061,7 +16158,7 @@ paths:
         - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/block-exceptions:
     post:
-      description: Creates a batch of single-use exceptions that authorize a debit of an exact amount out of a blocked account. Each exception is returned with its identifier and its expiry, lives only in the cache, and dies on first use or when its TTL elapses.
+      description: Creates a batch of single-use exceptions that authorize a debit of an exact amount out of a blocked account. Each exception is returned with its identifier and its expiry, and expires on first use or when its TTL elapses.
       operationId: createAccountBlockExceptionsV2
       parameters:
         - description: Organization ID (UUID)
@@ -16171,6 +16268,7 @@ paths:
         - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getBalancesExternalByCodeV2
       parameters:
         - description: Organization ID (UUID)
@@ -16226,6 +16324,7 @@ paths:
         - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countAccountsV2
       parameters:
         - description: Organization ID (UUID)
@@ -16261,6 +16360,179 @@ paths:
       security:
         - BearerAuth: []
       summary: Count accounts
+      tags:
+        - Accounts (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}:
+    delete:
+      description: Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried. The CRM instrument linked to the account is soft-deleted. The active account plan assignment of the account ends; its history stays readable. In every fee package of the ledger, a fee whose creditAccount is the account's alias is removed and the alias leaves waivedAccounts; a package left without fees is disabled. In billing packages, a debitAccountAlias, creditAccountAlias or maintenanceCreditAccount equal to the alias is cleared and the package is disabled; the alias leaves accountTarget.aliases, and the package is disabled only when that list empties. These effects happen before the account is deleted. If one of them fails, the account stays in place and the request may be retried.
+      operationId: deleteAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account
+      tags:
+        - Accounts (v2)
+    get:
+      operationId: getAccountByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountV2"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific account
+      tags:
+        - Accounts (v2)
+    patch:
+      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
+      operationId: updateAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountV2"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account
       tags:
         - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/account-plan:
@@ -16496,6 +16768,7 @@ paths:
         - Account Plan Assignments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getAllBalancesByAccountIDV2
       parameters:
         - description: Organization ID (UUID)
@@ -16712,7 +16985,7 @@ paths:
         - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/close:
     post:
-      description: Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. An external account is never eligible (0074), balances that are not exactly zero (0523) and a pending transaction still holding the account's funds (0524) are refused with 422. An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.
+      description: "Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524), a balance that still owes pending fees (0527) and a balance that other balances still owe pending fees to (0528) are refused with 422. An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination, and the revert of a transaction whose fee legs credited it. Closing is permanent. To retire a fee account, point the fee package at the new fee account and leave the old account open: reverts of earlier transactions and collections of fee debt already owed to it still post there."
       operationId: closeAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -16787,12 +17060,12 @@ paths:
           schema:
             description: Account ID (UUID)
             type: string
-        - description: JSON string to filter operations by metadata fields
+        - description: Filter operations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter operations by metadata fields
+            description: Filter operations by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (max 100, default 10)
           explode: false
@@ -16815,12 +17088,19 @@ paths:
           schema:
             description: Filter operations created on/before this date (YYYY-MM-DD)
             type: string
-        - description: Sort direction (asc, desc)
+        - description: Sort direction (asc, desc) for the chosen sort key
           explode: false
           in: query
           name: sort_order
           schema:
-            description: Sort direction (asc, desc)
+            description: Sort direction (asc, desc) for the chosen sort key
+            type: string
+        - description: Sort key (id, created_at). Default id. created_at orders by creation date, then id. A cursor is only valid with the sort key it was issued for
+          explode: false
+          in: query
+          name: sort_by
+          schema:
+            description: Sort key (id, created_at). Default id. created_at orders by creation date, then id. A cursor is only valid with the sort key it was issued for
             type: string
         - description: Opaque cursor token for pagination
           explode: false
@@ -16949,178 +17229,6 @@ paths:
       summary: Get Operation
       tags:
         - Operations (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
-    delete:
-      operationId: deleteAccountV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
-      responses:
-        "204":
-          description: No Content
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete an account
-      tags:
-        - Accounts (v2)
-    get:
-      operationId: getAccountByIDV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccountV2"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve a specific account
-      tags:
-        - Accounts (v2)
-    patch:
-      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command."
-      operationId: updateAccountV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateAccountInput"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccountV2"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update an account
-      tags:
-        - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       operationId: listAssetsV2
@@ -17139,12 +17247,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter assets by metadata fields
+        - description: Filter assets by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter assets by metadata fields
+            description: Filter assets by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -17272,6 +17380,7 @@ paths:
         - Assets (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countAssetsV2
       parameters:
         - description: Organization ID (UUID)
@@ -17309,8 +17418,9 @@ paths:
       summary: Count total assets
       tags:
         - Assets (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}:
     delete:
+      description: Deletes an asset together with its external account and that account's balances. An asset whose external balance is not exactly zero, available or on hold, is refused with 422 (0012).
       operationId: deleteAssetV2
       parameters:
         - description: Organization ID (UUID)
@@ -17329,7 +17439,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -17379,7 +17489,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -17415,6 +17525,7 @@ paths:
       tags:
         - Assets (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateAssetV2
       parameters:
         - description: Organization ID (UUID)
@@ -17433,7 +17544,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -17476,6 +17587,7 @@ paths:
         - Assets (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getAllBalancesV2
       parameters:
         - description: Organization ID (UUID)
@@ -17559,6 +17671,7 @@ paths:
         - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
+      description: Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.
       operationId: deleteBalanceV2
       parameters:
         - description: Organization ID (UUID)
@@ -17609,6 +17722,7 @@ paths:
       tags:
         - Balances (v2)
     get:
+      description: Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.
       operationId: getBalanceByIDV2
       parameters:
         - description: Organization ID (UUID)
@@ -17823,6 +17937,13 @@ paths:
           schema:
             description: Page number (default 1)
             type: string
+        - description: Sort direction by creation time (asc, desc; default desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction by creation time (asc, desc; default desc)
+            type: string
       responses:
         "200":
           content:
@@ -17883,6 +18004,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/FeeBillingPackage"
           description: Created
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Conflict
         "422":
           content:
             application/problem+json:
@@ -17906,7 +18033,7 @@ paths:
       summary: Create a BillingPackage
       tags:
         - Billing Packages (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}:
     delete:
       operationId: deleteBillingPackageV2
       parameters:
@@ -17926,7 +18053,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -17976,7 +18103,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -18030,7 +18157,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -18048,6 +18175,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/FeeBillingPackage"
           description: OK
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Conflict
         "422":
           content:
             application/problem+json:
@@ -18204,19 +18337,19 @@ paths:
           schema:
             description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
             type: string
-        - description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+        - description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
           explode: false
           in: query
           name: start_date
           schema:
-            description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+            description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
             type: string
-        - description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+        - description: "Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days."
           explode: false
           in: query
           name: end_date
           schema:
-            description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+            description: "Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days."
             type: string
       responses:
         "200":
@@ -18278,19 +18411,19 @@ paths:
           schema:
             description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
             type: string
-        - description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+        - description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
           explode: false
           in: query
           name: start_date
           schema:
-            description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+            description: Window start (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC, inclusive). Requires end_date. Mutually exclusive with period.
             type: string
-        - description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+        - description: "Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days."
           explode: false
           in: query
           name: end_date
           schema:
-            description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+            description: "Window end (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC). Read as the transaction list reads end_date: an end at 00:00:00 or 23:59:59 covers that whole day in its own time zone; start_date may equal end_date. Requires start_date. The window may not exceed 90 days."
             type: string
       responses:
         "200":
@@ -18328,6 +18461,7 @@ paths:
         - Dashboard (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates:
     post:
+      description: "Prices the transaction in the body against the fee package it names, without posting or recording anything. The 200 body carries message, feesApplied and fees. feesApplied is the transaction with the fee legs the package would add, or null when no package rule applied, including when every account on one side is exempt from fees. fees is always present and holds items alone: one item per fee of the package the engine evaluated, in evaluation order, empty when it evaluated none, such as when the package bounds exclude the amount. Each item has feeKey, label, source (always package, since an estimate does not evaluate account plans), assetCode, amount (0 when exempt), deductible, outcome (charged or exempt), reason (only when exempt: all_source_accounts_exempt, all_destination_accounts_exempt, all_accounts_exempt, cross_ledger_bridge or zero_fee_amount) and packageId. An estimate item never carries collected, deferred or feeDebtIds, which only a direct create knows, and fees has no transactionId, recorded or available, since an estimate records no list."
       operationId: estimateFeeCalculationV2
       parameters:
         - description: Organization ID (UUID)
@@ -18381,7 +18515,7 @@ paths:
       summary: Create a fee estimate calculation
       tags:
         - Fees (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts:
     post:
       operationId: createHolderAccountV2
       parameters:
@@ -18401,7 +18535,7 @@ paths:
             type: string
         - description: Holder ID (UUID)
           in: path
-          name: id
+          name: holder_id
           required: true
           schema:
             description: Holder ID (UUID)
@@ -18411,6 +18545,18 @@ paths:
           name: Authorization
           schema:
             description: Bearer token (forwarded to the composed account-create use case)
+            type: string
+        - description: Idempotency key to safely retry the composition; a retry with the same key returns the original response, a partial 201 with its instrumentError included, as first answered. Without it no idempotency slot is reserved
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the composition; a retry with the same key returns the original response, a partial 201 with its instrumentError included, as first answered. Without it no idempotency slot is reserved
+            type: string
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error"
+          in: header
+          name: X-TTL
+          schema:
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error"
             type: string
       requestBody:
         content:
@@ -18425,6 +18571,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/HolderAccountResponse"
           description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
         "422":
           content:
             application/problem+json:
@@ -18690,6 +18840,7 @@ paths:
       tags:
         - Operation Routes (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -18802,6 +18953,13 @@ paths:
           schema:
             description: Page number (default 1)
             type: string
+        - description: Sort direction by creation time (asc, desc; default desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction by creation time (asc, desc; default desc)
+            type: string
       responses:
         "200":
           content:
@@ -18885,8 +19043,9 @@ paths:
       summary: Create a Package
       tags:
         - Packages (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}:
     delete:
+      description: A deleted package may keep applying for up to 60 seconds when a transaction read the packages concurrently with the delete.
       operationId: deletePackageV2
       parameters:
         - description: Organization ID (UUID)
@@ -18905,7 +19064,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -18955,7 +19114,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -18991,6 +19150,7 @@ paths:
       tags:
         - Packages (v2)
     patch:
+      description: "A package switched off (enable: false) may keep applying, a package whose rounding changed may keep charging the previous one, and a fee whose deferrable changed to false may still open fee debt when unfunded, for up to 60 seconds when a transaction read the packages concurrently with the update. Closing an account is permanent. To retire a fee account, point the fee package at the new fee account and leave the old account open: reverts of earlier transactions and collections of fee debt already owed to it still post there."
       operationId: updatePackageV2
       parameters:
         - description: Organization ID (UUID)
@@ -19009,7 +19169,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -19068,12 +19228,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter portfolios by metadata fields
+        - description: Filter portfolios by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter portfolios by metadata fields
+            description: Filter portfolios by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Filter portfolios by entity ID
           explode: false
@@ -19209,6 +19369,7 @@ paths:
         - Portfolios (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countPortfoliosV2
       parameters:
         - description: Organization ID (UUID)
@@ -19246,7 +19407,7 @@ paths:
       summary: Count total portfolios
       tags:
         - Portfolios (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}:
     delete:
       operationId: deletePortfolioV2
       parameters:
@@ -19266,7 +19427,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -19316,7 +19477,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -19352,6 +19513,7 @@ paths:
       tags:
         - Portfolios (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updatePortfolioV2
       parameters:
         - description: Organization ID (UUID)
@@ -19370,7 +19532,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -19429,12 +19591,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter segments by metadata fields
+        - description: Filter segments by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter segments by metadata fields
+            description: Filter segments by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -19556,6 +19718,7 @@ paths:
         - Segments (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted.
       operationId: countSegmentsV2
       parameters:
         - description: Organization ID (UUID)
@@ -19593,7 +19756,7 @@ paths:
       summary: Count total segments
       tags:
         - Segments (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}:
     delete:
       operationId: deleteSegmentV2
       parameters:
@@ -19613,7 +19776,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -19663,7 +19826,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -19699,6 +19862,7 @@ paths:
       tags:
         - Segments (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateSegmentV2
       parameters:
         - description: Organization ID (UUID)
@@ -19717,7 +19881,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -19913,6 +20077,13 @@ paths:
           schema:
             description: Opaque cursor token for pagination
             type: string
+        - description: Keep only the transaction route whose alias is exactly this value, case included
+          explode: false
+          in: query
+          name: alias
+          schema:
+            description: Keep only the transaction route whose alias is exactly this value, case included
+            type: string
       responses:
         "200":
           content:
@@ -19964,14 +20135,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateTransactionRouteInput"
+              $ref: "#/components/schemas/CreateTransactionRouteInputV2"
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: Created
         "422":
           content:
@@ -20076,7 +20247,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: OK
         "422":
           content:
@@ -20102,6 +20273,7 @@ paths:
       tags:
         - Transaction Routes (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time. operationRoutes (required links) and optionalOperationRoutes (links a transaction may leave unused) are each applied as a JSON merge patch: an absent or null list keeps the stored links, a present list replaces them and an empty list removes them. The resulting links are validated as a create: a route in both lists, fewer than two links, or no required source or destination is refused."
       operationId: updateTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -20129,14 +20301,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateTransactionRouteInput"
+              $ref: "#/components/schemas/UpdateTransactionRouteInputV2"
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: OK
         "422":
           content:
@@ -20179,12 +20351,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: JSON string to filter transactions by metadata fields
+        - description: Filter transactions by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
           explode: false
           in: query
           name: metadata
           schema:
-            description: JSON string to filter transactions by metadata fields
+            description: Filter transactions by metadata with one or more metadata.<key>=<value> parameters; a bare metadata parameter is ignored
             type: string
         - description: Max items per page (1-100, default 10)
           explode: false
@@ -20228,6 +20400,13 @@ paths:
           schema:
             description: Filter transactions by atomic cross-ledger group UUID
             type: string
+        - description: "Filter transactions by parent transaction UUID: the estorno (revert) of that transaction. Applies inside the date window like every other filter. Lists are eventually consistent: right after a 0087 the estorno may take a moment to appear, so an empty page means retry, not 'no estorno'"
+          explode: false
+          in: query
+          name: parent_transaction_id
+          schema:
+            description: "Filter transactions by parent transaction UUID: the estorno (revert) of that transaction. Applies inside the date window like every other filter. Lists are eventually consistent: right after a 0087 the estorno may take a moment to appear, so an empty page means retry, not 'no estorno'"
+            type: string
       responses:
         "200":
           content:
@@ -20260,6 +20439,7 @@ paths:
         - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
+      description: Returns the total in the X-Total-Count header with an empty 204 body. Deleted items are not counted. Accepts the route, status, start_date and end_date filters; without start_date and end_date it counts only the transactions of the current UTC day.
       operationId: countTransactionsByFiltersV2
       parameters:
         - description: Organization ID (UUID)
@@ -20290,19 +20470,19 @@ paths:
           schema:
             description: Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED, NOTED)
             type: string
-        - description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+        - description: Start of date range (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; defaults to today 00:00:00 UTC)
           explode: false
           in: query
           name: start_date
           schema:
-            description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+            description: Start of date range (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; defaults to today 00:00:00 UTC)
             type: string
-        - description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+        - description: End of date range (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; defaults to today 23:59:59 UTC); an end at 00:00:00 or 23:59:59 covers that whole day, as in the transaction list
           explode: false
           in: query
           name: end_date
           schema:
-            description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+            description: End of date range (RFC3339, or yyyy-mm-dd / yyyy-mm-dd hh:mm:ss in UTC; defaults to today 23:59:59 UTC); an end at 00:00:00 or 23:59:59 covers that whole day, as in the transaction list
             type: string
       responses:
         "204":
@@ -20350,12 +20530,19 @@ paths:
           schema:
             description: Transaction ID (UUID)
             type: string
+        - description: Whether the response carries the fees field, the list of fees evaluated for the transaction (true,false). Defaults to true; only false, in any letter case, leaves the field out and skips reading the list, and any other value keeps the default.
+          explode: false
+          in: query
+          name: include_fees
+          schema:
+            description: Whether the response carries the fees field, the list of fees evaluated for the transaction (true,false). Defaults to true; only false, in any letter case, leaves the field out and skips reading the list, and any other value keeps the default.
+            type: string
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionV2"
+                $ref: "#/components/schemas/RetrievedTransactionV2"
           description: OK
           headers:
             X-Cache-Hit:
@@ -20385,6 +20572,7 @@ paths:
       tags:
         - Transactions (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time. A change to a transaction or operation dated in a period the history archive has frozen is refused with 422 (0563). Archived periods exist only where the history archive is enabled."
       operationId: updateTransactionV2
       parameters:
         - description: Organization ID (UUID)
@@ -20446,6 +20634,7 @@ paths:
         - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
+      description: "On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
       operationId: cancelTransactionV2
       parameters:
         - description: Organization ID (UUID)
@@ -20503,6 +20692,7 @@ paths:
         - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
+      description: "On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
       operationId: commitTransactionV2
       parameters:
         - description: Organization ID (UUID)
@@ -20565,6 +20755,7 @@ paths:
         - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time. A change to a transaction or operation dated in a period the history archive has frozen is refused with 422 (0563). Archived periods exist only where the history archive is enabled."
       operationId: updateOperationV2
       parameters:
         - description: Organization ID (UUID)
@@ -20633,6 +20824,7 @@ paths:
         - Operations (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
+      description: "A revert whose pending fees have not finished being recorded is refused with 409 (0529); nothing moves, and a later retry may succeed. A revert of a transaction dated before the start of the archive window is refused with 422 (0562). The archive window exists only where the history archive is enabled. In a cross-ledger group, one member dated before the window start refuses the whole group. On the PostgreSQL engine a request the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval."
       operationId: revertTransactionV2
       parameters:
         - description: Organization ID (UUID)
@@ -20913,6 +21105,7 @@ paths:
       tags:
         - Operation Routes (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateOrganizationOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -21115,6 +21308,13 @@ paths:
           schema:
             description: Opaque cursor token for pagination
             type: string
+        - description: Keep only the transaction route whose alias is exactly this value, case included
+          explode: false
+          in: query
+          name: alias
+          schema:
+            description: Keep only the transaction route whose alias is exactly this value, case included
+            type: string
       responses:
         "200":
           content:
@@ -21160,14 +21360,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateTransactionRouteInput"
+              $ref: "#/components/schemas/CreateTransactionRouteInputV2"
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: Created
         "422":
           content:
@@ -21258,7 +21458,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: OK
         "422":
           content:
@@ -21284,6 +21484,7 @@ paths:
       tags:
         - Transaction Routes (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time. operationRoutes (required links) and optionalOperationRoutes (links a transaction may leave unused) are each applied as a JSON merge patch: an absent or null list keeps the stored links, a present list replaces them and an empty list removes them. The resulting links are validated as a create: a route in both lists, fewer than two links, or no required source or destination is refused."
       operationId: updateOrganizationTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -21304,14 +21505,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateTransactionRouteInput"
+              $ref: "#/components/schemas/UpdateTransactionRouteInputV2"
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: OK
         "422":
           content:
@@ -21474,20 +21675,20 @@ paths:
         - Metadata Indexes (v2)
   /v2/transactions/batch:
     post:
-      description: Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. The internal idempotency/recovery batch identifier is not exposed; there is no batch query endpoint.
+      description: "Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 distinct balances (an account's overdraft balance counts as one). There is no batch query endpoint. On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key."
       operationId: createAtomicTransactionBatchV2
       parameters:
-        - description: Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -21506,6 +21707,12 @@ paths:
             X-Idempotency-Replayed:
               schema:
                 type: string
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Request Entity Too Large
         "422":
           content:
             application/problem+json:
@@ -21531,19 +21738,20 @@ paths:
         - Transactions (v2)
   /v2/transactions/block:
     post:
+      description: "On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key."
       operationId: createTransactionBlockV2
       parameters:
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -21562,6 +21770,12 @@ paths:
             X-Idempotency-Replayed:
               schema:
                 type: string
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Request Entity Too Large
         "422":
           content:
             application/problem+json:
@@ -21587,19 +21801,20 @@ paths:
         - Transactions (v2)
   /v2/transactions/direct:
     post:
+      description: "On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key."
       operationId: createTransactionDirectV2
       parameters:
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -21613,13 +21828,19 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: "#/components/schemas/TransactionV2"
+                  - $ref: "#/components/schemas/CreatedTransactionV2"
                   - $ref: "#/components/schemas/CrossLedgerTransactionGroupV2"
           description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
                 type: string
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Request Entity Too Large
         "422":
           content:
             application/problem+json:
@@ -21645,19 +21866,20 @@ paths:
         - Transactions (v2)
   /v2/transactions/hold:
     post:
+      description: "On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key."
       operationId: createTransactionHoldV2
       parameters:
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -21671,13 +21893,19 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: "#/components/schemas/TransactionV2"
+                  - $ref: "#/components/schemas/CreatedTransactionV2"
                   - $ref: "#/components/schemas/CrossLedgerTransactionGroupV2"
           description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
                 type: string
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Request Entity Too Large
         "422":
           content:
             application/problem+json:
@@ -21703,19 +21931,20 @@ paths:
         - Transactions (v2)
   /v2/transactions/unblock:
     post:
+      description: "On the PostgreSQL engine a create whose wait ends before it is decided answers 422 (0569) and applies nothing; one whose outcome cannot be read after it was published answers 503 (0570): resend it with the same idempotency key. A create the ledger cannot take in time answers 503 (0576) with Retry-After before any work: nothing was applied, so send it again after that interval with the same idempotency key."
       operationId: createTransactionUnblockV2
       parameters:
-        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+        - description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
-            description: Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)
+            description: Idempotency key to safely retry the request. A retry after the first request completes replays its outcome; a different request under the same key, or a retry while the first request is still executing, answers 409 (0084)
             type: string
-        - description: Idempotency slot TTL in seconds (default 300)
+        - description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
           in: header
           name: X-TTL
           schema:
-            description: Idempotency slot TTL in seconds (default 300)
+            description: "Idempotency slot TTL in seconds: default 300, at most 604800 (a larger value is capped); a missing, malformed or non-positive value falls back to 300 without an error. Within X-TTL a repeat of an approved request returns its first outcome; a refused request keeps nothing, so its repeat runs again; after X-TTL a repeat posts again"
             type: string
       requestBody:
         content:
@@ -21734,6 +21963,12 @@ paths:
             X-Idempotency-Replayed:
               schema:
                 type: string
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Request Entity Too Large
         "422":
           content:
             application/problem+json:
