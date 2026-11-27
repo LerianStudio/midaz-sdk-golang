@@ -273,7 +273,7 @@ func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transa
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CommitTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	return decodeOne[models.Transaction](operation, resp.StatusCode, body, resp)
@@ -293,7 +293,7 @@ func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transa
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.RevertTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	return decodeOne[models.Transaction](operation, resp.StatusCode, body, resp)
@@ -331,7 +331,7 @@ func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transa
 	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CancelTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	if !isSuccess(resp.StatusCode) {
@@ -567,8 +567,9 @@ func (f *transactionsFacade) Count(ctx context.Context, orgID, ledgerID string, 
 	return readCount(f.ledger.CountTransactionsByFilters(ctx, orgID, ledgerID, countTransactionsParams(opts)))
 }
 
-// readCount maps a HEAD count response into the total. A transport error becomes
-// an internal error; a nil response with no error is refused for the reason
+// readCount maps a HEAD count response into the total. A transport error goes
+// through transportErr (network or timeout when it is one, internal otherwise);
+// a nil response with no error is refused for the reason
 // errNoResponse gives; a non-2xx decodes the unified RFC 9457 envelope via
 // DecodeProblemJSON (which handles the empty body a HEAD error carries, unlike
 // the generated status-exact parser); a 2xx reads the X-Total-Count header,
@@ -583,7 +584,7 @@ func readCount(resp *http.Response, err error) (int, error) {
 	const operation = "Count"
 
 	if err != nil {
-		return 0, errors.NewInternalError(operation, err)
+		return 0, transportErr(operation, err)
 	}
 
 	if resp == nil {
