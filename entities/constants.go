@@ -15,4 +15,9 @@ const (
 	// on the Ledger plane. Mirrors
 	// [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config.DefaultTracerAPIVersionPath].
 	tracerAPIVersionPath = "/v1"
+
+	// actorHeader carries the token of the partner a Ledger call is made on
+	// behalf of, set only when the actor relay option is on. Unexported on
+	// purpose: callers turn the relay on with the option, not by the header.
+	actorHeader = "X-Lerian-Actor"
 )
