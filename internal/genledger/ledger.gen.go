@@ -205,6 +205,51 @@ func (e FeeAccountPlanTriggerInputType) Valid() bool {
 	}
 }
 
+// Defines values for FeeBillingChargeStatus.
+const (
+	FeeBillingChargeStatusCanceled FeeBillingChargeStatus = "canceled"
+	FeeBillingChargeStatusPosted   FeeBillingChargeStatus = "posted"
+	FeeBillingChargeStatusRefused  FeeBillingChargeStatus = "refused"
+)
+
+// Valid indicates whether the value is a known member of the FeeBillingChargeStatus enum.
+func (e FeeBillingChargeStatus) Valid() bool {
+	switch e {
+	case FeeBillingChargeStatusCanceled:
+		return true
+	case FeeBillingChargeStatusPosted:
+		return true
+	case FeeBillingChargeStatusRefused:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeeBillingChargeItemStatus.
+const (
+	FeeBillingChargeItemStatusInFlight FeeBillingChargeItemStatus = "in_flight"
+	FeeBillingChargeItemStatusPosted   FeeBillingChargeItemStatus = "posted"
+	FeeBillingChargeItemStatusRefused  FeeBillingChargeItemStatus = "refused"
+	FeeBillingChargeItemStatusReplayed FeeBillingChargeItemStatus = "replayed"
+)
+
+// Valid indicates whether the value is a known member of the FeeBillingChargeItemStatus enum.
+func (e FeeBillingChargeItemStatus) Valid() bool {
+	switch e {
+	case FeeBillingChargeItemStatusInFlight:
+		return true
+	case FeeBillingChargeItemStatusPosted:
+		return true
+	case FeeBillingChargeItemStatusRefused:
+		return true
+	case FeeBillingChargeItemStatusReplayed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeeChargeStatus.
 const (
 	FeeChargeStatusAPPROVED FeeChargeStatus = "APPROVED"
@@ -875,6 +920,17 @@ type BalanceSettingsRequest struct {
 	OverdraftLimitEnabled *bool   `json:"overdraftLimitEnabled,omitempty"`
 }
 
+// BalanceTotals defines model for BalanceTotals.
+type BalanceTotals struct {
+	AssetCode  string `json:"assetCode"`
+	Available  string `json:"available"`
+	BalanceKey string `json:"balanceKey"`
+
+	// Count Number of balances summed
+	Count  int64  `json:"count"`
+	OnHold string `json:"onHold"`
+}
+
 // BankingDetails defines model for BankingDetails.
 type BankingDetails struct {
 	Account     *string             `json:"account,omitempty"`
@@ -885,6 +941,14 @@ type BankingDetails struct {
 	Iban        *string             `json:"iban,omitempty"`
 	OpeningDate *openapi_types.Date `json:"openingDate,omitempty"`
 	Type        *string             `json:"type,omitempty"`
+}
+
+// BillingChargeListBody defines model for BillingChargeListBody.
+type BillingChargeListBody struct {
+	Items      *[]FeeBillingCharge `json:"items"`
+	Limit      int64               `json:"limit"`
+	NextCursor *string             `json:"next_cursor,omitempty"`
+	PrevCursor *string             `json:"prev_cursor,omitempty"`
 }
 
 // Contact defines model for Contact.
@@ -1667,6 +1731,72 @@ type FeeBillingCalculationResult struct {
 	TransactionPayload interface{} `json:"transactionPayload"`
 }
 
+// FeeBillingCharge defines model for FeeBillingCharge.
+type FeeBillingCharge struct {
+	AccountAlias string `json:"accountAlias"`
+	AccountId    string `json:"accountId"`
+
+	// Amount Maintenance fee charged to the account: the package feeAmount.
+	Amount           string `json:"amount"`
+	AssetCode        string `json:"assetCode"`
+	BillingPackageId string `json:"billingPackageId"`
+
+	// CanceledAt When the charge was canceled; absent while it is not.
+	CanceledAt *time.Time `json:"canceledAt,omitempty"`
+
+	// Code Error code the fee transaction was refused with; absent unless refused.
+	Code           *string   `json:"code,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+	Id             string    `json:"id"`
+	LedgerId       string    `json:"ledgerId"`
+	OrganizationId string    `json:"organizationId"`
+
+	// Period Charged period, YYYY-MM.
+	Period string `json:"period"`
+
+	// Status posted: the maintenance fee was charged, by a fee transaction or, when the account could not fund it and the package is deferrable, as a fee debt only. refused: the fee transaction was refused with code. canceled: a posted charge was canceled.
+	Status FeeBillingChargeStatus `json:"status"`
+
+	// TransactionId Fee transaction of the charge; absent when refused, and when the charge only opened a fee debt without moving any balance.
+	TransactionId *string   `json:"transactionId,omitempty"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+// FeeBillingChargeStatus posted: the maintenance fee was charged, by a fee transaction or, when the account could not fund it and the package is deferrable, as a fee debt only. refused: the fee transaction was refused with code. canceled: a posted charge was canceled.
+type FeeBillingChargeStatus string
+
+// FeeBillingChargeItem defines model for FeeBillingChargeItem.
+type FeeBillingChargeItem struct {
+	AccountAlias     string `json:"accountAlias"`
+	AccountId        string `json:"accountId"`
+	Amount           string `json:"amount"`
+	AssetCode        string `json:"assetCode"`
+	BillingPackageId string `json:"billingPackageId"`
+
+	// Code Error code of a refused charge.
+	Code *string `json:"code,omitempty"`
+
+	// Status posted: this call posted the fee transaction. replayed: an earlier call posted it, nothing new is posted. refused: the fee transaction was refused with code; a later call tries it again. in_flight: another call holds the account.
+	Status        FeeBillingChargeItemStatus `json:"status"`
+	TransactionId *string                    `json:"transactionId,omitempty"`
+}
+
+// FeeBillingChargeItemStatus posted: this call posted the fee transaction. replayed: an earlier call posted it, nothing new is posted. refused: the fee transaction was refused with code; a later call tries it again. in_flight: another call holds the account.
+type FeeBillingChargeItemStatus string
+
+// FeeBillingChargeResult defines model for FeeBillingChargeResult.
+type FeeBillingChargeResult struct {
+	// HasMore Whether target accounts remain after the last one this call visited.
+	HasMore bool `json:"hasMore"`
+
+	// Items One item per active target account the call visited, by package and account id.
+	Items *[]FeeBillingChargeItem `json:"items"`
+
+	// NextCursor Cursor to send in the next call to resume after the last account visited; present only when hasMore is true.
+	NextCursor *string `json:"nextCursor,omitempty"`
+	Period     string  `json:"period"`
+}
+
 // FeeBillingPackage defines model for FeeBillingPackage.
 type FeeBillingPackage struct {
 	AccountTarget      *FeeAccountTarget         `json:"accountTarget,omitempty"`
@@ -1771,6 +1901,21 @@ type FeeCharge struct {
 
 // FeeChargeStatus DEFERRED when at least one item is DEFERRED, APPROVED otherwise.
 type FeeChargeStatus string
+
+// FeeChargeBillingInput defines model for FeeChargeBillingInput.
+type FeeChargeBillingInput struct {
+	// BillingPackageId Maintenance package to charge; a disabled one is skipped and answers no account. Absent charges every enabled maintenance package of the ledger.
+	BillingPackageId *string `json:"billingPackageId,omitempty"`
+
+	// Cursor nextCursor of the previous call: the call resumes after the last account that call visited. Absent starts from the first account. The walk takes the packages by id and, within each, the accounts by id.
+	Cursor *string `json:"cursor,omitempty"`
+
+	// Limit Most accounts this call visits, 1 to 500; defaults to 100. Every visited account counts, replayed ones included.
+	Limit *int64 `json:"limit,omitempty"`
+
+	// Period Period to charge, YYYY-MM, not later than the current month (UTC).
+	Period *string `json:"period,omitempty"`
+}
 
 // FeeChargeItem defines model for FeeChargeItem.
 type FeeChargeItem struct {
@@ -3333,6 +3478,15 @@ type GetAllBalancesParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// GetBalanceTotalsParams defines parameters for GetBalanceTotals.
+type GetBalanceTotalsParams struct {
+	// BalanceKey Required. Balance key to total, case-insensitive (no whitespace, max 100)
+	BalanceKey *string `form:"balance_key,omitempty" json:"balance_key,omitempty"`
+
+	// AssetCode Required. Asset code to total, compared exactly (no whitespace, max 100)
+	AssetCode *string `form:"asset_code,omitempty" json:"asset_code,omitempty"`
+}
+
 // GetBalanceAtTimestampParams defines parameters for GetBalanceAtTimestamp.
 type GetBalanceAtTimestampParams struct {
 	// Date Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)
@@ -4005,6 +4159,15 @@ type GetAllBalancesV2Params struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// GetBalanceTotalsV2Params defines parameters for GetBalanceTotalsV2.
+type GetBalanceTotalsV2Params struct {
+	// BalanceKey Required. Balance key to total, case-insensitive (no whitespace, max 100)
+	BalanceKey *string `form:"balance_key,omitempty" json:"balance_key,omitempty"`
+
+	// AssetCode Required. Asset code to total, compared exactly (no whitespace, max 100)
+	AssetCode *string `form:"asset_code,omitempty" json:"asset_code,omitempty"`
+}
+
 // GetBalanceAtTimestampV2Params defines parameters for GetBalanceAtTimestampV2.
 type GetBalanceAtTimestampV2Params struct {
 	// Date Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)
@@ -4024,6 +4187,21 @@ type GetAllBillingPackagesV2Params struct {
 
 	// SortOrder Sort direction by creation time (asc, desc; default desc)
 	SortOrder *string `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// ListBillingChargesV2Params defines parameters for ListBillingChargesV2.
+type ListBillingChargesV2Params struct {
+	// Period Required. Charged period, YYYY-MM.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+
+	// BillingPackageId Only the charges of this billing package
+	BillingPackageId *string `form:"billingPackageId,omitempty" json:"billingPackageId,omitempty"`
+
+	// Limit Number of items per page (default 10, max 100)
+	Limit *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // GetLedgerDashboardMetricsV2Params defines parameters for GetLedgerDashboardMetricsV2.
@@ -4563,6 +4741,9 @@ type UpdateBillingPackageV2JSONRequestBody = FeeBillingPackageUpdate
 
 // CalculateBillingV2JSONRequestBody defines body for CalculateBillingV2 for application/json ContentType.
 type CalculateBillingV2JSONRequestBody = FeeBillingCalculateRequest
+
+// ChargeBillingV2JSONRequestBody defines body for ChargeBillingV2 for application/json ContentType.
+type ChargeBillingV2JSONRequestBody = FeeChargeBillingInput
 
 // EstimateFeeCalculationV2JSONRequestBody defines body for EstimateFeeCalculationV2 for application/json ContentType.
 type EstimateFeeCalculationV2JSONRequestBody = FeeEstimate
@@ -5478,6 +5659,9 @@ type ClientInterface interface {
 	// GetAllBalances request
 	GetAllBalances(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetBalanceTotals request
+	GetBalanceTotals(ctx context.Context, organizationId string, ledgerId string, params *GetBalanceTotalsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteBalance request
 	DeleteBalance(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5912,6 +6096,9 @@ type ClientInterface interface {
 	// GetAllBalancesV2 request
 	GetAllBalancesV2(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetBalanceTotalsV2 request
+	GetBalanceTotalsV2(ctx context.Context, organizationId string, ledgerId string, params *GetBalanceTotalsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteBalanceV2 request
 	DeleteBalanceV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5949,6 +6136,17 @@ type ClientInterface interface {
 	CalculateBillingV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CalculateBillingV2(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ChargeBillingV2WithBody request with any body
+	ChargeBillingV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ChargeBillingV2(ctx context.Context, organizationId string, ledgerId string, body ChargeBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListBillingChargesV2 request
+	ListBillingChargesV2(ctx context.Context, organizationId string, ledgerId string, params *ListBillingChargesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelBillingChargeV2 request
+	CancelBillingChargeV2(ctx context.Context, organizationId string, ledgerId string, billingChargeId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetLedgerDashboardAssetsV2 request
 	GetLedgerDashboardAssetsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6110,6 +6308,9 @@ type ClientInterface interface {
 	CommitTransactionV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CommitTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, body CommitTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTransactionFeesV2 request
+	GetTransactionFeesV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateOperationV2WithBody request with any body
 	UpdateOperationV2WithBody(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6837,6 +7038,18 @@ func (c *Client) UpdateAsset(ctx context.Context, organizationId string, ledgerI
 
 func (c *Client) GetAllBalances(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAllBalancesRequest(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetBalanceTotals(ctx context.Context, organizationId string, ledgerId string, params *GetBalanceTotalsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBalanceTotalsRequest(c.Server, organizationId, ledgerId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8743,6 +8956,18 @@ func (c *Client) GetAllBalancesV2(ctx context.Context, organizationId string, le
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetBalanceTotalsV2(ctx context.Context, organizationId string, ledgerId string, params *GetBalanceTotalsV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBalanceTotalsV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) DeleteBalanceV2(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteBalanceV2Request(c.Server, organizationId, ledgerId, balanceId)
 	if err != nil {
@@ -8901,6 +9126,54 @@ func (c *Client) CalculateBillingV2WithBody(ctx context.Context, organizationId 
 
 func (c *Client) CalculateBillingV2(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCalculateBillingV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ChargeBillingV2WithBody(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewChargeBillingV2RequestWithBody(c.Server, organizationId, ledgerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ChargeBillingV2(ctx context.Context, organizationId string, ledgerId string, body ChargeBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewChargeBillingV2Request(c.Server, organizationId, ledgerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListBillingChargesV2(ctx context.Context, organizationId string, ledgerId string, params *ListBillingChargesV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListBillingChargesV2Request(c.Server, organizationId, ledgerId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CancelBillingChargeV2(ctx context.Context, organizationId string, ledgerId string, billingChargeId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelBillingChargeV2Request(c.Server, organizationId, ledgerId, billingChargeId)
 	if err != nil {
 		return nil, err
 	}
@@ -9609,6 +9882,18 @@ func (c *Client) CommitTransactionV2WithBody(ctx context.Context, organizationId
 
 func (c *Client) CommitTransactionV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, body CommitTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCommitTransactionV2Request(c.Server, organizationId, ledgerId, transactionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTransactionFeesV2(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTransactionFeesV2Request(c.Server, organizationId, ledgerId, transactionId)
 	if err != nil {
 		return nil, err
 	}
@@ -13040,6 +13325,86 @@ func NewGetAllBalancesRequest(server string, organizationId string, ledgerId str
 		if params.Cursor != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBalanceTotalsRequest generates requests for GetBalanceTotals
+func NewGetBalanceTotalsRequest(server string, organizationId string, ledgerId string, params *GetBalanceTotalsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/metrics/totals", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.BalanceKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "balance_key", *params.BalanceKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.AssetCode != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "asset_code", *params.AssetCode, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -21355,6 +21720,86 @@ func NewGetAllBalancesV2Request(server string, organizationId string, ledgerId s
 	return req, nil
 }
 
+// NewGetBalanceTotalsV2Request generates requests for GetBalanceTotalsV2
+func NewGetBalanceTotalsV2Request(server string, organizationId string, ledgerId string, params *GetBalanceTotalsV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/balances/metrics/totals", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.BalanceKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "balance_key", *params.BalanceKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.AssetCode != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "asset_code", *params.AssetCode, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeleteBalanceV2Request generates requests for DeleteBalanceV2
 func NewDeleteBalanceV2Request(server string, organizationId string, ledgerId string, balanceId string) (*http.Request, error) {
 	var err error
@@ -21952,6 +22397,212 @@ func NewCalculateBillingV2RequestWithBody(server string, organizationId string, 
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewChargeBillingV2Request calls the generic ChargeBillingV2 builder with application/json body
+func NewChargeBillingV2Request(server string, organizationId string, ledgerId string, body ChargeBillingV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewChargeBillingV2RequestWithBody(server, organizationId, ledgerId, "application/json", bodyReader)
+}
+
+// NewChargeBillingV2RequestWithBody generates requests for ChargeBillingV2 with any type of body
+func NewChargeBillingV2RequestWithBody(server string, organizationId string, ledgerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing/charge", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListBillingChargesV2Request generates requests for ListBillingChargesV2
+func NewListBillingChargesV2Request(server string, organizationId string, ledgerId string, params *ListBillingChargesV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing/charges", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.BillingPackageId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "billingPackageId", *params.BillingPackageId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCancelBillingChargeV2Request generates requests for CancelBillingChargeV2
+func NewCancelBillingChargeV2Request(server string, organizationId string, ledgerId string, billingChargeId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "billing_charge_id", billingChargeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/billing/charges/%s/cancel", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -24974,6 +25625,54 @@ func NewCommitTransactionV2RequestWithBody(server string, organizationId string,
 	return req, nil
 }
 
+// NewGetTransactionFeesV2Request generates requests for GetTransactionFeesV2
+func NewGetTransactionFeesV2Request(server string, organizationId string, ledgerId string, transactionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "transaction_id", transactionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/transactions/%s/fees", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUpdateOperationV2Request calls the generic UpdateOperationV2 builder with application/json body
 func NewUpdateOperationV2Request(server string, organizationId string, ledgerId string, transactionId string, operationId string, body UpdateOperationV2JSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -26524,6 +27223,9 @@ type ClientWithResponsesInterface interface {
 	// GetAllBalancesWithResponse request
 	GetAllBalancesWithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesParams, reqEditors ...RequestEditorFn) (*GetAllBalancesResp, error)
 
+	// GetBalanceTotalsWithResponse request
+	GetBalanceTotalsWithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetBalanceTotalsParams, reqEditors ...RequestEditorFn) (*GetBalanceTotalsResp, error)
+
 	// DeleteBalanceWithResponse request
 	DeleteBalanceWithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*DeleteBalanceResp, error)
 
@@ -26958,6 +27660,9 @@ type ClientWithResponsesInterface interface {
 	// GetAllBalancesV2WithResponse request
 	GetAllBalancesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetAllBalancesV2Params, reqEditors ...RequestEditorFn) (*GetAllBalancesV2Resp, error)
 
+	// GetBalanceTotalsV2WithResponse request
+	GetBalanceTotalsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetBalanceTotalsV2Params, reqEditors ...RequestEditorFn) (*GetBalanceTotalsV2Resp, error)
+
 	// DeleteBalanceV2WithResponse request
 	DeleteBalanceV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*DeleteBalanceV2Resp, error)
 
@@ -26995,6 +27700,17 @@ type ClientWithResponsesInterface interface {
 	CalculateBillingV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CalculateBillingV2Resp, error)
 
 	CalculateBillingV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body CalculateBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CalculateBillingV2Resp, error)
+
+	// ChargeBillingV2WithBodyWithResponse request with any body
+	ChargeBillingV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ChargeBillingV2Resp, error)
+
+	ChargeBillingV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body ChargeBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*ChargeBillingV2Resp, error)
+
+	// ListBillingChargesV2WithResponse request
+	ListBillingChargesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListBillingChargesV2Params, reqEditors ...RequestEditorFn) (*ListBillingChargesV2Resp, error)
+
+	// CancelBillingChargeV2WithResponse request
+	CancelBillingChargeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, billingChargeId string, reqEditors ...RequestEditorFn) (*CancelBillingChargeV2Resp, error)
 
 	// GetLedgerDashboardAssetsV2WithResponse request
 	GetLedgerDashboardAssetsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*GetLedgerDashboardAssetsV2Resp, error)
@@ -27156,6 +27872,9 @@ type ClientWithResponsesInterface interface {
 	CommitTransactionV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error)
 
 	CommitTransactionV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, body CommitTransactionV2JSONRequestBody, reqEditors ...RequestEditorFn) (*CommitTransactionV2Resp, error)
+
+	// GetTransactionFeesV2WithResponse request
+	GetTransactionFeesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*GetTransactionFeesV2Resp, error)
 
 	// UpdateOperationV2WithBodyWithResponse request with any body
 	UpdateOperationV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, operationId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateOperationV2Resp, error)
@@ -28604,6 +29323,39 @@ func (r GetAllBalancesResp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAllBalancesResp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetBalanceTotalsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *BalanceTotals
+	JSON422      *LegacyError
+	JSON500      *LegacyError
+	JSONDefault  *LegacyError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBalanceTotalsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBalanceTotalsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetBalanceTotalsResp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -32462,6 +33214,39 @@ func (r GetAllBalancesV2Resp) ContentType() string {
 	return ""
 }
 
+type GetBalanceTotalsV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *BalanceTotals
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBalanceTotalsV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBalanceTotalsV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetBalanceTotalsV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type DeleteBalanceV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
@@ -32786,6 +33571,108 @@ func (r CalculateBillingV2Resp) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CalculateBillingV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ChargeBillingV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeBillingChargeResult
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ChargeBillingV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ChargeBillingV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ChargeBillingV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListBillingChargesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *BillingChargeListBody
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListBillingChargesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListBillingChargesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListBillingChargesV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CancelBillingChargeV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeBillingCharge
+	ApplicationproblemJSON403     *Error
+	ApplicationproblemJSON404     *Error
+	ApplicationproblemJSON409     *Error
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelBillingChargeV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelBillingChargeV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CancelBillingChargeV2Resp) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -34194,6 +35081,39 @@ func (r CommitTransactionV2Resp) ContentType() string {
 	return ""
 }
 
+type GetTransactionFeesV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *TransactionFeesV2
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTransactionFeesV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTransactionFeesV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetTransactionFeesV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type UpdateOperationV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
@@ -35361,6 +36281,15 @@ func (c *ClientWithResponses) GetAllBalancesWithResponse(ctx context.Context, or
 		return nil, err
 	}
 	return ParseGetAllBalancesResp(rsp)
+}
+
+// GetBalanceTotalsWithResponse request returning *GetBalanceTotalsResp
+func (c *ClientWithResponses) GetBalanceTotalsWithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetBalanceTotalsParams, reqEditors ...RequestEditorFn) (*GetBalanceTotalsResp, error) {
+	rsp, err := c.GetBalanceTotals(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBalanceTotalsResp(rsp)
 }
 
 // DeleteBalanceWithResponse request returning *DeleteBalanceResp
@@ -36745,6 +37674,15 @@ func (c *ClientWithResponses) GetAllBalancesV2WithResponse(ctx context.Context, 
 	return ParseGetAllBalancesV2Resp(rsp)
 }
 
+// GetBalanceTotalsV2WithResponse request returning *GetBalanceTotalsV2Resp
+func (c *ClientWithResponses) GetBalanceTotalsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *GetBalanceTotalsV2Params, reqEditors ...RequestEditorFn) (*GetBalanceTotalsV2Resp, error) {
+	rsp, err := c.GetBalanceTotalsV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBalanceTotalsV2Resp(rsp)
+}
+
 // DeleteBalanceV2WithResponse request returning *DeleteBalanceV2Resp
 func (c *ClientWithResponses) DeleteBalanceV2WithResponse(ctx context.Context, organizationId string, ledgerId string, balanceId string, reqEditors ...RequestEditorFn) (*DeleteBalanceV2Resp, error) {
 	rsp, err := c.DeleteBalanceV2(ctx, organizationId, ledgerId, balanceId, reqEditors...)
@@ -36865,6 +37803,41 @@ func (c *ClientWithResponses) CalculateBillingV2WithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseCalculateBillingV2Resp(rsp)
+}
+
+// ChargeBillingV2WithBodyWithResponse request with arbitrary body returning *ChargeBillingV2Resp
+func (c *ClientWithResponses) ChargeBillingV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ChargeBillingV2Resp, error) {
+	rsp, err := c.ChargeBillingV2WithBody(ctx, organizationId, ledgerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseChargeBillingV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) ChargeBillingV2WithResponse(ctx context.Context, organizationId string, ledgerId string, body ChargeBillingV2JSONRequestBody, reqEditors ...RequestEditorFn) (*ChargeBillingV2Resp, error) {
+	rsp, err := c.ChargeBillingV2(ctx, organizationId, ledgerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseChargeBillingV2Resp(rsp)
+}
+
+// ListBillingChargesV2WithResponse request returning *ListBillingChargesV2Resp
+func (c *ClientWithResponses) ListBillingChargesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, params *ListBillingChargesV2Params, reqEditors ...RequestEditorFn) (*ListBillingChargesV2Resp, error) {
+	rsp, err := c.ListBillingChargesV2(ctx, organizationId, ledgerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListBillingChargesV2Resp(rsp)
+}
+
+// CancelBillingChargeV2WithResponse request returning *CancelBillingChargeV2Resp
+func (c *ClientWithResponses) CancelBillingChargeV2WithResponse(ctx context.Context, organizationId string, ledgerId string, billingChargeId string, reqEditors ...RequestEditorFn) (*CancelBillingChargeV2Resp, error) {
+	rsp, err := c.CancelBillingChargeV2(ctx, organizationId, ledgerId, billingChargeId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelBillingChargeV2Resp(rsp)
 }
 
 // GetLedgerDashboardAssetsV2WithResponse request returning *GetLedgerDashboardAssetsV2Resp
@@ -37380,6 +38353,15 @@ func (c *ClientWithResponses) CommitTransactionV2WithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseCommitTransactionV2Resp(rsp)
+}
+
+// GetTransactionFeesV2WithResponse request returning *GetTransactionFeesV2Resp
+func (c *ClientWithResponses) GetTransactionFeesV2WithResponse(ctx context.Context, organizationId string, ledgerId string, transactionId string, reqEditors ...RequestEditorFn) (*GetTransactionFeesV2Resp, error) {
+	rsp, err := c.GetTransactionFeesV2(ctx, organizationId, ledgerId, transactionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTransactionFeesV2Resp(rsp)
 }
 
 // UpdateOperationV2WithBodyWithResponse request with arbitrary body returning *UpdateOperationV2Resp
@@ -39451,6 +40433,53 @@ func ParseGetAllBalancesResp(rsp *http.Response) (*GetAllBalancesResp, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Pagination
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest LegacyError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBalanceTotalsResp parses an HTTP response from a GetBalanceTotalsWithResponse call
+func ParseGetBalanceTotalsResp(rsp *http.Response) (*GetBalanceTotalsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBalanceTotalsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BalanceTotals
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -44713,6 +45742,53 @@ func ParseGetAllBalancesV2Resp(rsp *http.Response) (*GetAllBalancesV2Resp, error
 	return response, nil
 }
 
+// ParseGetBalanceTotalsV2Resp parses an HTTP response from a GetBalanceTotalsV2WithResponse call
+func ParseGetBalanceTotalsV2Resp(rsp *http.Response) (*GetBalanceTotalsV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBalanceTotalsV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BalanceTotals
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseDeleteBalanceV2Resp parses an HTTP response from a DeleteBalanceV2WithResponse call
 func ParseDeleteBalanceV2Resp(rsp *http.Response) (*DeleteBalanceV2Resp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -45156,6 +46232,168 @@ func ParseCalculateBillingV2Resp(rsp *http.Response) (*CalculateBillingV2Resp, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseChargeBillingV2Resp parses an HTTP response from a ChargeBillingV2WithResponse call
+func ParseChargeBillingV2Resp(rsp *http.Response) (*ChargeBillingV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ChargeBillingV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeBillingChargeResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListBillingChargesV2Resp parses an HTTP response from a ListBillingChargesV2WithResponse call
+func ParseListBillingChargesV2Resp(rsp *http.Response) (*ListBillingChargesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListBillingChargesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BillingChargeListBody
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelBillingChargeV2Resp parses an HTTP response from a CancelBillingChargeV2WithResponse call
+func ParseCancelBillingChargeV2Resp(rsp *http.Response) (*CancelBillingChargeV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelBillingChargeV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeBillingCharge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error
@@ -47049,6 +48287,53 @@ func ParseCommitTransactionV2Resp(rsp *http.Response) (*CommitTransactionV2Resp,
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTransactionFeesV2Resp parses an HTTP response from a GetTransactionFeesV2WithResponse call
+func ParseGetTransactionFeesV2Resp(rsp *http.Response) (*GetTransactionFeesV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTransactionFeesV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionFeesV2
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error
