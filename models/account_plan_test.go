@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/validation"
 )
 
 // The literals below are response bodies captured from a local Midaz 4.6.0
@@ -277,4 +279,198 @@ func TestAccountPlanUsage_DecodesCaptured(t *testing.T) {
 		{FeeKey: "pixIn", Trigger: "fee:pixIn:*", Period: period, FreeQuota: 2, Remaining: 2},
 		{FeeKey: "pixOut", Trigger: "fee:pixOut:*", Period: period},
 	}, usage.Items)
+}
+
+// accountPlanFieldErrors returns the fields named by a Validate error, which
+// must be a *validation.FieldErrors.
+func accountPlanFieldErrors(t *testing.T, err error) []string {
+	t.Helper()
+
+	var fieldErrs *validation.FieldErrors
+	require.ErrorAs(t, err, &fieldErrs)
+
+	fields := make([]string, 0, fieldErrs.Len())
+	for _, fe := range fieldErrs.Errs() {
+		fields = append(fields, fe.Field)
+	}
+
+	return fields
+}
+
+func validAccountPlanFeeInput() AccountPlanFeeInput {
+	return AccountPlanFeeInput{
+		FeeLabel: "Pix enviado",
+		Trigger: AccountPlanTriggerInput{
+			Type:      AccountPlanTriggerTypeTransaction,
+			Direction: AccountPlanTriggerDirectionSent,
+			Schemes:   []string{"PIX"},
+		},
+		CalculationModel: FeeCalculationModel{
+			ApplicationRule: "flatFee",
+			Calculations:    []Calculation{{Type: "flat", Value: "1.239"}},
+		},
+		CreditAccount: "@fees",
+	}
+}
+
+func TestCreateAccountPlanInput_Validate(t *testing.T) {
+	withFee := func(mutate func(fee *AccountPlanFeeInput)) *CreateAccountPlanInput {
+		fee := validAccountPlanFeeInput()
+		mutate(&fee)
+
+		return NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"pixOut": fee})
+	}
+	valid := func() *CreateAccountPlanInput { return withFee(func(*AccountPlanFeeInput) {}) }
+
+	tests := []struct {
+		name      string
+		input     *CreateAccountPlanInput
+		wantField string
+	}{
+		{"blank label", NewCreateAccountPlanInput("  ", true, valid().Fees), "label"},
+		{"nil fees", NewCreateAccountPlanInput("plano", true, nil), "fees"},
+		{"empty fees", NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{}), "fees"},
+		{"missing enable", &CreateAccountPlanInput{Label: "plano", Fees: valid().Fees}, "enable"},
+		{"rounding scale below 0", valid().WithRounding(FeeRounding{Scale: -1, Mode: FeeRoundingModeFloor}), "rounding.scale"},
+		{"rounding scale above 18", valid().WithRounding(FeeRounding{Scale: 19, Mode: FeeRoundingModeHalfUp}), "rounding.scale"},
+		{"rounding unknown mode", valid().WithRounding(FeeRounding{Scale: 2, Mode: "ceil"}), "rounding.mode"},
+		{"rounding missing mode", valid().WithRounding(FeeRounding{Scale: 2}), "rounding.mode"},
+		{"fee key upper case first", NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"PixOut": validAccountPlanFeeInput()}), "fees[PixOut]"},
+		{"fee key digit first", NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"1pix": validAccountPlanFeeInput()}), "fees[1pix]"},
+		{"fee key underscore", NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"pix_out": validAccountPlanFeeInput()}), "fees[pix_out]"},
+		{"fee key empty", NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"": validAccountPlanFeeInput()}), "fees[]"},
+		{"fee without label", withFee(func(f *AccountPlanFeeInput) { f.FeeLabel = " " }), "fees[pixOut].feeLabel"},
+		{"fee without credit account", withFee(func(f *AccountPlanFeeInput) { f.CreditAccount = "" }), "fees[pixOut].creditAccount"},
+		{"fee without calculation model", withFee(func(f *AccountPlanFeeInput) { f.CalculationModel = FeeCalculationModel{} }), "fees[pixOut].calculationModel"},
+		{"fee with negative free quota", withFee(func(f *AccountPlanFeeInput) { f.FreeQuota = -1 }), "fees[pixOut].freeQuota"},
+		{"trigger without type", withFee(func(f *AccountPlanFeeInput) { f.Trigger.Type = "" }), "fees[pixOut].trigger.type"},
+		{"trigger unknown type", withFee(func(f *AccountPlanFeeInput) { f.Trigger.Type = "batch" }), "fees[pixOut].trigger.type"},
+		{"trigger unknown direction", withFee(func(f *AccountPlanFeeInput) { f.Trigger.Direction = "both" }), "fees[pixOut].trigger.direction"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.input.Validate()
+			require.Error(t, err)
+			assert.Equal(t, []string{tt.wantField}, accountPlanFieldErrors(t, err))
+		})
+	}
+}
+
+func TestCreateAccountPlanInput_ValidateRejectsNil(t *testing.T) {
+	var input *CreateAccountPlanInput
+
+	require.EqualError(t, input.Validate(), "input cannot be nil")
+}
+
+func TestCreateAccountPlanInput_ValidateAccepts(t *testing.T) {
+	service := AccountPlanFeeInput{
+		FeeLabel:         "Extrato",
+		Trigger:          AccountPlanTriggerInput{Type: AccountPlanTriggerTypeService, ServiceCode: "STATEMENT"},
+		CalculationModel: FeeCalculationModel{ApplicationRule: "flatFee", Calculations: []Calculation{{Type: "flat", Value: "2.50"}}},
+		CreditAccount:    "@fees",
+	}
+	received := validAccountPlanFeeInput()
+	received.Trigger.Direction = AccountPlanTriggerDirectionReceived
+
+	tests := []struct {
+		name  string
+		input *CreateAccountPlanInput
+	}{
+		{"enable false", NewCreateAccountPlanInput("plano", false, map[string]AccountPlanFeeInput{"pixOut": validAccountPlanFeeInput()})},
+		{"rounding scale 0", NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"pixOut": validAccountPlanFeeInput()}).WithRounding(FeeRounding{Scale: 0, Mode: FeeRoundingModeFloor})},
+		{"rounding scale 18", NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"pixOut": validAccountPlanFeeInput()}).WithRounding(FeeRounding{Scale: 18, Mode: FeeRoundingModeHalfUp})},
+		{"received and service fees", NewCreateAccountPlanInput("plano", true, map[string]AccountPlanFeeInput{"pixIn": received, "statement": service, "tedOut2": validAccountPlanFeeInput()})},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NoError(t, tt.input.Validate())
+		})
+	}
+}
+
+func TestCreateAccountPlanInput_BuildersOnNil(t *testing.T) {
+	var input *CreateAccountPlanInput
+
+	assert.Nil(t, input.WithDescription("d"))
+	assert.Nil(t, input.WithTimezone("UTC"))
+	assert.Nil(t, input.WithRounding(FeeRounding{Scale: 2, Mode: FeeRoundingModeFloor}))
+}
+
+func TestCreateAccountPlanInput_JSONSendsEnableFalseAndOmitsUnset(t *testing.T) {
+	input := NewCreateAccountPlanInput("plano", false, map[string]AccountPlanFeeInput{"pixOut": validAccountPlanFeeInput()})
+
+	body, err := json.Marshal(input)
+	require.NoError(t, err)
+
+	assert.Equal(t, `{"label":"plano","enable":false,"fees":{"pixOut":{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees"}}}`, string(body))
+}
+
+func TestCreateAccountPlanInput_JSONMatchesCapturedCreateWithRounding(t *testing.T) {
+	calculation := FeeCalculationModel{ApplicationRule: "flatFee", Calculations: []Calculation{{Type: "flat", Value: "1.239"}}}
+	input := NewCreateAccountPlanInput("plano-1795793790", true, map[string]AccountPlanFeeInput{
+		"pixIn": {
+			FeeLabel:         "Pix recebido",
+			Trigger:          AccountPlanTriggerInput{Type: AccountPlanTriggerTypeTransaction, Direction: AccountPlanTriggerDirectionReceived, Schemes: []string{"PIX"}},
+			CalculationModel: calculation,
+			CreditAccount:    "@fees-1795793790",
+			FreeQuota:        2,
+		},
+		"pixOut": {
+			FeeLabel:         "Pix enviado",
+			Trigger:          AccountPlanTriggerInput{Type: AccountPlanTriggerTypeTransaction, Direction: AccountPlanTriggerDirectionSent, Schemes: []string{"PIX"}},
+			CalculationModel: calculation,
+			CreditAccount:    "@fees-1795793790",
+		},
+	}).WithRounding(FeeRounding{Scale: 2, Mode: FeeRoundingModeHalfUp})
+	require.NoError(t, input.Validate())
+
+	body, err := json.Marshal(input)
+	require.NoError(t, err)
+
+	// Request body the server accepted with 201.
+	assert.JSONEq(t, `{"label":"plano-1795793790","enable":true,"rounding":{"scale":2,"mode":"halfUp"},"fees":{"pixIn":{"feeLabel":"Pix recebido","trigger":{"type":"transaction","direction":"received","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees-1795793790","freeQuota":2},"pixOut":{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees-1795793790"}}}`, string(body))
+}
+
+func TestCreateAccountPlanInput_JSONMatchesCapturedDeferrableAndService(t *testing.T) {
+	calculation := FeeCalculationModel{ApplicationRule: "flatFee", Calculations: []Calculation{{Type: "flat", Value: "2.50"}}}
+	input := NewCreateAccountPlanInput("DF-1795796475", true, map[string]AccountPlanFeeInput{
+		"tedOut": {
+			FeeLabel: "TED enviada",
+			Trigger: AccountPlanTriggerInput{
+				Type:      AccountPlanTriggerTypeTransaction,
+				Direction: AccountPlanTriggerDirectionSent,
+				Schemes:   []string{"TED"},
+				Metadata:  map[string]string{"channel": "app"},
+			},
+			CalculationModel: calculation,
+			CreditAccount:    "@fees-1795793790",
+			FreeQuota:        1,
+			Deferrable:       true,
+		},
+		"statement": {
+			FeeLabel:         "Extrato",
+			Trigger:          AccountPlanTriggerInput{Type: AccountPlanTriggerTypeService, ServiceCode: "STATEMENT"},
+			CalculationModel: calculation,
+			CreditAccount:    "@fees-1795793790",
+		},
+	}).WithDescription("deferrable e servico").WithTimezone("America/Sao_Paulo")
+	require.NoError(t, input.Validate())
+
+	body, err := json.Marshal(input)
+	require.NoError(t, err)
+
+	// Request body the server accepted with 201.
+	assert.JSONEq(t, `{"label":"DF-1795796475","description":"deferrable e servico","enable":true,"timezone":"America/Sao_Paulo","fees":{"tedOut":{"feeLabel":"TED enviada","trigger":{"type":"transaction","direction":"sent","schemes":["TED"],"metadata":{"channel":"app"}},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"2.50"}]},"creditAccount":"@fees-1795793790","freeQuota":1,"deferrable":true},"statement":{"feeLabel":"Extrato","trigger":{"type":"service","serviceCode":"STATEMENT"},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"2.50"}]},"creditAccount":"@fees-1795793790"}}}`, string(body))
+}
+
+func TestAccountPlanFeeInput_JSONSendsAccounting(t *testing.T) {
+	fee := validAccountPlanFeeInput()
+	fee.Accounting = &AccountPlanAccountingInput{TransactionRoute: "tr", OperationRouteFrom: "from", OperationRouteTo: "to"}
+
+	body, err := json.Marshal(fee)
+	require.NoError(t, err)
+
+	assert.Equal(t, `{"feeLabel":"Pix enviado","trigger":{"type":"transaction","direction":"sent","schemes":["PIX"]},"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"1.239"}]},"creditAccount":"@fees","accounting":{"transactionRoute":"tr","operationRouteFrom":"from","operationRouteTo":"to"}}`, string(body))
 }
