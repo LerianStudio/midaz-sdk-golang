@@ -307,12 +307,16 @@ func validationErr(operation string, err error) error {
 //     internal. The classifier would hand it back untouched, so it would
 //     suddenly surface with its own category instead of the one callers see
 //     today.
-//   - A failed Access Manager token fetch (an
-//     *auth.AccessManagerTokenRequestError in the chain) stays internal. The
-//     auth round tripper fetches the token before the request goes out, so the
-//     ledger or Tracer request never left; classified, a refused or timed-out
-//     token fetch would come back as network or timeout with HTTPRequestSent
-//     true.
+//   - An error whose chain holds an *auth.AccessManagerTokenRequestError stays
+//     internal. The token request returns that type when it fails on the wire
+//     or the Access Manager rejects it, and the auth round tripper fetches the
+//     token before the request goes out, so the ledger or Tracer request never
+//     left; classified, a refused or timed-out token request would come back
+//     as network or timeout with HTTPRequestSent true. Two token-path failures
+//     are not that type and go through the classifier like any other cause:
+//     the caller's context ending while the token fetch is in flight (a bare
+//     context error) and an error returned by a caller-supplied
+//     auth.CredentialSource.
 //   - Any cause the classifier does not recognize as network or timeout
 //     (errNoResponse, an oversized body, an unknown failure) stays internal.
 //     The classifier would mark it Source transport and HTTPRequestSent true,
