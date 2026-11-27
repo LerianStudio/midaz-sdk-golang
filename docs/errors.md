@@ -157,8 +157,6 @@ When a facade call (`c.V1.*`, `c.V2.*` and the Tracer services such as `c.Rules`
 
 A client timeout or context deadline that expires while the SDK is still fetching the Access Manager token is also reported as `IsTimeoutError`, with `HTTPRequestSent` `true` even though the facade request had not been sent yet.
 
-`errors.ClassifyTransportError`, which the facade uses for these failures, also documents a TLS certificate verification failure and a malformed TLS record as network errors.
-
 Both errors carry `Source` `transport`, `HTTPRequestSent` `true`, `HTTPResponseReceived` `false` and the facade operation name in `Operation`. The original cause stays reachable through the standard library `errors.Is` and `errors.As`:
 
 ```go
@@ -184,12 +182,12 @@ These pre-response failures still come back as an internal error (`IsInternalErr
 
 - The caller cancels the context. The facade does not report it as `IsCancellationError`.
 - A custom transport installed with `midaz.WithHTTPTransport` returns an error that is already an SDK `*errors.Error`.
-- The Access Manager token request fails because the connection is refused or the Access Manager gives a bad answer. The facade request never left the client.
+- The Access Manager token request fails because the connection is refused or the Access Manager gives a bad answer. The facade request never left the client. An expired deadline during the token request is the exception: it is reported as `IsTimeoutError`, as described above.
 - The server closes the connection cleanly without a response (`EOF`).
 
-Known limit: a timeout that the transport reports only through `Timeout()` is not reported as `IsTimeoutError`. A dial timeout comes back as `IsNetworkError`, and a TLS handshake timeout comes back as `IsInternalError`.
+Known limit: a TLS handshake timeout is not reported as `IsTimeoutError`; it comes back as `IsInternalError`.
 
-`Retryable()` returns `true` for network, timeout and internal errors, and the SDK retry engine makes the same attempts as before. `HTTPRequestSent` is now `true` on these errors: a write that fails after the request was sent may already have taken effect, so replay it only with a stable idempotency key (`sdkctx.WithIdempotencyKey`).
+`Retryable()` returns `true` for network, timeout and internal errors, and the SDK retry engine makes the same attempts as before. `HTTPRequestSent` is now `true` on these errors, also on a refused connection where nothing reached the server: a write that fails after the request was sent may already have taken effect, so replay it only with a stable idempotency key (`sdkctx.WithIdempotencyKey`).
 
 If your code retries a facade call only when `IsInternalError(err)` is true, note that network and timeout failures on the facade no longer match it. Check `Retryable()` on the `*errors.Error`, or add `IsNetworkError(err)` and `IsTimeoutError(err)` to the condition.
 
