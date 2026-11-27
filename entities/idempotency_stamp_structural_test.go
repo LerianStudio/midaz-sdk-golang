@@ -20,8 +20,13 @@ import (
 // is: a derived exemption would quietly absorb the next write someone forgets to
 // stamp. Adding an entry here should cost a sentence of justification.
 //
-// Every exemption is TRACER-plane or compute-only. The ledger's money path has
-// none: every write that can move a balance stamps a key.
+// Every exemption is TRACER-plane, compute-only, or a ledger account-plan
+// write. The ledger's money path has none: every write that can move a balance
+// stamps a key. The account-plan writes are configuration (they move no
+// balance), and the server ignores X-Idempotency on their routes — the same key
+// and body answer 409/0543 on a create instead of a replay — so a key would buy
+// nothing, while keeping them keyless is what stops the retry engine from
+// resending them.
 //
 // The three ledger transaction lifecycle actions (commit / cancel / revert, on
 // both surfaces) are NOT listed here. They are not auto-idempotent — the ledger
@@ -47,6 +52,12 @@ var unstampedWrites = map[string]string{
 
 	"EstimateFeeCalculationV2": "fee estimation computes an answer and creates nothing",
 	"CalculateBillingV2":       "billing calculation computes an answer and creates nothing",
+
+	"CreateAccountPlanV2":   "the server ignores the key on account plans; a resent create answers 409/0543 and hides the first one's success, so it is sent once",
+	"UpdateAccountPlanV2":   "the server ignores the key on account plans; a resent update that sets fees or rounding creates one more plan version, so it is sent once",
+	"DeleteAccountPlanV2":   "the server ignores the key on account plans; a resent delete answers 404/0007 after the first one landed, so it is sent once",
+	"AssignAccountPlanV2":   "the server ignores the key on account plans; assigning the active plan again changes nothing, so the caller may repeat it",
+	"UnassignAccountPlanV2": "the server ignores the key on account plans; a resent unassign answers 404/0554 after the first one landed, so it is sent once",
 }
 
 // idempotencyHelpers are the calls that put a key on the wire. A facade that
