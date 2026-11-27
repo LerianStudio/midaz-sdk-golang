@@ -683,6 +683,10 @@ func WithErrorBodyExposure(enabled bool) Option {
 // transaction create by body. Enable it (or MIDAZ_IDEMPOTENCY=true)
 // to send a random key per create, update and delete request.
 //
+// Exception: the V2.AccountPlans writes never send a key, with this option on
+// or with a key in the context, and are never retried automatically; the
+// server ignores the key on those routes.
+//
 // Parameters:
 //   - enabled: Whether to enable automatic idempotency-key generation
 //
