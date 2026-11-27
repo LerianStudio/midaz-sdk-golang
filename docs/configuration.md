@@ -59,6 +59,7 @@ The full list (v3):
 | Option | Concern |
 |---|---|
 | `WithAccessManager` | Plugin-based authentication (OAuth M2M) |
+| `WithActorRelay` | Opt-in: relay the partner token from each call's context to the Ledger plane in `X-Lerian-Actor` (see [auth](auth.md#relaying-the-partner-actor-to-the-ledger)) |
 | `WithAllowInsecureAccessManagerHTTP` | Permit non-loopback `http://` Access Manager URLs for trusted in-cluster networks |
 | `WithAllowInsecureHTTP` | Permit non-loopback `http://` Ledger / Tracer URLs for trusted in-cluster networks (e.g. `*.svc.cluster.local`); apply BEFORE the URL setters |
 | `WithAnonymous` | Disable authentication (testing/local) |

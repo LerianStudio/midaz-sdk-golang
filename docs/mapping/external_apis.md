@@ -17,6 +17,7 @@ This map documents the recommended public SDK surface that consumers should use.
 - `midaz.WithEnvironment(config.Environment)` - Uses a named environment preset.
 - `midaz.WithHTTPClient(*http.Client)` - Supplies a custom HTTP client.
 - `midaz.WithHTTPTransport(func(base http.RoundTripper) http.RoundTripper)` - Wraps the transport every SDK request goes through (Access Manager token exchange, Ledger and Tracer planes). The wrapper receives the base transport and must delegate to it; timeout, redirect policy, auth and retries are kept, and auth/retry sit above it. Order-independent with `WithHTTPClient` / `WithTimeout`.
+- `midaz.WithActorRelay(func(ctx context.Context) (string, bool))` - Opt-in. Sets `X-Lerian-Actor` on every Ledger-plane request (`/v1` and `/v2` facades, default URL, raw `Entity.Planes().Ledger`) to the trimmed token the source returns for the call's context; no header when it returns `false` or a blank token. The Tracer plane, the Access Manager token exchange and `CRMReader` never receive it. A nil source makes `midaz.New` fail.
 - `midaz.WithTimeout(time.Duration)` - Sets request timeout.
 - `midaz.WithUserAgent(string)` - Sets the SDK user agent header.
 - `midaz.WithRetryOptions(...retry.Option)` - Tune retry behavior. Override-on-conflict semantics: config seeds (`MaxRetries`, `RetryWaitMin`, `RetryWaitMax`) run first; user-supplied options run afterward and the last write wins. Compose with `pkg/retry` options like `retry.WithJitterFactor`, `retry.WithRetryableHTTPCodes`, `retry.WithHighReliability`.
@@ -96,6 +97,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config`.
 - `config.WithAllowInsecureHTTP(bool) config.Option` - Ledger/Tracer plane equivalent of the option above. Apply before the URL setters; `Validate` refuses it together with `EnvironmentProduction`.
 - `config.WithHTTPClient(*http.Client) config.Option`
 - `config.WithHTTPTransport(func(base http.RoundTripper) http.RoundTripper) config.Option`
+- `config.WithActorRelay(func(ctx context.Context) (string, bool)) config.Option` - Config layer of `midaz.WithActorRelay`; a nil source is an error. Read back with `(*config.Config).GetActorTokenSource()` (nil when off or on a nil config).
 - `config.WithTimeout(time.Duration) config.Option`
 - `config.WithUserAgent(string) config.Option`
 - `config.WithMaxRetries(int) config.Option`
