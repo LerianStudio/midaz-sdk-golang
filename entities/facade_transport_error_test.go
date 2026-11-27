@@ -148,7 +148,18 @@ func TestFacadeTransportError(t *testing.T) {
 		internal("access manager token fetch refused stays internal", func() error {
 			return accessManagerTokenError(refusedDialError())
 		}),
-		internal("access manager token fetch deadline stays internal", func() error {
+		// The classifier checks cancellation before the deadline, so a chain
+		// that matches both stays internal like any cancellation.
+		internal("access manager token fetch canceled with an expired deadline stays internal", func() error {
+			return accessManagerTokenError(stderrors.Join(context.Canceled, context.DeadlineExceeded))
+		}),
+		// A Timeout()-only cause (no context.DeadlineExceeded in the chain), as a
+		// TLS handshake timeout of the token request would be, stays internal by
+		// the typed token match.
+		internal("access manager token fetch with a timeout-only cause stays internal", func() error {
+			return accessManagerTokenError(timeoutNetError{})
+		}),
+		timeout("access manager token fetch deadline is timeout", func() error {
 			return accessManagerTokenError(&url.Error{Op: "Post", URL: "http://127.0.0.1:1/v1/login/oauth/access_token", Err: context.DeadlineExceeded})
 		}),
 		userinfoCanceled,
@@ -371,18 +382,19 @@ func TestFacadeTransportError_ResponseShapes(t *testing.T) {
 }
 
 // TestFacadeTransportError_AccessManagerTokenFailure pins the typed-intact
-// token path: when the real Access Manager token fetch fails and its
-// *auth.AccessManagerTokenRequestError reaches the facade, the facade request
-// never left, and the facade returns the same internal error it returned before
-// transport classification.
+// token path: the real Access Manager token fetch fails and its
+// *auth.AccessManagerTokenRequestError reaches the facade with its type intact.
 //
-// The refused rows match the public behavior (falha-do-access-manager-inalterada).
-// The timeout rows do NOT: they give the token client its own timeout and leave
-// the plane client without one, which midaz.New cannot configure (both use the
-// same client and WithTimeout). Through midaz.New the plane client's timeout
-// fires during the fetch and the facade reports a timeout; see
-// TestFacadeTransport_AccessManagerTokenFailure in the root package
-// (prazo-estourado-durante-o-token).
+// Refused (falha-do-access-manager-inalterada): the facade request never left,
+// and the facade returns the same internal error it returned before transport
+// classification.
+//
+// Timeout (prazo-estourado-durante-o-token): the token client's own timeout
+// expires, the typed token error matches context.DeadlineExceeded, and an
+// expired deadline is a timeout wherever the time was spent, so the facade
+// reports a timeout. These rows give the token client its own timeout and leave
+// the plane client without one, which midaz.New cannot configure; the public
+// path is TestFacadeTransport_AccessManagerTokenFailure in the root package.
 func TestFacadeTransportError_AccessManagerTokenFailure(t *testing.T) {
 	const (
 		orgID    = "11111111-1111-1111-1111-111111111111"
@@ -423,9 +435,13 @@ func TestFacadeTransportError_AccessManagerTokenFailure(t *testing.T) {
 		// cause is what the token fetch failure must really hold: the refused
 		// dial's errno, or the deadline the token client's timeout leaves.
 		cause error
+		// scenario is the spec scenario; wantTimeout says how the facade
+		// reports it.
+		scenario    string
+		wantTimeout bool
 	}{
-		{"refused", closedURL, &http.Client{}, syscall.ECONNREFUSED},
-		{"timeout", silent.URL, &http.Client{Timeout: 200 * time.Millisecond}, context.DeadlineExceeded},
+		{"refused", closedURL, &http.Client{}, syscall.ECONNREFUSED, "falha-do-access-manager-inalterada", false},
+		{"timeout", silent.URL, &http.Client{Timeout: 200 * time.Millisecond}, context.DeadlineExceeded, "prazo-estourado-durante-o-token", true},
 	}
 
 	for _, fetch := range fetches {
@@ -466,12 +482,8 @@ func TestFacadeTransportError_AccessManagerTokenFailure(t *testing.T) {
 		}
 
 		for _, call := range calls {
-			t.Run("falha-do-access-manager-inalterada/"+fetch.name+"/"+call.name, func(t *testing.T) {
+			t.Run(fetch.scenario+"/"+fetch.name+"/"+call.name, func(t *testing.T) {
 				err := call.call()
-
-				require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
-				assert.False(t, sdkerrors.IsNetworkError(err))
-				assert.False(t, sdkerrors.IsTimeoutError(err))
 
 				var tokenErr *auth.AccessManagerTokenRequestError
 				require.ErrorAs(t, err, &tokenErr)
@@ -479,10 +491,24 @@ func TestFacadeTransportError_AccessManagerTokenFailure(t *testing.T) {
 
 				var sdkErr *sdkerrors.Error
 				require.ErrorAs(t, err, &sdkErr)
+				assert.Equal(t, call.operation, sdkErr.Operation)
+				assert.False(t, sdkerrors.IsNetworkError(err))
+
+				if fetch.wantTimeout {
+					require.True(t, sdkerrors.IsTimeoutError(err), "got %v", err)
+					assert.False(t, sdkerrors.IsInternalError(err))
+					assert.Equal(t, http.StatusGatewayTimeout, sdkErr.StatusCode)
+					assert.Equal(t, sdkerrors.ErrorSourceTransport, sdkErr.Source)
+					assert.True(t, sdkErr.HTTPRequestSent)
+
+					return
+				}
+
+				require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
+				assert.False(t, sdkerrors.IsTimeoutError(err))
 				assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode)
 				assert.Equal(t, sdkerrors.ErrorSourceSDK, sdkErr.Source)
 				assert.False(t, sdkErr.HTTPRequestSent)
-				assert.Equal(t, call.operation, sdkErr.Operation)
 			})
 		}
 	}

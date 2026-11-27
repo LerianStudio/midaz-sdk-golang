@@ -311,19 +311,19 @@ func validationErr(operation string, err error) error {
 //     internal. The classifier would hand it back untouched, so it would
 //     suddenly surface with its own category instead of the one callers see
 //     today.
-//   - An error whose chain holds an *auth.AccessManagerTokenRequestError stays
-//     internal. The token request returns that type when it fails on the wire
-//     or the Access Manager rejects it, and the auth round tripper fetches the
-//     token before the request goes out, so the ledger or Tracer request never
-//     left; classified, a refused or timed-out token request would come back
-//     as network or timeout with HTTPRequestSent true. Three token-path
-//     failures do not reach here with that type and go through the
-//     classifier like any other cause:
-//     the client timeout firing during the token fetch (net/http replaces the
-//     round tripper's error with a text-only timeout error, so the type is
-//     gone); the caller's context deadline expiring during the fetch (a bare
-//     context error); and an error returned by a caller-supplied
-//     auth.CredentialSource. The first two come out as timeout; the third is
+//   - An error whose chain holds an *auth.AccessManagerTokenRequestError, and
+//     does not match context.DeadlineExceeded, stays internal. The token
+//     request returns that type when it fails on the wire or the Access
+//     Manager rejects it, and the auth round tripper fetches the token before
+//     the request goes out, so the ledger or Tracer request never left;
+//     classified, a refused token request would come back as network with
+//     HTTPRequestSent true. An expired deadline is a timeout wherever the time
+//     was spent, so a token failure that matches context.DeadlineExceeded goes
+//     on to the classifier and comes back as timeout, whether the typed token
+//     error survives (the token request's own deadline returned first) or not
+//     (net/http replaced it with a text-only timeout error, or the caller's
+//     context deadline arrived as a bare context error). An error returned by
+//     a caller-supplied auth.CredentialSource is not that type and is
 //     classified by its cause.
 //   - Any cause the classifier does not recognize as network or timeout
 //     (errNoResponse, an oversized body, an unknown failure) stays internal.
@@ -340,7 +340,7 @@ func transportErr(operation string, err error) error {
 	}
 
 	var tokenErr *auth.AccessManagerTokenRequestError
-	if stderrors.As(err, &tokenErr) {
+	if stderrors.As(err, &tokenErr) && !stderrors.Is(err, context.DeadlineExceeded) {
 		return errors.NewInternalError(operation, err)
 	}
 
