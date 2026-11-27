@@ -213,6 +213,7 @@ func TestFacadeTransport_RealClient(t *testing.T) {
 		require.True(t, sdkerrors.IsNetworkError(err), "got %v", err)
 		assert.False(t, sdkerrors.IsInternalError(err))
 		assert.True(t, sdkerrors.HTTPRequestSent(err))
+		requireTransportDiagnostics(t, err, "V2.Transactions.CreateDirect", http.StatusServiceUnavailable)
 	})
 
 	t.Run("queda-durante-a-leitura-do-corpo", func(t *testing.T) {
@@ -257,6 +258,7 @@ func TestFacadeTransport_RealClient(t *testing.T) {
 
 		require.True(t, sdkerrors.IsNetworkError(err), "got %v", err)
 		assert.False(t, sdkerrors.IsInternalError(err))
+		requireTransportDiagnostics(t, err, "V2.Ledgers.Get", http.StatusServiceUnavailable)
 	})
 
 	t.Run("retentativas-esgotadas-mantem-classificacao", func(t *testing.T) {
@@ -347,4 +349,9 @@ func TestFacadeTransport_CleanClose(t *testing.T) {
 	assert.False(t, sdkerrors.IsNetworkError(err))
 	assert.False(t, sdkerrors.IsTimeoutError(err))
 	assert.False(t, sdkerrors.HTTPRequestSent(err))
+
+	var sdkErr *sdkerrors.Error
+	require.ErrorAs(t, err, &sdkErr)
+	assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode)
+	assert.Equal(t, sdkerrors.ErrorSourceSDK, sdkErr.Source)
 }
