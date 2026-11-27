@@ -202,10 +202,20 @@ Beyond the category checkers above, `pkg/errors` exposes predicates that branch 
 | `IsHolderRequired(err)` | `0491` | 422 | Account creation requires a holder (KYC). |
 | `IsHolderNotFound(err)` | `CRM-0006` | 404 | The referenced CRM holder does not exist. |
 | `IsFeeError(err)` | `0179`–`0233` | mixed | The fee/billing engine rejected the operation. Family predicate over the whole fee-code block. |
+| `IsPartnerRefusal(err)` | `AUT-1016`, `AUT-1017`, `AUT-1018`, `AUT-1019` | 403 (what lib-auth answers; not checked) | The server refused the partner the request was made on behalf of (the relayed partner), not the caller's own credential. `GetPartnerRefusalReason(err)` returns the reason. |
 
 `IsHolderNotFound` is distinct from the generic `IsNotFoundError`: it pins the CRM holder resource specifically, so a caller can tell "the holder you referenced is missing" apart from any other 404.
 
 `IsFeeError` is a family predicate — it returns `true` when the server code suffix falls in the fee/billing block `0179`–`0233`. Callers branch on "fee/billing problem" rather than each of the ~55 internal fee codes.
+
+`IsPartnerRefusal` covers a plugin that calls the Ledger on behalf of a partner and relays that partner's token. The four codes come from lib-auth (`auth/middleware/actor.go`), not from the Midaz constants, and mean the server refused the relayed partner. They are different from `AUT-1020`, which refuses the caller's own credential, and from `AUT-1009` / `AUT-1010`, which refuse a partner credential presented directly (401); none of those match. `GetPartnerRefusalReason(err)` returns a `PartnerRefusalReason` and `true`: `other_tenant` (`AUT-1016`), `suspended` (`AUT-1017`), `no_longer_valid` (`AUT-1018`) or `not_allowed` (`AUT-1019`, which lib-auth also answers for a refusal reason it does not recognize). For any other error it returns `""` and `false`. The codes are exported as `APICodePartnerOtherTenant`, `APICodePartnerSuspended`, `APICodePartnerNoLongerValid` and `APICodePartnerNotAllowed`. The match is on the whole code after trimming spaces and is case-sensitive, so `CRM-1016`, `1016` or `aut-1016` MUST NOT match, and the HTTP status does not take part. Unlike the other code predicates, which read only the outermost SDK error, these two visit every SDK error in the chain, outermost first, and use the first partner refusal code found: an SDK error with no code, or with another code, that wraps an SDK error carrying `AUT-1019` is still a partner refusal. In an `errors.Join` tree only the branch holding the first SDK error found is followed, so a refusal in a later branch is not seen. The error keeps its existing classification (`permission_error`, category `authorization`, `IsAuthorizationError` true), so code that already handles authorization errors is unaffected. A new refusal code in lib-auth would need a new SDK version.
+
+```go
+if reason, ok := sdkerrors.GetPartnerRefusalReason(err); ok {
+    // The Ledger refused the relayed partner, not this plugin's credential.
+    return fmt.Errorf("partner refused (%s): %w", reason, err)
+}
+```
 
 `APICodeSuffix(code)` returns the four-digit suffix of a raw API code, the same suffix the SDK reads for `IsFeeError`. It accepts `<SERVICE>-NNNN` (`"CRM-0006"` gives `"0006"`) and a bare `NNNN` (`"0084"` gives `"0084"`). It cuts at the last `-` and returns `""` when the rest is not exactly four digits. It does not trim spaces. Use it to compare a code regardless of its service prefix instead of keeping your own parser:
 

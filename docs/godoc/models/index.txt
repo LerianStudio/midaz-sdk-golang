@@ -167,6 +167,8 @@ type CreateTransactionInput struct{ ... }
 type CreateTransactionRouteInput struct{ ... }
     func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput
 type CreateTransactionV2Input struct{ ... }
+type CrossLedgerSettings struct{ ... }
+type CrossLedgerTransactionGroupV2 struct{ ... }
 type CursorListOpts struct{ ... }
 type Destination struct{ ... }
 type DistributeInput struct{ ... }
@@ -209,6 +211,7 @@ type MerchantContext struct{ ... }
 type Metadata map[string]any
 type MetadataIndex struct{ ... }
 type MetricsCount struct{ ... }
+type MonetaryAmount struct{ ... }
 type NaturalPerson struct{ ... }
 type ObjectWithMetadata struct{ ... }
 type Operation struct{ ... }
@@ -304,6 +307,7 @@ type UpdateInstrumentInput struct{ ... }
 type UpdateLedgerInput struct{ ... }
     func NewUpdateLedgerInput() *UpdateLedgerInput
 type UpdateLedgerSettingsAccountingInput struct{ ... }
+type UpdateLedgerSettingsCrossLedgerInput struct{ ... }
 type UpdateLedgerSettingsInput struct{ ... }
     func NewUpdateLedgerSettingsInput() *UpdateLedgerSettingsInput
 type UpdateLedgerSettingsOverridesInput struct{ ... }

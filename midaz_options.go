@@ -594,6 +594,48 @@ func WithTracerAPIKey(apiKey string) Option {
 	}
 }
 
+// WithActorRelay makes every request sent through the typed Ledger client carry
+// the token of the partner the call is made on behalf of, in the
+// X-Lerian-Actor header, so the Ledger applies that partner's rules. It is off
+// by default.
+//
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config.WithActorRelay],
+// which documents the full semantics.
+//
+// source is called once per Ledger request with the context of the call. When
+// it returns false, or a token that is empty or blank, no header is sent;
+// otherwise the trimmed token is set; a [WithHTTPTransport] wrapper runs later
+// and a value it sets wins. Retry attempts and the replay after a 401 keep the
+// header. source MUST be safe for concurrent use and cheap. The SDK does not
+// bound it: it runs in the caller's goroutine before the request is sent, so
+// source MUST honor the ctx it receives and MUST NOT block.
+//
+// Reach: the typed Ledger client only, that is the /v1 and /v2 facades
+// (including the default Ledger URL) and the raw Ledger client returned by
+// Entity.Planes(). The Tracer plane, the Access Manager token exchange,
+// [Client.ServerVersion] and [CRMReader] do not receive the header, whatever
+// host each one is served from; a plugin that reads the embedded CRM through
+// [CRMReader] gets no partner rules from this option. A nil source makes [New]
+// return an error.
+//
+//	client, err := midaz.New(
+//	    midaz.WithAccessManager(am),
+//	    midaz.WithActorRelay(actor.TokenFromContext), // func(context.Context) (string, bool)
+//	)
+//
+// Parameters:
+//   - source: Returns the partner token for the call's context, and whether one is present.
+//
+// Returns:
+//   - Option: A function that sets the actor token source on the Client
+func WithActorRelay(source func(ctx context.Context) (string, bool)) Option {
+	return func(c *Client) error {
+		c.markConfigMutated()
+		return config.WithActorRelay(source)(c.config)
+	}
+}
+
 // WithDebug enables or disables debug mode.
 // Two-layer surface: this is the user-facing wrapper. It delegates to
 // [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config.WithDebug], which most

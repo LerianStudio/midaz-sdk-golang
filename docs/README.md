@@ -4,10 +4,10 @@ This directory contains hand-written guides and generated package documentation 
 
 ## Start here
 
-- [Authentication](./auth.md) - Access Manager OAuth and anonymous mode.
+- [Authentication](./auth.md) - Access Manager OAuth, anonymous mode, and relaying a partner's token to the Ledger (`midaz.WithActorRelay`).
 - [Configuration](./configuration.md) - Four configuration surfaces, precedence rules, every option.
 - [Environment variables](./environment.md) - Runtime configuration and `.env` usage.
-- [Error handling](./errors.md) - SDK error categories, helpers, upstream bodies, and retry boundaries.
+- [Error handling](./errors.md) - SDK error categories, helpers (including partner refusals: `IsPartnerRefusal`, `GetPartnerRefusalReason`), upstream bodies, and retry boundaries.
 - [Architecture](./comprehensive-architecture.md) - SDK structure and implementation overview. (Older [architecture.md](./architecture.md) is retained as historical v2 context only.)
 - [Examples](./examples.md) - Runnable examples and common workflows.
 - [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.

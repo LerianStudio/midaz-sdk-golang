@@ -2073,3 +2073,22 @@ func TestLogWithDisabledProvider(t *testing.T) {
 	assert.NotNil(t, logger)
 	logger.Info("test")
 }
+
+// TestDefaultIgnoredHeadersIncludeActor pins that the actor relay header
+// (X-Lerian-Actor, which carries a partner bearer token) is ignored in any
+// case, by the default list and when WithIgnoreHeaders adds to it.
+func TestDefaultIgnoredHeadersIncludeActor(t *testing.T) {
+	defaults := &httpMiddleware{ignoreHeaders: append([]string(nil), defaultIgnoredHeaders...)}
+
+	for _, name := range []string{"X-Lerian-Actor", "x-lerian-actor", "X-LERIAN-ACTOR"} {
+		assert.True(t, defaults.isIgnoredHeader(name), "%s must be ignored by default", name)
+	}
+
+	merged := &httpMiddleware{ignoreHeaders: append([]string(nil), defaultIgnoredHeaders...)}
+	require.NoError(t, WithIgnoreHeaders("x-custom")(merged))
+	assert.True(t, merged.isIgnoredHeader("X-Lerian-Actor"), "WithIgnoreHeaders must keep the actor ignored")
+
+	secured := &httpMiddleware{}
+	require.NoError(t, WithSecurityDefaults()(secured))
+	assert.True(t, secured.isIgnoredHeader("X-Lerian-Actor"), "WithSecurityDefaults must keep the actor ignored")
+}

@@ -90,6 +90,25 @@ func configTracerAPIKey(config Config) string {
 	return ""
 }
 
+// actorTokenSourceConfig is an OPTIONAL extension of [Config] exposing the
+// actor relay source. Read via a type assertion (same pattern as
+// [tracerAPIKeyConfig]) so no method is added to [Config]; a missing method
+// means the relay is off.
+type actorTokenSourceConfig interface {
+	GetActorTokenSource() func(ctx context.Context) (string, bool)
+}
+
+// configActorTokenSource reads the optional actor relay source from a Config
+// implementation. Nil for nil or for implementations that do not satisfy
+// [actorTokenSourceConfig].
+func configActorTokenSource(config Config) func(ctx context.Context) (string, bool) {
+	if ext, ok := config.(actorTokenSourceConfig); ok {
+		return ext.GetActorTokenSource()
+	}
+
+	return nil
+}
+
 // enableIdempotencyConfig is an OPTIONAL extension of [Config] exposing whether
 // automatic idempotency-key generation is enabled. Read via a type assertion
 // (same pattern as [tracerAPIKeyConfig]); a Config that does not satisfy it is

@@ -45,6 +45,7 @@ var defaultIgnoredHeaders = []string{
 	"idempotency-key",
 	"x-tenant-id",
 	"x-organization-id",
+	"x-lerian-actor",
 	"baggage",
 }
 

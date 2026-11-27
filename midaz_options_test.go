@@ -171,3 +171,16 @@ func TestClientConfigProviderHelpers(t *testing.T) {
 		require.NoError(t, c.Shutdown(context.Background()))
 	})
 }
+
+// TestClientNew_WithActorRelay_NilSourceReturnsError covers the
+// fonte-nula-recusada-na-construcao scenario through midaz.New: a nil source
+// fails construction with a typed configuration error and no client.
+func TestClientNew_WithActorRelay_NilSourceReturnsError(t *testing.T) {
+	t.Run("fonte-nula-recusada-na-construcao", func(t *testing.T) {
+		c, err := New(WithConfig(createTestConfig(t)), WithActorRelay(nil))
+		require.Error(t, err)
+		require.Nil(t, c, "no client must be created from a nil source")
+		require.True(t, sdkerrors.IsConfigurationError(err))
+		require.Contains(t, err.Error(), "option at index 1")
+	})
+}

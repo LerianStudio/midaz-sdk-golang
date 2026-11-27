@@ -125,6 +125,35 @@ c, err := midaz.New(
 
 This is a per-plane override, not a third construction-time auth gate: it does not satisfy the auth-required gate on its own, and an empty key is a no-op that leaves the Tracer plane on the shared Bearer token.
 
+## Relaying the partner actor to the Ledger
+
+When a partner calls your plugin and the plugin calls the Ledger through the SDK, the Ledger applies that partner's rules only if it receives the partner's bearer token in the `X-Lerian-Actor` header. `midaz.WithActorRelay` turns that on. It takes a function that reads the token from the call's context, with the signature `func(context.Context) (string, bool)`, which is the same as a context reader such as lib-commons `actor.TokenFromContext`:
+
+```go
+c, err := midaz.New(
+    midaz.WithAccessManager(midaz.AccessManager{ /* ... */ }),
+    midaz.WithActorRelay(actor.TokenFromContext),
+)
+```
+
+How it behaves:
+
+- The SDK calls the source once for every request sent through the typed Ledger client, with the context passed to the call. When it returns `false`, or a token that is empty or only spaces, the request carries no `X-Lerian-Actor` header. Otherwise the header is set to the token without surrounding spaces.
+- The source runs on every Ledger request and from concurrent calls, so it MUST be safe for concurrent use and cheap. The SDK does not bound it: the source runs in the caller's goroutine before the request is sent, so neither the client timeout (`WithTimeout`) nor the context deadline stops it unless the source itself honors the context it receives. A source that blocks hangs the call, and a source that panics propagates the panic to the caller. The source MUST honor the context it receives and MUST NOT block.
+- Retry attempts and the replay after a 401 keep the header.
+- A nil source makes `midaz.New` return a configuration error.
+- The option is off by default. Without it, requests are exactly as before.
+
+Reach: the typed Ledger client only. That covers the `/v1` and `/v2` facades, the default Ledger URL of the environment, and the raw Ledger client returned by `Entity.Planes()`. The Tracer plane and the Access Manager token exchange do not receive the header, even when Ledger, Tracer and Access Manager are served from the same host. Two Ledger reads sit outside the typed client and are not relayed either: `Client.ServerVersion` (the unauthenticated `GET /version`) and `midaz.CRMReader`, a separate reader built from your own URL and HTTP client, even when it points at the Ledger for the embedded CRM. A plugin that reads the embedded CRM through `CRMReader` gets no partner rules from this option.
+
+The SDK's HTTP observability middleware (`observability.NewHTTPMiddleware`) does not record `X-Lerian-Actor` in span attributes: the header is in its default ignored list, with or without `WithSecurityDefaults`, and `WithIgnoreHeaders` adds to that list without removing it. Tracing or logging that you install around the transport yourself is yours to protect; keep the header out of it.
+
+The SDK does not place the token in the errors it returns, and the Ledger plane refuses to follow a redirect to another origin, so the header does not reach a foreign host. A redirect to the same origin is followed, and the header goes with it. A token containing a character that is not valid in a header value (such as a newline) makes `net/http` refuse the request before it is sent; the returned error names the header, not its value.
+
+Coexistence with `midaz.WithHTTPTransport`: plugins that relay the actor today from a transport wrapper keep working unchanged. The option and such a wrapper can run together during a migration: the wrapper sits below the SDK's request editors and runs after them, so when it sets the header with `Header.Set`, the request carries a single value, and if the wrapper sets a different token, the wrapper's value wins. A wrapper that uses `Header.Add` instead would add a second value, so remove the wrapper's relay once the option is on.
+
+When the Ledger refuses the relayed partner, the error carries `AUT-1016` to `AUT-1019`; see `IsPartnerRefusal` in [errors](errors.md#domain-specific-error-predicates).
+
 ## Retry and idempotency boundaries
 
 The SDK sends only `X-Idempotency`; it does not send `Idempotency-Key`. The Midaz server contract currently accepts `X-Idempotency`.

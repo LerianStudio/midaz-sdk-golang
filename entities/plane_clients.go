@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-observability/v3/tracing"
@@ -66,6 +67,11 @@ type planeClientsConfig struct {
 	// customRetryPolicy, when non-nil, is the caller-supplied retry predicate
 	// threaded onto the plane retry round tripper. Nil is safe.
 	customRetryPolicy func(*http.Response, error) bool
+
+	// actorTokenSource, when non-nil, turns the actor relay on: the Ledger
+	// plane (and only it) gets [relayActor] as a request editor. Nil means no
+	// editor is installed, so Ledger requests are exactly as without the option.
+	actorTokenSource func(ctx context.Context) (string, bool)
 }
 
 // propagateTrace injects the caller's trace context through the OTel global
@@ -75,6 +81,31 @@ func propagateTrace(ctx context.Context, req *http.Request) error {
 	tracing.InjectHTTPContext(ctx, req.Header)
 
 	return nil
+}
+
+// relayActor returns the Ledger request editor that sets X-Lerian-Actor to the
+// token source returns for the call's context. No token, or a token that is
+// blank after trimming spaces, leaves the request untouched. Set replaces any
+// value already on the request, so a caller transport that writes the same
+// header still yields a single value. The editor runs once, before the request
+// enters the retry and auth round trippers, which clone it per attempt, so the
+// header is kept on every retry and on the replay after a 401.
+func relayActor(source func(ctx context.Context) (string, bool)) genledger.RequestEditorFn {
+	return func(ctx context.Context, req *http.Request) error {
+		token, ok := source(ctx)
+		if !ok {
+			return nil
+		}
+
+		token = strings.TrimSpace(token)
+		if token == "" {
+			return nil
+		}
+
+		req.Header.Set(actorHeader, token)
+
+		return nil
+	}
 }
 
 // newPlaneClients builds the two typed plane clients, each wired to an auth
@@ -131,11 +162,19 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 	retryLedgerRT := newRetryRoundTripper(ledgerRT, retryOpts, cfg.customRetryPolicy)
 	retryTracerRT := newRetryRoundTripper(tracerRT, retryOpts, cfg.customRetryPolicy)
 
-	ledger, err := genledger.NewClientWithResponses(
-		cfg.ledgerURL,
+	ledgerOpts := []genledger.ClientOption{
 		genledger.WithHTTPClient(newPlaneHTTPClient(retryLedgerRT, cfg.httpClient)),
 		genledger.WithRequestEditorFn(propagateTrace),
-	)
+	}
+
+	// The actor relay is Ledger-only by construction: the Tracer client below
+	// never gets this editor, and the Access Manager token exchange builds its
+	// own request outside both clients.
+	if cfg.actorTokenSource != nil {
+		ledgerOpts = append(ledgerOpts, genledger.WithRequestEditorFn(relayActor(cfg.actorTokenSource)))
+	}
+
+	ledger, err := genledger.NewClientWithResponses(cfg.ledgerURL, ledgerOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +213,7 @@ func buildPlaneClients(config Config, pluginAuth auth.AccessManager, normalizedB
 		httpClient:        config.GetHTTPClient(),
 		retryOptions:      retryOptions,
 		customRetryPolicy: customRetryPolicy,
+		actorTokenSource:  configActorTokenSource(config),
 	})
 }
 
