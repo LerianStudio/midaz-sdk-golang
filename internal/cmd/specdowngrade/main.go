@@ -233,8 +233,9 @@ func main() {
 		os.Exit(2)
 	}
 	// The input and output paths are fixed, repo-relative build-time inputs
-	// hardcoded in scripts/generate-clients.sh (api/<plane>.openapi.yaml -> an
-	// ephemeral mktemp dir). This is a developer/CI-only codegen tool under
+	// hardcoded in scripts/generate-clients.sh (api/<plane>.openapi.yaml, or the
+	// specoverlay output for a plane with a local fragment -> an ephemeral
+	// mktemp dir). This is a developer/CI-only codegen tool under
 	// internal/cmd; the paths are never user- or network-supplied, so the
 	// G703 taint is a build-time constant.
 	in, err := os.ReadFile(os.Args[1]) //#nosec G703 -- fixed build-time paths from generate-clients.sh, not user/network controlled

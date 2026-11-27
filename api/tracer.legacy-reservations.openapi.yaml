@@ -4,15 +4,21 @@
 # Origin: copied verbatim from api/tracer.openapi.yaml as vendored from Midaz
 # b6506518f (v4.1.3), components/tracer/api/openapi.huma.yaml.
 #
-# Reason: Tracer serves these routes up to 4.1.x; from 4.2.0 they answer 404
-# and the v4.6.0 spec no longer declares them. The Reservations facade is part
-# of the SDK 6.x public contract and still serves Tracer 4.1.x, so its client
-# operations must keep being generated.
+# Reason: Tracer serves these routes up to 4.1.x. It stopped mounting them on
+# HTTP in Midaz commit ab714fd04, first released in v4.2.0 (its betas
+# included), so they answer 404 from then on, and the v4.6.0 spec no longer
+# declares them. The Reservations facade is part of the SDK 6.x public contract
+# and still serves Tracer 4.1.x, so its client operations must keep being
+# generated.
 #
 # How it is used: scripts/generate-clients.sh merges this file into the Tracer
 # spec with internal/cmd/specoverlay before code generation. The merge only
 # appends; a path or schema the server spec already declares stops the
 # generation.
+#
+# On collision: if a re-vendored Tracer spec declares one of these paths or
+# schemas again, generation stops naming the key. Delete that entry here: the
+# server declaration wins.
 #
 # Removal: delete this file and its entry in scripts/generate-clients.sh when
 # the SDK retires the Reservations facade.
