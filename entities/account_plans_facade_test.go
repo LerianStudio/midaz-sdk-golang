@@ -420,12 +420,24 @@ func TestAccountPlansFacade_GetUsage(t *testing.T) {
 // apPagedListing is one of the three paginated listings, with a captured item
 // and the iterators reduced to the item ids they yield.
 type apPagedListing struct {
-	name  string
-	path  string
-	ids   []string
-	item  func(n int) string
-	pages func(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[int, error]
-	all   func(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[string, error]
+	name      string
+	path      string
+	params    [3]string
+	ids       []string
+	item      func(n int) string
+	pagesWith func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) iter.Seq2[int, error]
+	allWith   func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) iter.Seq2[string, error]
+}
+
+// apValidPath is a valid organization, ledger and plan, in path order.
+var apValidPath = [3]string{apOrgID, apLedgerID, apPlanID}
+
+func (l apPagedListing) pages(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[int, error] {
+	return l.pagesWith(ctx, f, apValidPath, models.PageListOpts{Limit: limit})
+}
+
+func (l apPagedListing) all(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[string, error] {
+	return l.allWith(ctx, f, apValidPath, models.PageListOpts{Limit: limit})
 }
 
 func apPagedListings() []apPagedListing {
@@ -437,11 +449,12 @@ func apPagedListings() []apPagedListing {
 			item: func(n int) string {
 				return `{"id":"plan-` + strconv.Itoa(n) + `","organizationId":"` + apOrgID + `","ledgerId":"` + apLedgerID + `","label":"D-1795794176","enable":false,"timezone":"America/Sao_Paulo","currentVersion":1,"createdAt":"2026-11-27T15:42:56.737Z","updatedAt":"2026-11-27T15:42:56.737Z"}`
 			},
-			pages: func(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[int, error] {
-				return apPageSizes(f.Pages(ctx, apOrgID, apLedgerID, models.AccountPlansListOpts{PageListOpts: models.PageListOpts{Limit: limit}}))
+			params: [3]string{"orgID", "ledgerID", ""},
+			pagesWith: func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) iter.Seq2[int, error] {
+				return apPageSizes(f.Pages(ctx, path[0], path[1], models.AccountPlansListOpts{PageListOpts: opts}))
 			},
-			all: func(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[string, error] {
-				return apItemIDs(f.All(ctx, apOrgID, apLedgerID, models.AccountPlansListOpts{PageListOpts: models.PageListOpts{Limit: limit}}),
+			allWith: func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) iter.Seq2[string, error] {
+				return apItemIDs(f.All(ctx, path[0], path[1], models.AccountPlansListOpts{PageListOpts: opts}),
 					func(p models.AccountPlan) string { return p.ID })
 			},
 		},
@@ -452,11 +465,12 @@ func apPagedListings() []apPagedListing {
 			item: func(n int) string {
 				return `{"accountPlanId":"` + apPlanID + `","version":` + strconv.Itoa(n) + `,"effectiveFrom":"2026-11-27T15:36:30.714Z","fees":{},"createdAt":"2026-11-27T15:36:30.714Z"}`
 			},
-			pages: func(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[int, error] {
-				return apPageSizes(f.VersionPages(ctx, apOrgID, apLedgerID, apPlanID, models.AccountPlanVersionsListOpts{PageListOpts: models.PageListOpts{Limit: limit}}))
+			params: [3]string{"orgID", "ledgerID", "id"},
+			pagesWith: func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) iter.Seq2[int, error] {
+				return apPageSizes(f.VersionPages(ctx, path[0], path[1], path[2], models.AccountPlanVersionsListOpts{PageListOpts: opts}))
 			},
-			all: func(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[string, error] {
-				return apItemIDs(f.AllVersions(ctx, apOrgID, apLedgerID, apPlanID, models.AccountPlanVersionsListOpts{PageListOpts: models.PageListOpts{Limit: limit}}),
+			allWith: func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) iter.Seq2[string, error] {
+				return apItemIDs(f.AllVersions(ctx, path[0], path[1], path[2], models.AccountPlanVersionsListOpts{PageListOpts: opts}),
 					func(v models.AccountPlanVersion) string { return strconv.Itoa(v.Version) })
 			},
 		},
@@ -467,11 +481,12 @@ func apPagedListings() []apPagedListing {
 			item: func(n int) string {
 				return `{"id":"assignment-` + strconv.Itoa(n) + `","organizationId":"` + apOrgID + `","ledgerId":"` + apLedgerID + `","accountId":"` + apAccountID + `","accountAlias":"@cust-1795793790","accountPlanId":"` + apPlanID + `","startedAt":"2026-11-27T15:36:30.792581Z","endedAt":null}`
 			},
-			pages: func(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[int, error] {
-				return apPageSizes(f.AccountPages(ctx, apOrgID, apLedgerID, apPlanID, models.AccountPlanAccountsListOpts{PageListOpts: models.PageListOpts{Limit: limit}}))
+			params: [3]string{"orgID", "ledgerID", "id"},
+			pagesWith: func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) iter.Seq2[int, error] {
+				return apPageSizes(f.AccountPages(ctx, path[0], path[1], path[2], models.AccountPlanAccountsListOpts{PageListOpts: opts}))
 			},
-			all: func(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[string, error] {
-				return apItemIDs(f.AllAccounts(ctx, apOrgID, apLedgerID, apPlanID, models.AccountPlanAccountsListOpts{PageListOpts: models.PageListOpts{Limit: limit}}),
+			allWith: func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) iter.Seq2[string, error] {
+				return apItemIDs(f.AllAccounts(ctx, path[0], path[1], path[2], models.AccountPlanAccountsListOpts{PageListOpts: opts}),
 					func(a models.AccountPlanAssignment) string { return a.ID })
 			},
 		},
@@ -1218,5 +1233,191 @@ func TestAccountPlansFacade_WriteRetryIsNotAttempted(t *testing.T) {
 			assert.Equal(t, http.StatusServiceUnavailable, sdkerrors.GetStatusCode(err))
 			assert.Len(t, rec.all(), 1, "a keyless account plan write is sent exactly once")
 		})
+	}
+}
+
+// apEnvelope renders a page envelope; limit < 0 omits the limit key.
+func apEnvelope(page, limit int, items ...string) string {
+	body := `{"items":[`
+	for i, item := range items {
+		if i > 0 {
+			body += ","
+		}
+
+		body += item
+	}
+
+	body += `],"page":` + strconv.Itoa(page)
+	if limit >= 0 {
+		body += `,"limit":` + strconv.Itoa(limit)
+	}
+
+	return body + `,"total":` + strconv.Itoa(len(items)) + `}`
+}
+
+// apIterKinds runs a scenario through both iterators of a listing, reduced to
+// the count of yields and the errors seen.
+func apIterKinds(l apPagedListing) map[string]func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) (int, []error) {
+	return map[string]func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) (int, []error){
+		"pages": func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) (int, []error) {
+			var n int
+
+			var errs []error
+
+			for _, err := range l.pagesWith(ctx, f, path, opts) {
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					n++
+				}
+			}
+
+			return n, errs
+		},
+		"all": func(ctx context.Context, f *accountPlansFacade, path [3]string, opts models.PageListOpts) (int, []error) {
+			var n int
+
+			var errs []error
+
+			for _, err := range l.allWith(ctx, f, path, opts) {
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					n++
+				}
+			}
+
+			return n, errs
+		},
+	}
+}
+
+func TestAccountPlansFacade_PagesStopOnAnEmptyPageAfterAnExactMultiple(t *testing.T) {
+	for _, listing := range apPagedListings() {
+		t.Run(listing.name, func(t *testing.T) {
+			rec, srv := newAPServerFunc(t, func(r *http.Request) (int, string) {
+				if r.URL.Query().Get("page") == "1" {
+					return http.StatusOK, apEnvelope(1, 2, listing.item(1), listing.item(2))
+				}
+
+				return http.StatusOK, apEnvelope(2, 2)
+			})
+
+			var sizes []int
+			for size, err := range listing.pages(context.Background(), newTestAccountPlansFacade(t, srv), 2) {
+				require.NoError(t, err)
+				sizes = append(sizes, size)
+			}
+
+			assert.Equal(t, []int{2, 0}, sizes)
+			assert.Len(t, rec.all(), 2, "a full page then an empty one is exactly two requests")
+		})
+	}
+}
+
+func TestAccountPlansFacade_PagesStopWhenTheServerEchoesNoLimit(t *testing.T) {
+	for _, listing := range apPagedListings() {
+		for name, limit := range map[string]int{"limit 0": 0, "limit omitted": -1} {
+			t.Run(listing.name+"/"+name, func(t *testing.T) {
+				rec, srv := newAPServer(t, http.StatusOK, apEnvelope(1, limit, listing.item(1), listing.item(2)))
+
+				var pages int
+				for _, err := range listing.pages(context.Background(), newTestAccountPlansFacade(t, srv), 2) {
+					require.NoError(t, err)
+					pages++
+				}
+
+				assert.Equal(t, 1, pages)
+				assert.Len(t, rec.all(), 1)
+			})
+		}
+	}
+}
+
+func TestAccountPlansFacade_PagesStartAtTheCallerPage(t *testing.T) {
+	for _, listing := range apPagedListings() {
+		t.Run(listing.name, func(t *testing.T) {
+			rec, srv := newAPServer(t, http.StatusOK, apEnvelope(3, 2, listing.item(5)))
+
+			for _, err := range listing.pagesWith(context.Background(), newTestAccountPlansFacade(t, srv), apValidPath, models.PageListOpts{Limit: 2, Page: 3}) {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, url.Values{"limit": {"2"}, "page": {"3"}}, rec.only(t).query)
+		})
+	}
+}
+
+func TestAccountPlansFacade_PagesYieldACancelledContextOnce(t *testing.T) {
+	for _, listing := range apPagedListings() {
+		t.Run(listing.name+"/before the first fetch", func(t *testing.T) {
+			rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			var errs []error
+			for _, err := range listing.pages(ctx, newTestAccountPlansFacade(t, srv), 2) {
+				errs = append(errs, err)
+			}
+
+			require.Len(t, errs, 1)
+			require.ErrorIs(t, errs[0], context.Canceled)
+			assert.Empty(t, rec.all())
+		})
+
+		t.Run(listing.name+"/between pages", func(t *testing.T) {
+			rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var sizes []int
+
+			var errs []error
+
+			for size, err := range listing.pages(ctx, newTestAccountPlansFacade(t, srv), 2) {
+				if err != nil {
+					errs = append(errs, err)
+
+					continue
+				}
+
+				sizes = append(sizes, size)
+				cancel()
+			}
+
+			assert.Equal(t, []int{2}, sizes)
+			require.Len(t, errs, 1)
+			require.ErrorIs(t, errs[0], context.Canceled)
+			assert.Len(t, rec.all(), 1, "no request after the context is cancelled")
+		})
+	}
+}
+
+func TestAccountPlansFacade_PagesRefuseAnInvalidPathID(t *testing.T) {
+	for _, listing := range apPagedListings() {
+		for kind, run := range apIterKinds(listing) {
+			for position, param := range listing.params {
+				if param == "" {
+					continue
+				}
+
+				t.Run(listing.name+"/"+kind+"/"+param, func(t *testing.T) {
+					rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+
+					path := apValidPath
+					path[position] = ""
+
+					n, errs := run(context.Background(), newTestAccountPlansFacade(t, srv), path, models.PageListOpts{Limit: 2})
+
+					assert.Zero(t, n)
+					require.Len(t, errs, 1, "the refusal is yielded once and ends the iteration")
+					assert.True(t, sdkerrors.IsValidationError(errs[0]), "want a validation error, got %v", errs[0])
+					assert.Contains(t, errs[0].Error(), "missing required parameter: "+param)
+					assert.Empty(t, rec.all())
+				})
+			}
+		}
 	}
 }
