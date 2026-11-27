@@ -615,13 +615,21 @@ func TestFacadeTransport_AccessManagerTokenFailure(t *testing.T) {
 		name   string
 		answer func(t *testing.T) string
 	}{
-		{"refused", func(t *testing.T) string { return closedPortURL(t) }},
+		{"refused", func(t *testing.T) string {
+			t.Helper()
+
+			return closedPortURL(t)
+		}},
 		{"bad-answer-500", func(t *testing.T) string {
+			t.Helper()
+
 			return accessManagerSimulator(t, func(w http.ResponseWriter, _ *http.Request, _ <-chan struct{}) {
 				w.WriteHeader(http.StatusInternalServerError)
 			})
 		}},
 		{"bad-answer-unreadable-token", func(t *testing.T) string {
+			t.Helper()
+
 			return accessManagerSimulator(t, func(w http.ResponseWriter, _ *http.Request, _ <-chan struct{}) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte("not a token"))
@@ -657,6 +665,8 @@ func TestFacadeTransport_AccessManagerTokenFailure(t *testing.T) {
 	}{
 		{"client-timeout", []Option{WithTimeout(300 * time.Millisecond)}, func(*testing.T) context.Context { return context.Background() }},
 		{"context-deadline", []Option{WithTimeout(30 * time.Second)}, func(t *testing.T) context.Context {
+			t.Helper()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 			t.Cleanup(cancel)
 
