@@ -838,3 +838,36 @@ func (input *UpdateAccountPlanInput) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(payload)
 }
+
+// AssignAccountPlanInput is the payload for assigning an account plan to an
+// account. Assigning replaces the account's active plan, if any, and assigning
+// the active plan again is accepted by the server without change.
+type AssignAccountPlanInput struct {
+	// AccountPlanID is the plan to assign, as a UUID. The plan must belong to
+	// the ledger of the call, not be deleted and be enabled. Required.
+	AccountPlanID string `json:"accountPlanId"`
+}
+
+// NewAssignAccountPlanInput builds an assignment payload for the given plan.
+func NewAssignAccountPlanInput(accountPlanID string) *AssignAccountPlanInput {
+	return &AssignAccountPlanInput{AccountPlanID: accountPlanID}
+}
+
+// Validate refuses a nil input and an accountPlanId that is not a UUID, the
+// format the contract declares.
+func (input *AssignAccountPlanInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
+	var errs validation.FieldErrors
+
+	switch {
+	case strings.TrimSpace(input.AccountPlanID) == "":
+		errs.Append("accountPlanId", "is required")
+	case !validation.IsValidUUID(input.AccountPlanID):
+		errs.Append("accountPlanId", "must be a UUID")
+	}
+
+	return errs.OrNil()
+}

@@ -650,3 +650,39 @@ func TestUpdateAccountPlanInput_BuildersOnNil(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "null", string(body))
 }
+
+func TestAssignAccountPlanInput_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   *AssignAccountPlanInput
+		wantMsg string
+	}{
+		{"empty plan id", NewAssignAccountPlanInput(""), "is required"},
+		{"blank plan id", NewAssignAccountPlanInput("  "), "is required"},
+		{"plan label instead of id", NewAssignAccountPlanInput("plano-1795793790"), "must be a UUID"},
+		{"truncated uuid", NewAssignAccountPlanInput("01a21da6-a6fa-7044-9058-c1f644284b5"), "must be a UUID"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.input.Validate()
+			require.Error(t, err)
+			assert.Equal(t, []string{"accountPlanId"}, accountPlanFieldErrors(t, err))
+			assert.Contains(t, err.Error(), tt.wantMsg)
+		})
+	}
+
+	var nilInput *AssignAccountPlanInput
+	require.EqualError(t, nilInput.Validate(), "input cannot be nil")
+}
+
+func TestAssignAccountPlanInput_JSON(t *testing.T) {
+	input := NewAssignAccountPlanInput("01a21da6-a6fa-7044-9058-c1f644284b5a")
+	require.NoError(t, input.Validate())
+
+	body, err := json.Marshal(input)
+	require.NoError(t, err)
+
+	// Request body the server accepted with 200.
+	assert.Equal(t, `{"accountPlanId":"01a21da6-a6fa-7044-9058-c1f644284b5a"}`, string(body))
+}
