@@ -209,7 +209,7 @@ func newFailingPlanes(t *testing.T, cause error) *PlaneClients {
 }
 
 // TestFacadeTransportError_ResponseShapes drives one facade call per response
-// shape and one per Tracer facade over a transport that refuses the connection
+// shape, one per remaining swapped site and one per Tracer facade over a transport that refuses the connection
 // or times out, and requires the classified error, not the internal one
 // (porta-fechada-leitura-v2, porta-fechada-escrita-v2,
 // porta-fechada-delete-e-count, porta-fechada-fachada-v1,
@@ -255,6 +255,14 @@ func TestFacadeTransportError_ResponseShapes(t *testing.T) {
 			_, err := newTransactionsFacade(p.Ledger, true).Commit(ctx, orgID, ledgerID, itemID)
 			return err
 		}},
+		{"revert v1", "Transactions.Revert", func(p *PlaneClients) error {
+			_, err := newTransactionsFacade(p.Ledger, true).Revert(ctx, orgID, ledgerID, itemID)
+			return err
+		}},
+		{"cancel v1", "Transactions.Cancel", func(p *PlaneClients) error {
+			_, err := newTransactionsFacade(p.Ledger, true).Cancel(ctx, orgID, ledgerID, itemID)
+			return err
+		}},
 		{"lifecycle v2", "V2.Transactions.Commit", func(p *PlaneClients) error {
 			_, err := newTransactionsV2Facade(p.Ledger, true).Commit(ctx, orgID, ledgerID, itemID)
 			return err
@@ -267,8 +275,22 @@ func TestFacadeTransportError_ResponseShapes(t *testing.T) {
 			_, err := newRulesFacade(p.Tracer, true).List(ctx, models.RulesListOpts{})
 			return err
 		}},
+		{"tracer rules delete", "Rules.Delete", func(p *PlaneClients) error {
+			return newRulesFacade(p.Tracer, true).Delete(ctx, itemID)
+		}},
+		{"tracer rules transition", "Rules.Activate", func(p *PlaneClients) error {
+			_, err := newRulesFacade(p.Tracer, true).Activate(ctx, itemID)
+			return err
+		}},
 		{"tracer limits", "Limits.List", func(p *PlaneClients) error {
 			_, err := newLimitsFacade(p.Tracer, true).List(ctx, models.LimitsListOpts{})
+			return err
+		}},
+		{"tracer limits delete", "Limits.Delete", func(p *PlaneClients) error {
+			return newLimitsFacade(p.Tracer, true).Delete(ctx, itemID)
+		}},
+		{"tracer limits transition", "Limits.Activate", func(p *PlaneClients) error {
+			_, err := newLimitsFacade(p.Tracer, true).Activate(ctx, itemID)
 			return err
 		}},
 		{"tracer validations", "Validations.List", func(p *PlaneClients) error {
