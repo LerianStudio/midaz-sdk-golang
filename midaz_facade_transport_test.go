@@ -413,3 +413,43 @@ func TestFacadeTransport_ClosedPort(t *testing.T) {
 	}
 }
 
+// TestFacadeTransport_Cancellation is cancelamento-inalterado: a caller that
+// cancels its context while the request waits on a silent server still gets the
+// internal error the facade returned before, not a cancellation error.
+func TestFacadeTransport_Cancellation(t *testing.T) {
+	arrived := make(chan struct{})
+
+	var once sync.Once
+
+	baseURL := rawTCPServer(t, func(conn net.Conn) {
+		if readFullRequest(conn) == nil {
+			once.Do(func() { close(arrived) })
+		}
+
+		_, _ = io.Copy(io.Discard, conn)
+	})
+
+	c := newFacadeTransportClient(t, baseURL)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stop := make(chan struct{})
+	defer close(stop)
+
+	go func() {
+		select {
+		case <-arrived:
+			cancel()
+		case <-stop:
+		}
+	}()
+
+	_, err := c.V2.Transactions.CreateDirect(ctx, transportTestOrgID, transportTestLedgerID, facadeTransportInput())
+
+	require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.False(t, sdkerrors.IsCancellationError(err))
+	assert.False(t, sdkerrors.IsNetworkError(err))
+	assert.False(t, sdkerrors.IsTimeoutError(err))
+}
