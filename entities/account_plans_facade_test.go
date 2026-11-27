@@ -978,3 +978,119 @@ func TestAccountPlansFacade_LocalRefusals(t *testing.T) {
 		})
 	}
 }
+
+func TestAccountPlansFacade_ServerRefusalsKeepStatusAndCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   int
+		body     string
+		wantCode string
+		call     func(ctx context.Context, f *accountPlansFacade) error
+	}{
+		{"recusa-do-servidor-repassada: duplicate label", http.StatusConflict, apErrDuplicateLabel, "0543", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Create(ctx, apOrgID, apLedgerID, apCreateRoundingInput())
+			return err
+		}},
+		{"recusa-do-servidor-repassada: unknown field", http.StatusBadRequest, apErrUnknownField, "0053", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Create(ctx, apOrgID, apLedgerID, apCreateRoundingInput())
+			return err
+		}},
+		{"recusa-do-servidor-repassada: retroactive effectiveFrom", http.StatusUnprocessableEntity, apErrRetroactive, "0553", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Update(ctx, apOrgID, apLedgerID, apPlanID, models.NewUpdateAccountPlanInput().
+				WithRounding(models.FeeRounding{Scale: 2, Mode: models.FeeRoundingModeHalfUp}))
+			return err
+		}},
+		{"recusa-do-servidor-repassada: schemes required", http.StatusUnprocessableEntity, apErrSchemesRequired, "0556", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Create(ctx, apOrgID, apLedgerID, apCreateRoundingInput())
+			return err
+		}},
+		{"recusa-do-servidor-repassada: plan not found", http.StatusNotFound, apErrPlanNotFound, "0007", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.Get(ctx, apOrgID, apLedgerID, apPlanID)
+			return err
+		}},
+		{"remocao-com-atribuicao-ativa", http.StatusConflict, apErrActiveAssignments, "0546", func(ctx context.Context, f *accountPlansFacade) error {
+			return f.Delete(ctx, apOrgID, apLedgerID, apPlanID)
+		}},
+		{"desatribuicao-sem-plano", http.StatusNotFound, apErrNoAssignment, "0554", func(ctx context.Context, f *accountPlansFacade) error {
+			return f.Unassign(ctx, apOrgID, apLedgerID, apAccountID)
+		}},
+		{"uso-sem-plano", http.StatusNotFound, apErrNoAssignment, "0554", func(ctx context.Context, f *accountPlansFacade) error {
+			_, err := f.GetUsage(ctx, apOrgID, apLedgerID, apAccountID, models.AccountPlanUsageOpts{})
+			return err
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec, srv := newAPServer(t, tt.status, tt.body)
+
+			err := tt.call(context.Background(), newTestAccountPlansFacade(t, srv))
+			require.Error(t, err)
+
+			var sdkErr *sdkerrors.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, tt.status, sdkerrors.GetStatusCode(err))
+			assert.Equal(t, tt.wantCode, sdkErr.APICode)
+			assert.Len(t, rec.all(), 1)
+		})
+	}
+}
+
+func TestAccountPlansFacade_ServerWithoutTheRoute(t *testing.T) {
+	// A Midaz older than 4.4.0 has none of these routes; the SDK passes the 404 on.
+	for _, op := range apOperations() {
+		t.Run(op.name, func(t *testing.T) {
+			_, srv := newAPServer(t, http.StatusNotFound, "")
+
+			err := op.callWith(context.Background(), newTestAccountPlansFacade(t, srv), [3]string{apOrgID, apLedgerID, apPlanID})
+			require.Error(t, err)
+			assert.Equal(t, http.StatusNotFound, sdkerrors.GetStatusCode(err))
+		})
+	}
+}
+
+func TestAccountPlansFacade_ListsRefuseABodyWithoutAPage(t *testing.T) {
+	listings := []struct {
+		name string
+		call func(f *accountPlansFacade) (bool, error)
+	}{
+		{"List", func(f *accountPlansFacade) (bool, error) {
+			page, err := f.List(context.Background(), apOrgID, apLedgerID, models.AccountPlansListOpts{})
+			return page == nil, err
+		}},
+		{"ListVersions", func(f *accountPlansFacade) (bool, error) {
+			page, err := f.ListVersions(context.Background(), apOrgID, apLedgerID, apPlanID, models.AccountPlanVersionsListOpts{})
+			return page == nil, err
+		}},
+		{"ListAccounts", func(f *accountPlansFacade) (bool, error) {
+			page, err := f.ListAccounts(context.Background(), apOrgID, apLedgerID, apPlanID, models.AccountPlanAccountsListOpts{})
+			return page == nil, err
+		}},
+	}
+
+	for _, listing := range listings {
+		for _, body := range []string{"", "null", "{}", "[]", `"page"`} {
+			t.Run(listing.name+"/"+strconv.Quote(body), func(t *testing.T) {
+				_, srv := newAPServer(t, http.StatusOK, body)
+
+				isNil, err := listing.call(newTestAccountPlansFacade(t, srv))
+				require.Error(t, err)
+				assert.True(t, sdkerrors.IsResponseDecodeError(err), "want a response-decode error, got %v", err)
+				assert.True(t, isNil, "the page must be nil alongside the error")
+			})
+		}
+	}
+}
+
+func TestAccountPlansFacade_ObjectsRefuseANonObjectBody(t *testing.T) {
+	for _, body := range []string{"[]", `"plan"`, "42"} {
+		t.Run(strconv.Quote(body), func(t *testing.T) {
+			_, srv := newAPServer(t, http.StatusOK, body)
+
+			plan, err := newTestAccountPlansFacade(t, srv).Get(context.Background(), apOrgID, apLedgerID, apPlanID)
+			require.Error(t, err)
+			assert.True(t, sdkerrors.IsResponseDecodeError(err), "want a response-decode error, got %v", err)
+			assert.Nil(t, plan)
+		})
+	}
+}
