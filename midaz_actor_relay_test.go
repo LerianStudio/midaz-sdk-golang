@@ -14,9 +14,15 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // The actor relay through the full client (midaz.New). Twin of
@@ -630,4 +636,70 @@ func TestActorRelay_PinnedBehavior(t *testing.T) {
 		assert.Equal(t, []string{actorTestTokenB}, got[0].actor,
 			"the wrapper runs after the option's editor, so its Header.Set wins")
 	})
+}
+
+// actorSpanProvider is an observability.Provider whose tracer feeds a span
+// recorder, so the test can read every attribute the HTTP middleware set.
+type actorSpanProvider struct {
+	tracer trace.Tracer
+	meter  metric.Meter
+}
+
+func newActorSpanProvider(recorder *tracetest.SpanRecorder) *actorSpanProvider {
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+	return &actorSpanProvider{
+		tracer: tracerProvider.Tracer("actor-relay-spans"),
+		meter:  metricnoop.NewMeterProvider().Meter("actor-relay-spans"),
+	}
+}
+
+func (p *actorSpanProvider) Tracer() trace.Tracer         { return p.tracer }
+func (p *actorSpanProvider) Meter() metric.Meter          { return p.meter }
+func (*actorSpanProvider) Logger() observability.Logger   { return observability.NewNoopLogger() }
+func (*actorSpanProvider) Shutdown(context.Context) error { return nil }
+func (*actorSpanProvider) IsEnabled() bool                { return true }
+
+// TestActorRelay_SpanAttributes covers the token-fora-dos-spans scenario: the
+// SDK's own HTTP observability middleware, installed by the consumer on the
+// transport, MUST NOT record the actor token in any span attribute.
+func TestActorRelay_SpanAttributes(t *testing.T) {
+	tests := []struct {
+		name string
+		opts []observability.HTTPOption
+	}{
+		{name: "token-fora-dos-spans/security-defaults", opts: []observability.HTTPOption{observability.WithSecurityDefaults()}},
+		{name: "token-fora-dos-spans/no-options", opts: nil},
+		{name: "token-fora-dos-spans/extra-ignored-header", opts: []observability.HTTPOption{observability.WithIgnoreHeaders("x-custom")}},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newActorTestServer(t, false)
+			recorder := tracetest.NewSpanRecorder()
+			middleware := observability.NewHTTPMiddleware(newActorSpanProvider(recorder), tt.opts...)
+
+			c := actorTestClient(t, s, "actor-spans-"+string(rune('a'+i)),
+				WithHTTPTransport(middleware), WithActorRelay(actorTestSource))
+			s.reset()
+
+			_, err := c.V2.Organizations.List(actorTestContext(actorTestTokenA), models.OrganizationsListOpts{})
+			require.NoError(t, err)
+
+			got := s.requests()
+			require.Len(t, got, 1)
+			assert.Equal(t, []string{actorTestTokenA}, got[0].actor, "the Ledger must still receive the actor")
+
+			spans := recorder.Ended()
+			require.NotEmpty(t, spans, "the middleware must have recorded the Ledger request")
+
+			for _, span := range spans {
+				for _, attr := range span.Attributes() {
+					key := string(attr.Key)
+					assert.NotContains(t, strings.ToLower(key), "x-lerian-actor", "span %q records the actor header", span.Name())
+					assert.NotContains(t, attr.Value.Emit(), actorTestTokenA, "span %q attribute %q carries the actor token", span.Name(), key)
+				}
+			}
+		})
+	}
 }
