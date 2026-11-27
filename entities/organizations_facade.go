@@ -341,7 +341,7 @@ func writeJSON[T any](_ context.Context, operation string, input any, send func(
 	//nolint:bodyclose // send is always a readRawResponse closure (transactions_facade.go:58), which closes resp.Body via defer before returning.
 	httpResp, body, err := send(bytes.NewReader(payload))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, transportErr(operation, err)
 	}
 
 	return decodeOne[T](operation, statusOf(httpResp), body, httpResp)
