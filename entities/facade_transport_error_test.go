@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v6/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v6/pkg/auth"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v6/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,6 +46,20 @@ func refusedDialError() error {
 		Net: "tcp",
 		Err: os.NewSyscallError("connect", syscall.ECONNREFUSED),
 	}}
+}
+
+// accessManagerTokenError is the shape auth.GetTokenFromAccessManager returns
+// when the token request fails on the wire.
+func accessManagerTokenError(cause error) error {
+	return &auth.AccessManagerTokenRequestError{
+		Operation:       "access_manager.token_request",
+		Phase:           "token_fetch",
+		EndpointScheme:  "http",
+		EndpointHost:    "127.0.0.1:1",
+		EndpointPath:    "/v1/login/oauth/access_token",
+		HTTPRequestSent: true,
+		Err:             fmt.Errorf("failed to connect to plugin auth service: %w", cause),
+	}
 }
 
 // TestFacadeTransportError pins the rule transportErr applies to a transport
@@ -126,6 +141,12 @@ func TestFacadeTransportError(t *testing.T) {
 		}),
 		internal("wrapped typed nil error stays internal", func() error {
 			return fmt.Errorf("x: %w", (*sdkerrors.Error)(nil))
+		}),
+		internal("access manager token fetch refused stays internal", func() error {
+			return accessManagerTokenError(refusedDialError())
+		}),
+		internal("access manager token fetch deadline stays internal", func() error {
+			return accessManagerTokenError(&url.Error{Op: "Post", URL: "http://127.0.0.1:1/v1/login/oauth/access_token", Err: context.DeadlineExceeded})
 		}),
 		userinfoCanceled,
 	}
