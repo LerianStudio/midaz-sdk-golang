@@ -45,10 +45,13 @@ const ValidationReasonAuthDisabled = "auth_disabled" ...
 var ErrAccessManagerTokenFetch = errors.New("access manager token fetch failed")
 func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, httpClient *http.Client) (string, error)
 func InvalidateAccessManagerToken(accessMgr AccessManager)
+func InvalidateAccessManagerTokenContext(ctx context.Context, accessMgr AccessManager)
 func IsAccessManagerTokenFetchError(err error) bool
 func ValidateAccessManagerAddress(address string) error
 func ValidateAccessManagerAddressWithInsecure(address string, allowInsecureHTTP bool) error
 func WrapAccessManagerTokenFetchError(err error) error
 type AccessManager struct{ ... }
 type AccessManagerTokenRequestError struct{ ... }
+type CredentialSource interface{ ... }
+type CredentialSourceFunc func(ctx context.Context) (clientID, clientSecret string, err error)
 type TokenResponse struct{ ... }

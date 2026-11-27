@@ -19,6 +19,7 @@ type Environment string
 type Option func(*Config) error
     func FromEnvironment() Option
     func WithAccessManager(accessManager auth.AccessManager) Option
+    func WithActorRelay(source func(ctx context.Context) (string, bool)) Option
     func WithAllowInsecureAccessManagerHTTP(allow bool) Option
     func WithAllowInsecureHTTP(allow bool) Option
     func WithAnonymous() Option

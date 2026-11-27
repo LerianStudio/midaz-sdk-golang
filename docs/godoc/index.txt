@@ -78,9 +78,10 @@ retry-policy source.
 
 # Idempotency and retries
 
-Random auto-idempotency is off by default (a keyless /v1 annotation, block
-or unblock create sends a key derived from the request; the ledger dedupes
-other transaction, holder and instrument creates by body); with WithIdempotency(true) the SDK emits a random X-Idempotency
+Random auto-idempotency is off by default (a keyless /v1 annotation,
+block or unblock create sends a key derived from the request; the ledger
+dedupes other transaction, holder and instrument creates by body);
+with WithIdempotency(true) the SDK emits a random X-Idempotency
 header per create, update and delete request. Override per-call via
 github.com/LerianStudio/midaz-sdk-golang/v6/pkg/sdkctx.WithIdempotencyKey
 (caller-supplied key) or
@@ -98,8 +99,10 @@ See examples/ for runnable demos. Start with examples/01-hello-world for the
 minimum-viable shape; examples/03-end-to-end creates a transaction on the /v2
 surface; examples/workflow-with-entities walks the full resource hierarchy.
 
+const FeeModeLegacy = serverversion.FeeModeLegacy ...
 const EnvironmentLocal = config.EnvironmentLocal ...
 const Version = version.Version
+func SupportsRulesOnly(v ServerVersion) bool
 type AccessManager = auth.AccessManager
 type Account = models.Account
 type AccountType = models.AccountType
@@ -108,6 +111,10 @@ type AmountInput = models.AmountInput
 type Asset = models.Asset
 type AssetRate = models.AssetRate
 type Balance = models.Balance
+type CRMAPI = serverversion.CRMAPI
+type CRMReader struct{ ... }
+    func NewCRMReader(cfg CRMReaderConfig) (*CRMReader, error)
+type CRMReaderConfig struct{ ... }
 type Client struct{ ... }
     func New(options ...Option) (*Client, error)
 type CreateAccountInput = models.CreateAccountInput
@@ -124,10 +131,17 @@ type CreatePortfolioInput = models.CreatePortfolioInput
 type CreateSegmentInput = models.CreateSegmentInput
 type CreateTransactionInput = models.CreateTransactionInput
 type CreateTransactionRouteInput = models.CreateTransactionRouteInput
+type CredentialSource = auth.CredentialSource
+type CredentialSourceFunc = auth.CredentialSourceFunc
 type DistributeInput = models.DistributeInput
 type Environment = config.Environment
+type FeeMode = serverversion.FeeMode
+    func ResolveFeeMode(v ServerVersion) FeeMode
 type FromToInput = models.FromToInput
+type HTTPDoer = interface{ ... }
 type Holder = models.Holder
+type HolderQuery struct{ ... }
+type InstrumentQuery struct{ ... }
 type Ledger = models.Ledger
 type ListResponse[T any] = models.ListResponse[T]
 type MetadataIndex = models.MetadataIndex
@@ -135,6 +149,7 @@ type Operation = models.Operation
 type OperationRoute = models.OperationRoute
 type Option func(*Client) error
     func WithAccessManager(am AccessManager) Option
+    func WithActorRelay(source func(ctx context.Context) (string, bool)) Option
     func WithAllowInsecureAccessManagerHTTP(allow bool) Option
     func WithAllowInsecureHTTP(allow bool) Option
     func WithAnonymous() Option
@@ -164,6 +179,8 @@ type Pagination = models.Pagination
 type Portfolio = models.Portfolio
 type Segment = models.Segment
 type SendInput = models.SendInput
+type ServerVersion = serverversion.ServerVersion
+    func ReadServerVersion(ctx context.Context, doer HTTPDoer, baseURL string) (ServerVersion, error)
 type SourceInput = models.SourceInput
 type Status = models.Status
 type Transaction = models.Transaction
