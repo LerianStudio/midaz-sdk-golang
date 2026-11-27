@@ -562,3 +562,72 @@ func jsonResponse(req *http.Request, status int, body string) *http.Response {
 		Request:    req,
 	}
 }
+
+// TestActorRelay_PinnedBehavior pins current behavior that no spec scenario
+// names, so a change to it is a visible decision.
+func TestActorRelay_PinnedBehavior(t *testing.T) {
+	t.Run("same-origin redirect is followed and keeps the actor", func(t *testing.T) {
+		var (
+			mu   sync.Mutex
+			seen []actorTestRequest
+		)
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			seen = append(seen, actorTestRequest{method: r.Method, path: r.URL.Path, actor: r.Header.Values(actorTestHeader)})
+			mu.Unlock()
+
+			if r.URL.Path == "/v2/organizations" {
+				http.Redirect(w, r, "/v2/organizations-moved", http.StatusFound)
+
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"items":[],"limit":10}`))
+		}))
+		t.Cleanup(srv.Close)
+
+		c, err := New(WithConfig(createTestConfig(t)), WithLedgerURL(srv.URL), WithTracerURL(srv.URL+"/v1"),
+			WithRetryOptions(retry.WithMaxRetries(0)), WithActorRelay(actorTestSource))
+		require.NoError(t, err)
+
+		_, err = c.V2.Organizations.List(actorTestContext(actorTestTokenA), models.OrganizationsListOpts{})
+		require.NoError(t, err)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		require.Len(t, seen, 2, "the same-origin hop must be followed")
+		assert.Equal(t, "/v2/organizations", seen[0].path)
+		assert.Equal(t, "/v2/organizations-moved", seen[1].path)
+		assert.Equal(t, []string{actorTestTokenA}, seen[0].actor)
+		assert.Equal(t, []string{actorTestTokenA}, seen[1].actor, "the actor rides along to the same origin")
+	})
+
+	t.Run("caller transport setting a different actor wins", func(t *testing.T) {
+		s := newActorTestServer(t, false)
+
+		overwrite := WithHTTPTransport(func(base http.RoundTripper) http.RoundTripper {
+			return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Path != actorTestTokenPath {
+					req = req.Clone(req.Context())
+					req.Header.Set(actorTestHeader, actorTestTokenB)
+				}
+
+				return base.RoundTrip(req)
+			})
+		})
+
+		c := actorTestClient(t, s, "actor-glue-differs", overwrite, WithActorRelay(actorTestSource))
+		s.reset()
+
+		_, err := c.V2.Organizations.List(actorTestContext(actorTestTokenA), models.OrganizationsListOpts{})
+		require.NoError(t, err)
+
+		got := s.requests()
+		require.Len(t, got, 1)
+		assert.Equal(t, []string{actorTestTokenB}, got[0].actor,
+			"the wrapper runs after the option's editor, so its Header.Set wins")
+	})
+}
