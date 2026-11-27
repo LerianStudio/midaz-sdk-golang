@@ -1,6 +1,9 @@
 package errors
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 // Partner (actor) refusal API codes (the *Error.APICode field).
 //
@@ -68,27 +71,66 @@ var partnerRefusalReasons = map[string]PartnerRefusalReason{
 	APICodePartnerNotAllowed:    PartnerRefusalNotAllowed,
 }
 
+// partnerRefusalMaxDepth bounds how many SDK errors partnerRefusalReasonOf
+// visits, so a self-referencing or cyclic chain of *Error values cannot loop
+// forever. Real chains hold one or two SDK errors.
+const partnerRefusalMaxDepth = 32
+
 // GetPartnerRefusalReason returns the reason the server refused the partner the
-// request was made on behalf of, and true, when err (or any error it wraps)
+// request was made on behalf of, and true, when an SDK error in err's chain
 // carries one of the partner refusal API codes (AUT-1016..AUT-1019, from
 // lib-auth `auth/middleware/actor.go`). Otherwise it returns "" and false.
 //
+// Unlike the other code predicates of this package, which read only the
+// outermost SDK error, it visits every SDK error in the chain, outermost first,
+// and returns the reason of the first partner refusal code found. So an SDK
+// error with no code, or with another code, that wraps an SDK error carrying
+// AUT-1019 is still a partner refusal. The walk moves from each SDK error to the
+// error it wraps; in an errors.Join tree it follows only the branch holding the
+// first SDK error found, so a refusal in a later branch is not seen.
+//
 // The API code MUST match a whole code after trimming surrounding spaces; a
 // matching numeric suffix alone (for example CRM-1016 or 1016) MUST NOT match.
-// The HTTP status does not take part in the decision. AUT-1020, the refusal of
-// the caller's own credential, is not a partner refusal.
+// The comparison is case-sensitive. The HTTP status does not take part in the
+// decision. AUT-1020, the refusal of the caller's own credential, is not a
+// partner refusal.
 func GetPartnerRefusalReason(err error) (PartnerRefusalReason, bool) {
-	reason, ok := partnerRefusalReasons[strings.TrimSpace(apiCodeOf(err))]
+	return partnerRefusalReasonOf(err)
+}
 
-	return reason, ok
+// partnerRefusalReasonOf walks the SDK errors in err's chain, outermost first,
+// and returns the reason of the first partner refusal code found. Each step
+// extracts the first *Error reachable from the current error (errors.As, which
+// also sees through the redacting shell of (*Error).Unwrap) and continues from
+// that *Error's own Err, so every step moves strictly inward; the depth bound
+// covers a chain that points back at itself.
+func partnerRefusalReasonOf(err error) (PartnerRefusalReason, bool) {
+	for range partnerRefusalMaxDepth {
+		if isNilError(err) {
+			return "", false
+		}
+
+		var sdkErr *Error
+		if !errors.As(err, &sdkErr) || sdkErr == nil {
+			return "", false
+		}
+
+		if reason, ok := partnerRefusalReasons[strings.TrimSpace(sdkErr.APICode)]; ok {
+			return reason, true
+		}
+
+		err = sdkErr.Err
+	}
+
+	return "", false
 }
 
 // IsPartnerRefusal reports whether err (or any error it wraps) signals that the
 // server refused the partner the request was made on behalf of: API code
 // AUT-1016, AUT-1017, AUT-1018 or AUT-1019 (from lib-auth
-// `auth/middleware/actor.go`). It follows the same matching rules as
-// GetPartnerRefusalReason. AUT-1020, the refusal of the caller's own
-// credential, MUST NOT satisfy it.
+// `auth/middleware/actor.go`) on any SDK error in the chain. It follows the
+// same chain walk and matching rules as GetPartnerRefusalReason. AUT-1020, the
+// refusal of the caller's own credential, MUST NOT satisfy it.
 func IsPartnerRefusal(err error) bool {
 	_, ok := GetPartnerRefusalReason(err)
 
