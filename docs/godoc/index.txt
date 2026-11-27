@@ -24,7 +24,7 @@ and /v2, the current one — and does not mirror every resource across them,
 so the accessors are grouped by the version that serves each: c.V1.<Service> and
 c.V2.<Service>. The version travels in the request path, never in the base URL.
 
-Build against c.V2: it is the wider surface (22 services against V1's 14). /v1
+Build against c.V2: it is the wider surface (23 services against V1's 14). /v1
 alone still serves asset rates and the four legacy transaction creation styles;
 /v2 alone serves holders, instruments, encryption, composition, protection audit
 and the whole billing family.
