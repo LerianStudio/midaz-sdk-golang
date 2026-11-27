@@ -88,7 +88,7 @@ func IsHolderNotFound(err error) bool { return apiCodeOf(err) == APICodeHolderNo
 // suffix falls in the 0179–0233 block. Family predicate: callers branch on
 // "fee/billing problem", not each of the ~55 internal codes.
 func IsFeeError(err error) bool {
-	suffix := apiCodeSuffix(apiCodeOf(err))
+	suffix := APICodeSuffix(apiCodeOf(err))
 	if suffix == "" {
 		return false
 	}

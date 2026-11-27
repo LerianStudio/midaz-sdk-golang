@@ -2155,24 +2155,31 @@ var apiCodeSuffixMappings = map[string]httpErrorMapping{
 // <SERVICE>-NNNN RFC 9457 error code.
 const apiCodeSuffixLen = 4
 
-// apiCodeSuffix returns the trailing four-digit numeric suffix of an
-// <SERVICE>-NNNN error code, or "" if the code has no such suffix.
-func apiCodeSuffix(apiCode string) string {
-	if i := strings.LastIndex(apiCode, "-"); i >= 0 {
-		apiCode = apiCode[i+1:]
+// APICodeSuffix returns the four-digit numeric suffix of a Midaz API error
+// code, in the form <SERVICE>-NNNN (for example "CRM-0006") or a bare NNNN
+// (for example "0084"). The SDK reads the same suffix when it classifies the
+// codes it maps by number, whatever the service prefix, and in [IsFeeError], so
+// callers can compare codes the same way instead of keeping their own copy.
+//
+// The code is cut at its last "-" and the rest must be exactly four ASCII
+// digits; otherwise the result is "". Spaces are not trimmed, so "CRM-0006 "
+// and " 0084" return "".
+func APICodeSuffix(code string) string {
+	if i := strings.LastIndex(code, "-"); i >= 0 {
+		code = code[i+1:]
 	}
 
-	if len(apiCode) != apiCodeSuffixLen {
+	if len(code) != apiCodeSuffixLen {
 		return ""
 	}
 
-	for _, r := range apiCode {
+	for _, r := range code {
 		if r < '0' || r > '9' {
 			return ""
 		}
 	}
 
-	return apiCode
+	return code
 }
 
 func applyAPICodeMapping(mapping httpErrorMapping, apiCode string) httpErrorMapping {
@@ -2187,7 +2194,7 @@ func applyAPICodeMapping(mapping httpErrorMapping, apiCode string) httpErrorMapp
 		return apiMapping
 	}
 
-	if apiMapping, ok := apiCodeSuffixMappings[apiCodeSuffix(apiCode)]; ok {
+	if apiMapping, ok := apiCodeSuffixMappings[APICodeSuffix(apiCode)]; ok {
 		apiMapping.withResource = apiMapping.withResource || mapping.withResource
 
 		return apiMapping
