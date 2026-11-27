@@ -174,6 +174,8 @@ Tracer-plane accessors are **not** version-grouped: the Tracer serves one surfac
 - `Client.Reservations` (`Client.Entity.Reservations` compatibility path)
 - `Client.AuditEvents` (`Client.Entity.AuditEvents` compatibility path)
 
+`Client.Entity.Planes()` returns the raw generated Ledger and Tracer clients as an escape hatch; their methods and types follow the vendored Midaz spec and may change whenever it is re-vendored, so they are outside the SDK's compatibility promise.
+
 ### Organizations
 
 - `List(ctx, opts)`
