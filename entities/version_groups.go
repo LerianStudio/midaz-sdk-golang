@@ -196,11 +196,10 @@ type V2Services struct {
 	// (closed schema).
 	BillingCalculations *billingCalculateFacade
 
-	// AccountPlans is the account plan surface (/v2/.../account-plans and
-	// /v2/.../accounts/{id}/account-plan): per-account fee plans, their
-	// versions, their assignment to accounts and the free-quota usage. V2 ONLY
-	// and ledger-scoped; served from Midaz 4.4.0. Its writes send no
-	// X-Idempotency and are never retried — see the type doc.
+	// AccountPlans manages per-account fee plans, their versions, their
+	// assignment to accounts and the free-quota usage. /v2 only, Midaz 4.4.0+.
+	// Its writes never send X-Idempotency and are never retried automatically.
+	// Full reference: docs/mapping/external_apis.md, section AccountPlans.
 	AccountPlans *accountPlansFacade
 }
 
