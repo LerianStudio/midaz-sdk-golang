@@ -291,9 +291,14 @@ func validationErr(operation string, err error) error {
 // Source transport, HTTPRequestSent true, and the original cause reachable
 // through errors.Is. A string-only cause whose message carries one of the
 // classifier's network fragments ("connection refused", "i/o timeout", ...)
-// also comes back as network. A timeout reported only through Timeout() is not
-// recognized as one: a dial timeout comes back as network, and the TLS
-// handshake timeout stays internal.
+// also comes back as network.
+//
+// A cause that reports a timeout only through Timeout(), with nothing in its
+// chain matching context.DeadlineExceeded, is a timeout only when the first
+// net.Error in the chain reports it. On a facade call it is not: http.Client
+// wraps the retry engine's error in a *url.Error, and *url.Error.Timeout() only
+// looks at its direct cause, the retry wrapper. The TLS handshake timeout is
+// such a cause and comes back internal.
 //
 // The classifier strips the userinfo from a *url.Error in the chain in place,
 // before it classifies, so the cause of the last internal fallback below
