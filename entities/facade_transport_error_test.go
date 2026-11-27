@@ -308,19 +308,20 @@ func TestFacadeTransportError_ResponseShapes(t *testing.T) {
 	}
 
 	failures := []struct {
-		name      string
-		newCause  func() error
-		predicate func(error) bool
-		cause     error
+		name       string
+		newCause   func() error
+		predicate  func(error) bool
+		cause      error
+		wantStatus int
 	}{
 		{"connection refused", func() error {
 			return &net.OpError{Op: "dial", Net: "tcp", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}
-		}, sdkerrors.IsNetworkError, syscall.ECONNREFUSED},
+		}, sdkerrors.IsNetworkError, syscall.ECONNREFUSED, http.StatusServiceUnavailable},
 		// The deadline is the cause a client timeout or a context deadline leaves
 		// in the chain. A bare net.Error timeout from the transport does not reach
 		// the classifier as one: the retry engine wraps it and *url.Error.Timeout
 		// only asserts its direct cause.
-		{"timeout", func() error { return context.DeadlineExceeded }, sdkerrors.IsTimeoutError, context.DeadlineExceeded},
+		{"timeout", func() error { return context.DeadlineExceeded }, sdkerrors.IsTimeoutError, context.DeadlineExceeded, http.StatusGatewayTimeout},
 	}
 
 	for _, shape := range shapes {
@@ -338,6 +339,8 @@ func TestFacadeTransportError_ResponseShapes(t *testing.T) {
 				assert.Equal(t, shape.operation, sdkErr.Operation)
 				assert.Equal(t, sdkerrors.ErrorSourceTransport, sdkErr.Source)
 				assert.True(t, sdkErr.HTTPRequestSent)
+				assert.False(t, sdkErr.HTTPResponseReceived)
+				assert.Equal(t, failure.wantStatus, sdkErr.StatusCode)
 			})
 		}
 	}
