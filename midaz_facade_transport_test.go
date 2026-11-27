@@ -271,3 +271,54 @@ func TestFacadeTransport_RealClient(t *testing.T) {
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+// TestFacadeTransport_SendAttempts is tentativas-de-envio-inalteradas: with
+// WithMaxRetries(2) against a closed port, the number of wire attempts a read and
+// a write make is the one the SDK made before the facade classified transport
+// failures: 1 + 2 retries for both, measured on the previous SDK with this same
+// test. The classification runs after the retry round tripper returns, so it
+// cannot change the count.
+func TestFacadeTransport_SendAttempts(t *testing.T) {
+	ctx := context.Background()
+
+	calls := []struct {
+		name         string
+		wantAttempts int
+		call         func(*Client) error
+	}{
+		{"read V2.Ledgers.Get", 3, func(c *Client) error {
+			_, err := c.V2.Ledgers.Get(ctx, transportTestOrgID, transportTestLedgerID)
+			return err
+		}},
+		{"write V2.Transactions.CreateDirect", 3, func(c *Client) error {
+			_, err := c.V2.Transactions.CreateDirect(ctx, transportTestOrgID, transportTestLedgerID, facadeTransportInput())
+			return err
+		}},
+	}
+
+	for _, tt := range calls {
+		t.Run("tentativas-de-envio-inalteradas/"+tt.name, func(t *testing.T) {
+			var recorder *recordingTransport
+
+			c, err := New(
+				WithConfig(createTestConfig(t)),
+				WithLedgerURL(closedPortURL(t)),
+				WithTracerURL(closedPortURL(t)+"/v1"),
+				WithRetryOptions(
+					retry.WithMaxRetries(2),
+					retry.WithInitialDelay(time.Millisecond),
+					retry.WithMaxDelay(2*time.Millisecond),
+				),
+				WithHTTPTransport(func(base http.RoundTripper) http.RoundTripper {
+					recorder = &recordingTransport{base: base}
+					return recorder
+				}),
+			)
+			require.NoError(t, err)
+
+			require.Error(t, tt.call(c))
+			require.NotNil(t, recorder)
+			assert.Len(t, recorder.requests(), tt.wantAttempts)
+		})
+	}
+}
