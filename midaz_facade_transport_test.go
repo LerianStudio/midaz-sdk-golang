@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -203,6 +204,25 @@ func TestFacadeTransport_RealClient(t *testing.T) {
 		require.True(t, sdkerrors.IsTimeoutError(err), "got %v", err)
 		assert.False(t, sdkerrors.IsInternalError(err))
 		assert.False(t, sdkerrors.IsNetworkError(err))
+	})
+
+	t.Run("timeout-de-cabecalho-de-resposta", func(t *testing.T) {
+		// A real http.Transport.ResponseHeaderTimeout against the silent server,
+		// with the client timeout left long. net/http's response-header timeout
+		// error matches context.DeadlineExceeded through its Is method, so the
+		// classifier reports a timeout.
+		transport := &http.Transport{ResponseHeaderTimeout: 200 * time.Millisecond}
+		t.Cleanup(transport.CloseIdleConnections)
+
+		c := newFacadeTransportClient(t, rawTCPServer(t, silentHandler),
+			WithHTTPClient(&http.Client{Transport: transport, Timeout: 30 * time.Second}))
+
+		_, err := c.V2.Ledgers.Get(ctx, transportTestOrgID, transportTestLedgerID)
+
+		require.True(t, sdkerrors.IsTimeoutError(err), "got %v", err)
+		assert.False(t, sdkerrors.IsInternalError(err))
+		assert.False(t, sdkerrors.IsNetworkError(err))
+		requireTransportDiagnostics(t, err, "V2.Ledgers.Get", http.StatusGatewayTimeout)
 	})
 
 	t.Run("reset-depois-do-envio", func(t *testing.T) {
@@ -457,17 +477,10 @@ func TestFacadeTransport_Cancellation(t *testing.T) {
 	assert.False(t, sdkerrors.IsTimeoutError(err))
 }
 
-// headerTimeoutError is a net.Error with Timeout() true and no wrapped cause,
-// worded like the stdlib's response-header timeout.
-type headerTimeoutError struct{}
-
-func (headerTimeoutError) Error() string   { return "net/http: timeout awaiting response headers" }
-func (headerTimeoutError) Timeout() bool   { return true }
-func (headerTimeoutError) Temporary() bool { return false }
-
 // TestFacadeTransport_KnownLimitTimeoutNotRecognized pins a KNOWN LIMIT, not the
-// desired behavior: a timeout the transport reports only through Timeout() does
-// not come out of the facade as a timeout error.
+// desired behavior: a timeout the transport reports only through Timeout(),
+// with no context.DeadlineExceeded in its chain, does not come out of the
+// facade as a timeout error.
 //
 // The mechanism: the retry engine wraps the last attempt's error
 // ("retry: retries exhausted: ...: %w"), and http.Client wraps that in a
@@ -475,38 +488,48 @@ func (headerTimeoutError) Temporary() bool { return false }
 // now the retry wrapper, so it reports false; the classifier takes the first
 // net.Error in the chain, that *url.Error, and never sees the inner Timeout().
 // It then falls through to the network checks: a dial *net.OpError matches
-// network, and a bare timeout error matches nothing and stays internal.
+// network, and an error that is neither stays internal.
 //
-// The base URL is a closed port, but the installed transport answers first, so
-// nothing is dialed.
-//
-// A client timeout or a context deadline is unaffected: both leave
-// context.DeadlineExceeded in the chain (see timeout-do-cliente and
-// deadline-do-contexto).
+// A client timeout, a context deadline and the response-header timeout are
+// unaffected: all three leave something that matches context.DeadlineExceeded
+// in the chain (see timeout-do-cliente, deadline-do-contexto and
+// timeout-de-cabecalho-de-resposta).
 func TestFacadeTransport_KnownLimitTimeoutNotRecognized(t *testing.T) {
-	failWith := func(cause error) Option {
-		return WithHTTPTransport(func(http.RoundTripper) http.RoundTripper {
-			return roundTripperFunc(func(*http.Request) (*http.Response, error) { return nil, cause })
-		})
-	}
-
-	t.Run("known-limit/bare-timeout-error-comes-out-internal-not-timeout", func(t *testing.T) {
-		c := newFacadeTransportClient(t, closedPortURL(t), failWith(headerTimeoutError{}))
-
-		_, err := c.V2.Ledgers.Get(context.Background(), transportTestOrgID, transportTestLedgerID)
-
-		require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
-		assert.False(t, sdkerrors.IsTimeoutError(err))
-	})
-
+	// SYNTHESIZED cause: a real dial timeout needs an address that silently
+	// drops the connection attempt, which a test host cannot provide
+	// deterministically. The installed transport returns the *net.OpError a
+	// dial timeout produces; the base URL is a closed port that is never
+	// dialed.
 	t.Run("known-limit/dial-io-timeout-comes-out-network-not-timeout", func(t *testing.T) {
 		cause := &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded}
-		c := newFacadeTransportClient(t, closedPortURL(t), failWith(cause))
+		c := newFacadeTransportClient(t, closedPortURL(t), WithHTTPTransport(func(http.RoundTripper) http.RoundTripper {
+			return roundTripperFunc(func(*http.Request) (*http.Response, error) { return nil, cause })
+		}))
 
 		_, err := c.V2.Ledgers.Get(context.Background(), transportTestOrgID, transportTestLedgerID)
 
 		require.True(t, sdkerrors.IsNetworkError(err), "got %v", err)
 		assert.False(t, sdkerrors.IsTimeoutError(err))
+	})
+
+	// REAL cause: an https plane URL on the silent server, so the TLS handshake
+	// never completes and http.Transport.TLSHandshakeTimeout fires. net/http
+	// reports it as "net/http: TLS handshake timeout", an error with Timeout()
+	// true and no Is method, so nothing in the chain matches
+	// context.DeadlineExceeded. The client timeout is left long.
+	t.Run("known-limit/tls-handshake-timeout-comes-out-internal-not-timeout", func(t *testing.T) {
+		baseURL := strings.Replace(rawTCPServer(t, silentHandler), "http://", "https://", 1)
+
+		transport := &http.Transport{TLSHandshakeTimeout: 200 * time.Millisecond}
+		t.Cleanup(transport.CloseIdleConnections)
+
+		c := newFacadeTransportClient(t, baseURL, WithHTTPClient(&http.Client{Transport: transport, Timeout: 30 * time.Second}))
+
+		_, err := c.V2.Ledgers.Get(context.Background(), transportTestOrgID, transportTestLedgerID)
+
+		require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
+		assert.False(t, sdkerrors.IsTimeoutError(err))
+		assert.False(t, sdkerrors.IsNetworkError(err))
 	})
 }
 
