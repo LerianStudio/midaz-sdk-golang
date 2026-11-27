@@ -155,6 +155,8 @@ When a facade call (`c.V1.*`, `c.V2.*` and the Tracer services such as `c.Rules`
 | Connection refused or reset, DNS lookup failure | `IsNetworkError(err)` | `503` |
 | Client timeout (`midaz.WithTimeout`) or a context deadline | `IsTimeoutError(err)` | `504` |
 
+A client timeout or context deadline that expires while the SDK is still fetching the Access Manager token is also reported as `IsTimeoutError`, with `HTTPRequestSent` `true` even though the facade request had not been sent yet.
+
 `errors.ClassifyTransportError`, which the facade uses for these failures, also documents a TLS certificate verification failure and a malformed TLS record as network errors.
 
 Both errors carry `Source` `transport`, `HTTPRequestSent` `true`, `HTTPResponseReceived` `false` and the facade operation name in `Operation`. The original cause stays reachable through the standard library `errors.Is` and `errors.As`:
@@ -182,7 +184,7 @@ These pre-response failures still come back as an internal error (`IsInternalErr
 
 - The caller cancels the context. The facade does not report it as `IsCancellationError`.
 - A custom transport installed with `midaz.WithHTTPTransport` returns an error that is already an SDK `*errors.Error`.
-- The Access Manager token request fails because the connection is refused or the Access Manager answers with an error or an unreadable token. The facade request never left the client.
+- The Access Manager token request fails because the connection is refused or the Access Manager gives a bad answer. The facade request never left the client.
 - The server closes the connection cleanly without a response (`EOF`).
 
 Known limit: only the client timeout and a context deadline are reported as `IsTimeoutError`. A dial timeout comes back as `IsNetworkError`. A timeout that the transport reports only through `Timeout()`, such as the response-header timeout, comes back as `IsInternalError`.
