@@ -355,3 +355,61 @@ func TestFacadeTransport_CleanClose(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode)
 	assert.Equal(t, sdkerrors.ErrorSourceSDK, sdkErr.Source)
 }
+
+// TestFacadeTransport_ClosedPort is the closed-port scenarios through a client
+// built by New: the real dial and the *url.Error shape http.Client returns, on
+// a write, a delete, a count, the /v1 facade and the Tracer plane.
+func TestFacadeTransport_ClosedPort(t *testing.T) {
+	ctx := context.Background()
+
+	calls := []struct {
+		name string
+		call func(*Client) error
+	}{
+		{"porta-fechada-escrita-v2/V2.Transactions.CreateDirect", func(c *Client) error {
+			_, err := c.V2.Transactions.CreateDirect(ctx, transportTestOrgID, transportTestLedgerID, facadeTransportInput())
+			return err
+		}},
+		{"porta-fechada-delete-e-count/V2.Ledgers.Delete", func(c *Client) error {
+			return c.V2.Ledgers.Delete(ctx, transportTestOrgID, transportTestLedgerID)
+		}},
+		{"porta-fechada-delete-e-count/V2.Ledgers.Count", func(c *Client) error {
+			_, err := c.V2.Ledgers.Count(ctx, transportTestOrgID)
+			return err
+		}},
+		{"porta-fechada-fachada-v1/V1.Transactions.Get", func(c *Client) error {
+			_, err := c.V1.Transactions.Get(ctx, transportTestOrgID, transportTestLedgerID, transportTestLedgerID)
+			return err
+		}},
+		{"porta-fechada-fachada-v1/V1.Transactions.Commit", func(c *Client) error {
+			_, err := c.V1.Transactions.Commit(ctx, transportTestOrgID, transportTestLedgerID, transportTestLedgerID)
+			return err
+		}},
+		{"porta-fechada-plano-tracer/Rules.List", func(c *Client) error {
+			_, err := c.Rules.List(ctx, models.RulesListOpts{})
+			return err
+		}},
+	}
+
+	for _, tt := range calls {
+		t.Run(tt.name, func(t *testing.T) {
+			// Both planes point at closed ports, so the Tracer row fails on the
+			// Tracer URL and every other row on the Ledger URL.
+			c, err := New(
+				WithConfig(createTestConfig(t)),
+				WithLedgerURL(closedPortURL(t)),
+				WithTracerURL(closedPortURL(t)+"/v1"),
+				WithRetryOptions(retry.WithMaxRetries(0)),
+			)
+			require.NoError(t, err)
+
+			err = tt.call(c)
+
+			require.True(t, sdkerrors.IsNetworkError(err), "got %v", err)
+			assert.False(t, sdkerrors.IsInternalError(err))
+			assert.False(t, sdkerrors.IsTimeoutError(err))
+			assert.ErrorIs(t, err, syscall.ECONNREFUSED)
+		})
+	}
+}
+
