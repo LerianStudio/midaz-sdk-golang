@@ -152,8 +152,10 @@ When a facade call (`c.V1.*`, `c.V2.*` and the Tracer services such as `c.Rules`
 
 | Failure | Predicate | Synthetic status |
 | --- | --- | --- |
-| Connection refused or reset, DNS lookup failure, TLS certificate or record failure | `IsNetworkError(err)` | `503` |
+| Connection refused or reset, DNS lookup failure | `IsNetworkError(err)` | `503` |
 | Client timeout (`midaz.WithTimeout`) or a context deadline | `IsTimeoutError(err)` | `504` |
+
+`errors.ClassifyTransportError`, which the facade uses for these failures, also documents a TLS certificate verification failure and a malformed TLS record as network errors.
 
 Both errors carry `Source` `transport`, `HTTPRequestSent` `true`, `HTTPResponseReceived` `false` and the facade operation name in `Operation`. The original cause stays reachable through the standard library `errors.Is` and `errors.As`:
 
@@ -176,16 +178,16 @@ case sdkerrors.IsTimeoutError(err):
 }
 ```
 
-These failures still come back as an internal error (`IsInternalError`, status `500`, `Source` `sdk`, `HTTPRequestSent` `false`):
+These pre-response failures still come back as an internal error (`IsInternalError`, status `500`, `Source` `sdk`, `HTTPRequestSent` `false`):
 
 - The caller cancels the context. The facade does not report it as `IsCancellationError`.
 - A custom transport installed with `midaz.WithHTTPTransport` returns an error that is already an SDK `*errors.Error`.
-- The Access Manager token request fails on the wire: refused, or past the timeout of the token HTTP client. The facade request never left the client.
+- The Access Manager token request fails because the connection is refused or the Access Manager answers with an error or an unreadable token. The facade request never left the client.
 - The server closes the connection cleanly without a response (`EOF`).
 
-Known limit: only the client timeout and a context deadline are reported as `IsTimeoutError`. A dial timeout comes back as `IsNetworkError`. A timeout that the transport reports only through `Timeout()`, such as the response-header timeout or the TLS handshake timeout, comes back as `IsInternalError`.
+Known limit: only the client timeout and a context deadline are reported as `IsTimeoutError`. A dial timeout comes back as `IsNetworkError`. A timeout that the transport reports only through `Timeout()`, such as the response-header timeout, comes back as `IsInternalError`.
 
-`Retryable()` returns `true` for network, timeout and internal errors, so the SDK retry policy and any caller that checks `Retryable()` treat these failures as before.
+`Retryable()` returns `true` for network, timeout and internal errors, and the SDK retry engine makes the same attempts as before. `HTTPRequestSent` is now `true` on these errors: a write that fails after the request was sent may already have taken effect, so replay it only with a stable idempotency key (`sdkctx.WithIdempotencyKey`).
 
 If your code retries a facade call only when `IsInternalError(err)` is true, note that network and timeout failures on the facade no longer match it. Check `Retryable()` on the `*errors.Error`, or add `IsNetworkError(err)` and `IsTimeoutError(err)` to the condition.
 
@@ -210,7 +212,7 @@ Beyond the category checkers above, `pkg/errors` exposes predicates that branch 
 ```go
 var sdkErr *sdkerrors.Error
 if stderrors.As(err, &sdkErr) && sdkerrors.APICodeSuffix(sdkErr.APICode) == "0084" {
-    // Idempotency conflict, whatever service prefix the server used.
+    // Idempotency conflict, regardless of prefix.
 }
 ```
 
