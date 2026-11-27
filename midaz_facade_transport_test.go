@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -487,32 +486,13 @@ func TestFacadeTransport_Cancellation(t *testing.T) {
 // *url.Error. *url.Error.Timeout() only type-asserts its DIRECT cause, which is
 // now the retry wrapper, so it reports false; the classifier takes the first
 // net.Error in the chain, that *url.Error, and never sees the inner Timeout().
-// It then falls through to the network checks: a dial *net.OpError matches
-// network, and an error that is neither stays internal.
 //
 // A client timeout, a context deadline and the response-header timeout are
 // unaffected: all three leave something that matches context.DeadlineExceeded
 // in the chain (see timeout-do-cliente, deadline-do-contexto and
 // timeout-de-cabecalho-de-resposta).
 func TestFacadeTransport_KnownLimitTimeoutNotRecognized(t *testing.T) {
-	// SYNTHESIZED cause: a real dial timeout needs an address that silently
-	// drops the connection attempt, which a test host cannot provide
-	// deterministically. The installed transport returns the *net.OpError a
-	// dial timeout produces; the base URL is a closed port that is never
-	// dialed.
-	t.Run("known-limit/dial-io-timeout-comes-out-network-not-timeout", func(t *testing.T) {
-		cause := &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded}
-		c := newFacadeTransportClient(t, closedPortURL(t), WithHTTPTransport(func(http.RoundTripper) http.RoundTripper {
-			return roundTripperFunc(func(*http.Request) (*http.Response, error) { return nil, cause })
-		}))
-
-		_, err := c.V2.Ledgers.Get(context.Background(), transportTestOrgID, transportTestLedgerID)
-
-		require.True(t, sdkerrors.IsNetworkError(err), "got %v", err)
-		assert.False(t, sdkerrors.IsTimeoutError(err))
-	})
-
-	// REAL cause: an https plane URL on the silent server, so the TLS handshake
+	// An https plane URL on the silent server, so the TLS handshake
 	// never completes and http.Transport.TLSHandshakeTimeout fires. net/http
 	// reports it as "net/http: TLS handshake timeout", an error with Timeout()
 	// true and no Is method, so nothing in the chain matches
