@@ -594,6 +594,44 @@ func WithTracerAPIKey(apiKey string) Option {
 	}
 }
 
+// WithActorRelay makes every request to the Ledger plane carry the token of the
+// partner the call is made on behalf of, in the X-Lerian-Actor header, so the
+// Ledger applies that partner's rules. It is off by default.
+//
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config.WithActorRelay],
+// which documents the full semantics.
+//
+// source is called once per Ledger request with the context of the call. When
+// it returns false, or a token that is empty or blank, no header is sent;
+// otherwise the trimmed token is set, replacing any value already on the
+// request. Retry attempts and the replay after a 401 keep the header. source
+// MUST be safe for concurrent use and cheap: it runs on every Ledger request
+// and the SDK does not wrap it in a timeout of its own.
+//
+// Reach: the Ledger plane only, including its default URL, the /v1 and /v2
+// facades, and the raw Ledger client returned by Entity.Planes(). The Tracer
+// plane, the Access Manager token exchange and [CRMReader] MUST NOT receive the
+// header, whatever host each one is served from. A nil source makes [New]
+// return an error.
+//
+//	client, err := midaz.New(
+//	    midaz.WithAccessManager(am),
+//	    midaz.WithActorRelay(actor.TokenFromContext), // func(context.Context) (string, bool)
+//	)
+//
+// Parameters:
+//   - source: Returns the partner token for the call's context, and whether one is present.
+//
+// Returns:
+//   - Option: A function that sets the actor token source on the Client
+func WithActorRelay(source func(ctx context.Context) (string, bool)) Option {
+	return func(c *Client) error {
+		c.markConfigMutated()
+		return config.WithActorRelay(source)(c.config)
+	}
+}
+
 // WithDebug enables or disables debug mode.
 // Two-layer surface: this is the user-facing wrapper. It delegates to
 // [github.com/LerianStudio/midaz-sdk-golang/v6/pkg/config.WithDebug], which most

@@ -9,6 +9,7 @@
 package config
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -178,6 +179,11 @@ type Config struct {
 	// They are kept so a client installed AFTER them (WithHTTPClient, or the
 	// default client NewConfig creates once every option ran) is wrapped too.
 	transportWrappers []func(base http.RoundTripper) http.RoundTripper
+
+	// actorTokenSource, when non-nil, resolves the token of the partner a call
+	// is made on behalf of; the Ledger plane relays it in X-Lerian-Actor. Set
+	// via [WithActorRelay]. Unexported: no environment variable feeds it.
+	actorTokenSource func(ctx context.Context) (string, bool)
 
 	// skipAuthCheck bypasses auth validation for package-internal tests only.
 	// It is deliberately not populated from environment variables.
@@ -467,6 +473,53 @@ func WithHTTPClient(client *http.Client) Option {
 
 		c.HTTPClient = wrapped
 		c.httpClientOwned = false
+
+		return nil
+	}
+}
+
+// WithActorRelay makes every request to the Ledger plane carry the token of the
+// partner the call is made on behalf of, in the X-Lerian-Actor header, so the
+// Ledger applies that partner's rules.
+//
+// source is called on every Ledger request, with the context of the call. When
+// it returns false, or a token that is empty or blank after trimming spaces, the
+// request carries no X-Lerian-Actor header. Otherwise the header is set to the
+// token without surrounding spaces, replacing any value already on the request.
+// The signature matches a context reader such as lib-commons
+// actor.TokenFromContext, which can be passed as is.
+//
+// source is called once per Ledger request, before it is sent; retry attempts
+// and the replay after a 401 reuse the header already set. Calls run
+// concurrently, so source MUST be safe for concurrent use and cheap; the SDK
+// does not wrap it in a timeout of its own.
+//
+// Reach: the Ledger plane only, including the default Ledger URL and the raw
+// Ledger client returned by Entity.Planes(). The Tracer plane, the Access
+// Manager token exchange and the separate CRM reader MUST NOT receive the
+// header. A nil source is refused with an error.
+//
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v6.WithActorRelay] is what most
+// callers should use.
+//
+// Parameters:
+//   - source: Returns the partner token for the call's context, and whether one is present.
+//
+// Returns:
+//   - Option: A function that sets the actor token source on a Config
+func WithActorRelay(source func(ctx context.Context) (string, bool)) Option {
+	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
+		if source == nil {
+			return errors.New("actor token source cannot be nil")
+		}
+
+		c.actorTokenSource = source
 
 		return nil
 	}
@@ -1558,6 +1611,17 @@ func (c *Config) GetTracerAPIKey() string {
 	}
 
 	return c.TracerAPIKey
+}
+
+// GetActorTokenSource returns the actor token source set by [WithActorRelay],
+// or nil when the relay is off or the config is nil. The entities layer reads
+// it to wire the Ledger plane.
+func (c *Config) GetActorTokenSource() func(ctx context.Context) (string, bool) {
+	if c == nil {
+		return nil
+	}
+
+	return c.actorTokenSource
 }
 
 // GetEnableIdempotency returns whether automatic idempotency-key generation is
