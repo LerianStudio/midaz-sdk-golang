@@ -177,7 +177,7 @@ func TestFacadeTransport_RealClient(t *testing.T) {
 		require.True(t, sdkerrors.IsNetworkError(err), "got %v", err)
 		assert.False(t, sdkerrors.IsInternalError(err))
 		assert.False(t, sdkerrors.IsTimeoutError(err))
-		assert.ErrorIs(t, err, syscall.ECONNREFUSED)
+		require.ErrorIs(t, err, syscall.ECONNREFUSED)
 		requireTransportDiagnostics(t, err, "V2.Ledgers.Get", http.StatusServiceUnavailable)
 	})
 
@@ -430,7 +430,7 @@ func TestFacadeTransport_ClosedPort(t *testing.T) {
 			require.True(t, sdkerrors.IsNetworkError(err), "got %v", err)
 			assert.False(t, sdkerrors.IsInternalError(err))
 			assert.False(t, sdkerrors.IsTimeoutError(err))
-			assert.ErrorIs(t, err, syscall.ECONNREFUSED)
+			require.ErrorIs(t, err, syscall.ECONNREFUSED)
 		})
 	}
 }
@@ -470,7 +470,7 @@ func TestFacadeTransport_Cancellation(t *testing.T) {
 	_, err := c.V2.Transactions.CreateDirect(ctx, transportTestOrgID, transportTestLedgerID, facadeTransportInput())
 
 	require.True(t, sdkerrors.IsInternalError(err), "got %v", err)
-	assert.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
 	assert.False(t, sdkerrors.IsCancellationError(err))
 	assert.False(t, sdkerrors.IsNetworkError(err))
 	assert.False(t, sdkerrors.IsTimeoutError(err))
