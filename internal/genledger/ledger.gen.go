@@ -800,11 +800,70 @@ type Fee struct {
 	RouteTo          *string             `json:"routeTo,omitempty"`
 }
 
+// FeeAccountPlanAssignment defines model for FeeAccountPlanAssignment.
+type FeeAccountPlanAssignment struct {
+	AccountAlias  string `json:"accountAlias"`
+	AccountId     string `json:"accountId"`
+	AccountPlanId string `json:"accountPlanId"`
+
+	// EndedAt Instant the assignment ended; null while it is active.
+	EndedAt        *time.Time `json:"endedAt"`
+	Id             string     `json:"id"`
+	LedgerId       string     `json:"ledgerId"`
+	OrganizationId string     `json:"organizationId"`
+	StartedAt      time.Time  `json:"startedAt"`
+}
+
+// FeeAccountPlanAssignments defines model for FeeAccountPlanAssignments.
+type FeeAccountPlanAssignments struct {
+	Active FeeAccountPlanAssignment `json:"active"`
+
+	// History Every assignment of the account, most recent startedAt first.
+	History *[]FeeAccountPlanAssignment `json:"history"`
+}
+
+// FeeAccountPlanFeeUsage defines model for FeeAccountPlanFeeUsage.
+type FeeAccountPlanFeeUsage struct {
+	// Charged Units consumed in the period that were charged.
+	Charged   int64               `json:"charged"`
+	FeeKey    string              `json:"feeKey"`
+	FreeQuota int64               `json:"freeQuota"`
+	Period    FeeQuotaUsagePeriod `json:"period"`
+
+	// Remaining Free units left in the period; never negative.
+	Remaining int64 `json:"remaining"`
+
+	// Trigger Opaque key of the free-quota counter the units are counted under: fee:<feeKey>:* for a transaction fee, one counter shared by every scheme the fee matches, and fee:<feeKey> for a service fee. Editing the fee, including its schemes, keeps the key; do not parse it, read feeKey instead.
+	Trigger string `json:"trigger"`
+
+	// Used Units consumed in the period, free or charged.
+	Used int64 `json:"used"`
+}
+
+// FeeAccountPlanUsage defines model for FeeAccountPlanUsage.
+type FeeAccountPlanUsage struct {
+	AccountId     string `json:"accountId"`
+	AccountPlanId string `json:"accountPlanId"`
+
+	// AccountPlanVersion Version of the plan in effect now, whose fees and free quotas are listed.
+	AccountPlanVersion int64 `json:"accountPlanVersion"`
+
+	// Items One item per fee. A transaction fee counts its free quota on a single counter shared by every scheme it matches, so it lists one item whatever schemes it declares.
+	Items  *[]FeeAccountPlanFeeUsage `json:"items"`
+	Period FeeQuotaUsagePeriod       `json:"period"`
+}
+
 // FeeAccountTarget defines model for FeeAccountTarget.
 type FeeAccountTarget struct {
 	Aliases     *[]string `json:"aliases,omitempty"`
 	PortfolioId *string   `json:"portfolioId,omitempty"`
 	SegmentId   *string   `json:"segmentId,omitempty"`
+}
+
+// FeeAssignAccountPlanInput defines model for FeeAssignAccountPlanInput.
+type FeeAssignAccountPlanInput struct {
+	// AccountPlanId Account plan to assign. It must belong to the ledger of the path, not be deleted and be enabled.
+	AccountPlanId openapi_types.UUID `json:"accountPlanId"`
 }
 
 // FeeBillingCalculateRequest defines model for FeeBillingCalculateRequest.
@@ -976,6 +1035,18 @@ type FeePricingTier struct {
 	MaxQuantity *int64 `json:"maxQuantity,omitempty"`
 	MinQuantity int64  `json:"minQuantity"`
 	UnitPrice   string `json:"unitPrice"`
+}
+
+// FeeQuotaUsagePeriod defines model for FeeQuotaUsagePeriod.
+type FeeQuotaUsagePeriod struct {
+	// End End of the period, excluded.
+	End time.Time `json:"end"`
+
+	// Label Period in the YYYY-MM format.
+	Label string `json:"label"`
+
+	// Start Start of the period, included.
+	Start time.Time `json:"start"`
 }
 
 // FeeUpdatePackageInput defines model for FeeUpdatePackageInput.
@@ -2479,6 +2550,12 @@ type CreateAccountV2Params struct {
 	Authorization *string `json:"Authorization,omitempty"`
 }
 
+// GetAccountPlanUsageV2Params defines parameters for GetAccountPlanUsageV2.
+type GetAccountPlanUsageV2Params struct {
+	// Period Period to read, in the YYYY-MM format and the plan timezone. Defaults to the current period; a future period is refused.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+}
+
 // GetAllBalancesByAccountIDV2Params defines parameters for GetAllBalancesByAccountIDV2.
 type GetAllBalancesByAccountIDV2Params struct {
 	// Limit Max items per page (max 100, default 10)
@@ -3052,6 +3129,9 @@ type CreateAccountV2JSONRequestBody = CreateAccountInput
 
 // CreateAccountBlockExceptionsV2JSONRequestBody defines body for CreateAccountBlockExceptionsV2 for application/json ContentType.
 type CreateAccountBlockExceptionsV2JSONRequestBody = CreateAccountBlockExceptionsInput
+
+// AssignAccountPlanV2JSONRequestBody defines body for AssignAccountPlanV2 for application/json ContentType.
+type AssignAccountPlanV2JSONRequestBody = FeeAssignAccountPlanInput
 
 // CreateAdditionalBalanceV2JSONRequestBody defines body for CreateAdditionalBalanceV2 for application/json ContentType.
 type CreateAdditionalBalanceV2JSONRequestBody = CreateAdditionalBalance
@@ -4188,6 +4268,20 @@ type ClientInterface interface {
 
 	// CountAccountsV2 request
 	CountAccountsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UnassignAccountPlanV2 request
+	UnassignAccountPlanV2(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAccountPlanAssignmentV2 request
+	GetAccountPlanAssignmentV2(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AssignAccountPlanV2WithBody request with any body
+	AssignAccountPlanV2WithBody(ctx context.Context, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AssignAccountPlanV2(ctx context.Context, organizationId string, ledgerId string, accountId string, body AssignAccountPlanV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAccountPlanUsageV2 request
+	GetAccountPlanUsageV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountPlanUsageV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAllBalancesByAccountIDV2 request
 	GetAllBalancesByAccountIDV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllBalancesByAccountIDV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6587,6 +6681,66 @@ func (c *Client) GetBalancesExternalByCodeV2(ctx context.Context, organizationId
 
 func (c *Client) CountAccountsV2(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCountAccountsV2Request(c.Server, organizationId, ledgerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UnassignAccountPlanV2(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnassignAccountPlanV2Request(c.Server, organizationId, ledgerId, accountId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAccountPlanAssignmentV2(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountPlanAssignmentV2Request(c.Server, organizationId, ledgerId, accountId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AssignAccountPlanV2WithBody(ctx context.Context, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAssignAccountPlanV2RequestWithBody(c.Server, organizationId, ledgerId, accountId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AssignAccountPlanV2(ctx context.Context, organizationId string, ledgerId string, accountId string, body AssignAccountPlanV2JSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAssignAccountPlanV2Request(c.Server, organizationId, ledgerId, accountId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAccountPlanUsageV2(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountPlanUsageV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAccountPlanUsageV2Request(c.Server, organizationId, ledgerId, accountId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -17061,6 +17215,238 @@ func NewCountAccountsV2Request(server string, organizationId string, ledgerId st
 	return req, nil
 }
 
+// NewUnassignAccountPlanV2Request generates requests for UnassignAccountPlanV2
+func NewUnassignAccountPlanV2Request(server string, organizationId string, ledgerId string, accountId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/account-plan", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAccountPlanAssignmentV2Request generates requests for GetAccountPlanAssignmentV2
+func NewGetAccountPlanAssignmentV2Request(server string, organizationId string, ledgerId string, accountId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/account-plan", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAssignAccountPlanV2Request calls the generic AssignAccountPlanV2 builder with application/json body
+func NewAssignAccountPlanV2Request(server string, organizationId string, ledgerId string, accountId string, body AssignAccountPlanV2JSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAssignAccountPlanV2RequestWithBody(server, organizationId, ledgerId, accountId, "application/json", bodyReader)
+}
+
+// NewAssignAccountPlanV2RequestWithBody generates requests for AssignAccountPlanV2 with any type of body
+func NewAssignAccountPlanV2RequestWithBody(server string, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/account-plan", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAccountPlanUsageV2Request generates requests for GetAccountPlanUsageV2
+func NewGetAccountPlanUsageV2Request(server string, organizationId string, ledgerId string, accountId string, params *GetAccountPlanUsageV2Params) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "organization_id", organizationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "ledger_id", ledgerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "account_id", accountId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/organizations/%s/ledgers/%s/accounts/%s/account-plan/usage", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Period != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "period", *params.Period, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetAllBalancesByAccountIDV2Request generates requests for GetAllBalancesByAccountIDV2
 func NewGetAllBalancesByAccountIDV2Request(server string, organizationId string, ledgerId string, accountId string, params *GetAllBalancesByAccountIDV2Params) (*http.Request, error) {
 	var err error
@@ -23418,6 +23804,20 @@ type ClientWithResponsesInterface interface {
 	// CountAccountsV2WithResponse request
 	CountAccountsV2WithResponse(ctx context.Context, organizationId string, ledgerId string, reqEditors ...RequestEditorFn) (*CountAccountsV2Resp, error)
 
+	// UnassignAccountPlanV2WithResponse request
+	UnassignAccountPlanV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*UnassignAccountPlanV2Resp, error)
+
+	// GetAccountPlanAssignmentV2WithResponse request
+	GetAccountPlanAssignmentV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*GetAccountPlanAssignmentV2Resp, error)
+
+	// AssignAccountPlanV2WithBodyWithResponse request with any body
+	AssignAccountPlanV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AssignAccountPlanV2Resp, error)
+
+	AssignAccountPlanV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, body AssignAccountPlanV2JSONRequestBody, reqEditors ...RequestEditorFn) (*AssignAccountPlanV2Resp, error)
+
+	// GetAccountPlanUsageV2WithResponse request
+	GetAccountPlanUsageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountPlanUsageV2Params, reqEditors ...RequestEditorFn) (*GetAccountPlanUsageV2Resp, error)
+
 	// GetAllBalancesByAccountIDV2WithResponse request
 	GetAllBalancesByAccountIDV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAllBalancesByAccountIDV2Params, reqEditors ...RequestEditorFn) (*GetAllBalancesByAccountIDV2Resp, error)
 
@@ -27950,6 +28350,137 @@ func (r CountAccountsV2Resp) ContentType() string {
 	return ""
 }
 
+type UnassignAccountPlanV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UnassignAccountPlanV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UnassignAccountPlanV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UnassignAccountPlanV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAccountPlanAssignmentV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeAccountPlanAssignments
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAccountPlanAssignmentV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAccountPlanAssignmentV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAccountPlanAssignmentV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AssignAccountPlanV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeAccountPlanAssignment
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r AssignAccountPlanV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AssignAccountPlanV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AssignAccountPlanV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAccountPlanUsageV2Resp struct {
+	Body                          []byte
+	HTTPResponse                  *http.Response
+	JSON200                       *FeeAccountPlanUsage
+	ApplicationproblemJSON422     *Error
+	ApplicationproblemJSON500     *Error
+	ApplicationproblemJSONDefault *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAccountPlanUsageV2Resp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAccountPlanUsageV2Resp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAccountPlanUsageV2Resp) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetAllBalancesByAccountIDV2Resp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
@@ -32303,6 +32834,50 @@ func (c *ClientWithResponses) CountAccountsV2WithResponse(ctx context.Context, o
 		return nil, err
 	}
 	return ParseCountAccountsV2Resp(rsp)
+}
+
+// UnassignAccountPlanV2WithResponse request returning *UnassignAccountPlanV2Resp
+func (c *ClientWithResponses) UnassignAccountPlanV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*UnassignAccountPlanV2Resp, error) {
+	rsp, err := c.UnassignAccountPlanV2(ctx, organizationId, ledgerId, accountId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUnassignAccountPlanV2Resp(rsp)
+}
+
+// GetAccountPlanAssignmentV2WithResponse request returning *GetAccountPlanAssignmentV2Resp
+func (c *ClientWithResponses) GetAccountPlanAssignmentV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, reqEditors ...RequestEditorFn) (*GetAccountPlanAssignmentV2Resp, error) {
+	rsp, err := c.GetAccountPlanAssignmentV2(ctx, organizationId, ledgerId, accountId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAccountPlanAssignmentV2Resp(rsp)
+}
+
+// AssignAccountPlanV2WithBodyWithResponse request with arbitrary body returning *AssignAccountPlanV2Resp
+func (c *ClientWithResponses) AssignAccountPlanV2WithBodyWithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AssignAccountPlanV2Resp, error) {
+	rsp, err := c.AssignAccountPlanV2WithBody(ctx, organizationId, ledgerId, accountId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAssignAccountPlanV2Resp(rsp)
+}
+
+func (c *ClientWithResponses) AssignAccountPlanV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, body AssignAccountPlanV2JSONRequestBody, reqEditors ...RequestEditorFn) (*AssignAccountPlanV2Resp, error) {
+	rsp, err := c.AssignAccountPlanV2(ctx, organizationId, ledgerId, accountId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAssignAccountPlanV2Resp(rsp)
+}
+
+// GetAccountPlanUsageV2WithResponse request returning *GetAccountPlanUsageV2Resp
+func (c *ClientWithResponses) GetAccountPlanUsageV2WithResponse(ctx context.Context, organizationId string, ledgerId string, accountId string, params *GetAccountPlanUsageV2Params, reqEditors ...RequestEditorFn) (*GetAccountPlanUsageV2Resp, error) {
+	rsp, err := c.GetAccountPlanUsageV2(ctx, organizationId, ledgerId, accountId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAccountPlanUsageV2Resp(rsp)
 }
 
 // GetAllBalancesByAccountIDV2WithResponse request returning *GetAllBalancesByAccountIDV2Resp
@@ -38997,6 +39572,187 @@ func ParseCountAccountsV2Resp(rsp *http.Response) (*CountAccountsV2Resp, error) 
 	response := &CountAccountsV2Resp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseUnassignAccountPlanV2Resp parses an HTTP response from a UnassignAccountPlanV2WithResponse call
+func ParseUnassignAccountPlanV2Resp(rsp *http.Response) (*UnassignAccountPlanV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UnassignAccountPlanV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAccountPlanAssignmentV2Resp parses an HTTP response from a GetAccountPlanAssignmentV2WithResponse call
+func ParseGetAccountPlanAssignmentV2Resp(rsp *http.Response) (*GetAccountPlanAssignmentV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAccountPlanAssignmentV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeAccountPlanAssignments
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAssignAccountPlanV2Resp parses an HTTP response from a AssignAccountPlanV2WithResponse call
+func ParseAssignAccountPlanV2Resp(rsp *http.Response) (*AssignAccountPlanV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AssignAccountPlanV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeAccountPlanAssignment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAccountPlanUsageV2Resp parses an HTTP response from a GetAccountPlanUsageV2WithResponse call
+func ParseGetAccountPlanUsageV2Resp(rsp *http.Response) (*GetAccountPlanUsageV2Resp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAccountPlanUsageV2Resp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeeAccountPlanUsage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
 	}
 
 	return response, nil
