@@ -23,7 +23,7 @@
 // and c.V2.<Service>. The version travels in the request path, never in the
 // base URL.
 //
-// Build against c.V2: it is the wider surface (22 services against V1's 14).
+// Build against c.V2: it is the wider surface (23 services against V1's 14).
 // /v1 alone still serves asset rates and the four legacy transaction creation
 // styles; /v2 alone serves holders, instruments, encryption, composition,
 // protection audit and the whole billing family.

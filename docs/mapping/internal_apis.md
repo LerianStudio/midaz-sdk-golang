@@ -17,7 +17,7 @@ The SDK does not currently use the older `apiClient`, `httpClient`, or per-resou
 
 ### Facade layer
 
-Ledger-plane accessors are grouped by the server version that serves them: `V1Services` (14 members) and `V2Services` (22). Both groups are held on `Entity` **by value**, not by pointer — a hand-rolled zero-value `&Entity{}` is legal, and with a value group its members are simply nil there, so the idiomatic `e != nil && e.V1.Accounts != nil` guard holds. A pointer group would panic one level below what that check can see.
+Ledger-plane accessors are grouped by the server version that serves them: `V1Services` (14 members) and `V2Services` (23). Both groups are held on `Entity` **by value**, not by pointer — a hand-rolled zero-value `&Entity{}` is legal, and with a value group its members are simply nil there, so the idiomatic `e != nil && e.V1.Accounts != nil` guard holds. A pointer group would panic one level below what that check can see.
 
 Every accessor is a concrete facade struct (`*accountsFacade`, `*accountsV2Facade`, ...) over the generated ledger plane client (`internal/genledger.ClientWithResponses`). Tracer-plane accessors (`Rules`, `Limits`, `Validations`, `Reservations`, `AuditEvents`) stay flat on `Entity` over `internal/gentracer` — the Tracer serves one surface and versions itself in its base URL.
 
@@ -132,7 +132,7 @@ editors and the shared `*http.Client` built for each plane, **not** on
 
 ## Request path construction
 
-Paths are **generated**, not hand-built: `scripts/generate-clients.sh` renders `api/ledger.openapi.yaml` and `api/tracer.openapi.yaml` (byte-identical copies of midaz v4.1.3 `components/{ledger,tracer}/api/openapi.huma.yaml`) into `internal/genledger` and `internal/gentracer`, and each facade calls the generated request builder for its operation. `make check-codegen-drift` fails if the committed clients stop reproducing from the specs. No facade concatenates a path.
+Paths are **generated**, not hand-built: `scripts/generate-clients.sh` renders `api/ledger.openapi.yaml` and `api/tracer.openapi.yaml` (copies of midaz v4.1.3 `components/{ledger,tracer}/api/openapi.huma.yaml`; the ledger spec additionally carries the account plan paths and schemas copied verbatim from midaz v4.6.0) into `internal/genledger` and `internal/gentracer`, and each facade calls the generated request builder for its operation. `make check-codegen-drift` fails if the committed clients stop reproducing from the specs. No facade concatenates a path.
 
 The v4.1.3 specs carry operations the generated clients build but **no facade wraps yet**, so no public accessor reaches them: ledger `closeAccountV2`, `createAccountBlockExceptionsV2`, the organization-scoped operation and transaction route CRUD (`/v2/organizations/{organizationID}/{operation,transaction}-routes`), the ledger dashboard reads (`.../dashboard/{metrics,volume,assets}`, both versions); Tracer `getDashboardMetrics`, `getDashboardVolume`, `getDashboardTopRules`, `getDashboardFraudTypes`.
 
@@ -243,6 +243,7 @@ Pagination behavior differs by API family:
 | Ledger cursor-based resources | Transactions, operations, operation routes, transaction routes, and asset rates advance with `Pagination.NextCursor`; typed opts never emit page-style parameters. |
 | Balances | Cursor-based, and this is load-bearing: the server drops `page` on the floor for the balance lists, so a page-style iterator re-requested page 1 forever and yielded the same balances indefinitely. `BalancesListOpts` embeds `CursorListOpts` so that shape cannot be expressed. The alias and external-code balance lookups are not paginated at all and have no iterators. |
 | Instruments (ex-aliases) | Ledger plane, /v2 only. Cursor-based; organization and holder are path segments, not headers. |
+| Account plans | Ledger plane, /v2 only. Page-based, but `total` is the item count of the page, so `Pages`, `VersionPages` and `AccountPages` stop on the first page shorter than the echoed limit instead of on `HasMore()`. Only `limit`, `page`, `enable` and `sort_order` are emitted. |
 | Holders | Ledger plane, /v2 only. Cursor-based: `HoldersListOpts` embeds `CursorListOpts`, so `Cursor` seeds/resumes pagination and `Pages`/`All` inject the response `next_cursor` as a `cursor` query param, stopping on an empty cursor. Dates are rejected (`ValidateCursorListOptsNoDates`); the facade never emits `page`. Organization is a path segment, not a header. |
 
 ## Error model internals

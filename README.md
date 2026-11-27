@@ -142,7 +142,7 @@ for a resource the other version does not have is a compile error instead of a
 404:
 
 **Build against `c.V2`.** Midaz deprecated all of `/v1`, and `c.V2` is the
-wider surface — 22 services against V1's 14, not a small add-on.
+wider surface — 23 services against V1's 14, not a small add-on.
 
 ```go
 orgs, err := c.V2.Organizations.List(ctx, opts)
@@ -166,7 +166,10 @@ legacy, err := c.V1.Transactions.CreateJSON(ctx, orgID, ledgerID, sendInput)
 `Encryption`, `Composition`, `ProtectionAudit`, `BillingPackages`,
 `FeePackages`, `FeeEstimates`, `BillingCalculations`. The billing family is also
 **ledger-scoped** on `/v2` (it moved from organization scope), so its methods
-take a ledger ID.
+take a ledger ID. `AccountPlans` (per-account fee plans, Midaz 4.4.0+) is
+`c.V2` only as well: it was never served on `/v1`. Its writes send no
+`X-Idempotency` and are not retried — see
+[docs/mapping/external_apis.md](docs/mapping/external_apis.md#accountplans).
 
 **`c.V1` only** — `/v2` dropped these: `AssetRates`, and the four transaction
 creation styles `CreateJSON` / `CreateInflow` / `CreateOutflow` /
