@@ -447,12 +447,15 @@ type apPagedListing struct {
 // apValidPath is a valid organization, ledger and plan, in path order.
 var apValidPath = [3]string{apOrgID, apLedgerID, apPlanID}
 
-func (l apPagedListing) pages(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[int, error] {
-	return l.pagesWith(ctx, f, apValidPath, models.PageListOpts{Limit: limit})
+// apPageLimit is the limit the iterator scenarios request and the server echoes.
+const apPageLimit = 2
+
+func (l apPagedListing) pages(ctx context.Context, f *accountPlansFacade) iter.Seq2[int, error] {
+	return l.pagesWith(ctx, f, apValidPath, models.PageListOpts{Limit: apPageLimit})
 }
 
-func (l apPagedListing) all(ctx context.Context, f *accountPlansFacade, limit int) iter.Seq2[string, error] {
-	return l.allWith(ctx, f, apValidPath, models.PageListOpts{Limit: limit})
+func (l apPagedListing) all(ctx context.Context, f *accountPlansFacade) iter.Seq2[string, error] {
+	return l.allWith(ctx, f, apValidPath, models.PageListOpts{Limit: apPageLimit})
 }
 
 func apPagedListings() []apPagedListing {
@@ -535,7 +538,7 @@ func apItemIDs[T any](items iter.Seq2[T, error], id func(T) string) iter.Seq2[st
 
 // apPagesServer serves page 1 full and page 2 short, both with total equal to
 // the items on the page, as the server does. Any other page fails the test.
-func apPagesServer(t *testing.T, listing apPagedListing, limit int, page2Status int) (*apServer, *httptest.Server) {
+func apPagesServer(t *testing.T, listing apPagedListing, page2Status int) (*apServer, *httptest.Server) {
 	t.Helper()
 
 	envelope := func(page int, items ...string) string {
@@ -550,7 +553,7 @@ func apPagesServer(t *testing.T, listing apPagedListing, limit int, page2Status 
 
 		n := strconv.Itoa(len(items))
 
-		return body + `],"page":` + strconv.Itoa(page) + `,"limit":` + strconv.Itoa(limit) + `,"total":` + n + `}`
+		return body + `],"page":` + strconv.Itoa(page) + `,"limit":` + strconv.Itoa(apPageLimit) + `,"total":` + n + `}`
 	}
 
 	return newAPServerFunc(t, func(r *http.Request) (int, string) {
@@ -578,11 +581,11 @@ func apPagesServer(t *testing.T, listing apPagedListing, limit int, page2Status 
 func TestAccountPlansFacade_PagesStopOnShortPage(t *testing.T) {
 	for _, listing := range apPagedListings() {
 		t.Run(listing.name, func(t *testing.T) {
-			rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+			rec, srv := apPagesServer(t, listing, http.StatusOK)
 			f := newTestAccountPlansFacade(t, srv)
 
 			var sizes []int
-			for size, err := range listing.pages(context.Background(), f, 2) {
+			for size, err := range listing.pages(context.Background(), f) {
 				require.NoError(t, err)
 				sizes = append(sizes, size)
 			}
@@ -598,10 +601,10 @@ func TestAccountPlansFacade_PagesStopOnShortPage(t *testing.T) {
 func TestAccountPlansFacade_AllYieldsEveryItemInOrder(t *testing.T) {
 	for _, listing := range apPagedListings() {
 		t.Run(listing.name, func(t *testing.T) {
-			rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+			rec, srv := apPagesServer(t, listing, http.StatusOK)
 
 			var ids []string
-			for id, err := range listing.all(context.Background(), newTestAccountPlansFacade(t, srv), 2) {
+			for id, err := range listing.all(context.Background(), newTestAccountPlansFacade(t, srv)) {
 				require.NoError(t, err)
 				ids = append(ids, id)
 			}
@@ -615,9 +618,9 @@ func TestAccountPlansFacade_AllYieldsEveryItemInOrder(t *testing.T) {
 func TestAccountPlansFacade_AllStopsWhenTheConsumerBreaks(t *testing.T) {
 	for _, listing := range apPagedListings() {
 		t.Run(listing.name, func(t *testing.T) {
-			rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+			rec, srv := apPagesServer(t, listing, http.StatusOK)
 
-			for _, err := range listing.all(context.Background(), newTestAccountPlansFacade(t, srv), 2) {
+			for _, err := range listing.all(context.Background(), newTestAccountPlansFacade(t, srv)) {
 				require.NoError(t, err)
 
 				break
@@ -631,13 +634,13 @@ func TestAccountPlansFacade_AllStopsWhenTheConsumerBreaks(t *testing.T) {
 func TestAccountPlansFacade_AllYieldsAMidIterationErrorOnce(t *testing.T) {
 	for _, listing := range apPagedListings() {
 		t.Run(listing.name, func(t *testing.T) {
-			rec, srv := apPagesServer(t, listing, 2, http.StatusNotFound)
+			rec, srv := apPagesServer(t, listing, http.StatusNotFound)
 
 			var ids []string
 
 			var errs []error
 
-			for id, err := range listing.all(context.Background(), newTestAccountPlansFacade(t, srv), 2) {
+			for id, err := range listing.all(context.Background(), newTestAccountPlansFacade(t, srv)) {
 				if err != nil {
 					errs = append(errs, err)
 
@@ -810,7 +813,7 @@ func TestAccountPlansFacade_Assign(t *testing.T) {
 	req := rec.only(t)
 	assert.Equal(t, http.MethodPut, req.method)
 	assert.Equal(t, apAccPlnURL, req.path)
-	assert.Equal(t, apAssignRequest, req.body)
+	assert.JSONEq(t, apAssignRequest, req.body)
 
 	assert.Equal(t, "01a21da6-a748-796a-8591-5ba05e7212ea", assignment.ID)
 	assert.Equal(t, apPlanID, assignment.AccountPlanID)
@@ -1318,7 +1321,7 @@ func TestAccountPlansFacade_PagesStopOnAnEmptyPageAfterAnExactMultiple(t *testin
 			})
 
 			var sizes []int
-			for size, err := range listing.pages(context.Background(), newTestAccountPlansFacade(t, srv), 2) {
+			for size, err := range listing.pages(context.Background(), newTestAccountPlansFacade(t, srv)) {
 				require.NoError(t, err)
 				sizes = append(sizes, size)
 			}
@@ -1336,7 +1339,7 @@ func TestAccountPlansFacade_PagesStopWhenTheServerEchoesNoLimit(t *testing.T) {
 				rec, srv := newAPServer(t, http.StatusOK, apEnvelope(1, limit, listing.item(1), listing.item(2)))
 
 				var pages int
-				for _, err := range listing.pages(context.Background(), newTestAccountPlansFacade(t, srv), 2) {
+				for _, err := range listing.pages(context.Background(), newTestAccountPlansFacade(t, srv)) {
 					require.NoError(t, err)
 					pages++
 				}
@@ -1365,13 +1368,13 @@ func TestAccountPlansFacade_PagesStartAtTheCallerPage(t *testing.T) {
 func TestAccountPlansFacade_PagesYieldACancelledContextOnce(t *testing.T) {
 	for _, listing := range apPagedListings() {
 		t.Run(listing.name+"/before the first fetch", func(t *testing.T) {
-			rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+			rec, srv := apPagesServer(t, listing, http.StatusOK)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
 			var errs []error
-			for _, err := range listing.pages(ctx, newTestAccountPlansFacade(t, srv), 2) {
+			for _, err := range listing.pages(ctx, newTestAccountPlansFacade(t, srv)) {
 				errs = append(errs, err)
 			}
 
@@ -1381,7 +1384,7 @@ func TestAccountPlansFacade_PagesYieldACancelledContextOnce(t *testing.T) {
 		})
 
 		t.Run(listing.name+"/between pages", func(t *testing.T) {
-			rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+			rec, srv := apPagesServer(t, listing, http.StatusOK)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -1390,7 +1393,7 @@ func TestAccountPlansFacade_PagesYieldACancelledContextOnce(t *testing.T) {
 
 			var errs []error
 
-			for size, err := range listing.pages(ctx, newTestAccountPlansFacade(t, srv), 2) {
+			for size, err := range listing.pages(ctx, newTestAccountPlansFacade(t, srv)) {
 				if err != nil {
 					errs = append(errs, err)
 
@@ -1418,7 +1421,7 @@ func TestAccountPlansFacade_PagesRefuseAnInvalidPathID(t *testing.T) {
 				}
 
 				t.Run(listing.name+"/"+kind+"/"+param, func(t *testing.T) {
-					rec, srv := apPagesServer(t, listing, 2, http.StatusOK)
+					rec, srv := apPagesServer(t, listing, http.StatusOK)
 
 					path := apValidPath
 					path[position] = ""
@@ -1457,5 +1460,5 @@ func TestAccountPlansFacade_ServerRefusalOfARetroactiveUpdate(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	assert.Equal(t, http.StatusUnprocessableEntity, sdkerrors.GetStatusCode(err))
 	assert.Equal(t, "0553", sdkErr.APICode)
-	assert.Equal(t, apUpdateRetroactiveRequest, rec.only(t).body, "the request the server refused, as captured")
+	assert.JSONEq(t, apUpdateRetroactiveRequest, rec.only(t).body, "the request the server refused, as captured")
 }

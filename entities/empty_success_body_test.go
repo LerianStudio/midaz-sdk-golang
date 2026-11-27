@@ -681,20 +681,28 @@ func TestEmptySuccessBodyIsRefusedOnAccountPlans(t *testing.T) {
 		t.Run(op.name, func(t *testing.T) {
 			for _, shape := range emptySuccessBodies {
 				t.Run(shape.name, func(t *testing.T) {
-					isNil, err := op.call(t, emptyBodyServer(t, op.status, shape.body))
-					if err == nil {
-						t.Fatalf("a %d carrying %q must not read as a successful %s", op.status, shape.body, op.name)
-					}
-
-					if !sdkerrors.IsResponseDecodeError(err) {
-						t.Fatalf("want a response-decode error (outcome unknown), got %v", err)
-					}
-
-					if !isNil {
-						t.Fatalf("%s must return a nil result with the error, never a zero model", op.name)
-					}
+					assertAccountPlanEmptyBodyRefused(t, op.name, op.status, shape.body, op.call)
 				})
 			}
 		})
+	}
+}
+
+// assertAccountPlanEmptyBodyRefused runs one account plan object operation
+// against one no-resource body shape.
+func assertAccountPlanEmptyBodyRefused(t *testing.T, name string, status int, body string, call func(*testing.T, *httptest.Server) (bool, error)) {
+	t.Helper()
+
+	isNil, err := call(t, emptyBodyServer(t, status, body))
+	if err == nil {
+		t.Fatalf("a %d carrying %q must not read as a successful %s", status, body, name)
+	}
+
+	if !sdkerrors.IsResponseDecodeError(err) {
+		t.Fatalf("want a response-decode error (outcome unknown), got %v", err)
+	}
+
+	if !isNil {
+		t.Fatalf("%s must return a nil result with the error, never a zero model", name)
 	}
 }
